@@ -1,0 +1,25 @@
+# Aider config for dailybeat.
+# Default = local Ollama (Qwen3-4B) on RTX 2050 4GB. Free, offline.
+# Override to cloud for 1M-context work:
+#   $env:AIDER_MODEL = "openai/MiniMax-M3"
+#   $env:MINIMAX_API_KEY = "eyJ..."
+
+model: ollama_chat/qwen3:4b
+
+# Cloud fallback
+openai-api-base: https://api.minimax.io/v1
+openai-api-key: ${MINIMAX_API_KEY}
+
+# Tree-sitter repo-map, sized for 4B's 32K context.
+map-tokens: 2048
+
+# Auto-commit ON for the TODO-loop workflow. Disable with --no-auto-commits.
+auto-commits: true
+git-commit-verify: false
+
+edit-format: diff
+reasoning-effort: low
+
+dark-mode: true
+stream: true
+verbose: false

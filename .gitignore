@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Ollama / models — never commit
+.ollama/
+*.gguf
+*.ggml
+*.bin
+*.safetensors
+*.pt
+*.pth
+models/
+checkpoints/
+
+# Data — never commit user data
+data/raw/
+data/private/
+data/diary_train.jsonl
+data/diary_eval.jsonl
+*.db
+*.sqlite
+*.sqlite3
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/release/
+*.apk
+*.aab
+*.keystore
+*.jks
+google-services.json
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# OS
+.Trash-*
+$RECYCLE.BIN/
+
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Aider chat history
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.json
+.aider.model.metadata.json
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+secrets/
+*.pem
+*.key

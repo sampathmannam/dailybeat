@@ -1,0 +1,48 @@
+# Aider ignore list (gitignore-style).
+# Everything matched here is excluded from the repo-map and from `add`.
+
+# Build outputs (covers most stacks)
+build/
+dist/
+out/
+target/
+.gradle/
+.kotlin/
+.cxx/
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+.next/
+.nuxt/
+.vite/
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Repomix / Aider artifacts
+repomix-output.*
+.aider.input.cache
+
+# Secrets (NEVER feed to the model)
+*.jks
+*.keystore
+.env
+.env.*
+secrets.*
+keystore.properties
+google-services.json
+*.pem
+*.key
+
+# Coverage / test results
+**/test-results/
+**/reports/
+**/htmlcov/
+coverage.xml
