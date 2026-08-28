@@ -2,6 +2,7 @@ package com.dailybeat.app.llm
 
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.domain.DairyFormatter
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -23,20 +24,9 @@ class DairyGenerator(
             return Result.failure(IllegalStateException("No events logged for this day."))
         }
         if (!llm.isModelAvailable()) {
-            return Result.success(ruleBasedDairy(events, zone))
+            return Result.success(DairyFormatter.formatEvents(events, zone))
         }
         return llm.generate(buildDayPrompt(events, zone))
-    }
-
-    private fun ruleBasedDairy(events: List<Event>, zone: ZoneId): String {
-        return events.joinToString(separator = " ") { event ->
-            val time = Instant.ofEpochMilli(event.timestamp)
-                .atZone(zone)
-                .toLocalTime()
-                .truncatedTo(ChronoUnit.MINUTES)
-            val place = event.placeName?.let { " at $it" } ?: ""
-            "At $time hours$place, ${event.rawText.trim()}."
-        }
     }
 
     private fun buildDayPrompt(events: List<Event>, zone: ZoneId): String {

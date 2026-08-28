@@ -1,8 +1,8 @@
-# DailyBeat v1.0.1 — Install
+# DailyBeat v2.0.0 — Install
 
 ## APK
 
-Download from GitHub Releases (tag `v1.0.1`):
+Download from GitHub Releases (tag `v2.0.0`):
 - `app-release.apk` — recommended for daily phone (~10 MB)
 - `app-debug.apk` — development build
 

@@ -1,12 +1,17 @@
 package com.dailybeat.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -121,7 +126,7 @@ fun SettingsScreen(
         }
 
         items(state.places, key = { it.id }) { place ->
-            PlaceCard(place)
+            PlaceCard(place = place, onDelete = { viewModel.deletePlace(place) })
         }
     }
 }
@@ -142,11 +147,21 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 }
 
 @Composable
-private fun PlaceCard(place: Place) {
+private fun PlaceCard(place: Place, onDelete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = place.name, style = MaterialTheme.typography.titleMedium)
-            Text(text = "${place.latitude}, ${place.longitude} (${place.radiusM}m)")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(text = place.name, style = MaterialTheme.typography.titleMedium)
+                Text(text = "${place.latitude}, ${place.longitude} (${place.radiusM}m)")
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))
+            }
         }
     }
 }

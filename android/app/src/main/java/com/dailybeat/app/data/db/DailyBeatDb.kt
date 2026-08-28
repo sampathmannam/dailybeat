@@ -8,7 +8,7 @@ import com.dailybeat.app.data.model.Place
 
 @Database(
     entities = [Event::class, Place::class, DiaryEntry::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {

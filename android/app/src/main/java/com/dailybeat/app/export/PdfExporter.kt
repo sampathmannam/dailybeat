@@ -10,67 +10,119 @@ import java.time.format.DateTimeFormatter
 
 class PdfExporter(private val context: Context) {
 
-  fun exportDairy(officerName: String, dairyText: String, date: LocalDate = LocalDate.now()): File {
-    val pageWidth = 595
-    val pageHeight = 842
-    val margin = 40f
-    val document = PdfDocument()
-    val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
-    val page = document.startPage(pageInfo)
-    val canvas: Canvas = page.canvas
-
-    val titlePaint = Paint().apply {
-      textSize = 18f
-      isFakeBoldText = true
-    }
-    val bodyPaint = Paint().apply { textSize = 12f }
-    val footerPaint = Paint().apply { textSize = 11f }
-
-    val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-    var y = margin + 20f
-    canvas.drawText("Daily Diary — $dateStr", margin, y, titlePaint)
-    y += 28f
-    canvas.drawText("Officer: $officerName", margin, y, bodyPaint)
-    y += 24f
-
-    val lines = dairyText.split("\n")
-    for (line in lines) {
-      val wrapped = wrapLine(line, bodyPaint, pageWidth - margin * 2)
-      for (part in wrapped) {
-        if (y > pageHeight - margin - 40f) break
-        canvas.drawText(part, margin, y, bodyPaint)
-        y += 16f
-      }
+    companion object {
+        private const val PAGE_WIDTH = 595
+        private const val PAGE_HEIGHT = 842
+        private const val MARGIN = 40f
+        private const val LINE_HEIGHT = 16f
+        private const val FOOTER_RESERVE = 40f
     }
 
-    y = pageHeight - margin
-    canvas.drawText("Submitted via DailyBeat (offline).", margin, y, footerPaint)
+    fun exportDairy(officerName: String, dairyText: String, date: LocalDate = LocalDate.now()): File {
+        val document = PdfDocument()
+        val titlePaint = Paint().apply {
+            textSize = 18f
+            isFakeBoldText = true
+        }
+        val bodyPaint = Paint().apply { textSize = 12f }
+        val footerPaint = Paint().apply { textSize = 11f }
 
-    document.finishPage(page)
+        val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val allLines = buildContentLines(dairyText, bodyPaint, PAGE_WIDTH - MARGIN * 2)
 
-    val dir = File(context.getExternalFilesDir(null), "DailyBeat")
-    dir.mkdirs()
-    val out = File(dir, "$dateStr.pdf")
-    out.outputStream().use { document.writeTo(it) }
-    document.close()
-    return out
-  }
+        var pageNumber = 1
+        var lineIndex = 0
+        var page = startPage(document, pageNumber, dateStr, officerName, titlePaint, bodyPaint)
+        var canvas = page.canvas
+        var y = MARGIN + 72f
 
-  private fun wrapLine(text: String, paint: Paint, maxWidth: Float): List<String> {
-    if (text.isBlank()) return listOf("")
-    val words = text.split(" ")
-    val lines = mutableListOf<String>()
-    var current = ""
-    for (word in words) {
-      val candidate = if (current.isEmpty()) word else "$current $word"
-      if (paint.measureText(candidate) <= maxWidth) {
-        current = candidate
-      } else {
+        while (lineIndex < allLines.size) {
+            val maxY = PAGE_HEIGHT - MARGIN - FOOTER_RESERVE
+            if (y + LINE_HEIGHT > maxY) {
+                finishPage(document, page, canvas, pageNumber, footerPaint)
+                pageNumber++
+                page = startPage(document, pageNumber, dateStr, officerName, titlePaint, bodyPaint)
+                canvas = page.canvas
+                y = MARGIN + 72f
+            }
+            canvas.drawText(allLines[lineIndex], MARGIN, y, bodyPaint)
+            y += LINE_HEIGHT
+            lineIndex++
+        }
+
+        canvas.drawText(
+            "Page $pageNumber — Submitted via DailyBeat (offline).",
+            MARGIN,
+            PAGE_HEIGHT - MARGIN,
+            footerPaint,
+        )
+        document.finishPage(page)
+
+        val dir = File(context.getExternalFilesDir(null), "DailyBeat")
+        dir.mkdirs()
+        val out = File(dir, "$dateStr.pdf")
+        out.outputStream().use { document.writeTo(it) }
+        document.close()
+        return out
+    }
+
+    private fun startPage(
+        document: PdfDocument,
+        pageNumber: Int,
+        dateStr: String,
+        officerName: String,
+        titlePaint: Paint,
+        bodyPaint: Paint,
+    ): PdfDocument.Page {
+        val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
+        val page = document.startPage(pageInfo)
+        val canvas = page.canvas
+        var y = MARGIN + 20f
+        canvas.drawText("Daily Diary — $dateStr", MARGIN, y, titlePaint)
+        y += 28f
+        canvas.drawText("Officer: $officerName", MARGIN, y, bodyPaint)
+        return page
+    }
+
+    private fun finishPage(
+        document: PdfDocument,
+        page: PdfDocument.Page,
+        canvas: Canvas,
+        pageNumber: Int,
+        footerPaint: Paint,
+    ) {
+        canvas.drawText(
+            "Page $pageNumber — Submitted via DailyBeat (offline).",
+            MARGIN,
+            PAGE_HEIGHT - MARGIN,
+            footerPaint,
+        )
+        document.finishPage(page)
+    }
+
+    private fun buildContentLines(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val lines = mutableListOf<String>()
+        for (rawLine in text.split("\n")) {
+            lines.addAll(wrapLine(rawLine, paint, maxWidth))
+        }
+        return lines
+    }
+
+    fun wrapLine(text: String, paint: Paint, maxWidth: Float): List<String> {
+        if (text.isBlank()) return listOf("")
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        var current = ""
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (paint.measureText(candidate) <= maxWidth) {
+                current = candidate
+            } else {
+                if (current.isNotEmpty()) lines.add(current)
+                current = word
+            }
+        }
         if (current.isNotEmpty()) lines.add(current)
-        current = word
-      }
+        return lines
     }
-    if (current.isNotEmpty()) lines.add(current)
-    return lines
-  }
 }

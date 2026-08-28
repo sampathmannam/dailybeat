@@ -8,9 +8,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.ui.DailyBeatAppScaffold
+import com.dailybeat.app.ui.onboarding.OnboardingScreen
 import com.dailybeat.app.ui.theme.DailyBeatTheme
 
 class MainActivity : ComponentActivity() {
@@ -23,13 +28,32 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestRuntimePermissions()
+        val app = application as DailyBeatApp
+        val showOnboarding = !app.settingsRepository.isOnboardingComplete()
+
         setContent {
             DailyBeatTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    DailyBeatAppScaffold()
+                    var onboardingDone by remember { mutableStateOf(!showOnboarding) }
+
+                    if (!onboardingDone) {
+                        OnboardingScreen(
+                            onComplete = { officerName ->
+                                app.settingsRepository.setOfficerName(officerName)
+                                app.settingsRepository.setOnboardingComplete(true)
+                                requestRuntimePermissions()
+                                onboardingDone = true
+                            },
+                        )
+                    } else {
+                        DailyBeatAppScaffold()
+                    }
                 }
             }
+        }
+
+        if (!showOnboarding) {
+            requestRuntimePermissions()
         }
     }
 

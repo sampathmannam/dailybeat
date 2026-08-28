@@ -48,11 +48,20 @@ class LocationService : Service() {
 
       scope.launch {
         val app = application as DailyBeatApp
+        val places = app.placeRepository.all()
+        val matched = com.dailybeat.app.domain.GeofenceMatcher.matchPlace(
+          location.latitude,
+          location.longitude,
+          places,
+        )
+        val placeLabel = matched?.name
+        val rawText = placeLabel?.let { "At $it" } ?: "GPS breadcrumb"
         app.db.events().insert(
           Event(
             timestamp = now,
             type = "gps",
-            rawText = "GPS breadcrumb",
+            rawText = rawText,
+            placeName = placeLabel,
             latitude = location.latitude,
             longitude = location.longitude,
           ),

@@ -2,7 +2,7 @@
 
 Local-model-only police dairy writer. Android app, fully offline.
 
-**v1.0.1** — walking-skeleton release. Reliable core path: events → dairy → PDF. Works without fine-tuned model (rule-based fallback).
+**v2.0.0** — production release. Today → Diary → PDF → History. Geofence GPS, speech fallback, unit tests.
 
 ## Install
 
@@ -13,7 +13,7 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ./scripts/mac_sync_and_run.sh
 ```
 
-APKs: GitHub Releases `v1.0.1` or build locally:
+APKs: GitHub Releases `v2.0.0` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
@@ -23,13 +23,17 @@ cd android && ./gradlew assembleRelease
 
 | Feature | Status |
 |---------|--------|
+| Today dashboard + events | ✅ |
+| Diary generate / edit / PDF | ✅ |
+| History (past days) | ✅ |
 | Manual + voice events | ✅ |
-| Today's dairy generation | ✅ (LLM or fallback) |
-| PDF share | ✅ |
-| GPS breadcrumbs | ✅ opt-in |
+| SpeechRecognizer STT fallback | ✅ |
+| LLM dairy (GGUF import) | ✅ |
+| Rule-based fallback | ✅ |
+| GPS + geofence places | ✅ |
 | Call log | ✅ opt-in |
-| Fine-tuned GGUF | Import from Downloads |
-| Whisper STT | Fallback until `ggml-tiny.bin` bundled |
+| Onboarding | ✅ |
+| Unit tests | ✅ |
 
 ## Training (your machine)
 
@@ -38,4 +42,4 @@ pip install -e ".[dev]"
 python scripts/parse_diaries.py --merge data/samples/diary_train.sample.jsonl
 ```
 
-Full spec: [PLAN.md](PLAN.md)
+Full spec: [PLAN.md](PLAN.md) · UI design: [docs/DESIGN.md](docs/DESIGN.md)

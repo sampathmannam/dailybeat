@@ -6,8 +6,10 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.room.Room
 import com.dailybeat.app.data.db.DailyBeatDb
+import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.export.PdfExporter
 import com.dailybeat.app.llm.DairyGenerator
@@ -20,6 +22,7 @@ class DailyBeatApp : Application() {
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
+            .addMigrations(MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -33,6 +36,8 @@ class DailyBeatApp : Application() {
     val eventRepository: EventRepository by lazy { EventRepository(db.events()) }
 
     val diaryRepository: DiaryRepository by lazy { DiaryRepository(db.diaries()) }
+
+    val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
@@ -53,16 +58,16 @@ class DailyBeatApp : Application() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
-                com.dailybeat.app.capture.VoiceCaptureService.CHANNEL_ID,
-                "Voice capture",
+                com.dailybeat.app.capture.LocationService.CHANNEL_ID,
+                "Location capture",
                 NotificationManager.IMPORTANCE_LOW,
             ),
         )
         manager.createNotificationChannel(
             NotificationChannel(
-                com.dailybeat.app.capture.LocationService.CHANNEL_ID,
-                "Location capture",
-                NotificationManager.IMPORTANCE_LOW,
+                DailyReminderScheduler.CHANNEL_ID,
+                "Daily reminder",
+                NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )
     }

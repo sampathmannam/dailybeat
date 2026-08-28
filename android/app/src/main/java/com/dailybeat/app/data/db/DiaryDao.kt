@@ -17,4 +17,10 @@ interface DiaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: DiaryEntry)
+
+    @Query("SELECT * FROM diaries ORDER BY dateKey DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<DiaryEntry>>
+
+    @Query("SELECT COUNT(*) FROM diaries WHERE text != ''")
+    suspend fun countNonEmpty(): Int
 }

@@ -24,9 +24,16 @@ class SettingsRepository(private val context: Context) {
         prefs.edit().putBoolean(KEY_CALL_LOG, enabled).apply()
     }
 
+    fun isOnboardingComplete(): Boolean = prefs.getBoolean(KEY_ONBOARDING, false)
+
+    fun setOnboardingComplete(complete: Boolean) {
+        prefs.edit().putBoolean(KEY_ONBOARDING, complete).apply()
+    }
+
     companion object {
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_GPS = "gps_enabled"
         private const val KEY_CALL_LOG = "call_log_enabled"
+        private const val KEY_ONBOARDING = "onboarding_complete"
     }
 }

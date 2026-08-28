@@ -38,7 +38,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun refresh() {
         val settings = app.settingsRepository.get()
         viewModelScope.launch {
-            val places = app.db.places().all()
+            val places = app.placeRepository.all()
             _uiState.value = SettingsUiState(
                 officerName = settings.officerName,
                 gpsEnabled = settings.gpsCaptureEnabled,
@@ -82,9 +82,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (name.isEmpty()) return
 
         viewModelScope.launch {
-            app.db.places().insert(Place(name = name, latitude = lat, longitude = lon))
+            app.placeRepository.add(name, lat, lon)
             refresh()
             _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "") }
+        }
+    }
+
+    fun deletePlace(place: Place) {
+        viewModelScope.launch {
+            app.placeRepository.delete(place)
+            refresh()
         }
     }
 
