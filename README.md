@@ -9,8 +9,9 @@ Local-model-only police dairy writer. Android app, fully offline.
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Mac emulator
-./scripts/mac_sync_and_run.sh
+# Mac emulator (laptop)
+./scripts/mac_setup.sh          # once
+./scripts/mac_sync_and_run.sh   # each session — needs emulator or phone via adb
 ```
 
 APKs: GitHub Releases `v2.0.0` or build locally:
