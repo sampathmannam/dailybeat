@@ -2,6 +2,9 @@
 # Shared adb + Java helpers for Mac scripts. Source, do not execute directly.
 set -euo pipefail
 
+# Set by mac_adb_pick_device — all mac_adb calls use adb -s explicitly.
+MAC_ADB_SERIAL=""
+
 mac_ensure_java() {
   if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
     return 0
@@ -35,7 +38,7 @@ mac_ensure_java() {
   echo "  source ~/.zshrc"
   echo ""
   echo "To install APK without building (no Java needed):"
-  echo "  DAILYBEAT_ADB_SERIAL=ZD2232FCR5 ./scripts/mac_install_release_apk.sh"
+  echo "  ./scripts/mac_install_release_apk.sh emulator-5554"
   return 1
 }
 
@@ -44,9 +47,19 @@ mac_adb_list_devices() {
 }
 
 mac_adb_pick_device() {
+  local explicit="${1:-}"
+
+  if [ -n "$explicit" ]; then
+    MAC_ADB_SERIAL="$explicit"
+    export ANDROID_SERIAL="$MAC_ADB_SERIAL"
+    echo "Using device: $MAC_ADB_SERIAL (argument)"
+    return 0
+  fi
+
   if [ -n "${DAILYBEAT_ADB_SERIAL:-}" ]; then
-    export ANDROID_SERIAL="$DAILYBEAT_ADB_SERIAL"
-    echo "Using device: $ANDROID_SERIAL (DAILYBEAT_ADB_SERIAL)"
+    MAC_ADB_SERIAL="$DAILYBEAT_ADB_SERIAL"
+    export ANDROID_SERIAL="$MAC_ADB_SERIAL"
+    echo "Using device: $MAC_ADB_SERIAL (DAILYBEAT_ADB_SERIAL)"
     return 0
   fi
 
@@ -61,8 +74,9 @@ mac_adb_pick_device() {
   fi
 
   if [ "${count:-0}" -eq 1 ]; then
-    export ANDROID_SERIAL="$(printf '%s\n' "$devices" | head -1)"
-    echo "Using device: $ANDROID_SERIAL"
+    MAC_ADB_SERIAL="$(printf '%s\n' "$devices" | head -1)"
+    export ANDROID_SERIAL="$MAC_ADB_SERIAL"
+    echo "Using device: $MAC_ADB_SERIAL"
     return 0
   fi
 
@@ -80,21 +94,24 @@ mac_adb_pick_device() {
   esac
 
   if [ -z "$pick" ]; then
-    echo "Multiple devices connected but could not pick one. Set explicitly:"
-    printf '%s\n' "$devices" | while read -r id; do echo "  export DAILYBEAT_ADB_SERIAL=$id"; done
-    echo "Example (your phone):"
-    echo "  export DAILYBEAT_ADB_SERIAL=ZD2232FCR5"
-    echo "Example (emulator):"
-    echo "  export DAILYBEAT_ADB_SERIAL=emulator-5554"
+    echo "Multiple devices connected. Pass device id as argument:"
+    printf '%s\n' "$devices" | while read -r id; do
+      echo "  ./scripts/mac_install_release_apk.sh $id"
+    done
     return 1
   fi
 
-  export ANDROID_SERIAL="$pick"
-  echo "Multiple devices — using $ANDROID_SERIAL (DAILYBEAT_DEVICE=${DAILYBEAT_DEVICE:-phone})"
+  MAC_ADB_SERIAL="$pick"
+  export ANDROID_SERIAL="$MAC_ADB_SERIAL"
+  echo "Multiple devices — using $MAC_ADB_SERIAL (DAILYBEAT_DEVICE=${DAILYBEAT_DEVICE:-phone})"
   echo "Other devices:"
   printf '%s\n' "$devices" | grep -v "^${pick}$" || true
 }
 
 mac_adb() {
-  adb "$@"
+  if [ -n "$MAC_ADB_SERIAL" ]; then
+    adb -s "$MAC_ADB_SERIAL" "$@"
+  else
+    adb "$@"
+  fi
 }
