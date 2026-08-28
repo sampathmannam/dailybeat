@@ -18,19 +18,19 @@ Local-model-only police dairy writer. Android app, fully offline.
 
 ## Test on your MacBook emulator (not Cursor cloud)
 
-The cloud agent **cannot** drive your Mac's emulator. Run on your Mac:
+**This cloud agent cannot run on your Mac.** Clone from GitHub and use a **local** Cursor agent or the scripts below.
 
 ```bash
-git clone https://github.com/sampathmannam/dailybeat.git
-cd dailybeat
-git checkout cursor/android-skeleton-cc46
-chmod +x scripts/mac_emulator_demo.sh
-./scripts/mac_emulator_demo.sh
+git clone https://github.com/sampathmannam/dailybeat.git ~/github/dailybeat
+cd ~/github/dailybeat
+./scripts/mac_setup.sh              # one-time
+./scripts/mac_sync_and_run.sh       # pull + install on emulator
+./scripts/mac_emulator_demo.sh      # demo walkthrough
 ```
 
-Start the emulator in **Android Studio → Device Manager** first. You'll see the app on your Mac screen.
+Full guide: [docs/MAC_DEVELOPMENT.md](docs/MAC_DEVELOPMENT.md)
 
-For a mirrored window: `brew install scrcpy && scrcpy`
+**Local Cursor:** File → Open Folder → dailybeat → Agent with **Local** mode (not Cloud).
 
 ## Build (Mac)
 

@@ -1,0 +1,26 @@
+# DailyBeat — local Mac agent context
+
+## Repo
+- Offline IPS police diary Android app (Jetpack Compose, Room, MediaPipe LLM, whisper.cpp planned)
+- Active branch: `cursor/android-skeleton-cc46`
+- GitHub: https://github.com/sampathmannam/dailybeat
+
+## Run on Mac emulator (NOT cloud VM)
+```bash
+./scripts/mac_sync_and_run.sh
+./scripts/mac_emulator_demo.sh
+```
+
+## Build
+```bash
+cd android && ./gradlew assembleDebug
+```
+
+## Emulator testing
+- User has Android emulator on MacBook — use local `adb`, not cloud emulator
+- Grant permissions via `adb shell pm grant com.dailybeat.app ...`
+- Voice FAB uses demo transcript on emulator when Whisper model absent
+
+## Push workflow
+- Commit on feature branch, push to `origin cursor/android-skeleton-cc46`
+- User pulls on Mac before testing
