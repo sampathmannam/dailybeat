@@ -1,41 +1,46 @@
 package com.dailybeat.app.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
+import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.EventCard
+import com.dailybeat.app.ui.components.MetricPill
+import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
-import com.dailybeat.app.ui.components.StatCard
 
 @Composable
 fun TodayScreen(
     onOpenDiary: () -> Unit,
+    headerSubtitle: String? = null,
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = viewModel(),
 ) {
@@ -44,21 +49,23 @@ fun TodayScreen(
     val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
 
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    )
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.today_dashboard_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = stringResource(R.string.today_dashboard_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            DailyBeatScreenHeader(
+                title = stringResource(R.string.today_dashboard_title),
+                subtitle = headerSubtitle ?: stringResource(R.string.today_dashboard_subtitle),
             )
         }
 
@@ -67,12 +74,12 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                StatCard(
+                MetricPill(
                     label = stringResource(R.string.stat_events),
                     value = uiState.eventCount.toString(),
                     modifier = Modifier.weight(1f),
                 )
-                StatCard(
+                MetricPill(
                     label = stringResource(R.string.stat_diary),
                     value = if (uiState.hasDiary) "✓" else "—",
                     modifier = Modifier.weight(1f),
@@ -82,47 +89,49 @@ fun TodayScreen(
 
         item {
             SectionHeader(title = stringResource(R.string.quick_add_section))
-        }
-
-        item {
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.manual_event_label)) },
                 minLines = 2,
+                shape = RoundedCornerShape(16.dp),
+                colors = fieldColors,
             )
         }
 
         item {
-            Button(
+            PrimaryButton(
+                text = stringResource(R.string.save_event),
                 onClick = {
                     viewModel.addManualEvent(draft)
                     draft = ""
                 },
                 enabled = draft.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.save_event))
-            }
+            )
         }
 
         if (events.isNotEmpty()) {
             item {
-                Button(onClick = onOpenDiary, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.open_diary_tab))
-                }
+                SecondaryButton(
+                    text = stringResource(R.string.open_diary_tab),
+                    onClick = onOpenDiary,
+                )
             }
         }
 
         if (isRecording) {
             item {
-                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 12.dp))
                     Text(
                         text = stringResource(R.string.recording_label),
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    CircularProgressIndicator()
                 }
             }
         }
@@ -151,9 +160,7 @@ fun TodayScreen(
                 )
             }
         } else {
-            item {
-                SectionHeader(title = stringResource(R.string.event_list_label))
-            }
+            item { SectionHeader(title = stringResource(R.string.event_list_label)) }
             items(events, key = { it.id }) { event ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -164,6 +171,7 @@ fun TodayScreen(
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = stringResource(R.string.delete_event),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

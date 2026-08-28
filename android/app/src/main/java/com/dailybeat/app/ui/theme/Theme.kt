@@ -8,18 +8,19 @@ import androidx.compose.ui.graphics.Color
 private val LightColorScheme = lightColorScheme(
     primary = Navy,
     onPrimary = Color.White,
-    primaryContainer = NavyLight,
-    onPrimaryContainer = Color.White,
+    primaryContainer = SurfaceElevated,
+    onPrimaryContainer = Navy,
     secondary = Gold,
-    onSecondary = Navy,
-    secondaryContainer = GoldLight,
-    onSecondaryContainer = Navy,
-    background = SurfaceLight,
-    onBackground = TextPrimary,
+    onSecondary = Ink,
+    secondaryContainer = GoldSoft,
+    onSecondaryContainer = Ink,
+    background = Canvas,
+    onBackground = Ink,
     surface = SurfaceCard,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceLight,
-    onSurfaceVariant = TextSecondary,
+    onSurface = Ink,
+    surfaceVariant = SurfaceElevated,
+    onSurfaceVariant = InkMuted,
+    outline = OutlineSoft,
     error = ErrorRed,
 )
 
@@ -28,6 +29,7 @@ fun DailyBeatTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = LightColorScheme,
         typography = DailyBeatTypography,
+        shapes = DailyBeatShapes,
         content = content,
     )
 }

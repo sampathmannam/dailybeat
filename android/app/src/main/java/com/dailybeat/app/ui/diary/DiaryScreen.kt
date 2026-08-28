@@ -2,17 +2,16 @@ package com.dailybeat.app.ui.diary
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,9 +23,11 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
+import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EventCard
+import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
-import com.dailybeat.app.util.DateKeys
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -37,23 +38,25 @@ fun DiaryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val dateLabel = uiState.date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+    val dateLabel = uiState.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    )
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.diary_screen_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = dateLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            DailyBeatScreenHeader(
+                title = stringResource(R.string.diary_screen_title),
+                subtitle = dateLabel,
             )
         }
 
@@ -62,14 +65,13 @@ fun DiaryScreen(
             Text(
                 text = stringResource(R.string.generate_events_count, uiState.eventCount),
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(
+            PrimaryButton(
+                text = stringResource(R.string.generate_today_dairy),
                 onClick = viewModel::generateFromLoggedEvents,
                 enabled = !uiState.isGenerating && uiState.eventCount > 0,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.generate_today_dairy))
-            }
+            )
         }
 
         item {
@@ -80,14 +82,14 @@ fun DiaryScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.events_input_label)) },
                 minLines = 3,
+                shape = RoundedCornerShape(16.dp),
+                colors = fieldColors,
             )
-            OutlinedButton(
+            SecondaryButton(
+                text = stringResource(R.string.generate_from_custom),
                 onClick = viewModel::generateFromCustomEvents,
                 enabled = !uiState.isGenerating && uiState.customEvents.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.generate_from_custom))
-            }
+            )
         }
 
         if (uiState.isGenerating) {
@@ -109,10 +111,13 @@ fun DiaryScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.edit_dairy_label)) },
                     minLines = 8,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
                 )
             }
             item {
-                Button(
+                PrimaryButton(
+                    text = stringResource(R.string.share_pdf_button),
                     onClick = {
                         val path = viewModel.exportPdfPath()
                         if (path != null) {
@@ -130,17 +135,12 @@ fun DiaryScreen(
                             context.startActivity(Intent.createChooser(share, "Share dairy PDF"))
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.share_pdf_button))
-                }
+                )
             }
         }
 
         if (events.isNotEmpty()) {
-            item {
-                SectionHeader(title = stringResource(R.string.logged_events_section))
-            }
+            item { SectionHeader(title = stringResource(R.string.logged_events_section)) }
             items(events, key = { it.id }) { event ->
                 EventCard(event = event)
             }

@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.1.0 — 2026-08-28
+
+Mobbin-inspired UI redesign.
+
+### UI
+- Warm canvas background, rounded cards (20dp), metric pills
+- Timeline event cards with type color bars and chips
+- Extended gold FAB for voice on Today tab
+- Grouped settings sections, improved onboarding
+- Outlined/filled bottom navigation icons
+
+### MCP
+- `.cursor/mcp.json` adds Mobbin server URL alongside Figma
+
 ## v2.0.0 — 2026-08-28
 
 Production release. Full offline diary workflow with polished UI, navigation, history, tests, and geofence-aware GPS.

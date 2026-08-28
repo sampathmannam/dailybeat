@@ -2,6 +2,9 @@
   "mcpServers": {
     "Figma": {
       "url": "https://mcp.figma.com/mcp"
+    },
+    "mobbin": {
+      "url": "https://api.mobbin.com/mcp"
     }
   }
 }

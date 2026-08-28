@@ -1,21 +1,21 @@
 package com.dailybeat.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +28,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.ui.components.DailyBeatScreenHeader
+import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SettingsGroup
 
 @Composable
 fun SettingsScreen(
@@ -35,93 +38,97 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedContainerColor = MaterialTheme.colorScheme.background,
+        unfocusedContainerColor = MaterialTheme.colorScheme.background,
+    )
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.settings_title),
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            DailyBeatScreenHeader(title = stringResource(R.string.settings_title))
         }
 
         item {
-            OutlinedTextField(
-                value = state.officerName,
-                onValueChange = viewModel::setOfficerName,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.officer_name_label)) },
-            )
-        }
-
-        item {
-            ToggleRow(
-                label = stringResource(R.string.gps_capture_label),
-                checked = state.gpsEnabled,
-                onCheckedChange = viewModel::setGpsEnabled,
-            )
-        }
-
-        item {
-            ToggleRow(
-                label = stringResource(R.string.call_log_label),
-                checked = state.callLogEnabled,
-                onCheckedChange = viewModel::setCallLogEnabled,
-            )
-        }
-
-        item {
-            Text(
-                text = if (state.modelImported) {
-                    stringResource(R.string.model_ready)
-                } else {
-                    stringResource(R.string.model_import_hint)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Button(onClick = viewModel::importModel) {
-                Text(stringResource(R.string.import_model_button))
+            SettingsGroup(title = stringResource(R.string.officer_name_label)) {
+                OutlinedTextField(
+                    value = state.officerName,
+                    onValueChange = viewModel::setOfficerName,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.officer_name_label)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
             }
         }
 
         item {
-            Text(text = stringResource(R.string.places_title), style = MaterialTheme.typography.titleMedium)
+            SettingsGroup(title = stringResource(R.string.settings_capture_group)) {
+                ToggleRow(
+                    label = stringResource(R.string.gps_capture_label),
+                    checked = state.gpsEnabled,
+                    onCheckedChange = viewModel::setGpsEnabled,
+                )
+                ToggleRow(
+                    label = stringResource(R.string.call_log_label),
+                    checked = state.callLogEnabled,
+                    onCheckedChange = viewModel::setCallLogEnabled,
+                )
+            }
         }
 
         item {
-            OutlinedTextField(
-                value = state.placeName,
-                onValueChange = { viewModel.updatePlaceDraft(it, state.placeLat, state.placeLon) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.place_name_label)) },
-            )
+            SettingsGroup(title = stringResource(R.string.settings_model_group)) {
+                Text(
+                    text = if (state.modelImported) {
+                        stringResource(R.string.model_ready)
+                    } else {
+                        stringResource(R.string.model_import_hint)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PrimaryButton(
+                    text = stringResource(R.string.import_model_button),
+                    onClick = viewModel::importModel,
+                )
+            }
         }
 
         item {
-            OutlinedTextField(
-                value = state.placeLat,
-                onValueChange = { viewModel.updatePlaceDraft(state.placeName, it, state.placeLon) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.place_lat_label)) },
-            )
-        }
-
-        item {
-            OutlinedTextField(
-                value = state.placeLon,
-                onValueChange = { viewModel.updatePlaceDraft(state.placeName, state.placeLat, it) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.place_lon_label)) },
-            )
-        }
-
-        item {
-            Button(onClick = viewModel::addPlace) {
-                Text(stringResource(R.string.add_place_button))
+            SettingsGroup(title = stringResource(R.string.places_title)) {
+                OutlinedTextField(
+                    value = state.placeName,
+                    onValueChange = { viewModel.updatePlaceDraft(it, state.placeLat, state.placeLon) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.place_name_label)) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                OutlinedTextField(
+                    value = state.placeLat,
+                    onValueChange = { viewModel.updatePlaceDraft(state.placeName, it, state.placeLon) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.place_lat_label)) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                OutlinedTextField(
+                    value = state.placeLon,
+                    onValueChange = { viewModel.updatePlaceDraft(state.placeName, state.placeLat, it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.place_lon_label)) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                PrimaryButton(text = stringResource(R.string.add_place_button), onClick = viewModel::addPlace)
             }
         }
 
@@ -133,22 +140,23 @@ fun SettingsScreen(
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
-        }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
 private fun PlaceCard(place: Place, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    androidx.compose.material3.Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -156,8 +164,12 @@ private fun PlaceCard(place: Place, onDelete: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {
-                Text(text = place.name, style = MaterialTheme.typography.titleMedium)
-                Text(text = "${place.latitude}, ${place.longitude} (${place.radiusM}m)")
+                Text(text = place.name, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "${place.latitude}, ${place.longitude} (${place.radiusM}m)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))

@@ -1,37 +1,33 @@
-# DailyBeat UI Design (v2.0)
+# DailyBeat UI — Mobbin-inspired redesign (v2.1.0)
 
-Figma MCP was unavailable during this build. Design follows Material 3 with an IPS / institutional palette suitable for field officers.
+Design patterns aligned with top journal/productivity apps on [Mobbin](https://mobbin.com) (Day One, Reflect, Notion mobile): warm canvas, soft cards, timeline events, extended FAB.
 
-## Visual language
+Mobbin MCP was not available in the cloud build session; this redesign applies common Mobbin catalog patterns. On your Mac with `/add-plugin mobbin` connected, search:
 
-| Element | Value |
-|---------|--------|
-| Primary | Navy `#0D1B3E` — authority, formality |
-| Secondary | Gold `#C9A227` — accent for labels and highlights |
-| Background | `#F5F7FA` — low glare for long reading |
-| Typography | Sans-serif hierarchy (headline 28/22, body 16/14) |
+- `journal app home screen`
+- `daily log timeline`
+- `note editor mobile`
+- `settings grouped list`
 
-## Navigation (4 tabs)
+## Visual system
 
-1. **Today** — dashboard, quick add, event list, voice FAB
-2. **Diary** — generate from logged or pasted events, edit, share PDF
-3. **History** — scroll past diaries, tap to open that date
-4. **Settings** — officer profile, capture toggles, model import, geofences
+| Token | Value | Use |
+|-------|-------|-----|
+| Canvas | `#F8F7F4` | Screen background |
+| Ink | `#0F172A` | Primary text |
+| Navy | `#1E3A5F` | Buttons, selected nav |
+| Gold | `#E8A317` | FAB, accents |
+| Card radius | 20dp | Surfaces |
+| Field radius | 16dp | Inputs |
 
-## First-run onboarding
+## Components
 
-Three steps: welcome → officer name → privacy/permissions summary.
+- **Metric pills** — today stats (events / diary saved)
+- **Timeline event cards** — color bar by type (manual/voice/gps/call)
+- **Extended FAB** — “Voice note” on Today
+- **Grouped settings** — capture, model, places
+- **Outlined + filled nav icons** — selected tab state
 
-## Accessibility
+## MCP (local Cursor)
 
-- Large tap targets on primary actions
-- Error text uses theme `error` color
-- Empty states with title + guidance text
-
-## Architecture
-
-- Jetpack Compose + Navigation Compose
-- ViewModels per screen
-- Room for events, diaries, places
-- SharedPreferences for settings
-- No cloud components
+`.cursor/mcp.json` includes Mobbin (`https://api.mobbin.com/mcp`). Authenticate via Cursor → Customize → Mobbin → Authenticate.
