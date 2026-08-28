@@ -1,0 +1,5 @@
+{
+  "name": "DailyBeat Android",
+  "install": "sudo apt-get update -qq && sudo apt-get install -y -qq openjdk-17-jdk-headless && export ANDROID_HOME=/opt/android-sdk && mkdir -p $ANDROID_HOME/cmdline-tools && curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline-tools.zip && unzip -qo /tmp/cmdline-tools.zip -d /tmp && mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest && yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' && echo 'ANDROID_HOME=/opt/android-sdk' >> ~/.bashrc",
+  "terminals": []
+}
