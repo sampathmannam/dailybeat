@@ -29,4 +29,6 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Python tests
-        run: python3 -m pytest scripts/tests/ -q
+        run: |
+          pip install -e ".[dev]"
+          python3 -m pytest scripts/tests/ -q
