@@ -65,8 +65,8 @@ class DiaryViewModel(
                 val current = _uiState.value
                 DiaryUiState(
                     date = date,
-                    text = if (current.text.isBlank() && !diary?.text.isNullOrBlank()) {
-                        diary!!.text
+                    text = if (current.text.isBlank()) {
+                        diary?.text.orEmpty()
                     } else {
                         current.text
                     },

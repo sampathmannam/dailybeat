@@ -23,7 +23,13 @@
     <string name="status_gps_off">GPS off</string>
     <string name="status_cloud_on">Cloud AI ready</string>
     <string name="status_cloud_off">Cloud AI not set up</string>
+    <string name="stat_visits">Visits today</string>
     <string name="stat_events">Events today</string>
+    <string name="mark_significant_moment">Mark significant moment (no typing)</string>
+    <string name="load_synthetic_day">Load synthetic demo day</string>
+    <string name="auto_midday_pulse">Auto midday pulse at 1 PM (cloud AI)</string>
+    <string name="settings_qa_group">QA &amp; transparency</string>
+    <string name="refresh_audit_log">Refresh capture audit log</string>
     <string name="stat_diary">Diary saved</string>
     <string name="quick_add_section">Quick add</string>
     <string name="manual_event_label">Event note</string>

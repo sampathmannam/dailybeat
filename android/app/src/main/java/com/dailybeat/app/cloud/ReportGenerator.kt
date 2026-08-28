@@ -1,5 +1,6 @@
 package com.dailybeat.app.cloud
 
+import android.content.Context
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.VisitRepository
@@ -14,6 +15,7 @@ class ReportGenerator(
     private val eventRepository: EventRepository,
     private val diaryRepository: DiaryRepository,
     private val localGenerator: DairyGenerator,
+    private val appContext: Context,
 ) {
 
     suspend fun generateForToday(): Result<String> = generateForDate(LocalDate.now())
@@ -31,11 +33,13 @@ class ReportGenerator(
             )
         }
 
-        val context = DayContextBuilder.build(
-            date = date,
-            officerName = settings.officerName,
-            visits = visits,
-            events = events,
+        val context = ContextLimiter.trimForLlm(
+            DayContextBuilder.build(
+                date = date,
+                officerName = settings.officerName,
+                visits = visits,
+                events = events,
+            ),
         )
 
         if (settingsRepository.isCloudBrainReady()) {
@@ -49,6 +53,8 @@ class ReportGenerator(
 
             return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, userPrompt).map { report ->
                 report.trim()
+            }.onFailure {
+                ReportRetryWorker.enqueue(appContext, date)
             }
         }
 

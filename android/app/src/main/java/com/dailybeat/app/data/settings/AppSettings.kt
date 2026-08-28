@@ -9,6 +9,7 @@ data class AppSettings(
     val cloudModel: String = "gpt-4o-mini",
     val cloudBaseUrl: String = "",
     val autoEveningReport: Boolean = true,
+    val autoMiddayPulse: Boolean = false,
 )
 
 enum class CloudProvider(val id: String, val displayName: String, val defaultModel: String) {

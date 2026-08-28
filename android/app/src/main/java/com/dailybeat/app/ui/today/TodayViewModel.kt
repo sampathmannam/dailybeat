@@ -4,7 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,6 +24,8 @@ data class TodayUiState(
     val gpsEnabled: Boolean = true,
     val gpsActive: Boolean = false,
     val isGeneratingReport: Boolean = false,
+    val isSeeding: Boolean = false,
+    val seedMessage: String? = null,
     val error: String? = null,
 )
 
@@ -80,6 +84,30 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteEvent(event: Event) {
         viewModelScope.launch { repository.deleteEvent(event) }
+    }
+
+    fun markSignificantMoment() {
+        viewModelScope.launch {
+            repository.addMomentMarker("Significant moment flagged (passive marker)")
+            CaptureAuditLog.log(getApplication(), "moment", "User flagged significant moment")
+            clearError()
+        }
+    }
+
+    fun seedSyntheticDay() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSeeding = true, seedMessage = null, error = null)
+            val result = SyntheticDayGenerator.seedToday(app)
+            CaptureAuditLog.log(
+                getApplication(),
+                "synthetic",
+                "Seeded ${result.visitsInserted} visits, ${result.eventsInserted} events",
+            )
+            _uiState.value = _uiState.value.copy(
+                isSeeding = false,
+                seedMessage = "Synthetic day loaded: ${result.visitsInserted} visits, ${result.eventsInserted} events.",
+            )
+        }
     }
 
     fun generateAiReport() {

@@ -19,6 +19,8 @@ class PdfExporter(private val context: Context) {
     }
 
     fun exportDairy(officerName: String, dairyText: String, date: LocalDate = LocalDate.now()): File {
+        val safeOfficer = officerName.trim().ifBlank { "IPS Officer" }
+        val safeText = dairyText.trim().ifBlank { "No diary content." }
         val document = PdfDocument()
         val titlePaint = Paint().apply {
             textSize = 18f
@@ -28,11 +30,11 @@ class PdfExporter(private val context: Context) {
         val footerPaint = Paint().apply { textSize = 11f }
 
         val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val allLines = buildContentLines(dairyText, bodyPaint, PAGE_WIDTH - MARGIN * 2)
+        val allLines = buildContentLines(safeText, bodyPaint, PAGE_WIDTH - MARGIN * 2)
 
         var pageNumber = 1
         var lineIndex = 0
-        var page = startPage(document, pageNumber, dateStr, officerName, titlePaint, bodyPaint)
+            var page = startPage(document, pageNumber, dateStr, safeOfficer, titlePaint, bodyPaint)
         var canvas = page.canvas
         var y = MARGIN + 72f
 
@@ -41,7 +43,7 @@ class PdfExporter(private val context: Context) {
             if (y + LINE_HEIGHT > maxY) {
                 finishPage(document, page, canvas, pageNumber, footerPaint)
                 pageNumber++
-                page = startPage(document, pageNumber, dateStr, officerName, titlePaint, bodyPaint)
+                page = startPage(document, pageNumber, dateStr, safeOfficer, titlePaint, bodyPaint)
                 canvas = page.canvas
                 y = MARGIN + 72f
             }

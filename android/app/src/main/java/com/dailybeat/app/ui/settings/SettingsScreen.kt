@@ -147,6 +147,31 @@ fun SettingsScreen(
                     checked = state.autoEveningReport,
                     onCheckedChange = viewModel::setAutoEveningReport,
                 )
+                ToggleRow(
+                    label = stringResource(R.string.auto_midday_pulse),
+                    checked = state.autoMiddayPulse,
+                    onCheckedChange = viewModel::setAutoMiddayPulse,
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = stringResource(R.string.settings_qa_group)) {
+                SecondaryButton(
+                    text = stringResource(R.string.load_synthetic_day),
+                    onClick = viewModel::seedSyntheticData,
+                    enabled = !state.isSeedingSynthetic,
+                )
+                state.syntheticResult?.let { msg ->
+                    Text(text = msg, style = MaterialTheme.typography.bodySmall)
+                }
+                SecondaryButton(
+                    text = stringResource(R.string.refresh_audit_log),
+                    onClick = viewModel::loadAuditLog,
+                )
+                state.auditLines.takeLast(8).forEach { line ->
+                    Text(text = line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
 

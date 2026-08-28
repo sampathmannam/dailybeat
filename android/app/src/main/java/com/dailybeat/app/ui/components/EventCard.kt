@@ -20,6 +20,7 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.ui.theme.EventCall
 import com.dailybeat.app.ui.theme.EventGps
 import com.dailybeat.app.ui.theme.EventManual
+import com.dailybeat.app.ui.theme.EventMoment
 import com.dailybeat.app.ui.theme.EventVisit
 import com.dailybeat.app.ui.theme.EventVoice
 import java.text.SimpleDateFormat
@@ -112,6 +113,7 @@ private fun eventTypeColor(type: String): androidx.compose.ui.graphics.Color = w
     "voice" -> EventVoice
     "gps" -> EventGps
     "visit" -> EventVisit
+    "moment" -> EventMoment
     "call" -> EventCall
     else -> EventManual
 }

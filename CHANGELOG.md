@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.1.0 — 2026-08-28
+
+Triple audit loop: adversarial tests, synthetic data, passive LLM features.
+
+### Features
+- Midday cloud pulse (1 PM optional) appended to diary
+- Significant moment marker (passive flag, no typing)
+- Synthetic demo day generator for QA
+- Local capture audit log (transparency)
+- LLM report retry worker on network failure
+- Context limiter for very long days
+
+### Fixed
+- Flush open GPS dwell when location service stops
+- PDF export with blank officer/text
+- Event input truncation (8k chars)
+- OSM geocode invalid coordinate guard
+- Diary merge without unsafe null assert
+
+### Testing
+- Adversarial unit tests (ContextLimiter, EventRepository)
+- Maestro E2E flow (`maestro/onboarding_and_nav.yaml`)
+- Honest ratings: `docs/AUDIT_RATING.md`
+
 ## v3.0.1 — 2026-08-28
 
 E2E hardening: bug fixes, instrumentation tests, and CI emulator suite.

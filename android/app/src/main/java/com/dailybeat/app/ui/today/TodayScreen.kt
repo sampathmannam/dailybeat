@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
+import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
@@ -73,6 +74,37 @@ fun TodayScreen(
                 gpsOn = uiState.gpsActive,
                 cloudReady = uiState.cloudBrainReady,
             )
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MetricPill(label = stringResource(R.string.stat_visits), value = "${uiState.visitCount}")
+                MetricPill(label = stringResource(R.string.stat_events), value = "${uiState.eventCount}")
+            }
+        }
+
+        item {
+            SecondaryButton(
+                text = stringResource(R.string.mark_significant_moment),
+                onClick = viewModel::markSignificantMoment,
+            )
+        }
+
+        item {
+            SecondaryButton(
+                text = stringResource(R.string.load_synthetic_day),
+                onClick = viewModel::seedSyntheticDay,
+                enabled = !uiState.isSeeding,
+            )
+        }
+
+        uiState.seedMessage?.let { msg ->
+            item {
+                Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
         }
 
         if (uiState.cloudBrainReady) {

@@ -28,6 +28,9 @@ class OsmGeocoder(
     private var lastRequestMs = 0L
 
     suspend fun resolve(latitude: Double, longitude: Double): String = withContext(Dispatchers.IO) {
+        if (!isValidCoordinate(latitude, longitude)) {
+            return@withContext fallbackLabel(latitude, longitude)
+        }
         val key = cacheKey(latitude, longitude)
         val cached = geocodeDao.get(key)
         if (cached != null) return@withContext cached.displayName
@@ -69,4 +72,8 @@ class OsmGeocoder(
 
     private fun fallbackLabel(lat: Double, lon: Double): String =
         String.format(Locale.US, "Location %.4f, %.4f", lat, lon)
+
+    private fun isValidCoordinate(lat: Double, lon: Double): Boolean =
+        lat in -90.0..90.0 && lon in -180.0..180.0 &&
+            !(lat == 0.0 && lon == 0.0)
 }

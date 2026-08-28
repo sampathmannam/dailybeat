@@ -1,0 +1,20 @@
+# Maestro E2E flows for DailyBeat
+# Install: https://maestro.mobile.dev
+# Run: maestro test maestro/
+
+appId: com.dailybeat.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Continue"
+- tapOn: "Officer name"
+- inputText: "Inspector Audit"
+- tapOn: "Continue"
+- tapOn: "Get started"
+- assertVisible: "Today"
+- tapOn: "Load synthetic demo day"
+- tapOn: "Diary"
+- assertVisible: "Custom events (paste)"
+- tapOn: "History"
+- tapOn: "Settings"
+- assertVisible: "Cloud AI"

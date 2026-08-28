@@ -17,6 +17,7 @@ class SettingsRepository(private val context: Context) {
             ?: CloudProvider.OPENAI.defaultModel,
         cloudBaseUrl = prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "",
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
+        autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
     )
 
     fun setOfficerName(name: String) {
@@ -51,6 +52,10 @@ class SettingsRepository(private val context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled).apply()
     }
 
+    fun setAutoMiddayPulse(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MIDDAY_PULSE, enabled).apply()
+    }
+
     fun isCloudBrainReady(): Boolean = get().cloudLlmEnabled && secureApiKey.hasApiKey()
 
     fun isOnboardingComplete(): Boolean = prefs.getBoolean(KEY_ONBOARDING, false)
@@ -69,5 +74,6 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_CLOUD_MODEL = "cloud_model"
         private const val KEY_CLOUD_BASE_URL = "cloud_base_url"
         private const val KEY_AUTO_REPORT = "auto_evening_report"
+        private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
     }
 }

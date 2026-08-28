@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.capture.CallLogWorker
 import com.dailybeat.app.capture.CaptureController
+import com.dailybeat.app.notify.PulseScheduler
+import com.dailybeat.app.synthetic.SyntheticDayGenerator
+import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.cloud.DayContextBuilder
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
@@ -26,6 +29,7 @@ data class SettingsUiState(
     val apiKeyDraft: String = "",
     val hasApiKey: Boolean = false,
     val autoEveningReport: Boolean = true,
+    val autoMiddayPulse: Boolean = false,
     val cloudTestResult: String? = null,
     val cloudTesting: Boolean = false,
     val modelImported: Boolean = false,
@@ -34,6 +38,9 @@ data class SettingsUiState(
     val placeLon: String = "",
     val places: List<Place> = emptyList(),
     val placeError: String? = null,
+    val auditLines: List<String> = emptyList(),
+    val syntheticResult: String? = null,
+    val isSeedingSynthetic: Boolean = false,
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -49,6 +56,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refresh() {
         val settings = app.settingsRepository.get()
+        val current = _uiState.value
         viewModelScope.launch {
             val places = app.placeRepository.all()
             _uiState.value = SettingsUiState(
@@ -59,11 +67,43 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 cloudProvider = settings.cloudProvider,
                 cloudModel = settings.cloudModel,
                 cloudBaseUrl = settings.cloudBaseUrl,
+                apiKeyDraft = current.apiKeyDraft,
                 hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
                 autoEveningReport = settings.autoEveningReport,
+                autoMiddayPulse = settings.autoMiddayPulse,
                 modelImported = app.modelImporter.hasBundledOrLocalModel(),
                 places = places,
+                auditLines = CaptureAuditLog.readRecent(app),
             )
+        }
+    }
+
+    fun loadAuditLog() {
+        _uiState.update { it.copy(auditLines = CaptureAuditLog.readRecent(app)) }
+    }
+
+    fun setAutoMiddayPulse(enabled: Boolean) {
+        app.settingsRepository.setAutoMiddayPulse(enabled)
+        _uiState.update { it.copy(autoMiddayPulse = enabled) }
+        if (enabled) {
+            PulseScheduler.scheduleNext(app)
+        } else {
+            PulseScheduler.cancel(app)
+        }
+    }
+
+    fun seedSyntheticData() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSeedingSynthetic = true, syntheticResult = null) }
+            val result = SyntheticDayGenerator.seedToday(app)
+            CaptureAuditLog.log(app, "synthetic", "Settings seeded ${result.visitsInserted} visits")
+            _uiState.update {
+                it.copy(
+                    isSeedingSynthetic = false,
+                    syntheticResult = "Loaded ${result.visitsInserted} visits and ${result.eventsInserted} events.",
+                    auditLines = CaptureAuditLog.readRecent(app),
+                )
+            }
         }
     }
 

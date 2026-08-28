@@ -55,6 +55,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".notify.MiddayPulseReceiver"
+            android:exported="false" />
+
         <service
             android:name=".capture.LocationService"
             android:exported="false"

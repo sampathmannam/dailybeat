@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
+import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.util.PermissionHelper
 import com.google.android.gms.location.LocationCallback
@@ -55,6 +56,11 @@ class LocationService : Service() {
             osmGeocoder = app.osmGeocoder,
             onVisitRecorded = { visit ->
                 app.visitRepository.insert(visit)
+                CaptureAuditLog.log(
+                    this,
+                    "visit",
+                    "${visit.visitType}: ${visit.placeName ?: visit.address ?: "coords"}",
+                )
                 val summary = when (visit.visitType) {
                     "transit" -> "Transit: ${visit.address ?: "en route"}"
                     else -> "Stay at ${visit.placeName ?: visit.address ?: "location"}"
@@ -83,6 +89,9 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
+        if (::visitTracker.isInitialized) {
+            visitTracker.flushPending()
+        }
         LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
         super.onDestroy()
     }

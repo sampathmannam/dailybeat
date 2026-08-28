@@ -157,4 +157,17 @@ class VisitTracker(
             kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
         return earth * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
+
+    /** Flush open dwell when location service stops (e.g. app killed). */
+    fun flushPending() {
+        val lat = dwellLat
+        val lon = dwellLon
+        if (lat == null || lon == null || dwellStartMs <= 0) return
+        val endMs = lastSampleMs.takeIf { it > dwellStartMs } ?: System.currentTimeMillis()
+        if (endMs - dwellStartMs < MIN_DWELL_MS) return
+        scope.launch(Dispatchers.IO) {
+            recordDwell(dwellStartMs, endMs, lat, lon)
+        }
+        resetDwell()
+    }
 }

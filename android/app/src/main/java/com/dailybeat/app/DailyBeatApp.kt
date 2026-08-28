@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.room.Room
 import com.dailybeat.app.cloud.CloudLlmClient
+import com.dailybeat.app.cloud.PulseReportGenerator
 import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
@@ -21,6 +22,7 @@ import com.dailybeat.app.llm.DairyGenerator
 import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.llm.LlmEngine
 import com.dailybeat.app.notify.DailyReminderScheduler
+import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.util.ModelImporter
 
 class DailyBeatApp : Application() {
@@ -64,6 +66,17 @@ class DailyBeatApp : Application() {
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
             localGenerator = dairyGenerator,
+            appContext = this,
+        )
+    }
+
+    val pulseGenerator: PulseReportGenerator by lazy {
+        PulseReportGenerator(
+            settingsRepository = settingsRepository,
+            cloudLlm = cloudLlm,
+            visitRepository = visitRepository,
+            eventRepository = eventRepository,
+            diaryRepository = diaryRepository,
         )
     }
 
@@ -72,6 +85,7 @@ class DailyBeatApp : Application() {
         createNotificationChannels()
         DailyReminderScheduler.createChannel(this)
         DailyReminderScheduler.scheduleNext(this)
+        PulseScheduler.scheduleNext(this)
         modelImporter.importFromDownloads()
     }
 

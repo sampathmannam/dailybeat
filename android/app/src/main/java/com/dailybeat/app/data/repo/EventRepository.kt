@@ -25,12 +25,24 @@ class EventRepository(private val eventDao: EventDao) {
     suspend fun countToday(): Int = eventsForDate(DateKeys.today()).size
 
     suspend fun addManualEvent(rawText: String) {
-        val trimmed = rawText.trim()
+        val trimmed = rawText.trim().take(MAX_EVENT_CHARS)
         if (trimmed.isEmpty()) return
         eventDao.insert(
             Event(
                 timestamp = System.currentTimeMillis(),
                 type = "manual",
+                rawText = trimmed,
+            ),
+        )
+    }
+
+    suspend fun addMomentMarker(label: String = "Significant moment flagged") {
+        val trimmed = label.trim().take(MAX_EVENT_CHARS)
+        if (trimmed.isEmpty()) return
+        eventDao.insert(
+            Event(
+                timestamp = System.currentTimeMillis(),
+                type = "moment",
                 rawText = trimmed,
             ),
         )
@@ -57,5 +69,9 @@ class EventRepository(private val eventDao: EventDao) {
 
     suspend fun eventsTextForDate(date: LocalDate): String {
         return eventsForDate(date).joinToString(separator = "\n") { event -> event.rawText }
+    }
+
+    companion object {
+        private const val MAX_EVENT_CHARS = 8_000
     }
 }
