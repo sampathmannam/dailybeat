@@ -67,10 +67,25 @@ fun DiaryScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Text(
+                text = if (uiState.cloudBrainReady) {
+                    stringResource(R.string.diary_cloud_hint)
+                } else {
+                    stringResource(R.string.diary_local_hint)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
             PrimaryButton(
-                text = stringResource(R.string.generate_today_dairy),
+                text = if (uiState.cloudBrainReady) {
+                    stringResource(R.string.generate_ai_report)
+                } else {
+                    stringResource(R.string.generate_today_dairy)
+                },
                 onClick = viewModel::generateFromLoggedEvents,
-                enabled = !uiState.isGenerating && uiState.eventCount > 0,
+                enabled = !uiState.isGenerating &&
+                    (uiState.eventCount > 0 || uiState.visitCount > 0),
             )
         }
 

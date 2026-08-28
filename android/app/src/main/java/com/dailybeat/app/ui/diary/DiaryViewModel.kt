@@ -26,7 +26,8 @@ data class DiaryUiState(
     val customEvents: String = "",
     val isGenerating: Boolean = false,
     val eventCount: Int = 0,
-    val modelAvailable: Boolean = false,
+    val visitCount: Int = 0,
+    val cloudBrainReady: Boolean = false,
     val error: String? = null,
 )
 
@@ -41,7 +42,7 @@ class DiaryViewModel(
     private val _uiState = MutableStateFlow(
         DiaryUiState(
             date = date,
-            modelAvailable = app.llm.isModelAvailable(),
+            cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
         ),
     )
     val uiState: StateFlow<DiaryUiState> = _uiState.asStateFlow()
@@ -51,12 +52,16 @@ class DiaryViewModel(
     val eventsForDay = app.eventRepository.observeEventsForDate(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val visitsForDay = app.visitRepository.observeForDate(date)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         viewModelScope.launch {
             combine(
                 eventsForDay,
+                visitsForDay,
                 app.diaryRepository.observeForDate(date),
-            ) { events, diary ->
+            ) { events, visits, diary ->
                 val current = _uiState.value
                 DiaryUiState(
                     date = date,
@@ -68,7 +73,8 @@ class DiaryViewModel(
                     customEvents = current.customEvents,
                     isGenerating = current.isGenerating,
                     eventCount = events.size,
-                    modelAvailable = app.llm.isModelAvailable(),
+                    visitCount = visits.size,
+                    cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
                     error = current.error,
                 )
             }.collect { merged ->
@@ -77,7 +83,8 @@ class DiaryViewModel(
                 } else {
                     _uiState.value = _uiState.value.copy(
                         eventCount = merged.eventCount,
-                        modelAvailable = merged.modelAvailable,
+                        visitCount = merged.visitCount,
+                        cloudBrainReady = merged.cloudBrainReady,
                     )
                 }
             }
@@ -105,20 +112,24 @@ class DiaryViewModel(
 
     fun generateFromLoggedEvents() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
-            app.dairyGenerator.generateForDay(date).fold(
-                onSuccess = { dairy ->
-                    _uiState.value = _uiState.value.copy(isGenerating = false, text = dairy)
-                    app.diaryRepository.saveForDate(date, dairy)
-                },
-                onFailure = { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isGenerating = false,
-                        error = error.message ?: "Dairy generation failed.",
-                    )
-                },
-            )
+            runReportGeneration()
         }
+    }
+
+    private suspend fun runReportGeneration() {
+        _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
+        app.reportGenerator.generateForDate(date).fold(
+            onSuccess = { dairy ->
+                _uiState.value = _uiState.value.copy(isGenerating = false, text = dairy)
+                app.diaryRepository.saveForDate(date, dairy)
+            },
+            onFailure = { error ->
+                _uiState.value = _uiState.value.copy(
+                    isGenerating = false,
+                    error = error.message ?: "Report generation failed.",
+                )
+            },
+        )
     }
 
     fun generateFromCustomEvents() {
@@ -129,7 +140,14 @@ class DiaryViewModel(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
-            val result = if (app.llm.isModelAvailable()) {
+            val settings = app.settingsRepository.get()
+            val result = if (app.settingsRepository.isCloudBrainReady()) {
+                app.cloudLlm.generate(
+                    settings,
+                    com.dailybeat.app.cloud.DayContextBuilder.SYSTEM_PROMPT,
+                    buildDairyPrompt(eventsText),
+                )
+            } else if (app.llm.isModelAvailable()) {
                 app.llm.generate(buildDairyPrompt(eventsText))
             } else {
                 val pseudo = eventsText.lines()

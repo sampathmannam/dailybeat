@@ -5,13 +5,18 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import androidx.room.Room
+import com.dailybeat.app.cloud.CloudLlmClient
+import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
+import com.dailybeat.app.data.db.MIGRATION_3_4
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
+import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.export.PdfExporter
+import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.DairyGenerator
 import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.llm.LlmEngine
@@ -22,7 +27,7 @@ class DailyBeatApp : Application() {
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -39,11 +44,28 @@ class DailyBeatApp : Application() {
 
     val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
+    val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
+
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
     val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
 
     val modelImporter: ModelImporter by lazy { ModelImporter(this) }
+
+    val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes()) }
+
+    val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
+
+    val reportGenerator: ReportGenerator by lazy {
+        ReportGenerator(
+            settingsRepository = settingsRepository,
+            cloudLlm = cloudLlm,
+            visitRepository = visitRepository,
+            eventRepository = eventRepository,
+            diaryRepository = diaryRepository,
+            localGenerator = dairyGenerator,
+        )
+    }
 
     override fun onCreate() {
         super.onCreate()

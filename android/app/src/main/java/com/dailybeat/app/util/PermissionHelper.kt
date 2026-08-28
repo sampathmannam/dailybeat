@@ -24,6 +24,14 @@ object PermissionHelper {
         return fine || coarse
     }
 
+    fun hasBackgroundLocation(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return hasLocation(context)
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun hasCallLog(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
             PackageManager.PERMISSION_GRANTED

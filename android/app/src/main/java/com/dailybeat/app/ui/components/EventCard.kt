@@ -20,6 +20,7 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.ui.theme.EventCall
 import com.dailybeat.app.ui.theme.EventGps
 import com.dailybeat.app.ui.theme.EventManual
+import com.dailybeat.app.ui.theme.EventVisit
 import com.dailybeat.app.ui.theme.EventVoice
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -110,6 +111,7 @@ private fun MetaLine(text: String) {
 private fun eventTypeColor(type: String): androidx.compose.ui.graphics.Color = when (type.lowercase()) {
     "voice" -> EventVoice
     "gps" -> EventGps
+    "visit" -> EventVisit
     "call" -> EventCall
     else -> EventManual
 }

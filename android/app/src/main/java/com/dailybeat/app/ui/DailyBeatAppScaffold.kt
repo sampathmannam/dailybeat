@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Book
@@ -12,7 +11,6 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -38,7 +36,6 @@ import com.dailybeat.app.ui.diary.DiaryScreen
 import com.dailybeat.app.ui.history.HistoryScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
-import com.dailybeat.app.ui.today.TodayViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -55,24 +52,12 @@ object Routes {
 @Composable
 fun DailyBeatAppScaffold() {
     val navController = rememberNavController()
-    val todayViewModel: TodayViewModel = viewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Routes.TODAY
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            if (currentRoute == Routes.TODAY) {
-                ExtendedFloatingActionButton(
-                    onClick = todayViewModel::captureVoiceNote,
-                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                    text = { Text(stringResource(R.string.voice_fab_label)) },
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary,
-                )
-            }
-        },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,

@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.capture.CallLogWorker
 import com.dailybeat.app.capture.CaptureController
+import com.dailybeat.app.cloud.DayContextBuilder
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.data.settings.CloudProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +19,15 @@ data class SettingsUiState(
     val officerName: String = "",
     val gpsEnabled: Boolean = true,
     val callLogEnabled: Boolean = false,
+    val cloudLlmEnabled: Boolean = true,
+    val cloudProvider: String = CloudProvider.OPENAI.id,
+    val cloudModel: String = CloudProvider.OPENAI.defaultModel,
+    val cloudBaseUrl: String = "",
+    val apiKeyDraft: String = "",
+    val hasApiKey: Boolean = false,
+    val autoEveningReport: Boolean = true,
+    val cloudTestResult: String? = null,
+    val cloudTesting: Boolean = false,
     val modelImported: Boolean = false,
     val placeName: String = "",
     val placeLat: String = "",
@@ -43,6 +54,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 officerName = settings.officerName,
                 gpsEnabled = settings.gpsCaptureEnabled,
                 callLogEnabled = settings.callLogEnabled,
+                cloudLlmEnabled = settings.cloudLlmEnabled,
+                cloudProvider = settings.cloudProvider,
+                cloudModel = settings.cloudModel,
+                cloudBaseUrl = settings.cloudBaseUrl,
+                hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                autoEveningReport = settings.autoEveningReport,
                 modelImported = app.modelImporter.hasBundledOrLocalModel(),
                 places = places,
             )
@@ -67,6 +84,73 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             CaptureController.applyFromSettings(app)
         } else {
             CallLogWorker.cancel(app)
+        }
+    }
+
+    fun setCloudLlmEnabled(enabled: Boolean) {
+        app.settingsRepository.setCloudLlmEnabled(enabled)
+        _uiState.update { it.copy(cloudLlmEnabled = enabled) }
+    }
+
+    fun setCloudProvider(providerId: String) {
+        app.settingsRepository.setCloudProvider(providerId)
+        val provider = CloudProvider.entries.find { it.id == providerId } ?: CloudProvider.OPENAI
+        app.settingsRepository.setCloudModel(provider.defaultModel)
+        _uiState.update {
+            it.copy(cloudProvider = providerId, cloudModel = provider.defaultModel)
+        }
+    }
+
+    fun setCloudModel(model: String) {
+        app.settingsRepository.setCloudModel(model)
+        _uiState.update { it.copy(cloudModel = model) }
+    }
+
+    fun setCloudBaseUrl(url: String) {
+        app.settingsRepository.setCloudBaseUrl(url)
+        _uiState.update { it.copy(cloudBaseUrl = url) }
+    }
+
+    fun setApiKeyDraft(key: String) {
+        _uiState.update { it.copy(apiKeyDraft = key, cloudTestResult = null) }
+    }
+
+    fun saveApiKey() {
+        val key = _uiState.value.apiKeyDraft.trim()
+        if (key.isEmpty()) return
+        app.settingsRepository.secureApiKey.setApiKey(key)
+        _uiState.update { it.copy(apiKeyDraft = "", hasApiKey = true) }
+    }
+
+    fun setAutoEveningReport(enabled: Boolean) {
+        app.settingsRepository.setAutoEveningReport(enabled)
+        _uiState.update { it.copy(autoEveningReport = enabled) }
+    }
+
+    fun testCloudConnection() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(cloudTesting = true, cloudTestResult = null) }
+            val settings = app.settingsRepository.get()
+            val draft = _uiState.value.apiKeyDraft.trim()
+            if (draft.isNotEmpty()) {
+                app.settingsRepository.secureApiKey.setApiKey(draft)
+            }
+            val result = app.cloudLlm.generate(
+                settings,
+                DayContextBuilder.SYSTEM_PROMPT,
+                "Reply with exactly: DailyBeat cloud AI is connected.",
+            )
+            _uiState.update {
+                it.copy(
+                    cloudTesting = false,
+                    cloudTestResult = result.fold(
+                        onSuccess = { "Connected successfully." },
+                        onFailure = { error -> error.message ?: "Connection failed." },
+                    ),
+                    hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                    apiKeyDraft = "",
+                )
+            }
         }
     }
 

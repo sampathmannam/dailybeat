@@ -1,8 +1,8 @@
 # DailyBeat
 
-Local-model-only police dairy writer. Android app, fully offline.
+IPS daily diary app for Android. Passive GPS journey tracking + cloud LLM reports (or offline GGUF fallback).
 
-**v2.0.0** — production release. Today → Diary → PDF → History. Geofence GPS, speech fallback, unit tests.
+**v3.0.0** — Cloud AI brain, passive visit/transit detection, OpenStreetMap place names, evening auto-report.
 
 ## Install
 
@@ -11,30 +11,45 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ```bash
 # Mac emulator (laptop)
 ./scripts/mac_setup.sh          # once
-./scripts/mac_sync_and_run.sh   # each session — needs emulator or phone via adb
+./scripts/mac_install_release_apk.sh emulator-5554   # or your device id
 ```
 
-APKs: GitHub Releases `v2.0.0` or build locally:
+APKs: GitHub Releases `v3.0.0` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
 ```
 
+## Quick start (cloud AI)
+
+1. Install the app and complete onboarding.
+2. Grant location (including **Allow all the time** on Android 10+) and notifications.
+3. **Settings → Cloud AI** — paste your API key, pick provider/model, tap **Test connection**.
+4. Keep **GPS tracking** on. Move between places; stays and transit appear on **Today**.
+5. Tap **Generate AI daily report** or wait for the 8 PM auto-report.
+6. Review, edit, and share PDF from **Diary** or **History**.
+
 ## Features
 
 | Feature | Status |
 |---------|--------|
-| Today dashboard + events | ✅ |
-| Diary generate / edit / PDF | ✅ |
-| History (past days) | ✅ |
-| Manual + voice events | ✅ |
-| SpeechRecognizer STT fallback | ✅ |
-| LLM dairy (GGUF import) | ✅ |
-| Rule-based fallback | ✅ |
-| GPS + geofence places | ✅ |
-| Call log | ✅ opt-in |
-| Onboarding | ✅ |
+| Passive GPS visits + transit | ✅ |
+| OpenStreetMap place names | ✅ |
+| Cloud LLM reports (OpenAI / Anthropic / compatible) | ✅ |
+| Encrypted API key storage | ✅ |
+| 8 PM auto evening report | ✅ |
+| Optional manual notes | ✅ |
+| Call log capture | ✅ opt-in |
+| Local GGUF fallback | ✅ |
+| Diary edit + PDF share | ✅ |
+| History | ✅ |
 | Unit tests | ✅ |
+
+## Privacy
+
+- GPS breadcrumbs, visits, call log, and notes stay on your device.
+- **Cloud reports** send a text summary of that day's activity to your chosen LLM provider when you generate (or at 8 PM auto-report).
+- API keys are stored encrypted on device.
 
 ## Training (your machine)
 

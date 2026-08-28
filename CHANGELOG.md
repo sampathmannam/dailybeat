@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.0.0 — 2026-08-28
+
+Cloud AI brain + passive daily capture. GPS journey tracking, OpenStreetMap place names, and end-of-day LLM reports.
+
+### Cloud AI
+- OpenAI, Anthropic, and OpenAI-compatible providers (Groq, etc.)
+- API key stored with EncryptedSharedPreferences
+- Settings: provider chips, model name, base URL, test connection
+- Auto-generate report at 8 PM when cloud AI is configured
+- Local GGUF model remains fallback when no API key
+
+### Passive capture
+- Visit detection: stays (≥8 min / ~150 m) and transit segments
+- OpenStreetMap Nominatim reverse geocode with on-device cache (1 req/s)
+- Foreground location service with passive tracking notification
+- Optional end-of-day typed note (not required for reports)
+
+### UI
+- Today tab: journey timeline, GPS/cloud status chips, Generate AI report
+- Diary tab: cloud-aware generate button and hints
+- Settings: Cloud AI section above capture toggles
+
+### Data
+- Room v4: `location_visits`, `geocode_cache` tables
+- Visit events logged as `visit` type in event timeline
+
+### Privacy note
+Generating cloud reports sends your day's activity summary (places, times, calls, notes) to the LLM provider you choose. Keys and raw GPS stay on device until you generate.
+
 ## v2.1.0 — 2026-08-28
 
 Mobbin-inspired UI redesign.

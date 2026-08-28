@@ -9,13 +9,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,11 +31,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
-import com.dailybeat.app.ui.components.EventCard
-import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
+import com.dailybeat.app.ui.components.VisitCard
 
 @Composable
 fun TodayScreen(
@@ -44,10 +43,10 @@ fun TodayScreen(
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = viewModel(),
 ) {
-    val events by viewModel.todayEvents.collectAsStateWithLifecycle()
+    val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
-    var draft by remember { mutableStateOf("") }
+    var optionalNote by remember { mutableStateOf("") }
+    var showOptionalNote by remember { mutableStateOf(false) }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -64,54 +63,57 @@ fun TodayScreen(
     ) {
         item {
             DailyBeatScreenHeader(
-                title = stringResource(R.string.today_dashboard_title),
-                subtitle = headerSubtitle ?: stringResource(R.string.today_dashboard_subtitle),
+                title = stringResource(R.string.today_passive_title),
+                subtitle = headerSubtitle ?: stringResource(R.string.today_passive_subtitle),
             )
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MetricPill(
-                    label = stringResource(R.string.stat_events),
-                    value = uiState.eventCount.toString(),
-                    modifier = Modifier.weight(1f),
+            StatusStrip(
+                gpsOn = uiState.gpsEnabled,
+                cloudReady = uiState.cloudBrainReady,
+            )
+        }
+
+        if (uiState.cloudBrainReady) {
+            item {
+                PrimaryButton(
+                    text = stringResource(R.string.generate_ai_report),
+                    onClick = viewModel::generateAiReport,
+                    enabled = !uiState.isGeneratingReport &&
+                        (uiState.visitCount > 0 || uiState.eventCount > 0),
                 )
-                MetricPill(
-                    label = stringResource(R.string.stat_diary),
-                    value = if (uiState.hasDiary) "✓" else "—",
-                    modifier = Modifier.weight(1f),
-                )
+            }
+        } else {
+            item {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.cloud_brain_setup_hint),
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
         }
 
-        item {
-            SectionHeader(title = stringResource(R.string.quick_add_section))
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.manual_event_label)) },
-                minLines = 2,
-                shape = RoundedCornerShape(16.dp),
-                colors = fieldColors,
-            )
+        if (uiState.isGeneratingReport) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 12.dp))
+                    Text(stringResource(R.string.generating_ai_report))
+                }
+            }
         }
 
-        item {
-            PrimaryButton(
-                text = stringResource(R.string.save_event),
-                onClick = {
-                    viewModel.addManualEvent(draft)
-                    draft = ""
-                },
-                enabled = draft.isNotBlank(),
-            )
-        }
-
-        if (events.isNotEmpty()) {
+        if (uiState.hasDiary) {
             item {
                 SecondaryButton(
                     text = stringResource(R.string.open_diary_tab),
@@ -120,62 +122,99 @@ fun TodayScreen(
             }
         }
 
-        if (isRecording) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 12.dp))
-                    Text(
-                        text = stringResource(R.string.recording_label),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
-
         uiState.error?.let { error ->
-            item {
-                Text(text = error, color = MaterialTheme.colorScheme.error)
-            }
+            item { Text(text = error, color = MaterialTheme.colorScheme.error) }
         }
 
-        if (!uiState.modelAvailable) {
-            item {
-                Text(
-                    text = stringResource(R.string.model_missing_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        if (events.isEmpty()) {
+        if (visits.isEmpty()) {
             item {
                 EmptyState(
-                    title = stringResource(R.string.no_events_today),
-                    subtitle = stringResource(R.string.no_events_hint),
+                    title = stringResource(R.string.journey_empty_title),
+                    subtitle = stringResource(R.string.journey_empty_subtitle),
                 )
             }
         } else {
-            item { SectionHeader(title = stringResource(R.string.event_list_label)) }
-            items(events, key = { it.id }) { event ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    EventCard(event = event, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { viewModel.deleteEvent(event) }) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.delete_event),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+            item { SectionHeader(title = stringResource(R.string.journey_section)) }
+            items(visits, key = { it.id }) { visit ->
+                VisitCard(visit = visit)
             }
+        }
+
+        item {
+            SecondaryButton(
+                text = if (showOptionalNote) {
+                    stringResource(R.string.hide_optional_note)
+                } else {
+                    stringResource(R.string.add_optional_note)
+                },
+                onClick = { showOptionalNote = !showOptionalNote },
+            )
+        }
+
+        if (showOptionalNote) {
+            item {
+                OutlinedTextField(
+                    value = optionalNote,
+                    onValueChange = { optionalNote = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.optional_note_label)) },
+                    minLines = 2,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
+                )
+                PrimaryButton(
+                    text = stringResource(R.string.save_optional_note),
+                    onClick = {
+                        viewModel.addOptionalNote(optionalNote)
+                        optionalNote = ""
+                    },
+                    enabled = optionalNote.isNotBlank(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusStrip(gpsOn: Boolean, cloudReady: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        StatusChip(
+            label = if (gpsOn) stringResource(R.string.status_gps_on) else stringResource(R.string.status_gps_off),
+            active = gpsOn,
+        )
+        StatusChip(
+            label = if (cloudReady) stringResource(R.string.status_cloud_on) else stringResource(R.string.status_cloud_off),
+            active = cloudReady,
+        )
+    }
+}
+
+@Composable
+private fun StatusChip(label: String, active: Boolean) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = if (active) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (active && label.contains("Cloud")) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.padding(0.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

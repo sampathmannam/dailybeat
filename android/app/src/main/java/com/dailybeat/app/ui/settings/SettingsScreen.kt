@@ -28,10 +28,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SettingsGroup
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Surface
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
@@ -65,6 +70,82 @@ fun SettingsScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
+                )
+            }
+        }
+
+        item {
+            SettingsGroup(title = stringResource(R.string.settings_cloud_group)) {
+                Text(
+                    text = stringResource(R.string.settings_cloud_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ToggleRow(
+                    label = stringResource(R.string.cloud_llm_enabled),
+                    checked = state.cloudLlmEnabled,
+                    onCheckedChange = viewModel::setCloudLlmEnabled,
+                )
+                OutlinedTextField(
+                    value = if (state.apiKeyDraft.isNotEmpty()) state.apiKeyDraft else {
+                        if (state.hasApiKey) "••••••••••••••••" else ""
+                    },
+                    onValueChange = viewModel::setApiKeyDraft,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.cloud_api_key_label)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                PrimaryButton(
+                    text = stringResource(R.string.save_api_key),
+                    onClick = viewModel::saveApiKey,
+                    enabled = state.apiKeyDraft.isNotBlank(),
+                )
+                OutlinedTextField(
+                    value = state.cloudModel,
+                    onValueChange = viewModel::setCloudModel,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.cloud_model_label)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                if (state.cloudProvider == CloudProvider.COMPATIBLE.id) {
+                    OutlinedTextField(
+                        value = state.cloudBaseUrl,
+                        onValueChange = viewModel::setCloudBaseUrl,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.cloud_base_url_label)) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = fieldColors,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CloudProvider.entries.forEach { provider ->
+                        SecondaryProviderChip(
+                            label = provider.displayName,
+                            selected = state.cloudProvider == provider.id,
+                            onClick = { viewModel.setCloudProvider(provider.id) },
+                        )
+                    }
+                }
+                SecondaryButton(
+                    text = stringResource(R.string.test_cloud_connection),
+                    onClick = viewModel::testCloudConnection,
+                    enabled = !state.cloudTesting,
+                )
+                state.cloudTestResult?.let { msg ->
+                    Text(text = msg, style = MaterialTheme.typography.bodySmall)
+                }
+                ToggleRow(
+                    label = stringResource(R.string.auto_evening_report),
+                    checked = state.autoEveningReport,
+                    onCheckedChange = viewModel::setAutoEveningReport,
                 )
             }
         }
@@ -135,6 +216,25 @@ fun SettingsScreen(
         items(state.places, key = { it.id }) { place ->
             PlaceCard(place = place, onDelete = { viewModel.deletePlace(place) })
         }
+    }
+}
+
+@Composable
+private fun SecondaryProviderChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }
 
