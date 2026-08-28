@@ -22,7 +22,21 @@ class DairyGenerator(
         if (events.isEmpty()) {
             return Result.failure(IllegalStateException("No events logged for this day."))
         }
+        if (!llm.isModelAvailable()) {
+            return Result.success(ruleBasedDairy(events, zone))
+        }
         return llm.generate(buildDayPrompt(events, zone))
+    }
+
+    private fun ruleBasedDairy(events: List<Event>, zone: ZoneId): String {
+        return events.joinToString(separator = " ") { event ->
+            val time = Instant.ofEpochMilli(event.timestamp)
+                .atZone(zone)
+                .toLocalTime()
+                .truncatedTo(ChronoUnit.MINUTES)
+            val place = event.placeName?.let { " at $it" } ?: ""
+            "At $time hours$place, ${event.rawText.trim()}."
+        }
     }
 
     private fun buildDayPrompt(events: List<Event>, zone: ZoneId): String {

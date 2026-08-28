@@ -6,44 +6,50 @@ Local-model-only police dairy writer. Android app, fully offline.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 1 | Training data scripts + synthetic samples | **Done** |
-| 6 | Android project skeleton | **Done** |
-| 7 | LLM engine wrapper + generate UI | **Done** (needs GGUF in assets) |
-| 8 | Room DB + today's events UI | **Done** |
-| 10 | Diary generator on home screen | **Done** |
-| 2–3 | Eval split + `eval_base.py` scripts | **Done** (run on your machine with Ollama) |
-| 0–5 | Environment, fine-tune | Needs local GPU + past diaries |
-| 9–14 | Voice, PDF, release | Planned |
+| 1 | Training data scripts | Done |
+| 2–3 | Eval split + `eval_base.py` | Done |
+| 6–8 | Android skeleton, LLM, Room events | Done |
+| 9 | Voice capture + EventExtractor | Done (Whisper JNI when `ggml-tiny.bin` bundled) |
+| 10 | Diary generator on home screen | Done |
+| 11 | PDF export + Share | Done |
+| 12 | GPS breadcrumbs, call log, Settings | Done |
+| 13 | Release APK build | Done |
+| 0–5 | Fine-tune on RTX 2050 | Needs your past diaries + local GPU |
 
-## Quick start
+## Test on your MacBook emulator (not Cursor cloud)
 
-**Training data (Phase 1):**
+The cloud agent **cannot** drive your Mac's emulator. Run on your Mac:
+
 ```bash
-python scripts/generate_synthetic_samples.py
+git clone https://github.com/sampathmannam/dailybeat.git
+cd dailybeat
+git checkout cursor/android-skeleton-cc46
+chmod +x scripts/mac_emulator_demo.sh
+./scripts/mac_emulator_demo.sh
+```
+
+Start the emulator in **Android Studio → Device Manager** first. You'll see the app on your Mac screen.
+
+For a mirrored window: `brew install scrcpy && scrcpy`
+
+## Build (Mac)
+
+```bash
+cd android
+./gradlew assembleDebug      # → app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease    # signed with debug key unless release.keystore + env vars set
+```
+
+## Python toolchain
+
+```bash
+pip install -e ".[dev]"
 python scripts/parse_diaries.py --merge data/samples/diary_train.sample.jsonl
-python scripts/split_eval.py          # Phase 2: hold out eval set
-python scripts/eval_base.py           # Phase 3: needs local Ollama
-```
-
-**Android (Linux / macOS):**
-```bash
-cd android
-./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
-```
-
-**Android (Windows PowerShell):**
-```powershell
-cd android
-.\gradlew.bat assembleDebug
-```
-
-**Python toolchain:**
-```bash
-pip install -e ".[dev,train,eval]"
 pytest scripts/tests/
 ```
 
-**LLM on device (Phase 7):** After fine-tune, copy `dailybeat-q4_k_m.gguf` to `android/app/src/main/assets/`.
+## LLM on device
 
-See [PLAN.md](PLAN.md) for the full end-to-end build spec.
+Copy fine-tuned `dailybeat-q4_k_m.gguf` to Mac **Downloads**, then in app: **Settings → Import model**.
+
+See [PLAN.md](PLAN.md) for the full spec.

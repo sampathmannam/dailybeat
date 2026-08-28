@@ -2,6 +2,7 @@ package com.dailybeat.app.data.repo
 
 import com.dailybeat.app.data.db.EventDao
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.data.model.StructuredEvent
 import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.flow.Flow
 
@@ -14,14 +15,25 @@ class EventRepository(private val eventDao: EventDao) {
 
     suspend fun addManualEvent(rawText: String) {
         val trimmed = rawText.trim()
-        if (trimmed.isEmpty()) {
-            return
-        }
+        if (trimmed.isEmpty()) return
         eventDao.insert(
             Event(
                 timestamp = System.currentTimeMillis(),
                 type = "manual",
                 rawText = trimmed,
+            ),
+        )
+    }
+
+    suspend fun addStructuredEvent(structured: StructuredEvent, type: String = "voice") {
+        eventDao.insert(
+            Event(
+                timestamp = structured.timestamp,
+                type = type,
+                rawText = structured.rawText,
+                placeName = structured.placeName,
+                peopleMentioned = structured.peopleMentioned,
+                caseNumbers = structured.caseNumbers,
             ),
         )
     }

@@ -13,16 +13,34 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystore = file("../release.keystore")
+            if (keystore.exists()) {
+                storeFile = keystore
+                storePassword = System.getenv("DAILYBEAT_STORE_PASSWORD")
+                keyAlias = "dailybeat"
+                keyPassword = System.getenv("DAILYBEAT_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (System.getenv("DAILYBEAT_STORE_PASSWORD") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
@@ -50,7 +68,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("gguf")
+        noCompress += listOf("gguf", "bin")
     }
 }
 
@@ -60,6 +78,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -73,4 +92,5 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("com.google.mediapipe:tasks-genai:0.10.14")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

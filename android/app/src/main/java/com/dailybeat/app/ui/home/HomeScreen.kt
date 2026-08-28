@@ -1,5 +1,6 @@
 package com.dailybeat.app.ui.home
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,8 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
@@ -39,6 +42,8 @@ fun HomeScreen(
 ) {
     val events by viewModel.todayEvents.collectAsStateWithLifecycle()
     val dairyState by viewModel.dairyState.collectAsStateWithLifecycle()
+    val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var draft by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
@@ -99,6 +104,17 @@ fun HomeScreen(
             }
         }
 
+        if (isRecording) {
+            item {
+                Text(
+                    text = stringResource(R.string.recording_label),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                CircularProgressIndicator()
+            }
+        }
+
         if (!viewModel.modelAvailable) {
             item {
                 Text(
@@ -135,6 +151,29 @@ fun HomeScreen(
                     minLines = 6,
                 )
             }
+            item {
+                Button(
+                    onClick = {
+                        val path = viewModel.exportPdfPath()
+                        if (path != null) {
+                            val file = java.io.File(path)
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                file,
+                            )
+                            val share = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(share, "Share dairy PDF"))
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.share_pdf_button))
+                }
+            }
         }
 
         if (events.isEmpty()) {
@@ -170,6 +209,12 @@ private fun EventCard(event: Event) {
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(text = event.rawText, style = MaterialTheme.typography.bodyMedium)
+            event.placeName?.let { place ->
+                Text(text = "Place: $place", style = MaterialTheme.typography.bodySmall)
+            }
+            event.caseNumbers?.let { cases ->
+                Text(text = "Cases: $cases", style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
