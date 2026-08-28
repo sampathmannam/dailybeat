@@ -4,17 +4,33 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
-import com.dailybeat.app.data.model.Event
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class DairyUiState(
+    val text: String = "",
+    val isGenerating: Boolean = false,
+    val error: String? = null,
+)
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = (application as DailyBeatApp).eventRepository
+    private val app = application as DailyBeatApp
+    private val repository = app.eventRepository
+    private val dairyGenerator = app.dairyGenerator
 
     val todayEvents = repository.observeTodayEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _dairyState = MutableStateFlow(DairyUiState())
+    val dairyState: StateFlow<DairyUiState> = _dairyState.asStateFlow()
+
+    val modelAvailable: Boolean = app.llm.isModelAvailable()
 
     fun addManualEvent(text: String) {
         viewModelScope.launch {
@@ -23,4 +39,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun todayEventsText(): String = repository.todayEventsText()
+
+    fun generateTodayDairy() {
+        viewModelScope.launch {
+            _dairyState.update { it.copy(isGenerating = true, error = null) }
+            dairyGenerator.generateForToday().fold(
+                onSuccess = { dairy ->
+                    _dairyState.update { it.copy(isGenerating = false, text = dairy) }
+                },
+                onFailure = { error ->
+                    _dairyState.update {
+                        it.copy(
+                            isGenerating = false,
+                            error = error.message ?: "Dairy generation failed.",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun updateDairyText(text: String) {
+        _dairyState.update { it.copy(text = text, error = null) }
+    }
 }

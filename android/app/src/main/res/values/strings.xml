@@ -6,7 +6,11 @@
     <string name="today_events_title">Today\'s events</string>
     <string name="manual_event_label">Manual event note</string>
     <string name="save_event">Save event</string>
-    <string name="generate_from_today">Generate dairy from today</string>
+    <string name="generate_from_today">Open in Generate tab</string>
+    <string name="generate_today_dairy">Generate today\'s dairy</string>
+    <string name="daily_diary_label">Daily diary</string>
+    <string name="edit_dairy_label">Edit before saving</string>
+    <string name="event_list_label">Logged events</string>
     <string name="no_events_today">No events logged today. Add a manual note above.</string>
     <string name="generate_title">Generate dairy</string>
     <string name="events_input_label">Raw events</string>

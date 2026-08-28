@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.Room
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.llm.DairyGenerator
 import com.dailybeat.app.llm.LlmEngine
 
 class DailyBeatApp : Application() {
@@ -13,6 +14,8 @@ class DailyBeatApp : Application() {
     }
 
     val llm: LlmEngine by lazy { LlmEngine(this) }
+
+    val dairyGenerator: DairyGenerator by lazy { DairyGenerator(llm, db) }
 
     val eventRepository: EventRepository by lazy {
         EventRepository(db.events())
