@@ -14,7 +14,7 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ./scripts/mac_install_release_apk.sh emulator-5554   # or your device id
 ```
 
-APKs: GitHub Releases `v3.0.0` or build locally:
+APKs: GitHub Releases `v3.0.1` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
