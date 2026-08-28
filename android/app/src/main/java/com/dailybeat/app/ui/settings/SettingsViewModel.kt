@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.capture.CallLogWorker
+import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.data.model.Place
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,12 +57,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setGpsEnabled(enabled: Boolean) {
         app.settingsRepository.setGpsEnabled(enabled)
         _uiState.update { it.copy(gpsEnabled = enabled) }
-        app.applyCaptureSettings()
+        CaptureController.applyFromSettings(app)
     }
 
     fun setCallLogEnabled(enabled: Boolean) {
         app.settingsRepository.setCallLogEnabled(enabled)
         _uiState.update { it.copy(callLogEnabled = enabled) }
+        if (enabled) {
+            CaptureController.applyFromSettings(app)
+        } else {
+            CallLogWorker.cancel(app)
+        }
     }
 
     fun updatePlaceDraft(name: String, lat: String, lon: String) {

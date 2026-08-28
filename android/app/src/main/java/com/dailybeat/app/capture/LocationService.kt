@@ -12,6 +12,7 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.util.PermissionHelper
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -64,6 +65,10 @@ class LocationService : Service() {
 
   override fun onCreate() {
     super.onCreate()
+    if (!PermissionHelper.hasLocation(this)) {
+      stopSelf()
+      return
+    }
     startForeground(NOTIFICATION_ID, buildNotification())
     val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 60_000L)
       .setMinUpdateIntervalMillis(60_000L)

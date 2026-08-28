@@ -24,4 +24,9 @@ interface EventDao {
 
     @Delete
     suspend fun delete(event: Event)
+
+    @Query(
+        "SELECT COUNT(*) FROM events WHERE type = :type AND sourceId = :sourceId AND timestamp = :timestamp",
+    )
+    suspend fun countBySource(type: String, sourceId: String, timestamp: Long): Int
 }

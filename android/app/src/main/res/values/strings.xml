@@ -37,4 +37,6 @@
     <string name="voice_service_text">Tap mic in app to dictate events</string>
     <string name="location_service_title">DailyBeat location</string>
     <string name="location_service_text">Capturing GPS breadcrumbs</string>
+    <string name="reminder_title">DailyBeat</string>
+    <string name="reminder_body">5 minutes for your daily dairy?</string>
 </resources>

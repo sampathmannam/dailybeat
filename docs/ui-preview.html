@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DailyBeat UI Preview</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, Roboto, sans-serif; }
+    body { background: #f0f0f0; padding: 24px; display: flex; gap: 24px; flex-wrap: wrap; }
+    .phone { width: 360px; background: #fff; border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,.15); overflow: hidden; border: 1px solid #ddd; }
+    .status { height: 28px; background: #1A237E; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+    .screen { padding: 16px; min-height: 620px; background: #fafafa; }
+    h2 { color: #1A237E; font-size: 20px; margin: 0 0 12px; }
+    .field { border: 1px solid #ccc; border-radius: 8px; padding: 12px; background: #fff; margin-bottom: 12px; font-size: 13px; color: #666; min-height: 56px; }
+    .btn { background: #1A237E; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; margin: 4px 0; font-size: 14px; display: block; width: 100%; text-align: center; }
+    .btn.secondary { background: #3949ab; }
+    .card { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid #e0e0e0; }
+    .card .meta { color: #1A237E; font-size: 12px; font-weight: 600; }
+    .card .text { font-size: 14px; margin-top: 4px; }
+    .hint { color: #c62828; font-size: 12px; margin: 8px 0; }
+    .nav { display: flex; border-top: 1px solid #e0e0e0; background: #fff; }
+    .nav div { flex: 1; text-align: center; padding: 10px 4px; font-size: 11px; color: #666; }
+    .nav div.active { color: #1A237E; font-weight: 600; }
+    .fab { position: relative; }
+    .fab-btn { position: absolute; right: 16px; bottom: 72px; width: 56px; height: 56px; background: #FFC107; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+    .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .title { text-align: center; font-weight: 600; color: #1A237E; padding: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="phone" id="today">
+    <div class="status">DailyBeat</div>
+    <div class="screen fab">
+      <h2>Today's events</h2>
+      <div class="field">Manual event note — e.g. 1140 Market beat, met IO Rajan…</div>
+      <div class="btn">Save event</div>
+      <div class="btn">Generate today's dairy</div>
+      <div class="btn secondary">Open in Generate tab</div>
+      <p class="hint">Copy dailybeat-q4_k_m.gguf to Downloads or use Settings → Import model.</p>
+      <p class="label">Logged events</p>
+      <div class="card">
+        <div class="meta">11:40 · voice</div>
+        <div class="text">Met IO Rajan, inspected chain snatching FIR 247/26</div>
+        <div class="text" style="font-size:12px;color:#666">Place: Market Beat · Cases: FIR 247/26</div>
+      </div>
+      <div class="card">
+        <div class="meta">09:45 · manual</div>
+        <div class="text">Office — reviewed pending FIRs with SI Patel</div>
+      </div>
+      <div class="fab-btn">🎤</div>
+    </div>
+    <div class="nav">
+      <div class="active">Today</div>
+      <div>Generate</div>
+      <div>Settings</div>
+    </div>
+  </div>
+
+  <div class="phone" id="generate">
+    <div class="status">DailyBeat</div>
+    <div class="screen">
+      <h2>Generate dairy</h2>
+      <div class="field">Raw events<br><br>0945 Office reviewed FIRs. 1140 Market beat with IO Rajan…</div>
+      <div class="btn">Generate</div>
+      <p class="label">Dairy</p>
+      <div class="field" style="min-height:120px;color:#333">At 0945 hours, attended office and reviewed pending FIRs with SI Patel. At 1140 hours, during Market Beat, met IO Rajan regarding chain snatching FIR 247/26…</div>
+    </div>
+    <div class="nav">
+      <div>Today</div>
+      <div class="active">Generate</div>
+      <div>Settings</div>
+    </div>
+  </div>
+
+  <div class="phone" id="settings">
+    <div class="status">DailyBeat</div>
+    <div class="screen">
+      <h2>Settings</h2>
+      <div class="field">Officer name: Sampath M, IPS</div>
+      <div class="card">
+        <div class="text">GPS breadcrumbs (every 5 min / 100m)</div>
+        <div class="text" style="color:#1A237E">ON</div>
+      </div>
+      <div class="card">
+        <div class="text">Call log capture (opt-in)</div>
+        <div class="text" style="color:#888">OFF</div>
+      </div>
+      <div class="btn secondary">Import model from Downloads</div>
+      <p class="label">Named places</p>
+      <div class="card">
+        <div class="meta">Court</div>
+        <div class="text">12.9716, 77.5946 (100m)</div>
+      </div>
+    </div>
+    <div class="nav">
+      <div>Today</div>
+      <div>Generate</div>
+      <div class="active">Settings</div>
+    </div>
+  </div>
+</body>
+</html>

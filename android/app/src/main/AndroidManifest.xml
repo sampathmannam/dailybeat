@@ -42,6 +42,10 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".notify.DailyReminderReceiver"
+            android:exported="false" />
+
         <service
             android:name=".capture.VoiceCaptureService"
             android:exported="false"

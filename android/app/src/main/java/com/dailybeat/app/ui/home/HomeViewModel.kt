@@ -4,9 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
-import com.dailybeat.app.capture.VoiceCaptureService
 import com.dailybeat.app.capture.VoiceRecorder
+import com.dailybeat.app.capture.VoiceTranscriptProvider
 import com.dailybeat.app.capture.WhisperBridge
+import com.dailybeat.app.util.PermissionHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,9 +28,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DailyBeatApp
     private val repository = app.eventRepository
-    private val dairyGenerator = app.dairyGenerator
+    private val diaryRepository = app.diaryRepository
     private val voiceRecorder = VoiceRecorder(application)
     private val whisperBridge = WhisperBridge(application)
+    private var saveJob: Job? = null
 
     val todayEvents = repository.observeTodayEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -40,6 +44,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val modelAvailable: Boolean = app.llm.isModelAvailable()
 
+    init {
+        viewModelScope.launch {
+            val saved = diaryRepository.todayText()
+            if (!saved.isNullOrBlank()) {
+                _dairyState.update { it.copy(text = saved) }
+            }
+        }
+    }
+
     fun addManualEvent(text: String) {
         viewModelScope.launch { repository.addManualEvent(text) }
     }
@@ -49,9 +62,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun generateTodayDairy() {
         viewModelScope.launch {
             _dairyState.update { it.copy(isGenerating = true, error = null) }
-            dairyGenerator.generateForToday().fold(
+            app.dairyGenerator.generateForToday().fold(
                 onSuccess = { dairy ->
                     _dairyState.update { it.copy(isGenerating = false, text = dairy) }
+                    diaryRepository.saveToday(dairy)
                 },
                 onFailure = { error ->
                     _dairyState.update {
@@ -67,6 +81,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateDairyText(text: String) {
         _dairyState.update { it.copy(text = text, error = null) }
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch {
+            delay(500)
+            diaryRepository.saveToday(text)
+        }
     }
 
     fun captureVoiceNote() {
@@ -74,17 +93,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _isRecording.value = true
             _dairyState.update { it.copy(error = null) }
             try {
-                VoiceCaptureService.start(app)
-                val transcript = try {
-                    val samples = voiceRecorder.recordUntilSilence(maxSeconds = 8)
-                    whisperBridge.transcribe(samples).trim()
-                } catch (_: Exception) {
-                    ""
-                }.ifBlank {
-                    com.dailybeat.app.capture.VoiceTranscriptProvider.emulatorDemoTranscript() ?: ""
+                if (!PermissionHelper.hasRecordAudio(app)) {
+                    _dairyState.update { it.copy(error = "Microphone permission required.") }
+                    return@launch
                 }
+
+                val transcript = when {
+                    VoiceTranscriptProvider.emulatorDemoTranscript() != null -> {
+                        VoiceTranscriptProvider.emulatorDemoTranscript()!!
+                    }
+                    else -> {
+                        val samples = voiceRecorder.recordUntilSilence(maxSeconds = 8)
+                        whisperBridge.transcribe(samples).trim()
+                    }
+                }
+
                 if (transcript.isEmpty()) {
-                    _dairyState.update { it.copy(error = "No speech detected.") }
+                    _dairyState.update { it.copy(error = "No speech detected. Type a manual note instead.") }
                     return@launch
                 }
                 val structured = app.eventExtractor.extract(transcript)
