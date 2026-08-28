@@ -70,7 +70,7 @@ fun TodayScreen(
 
         item {
             StatusStrip(
-                gpsOn = uiState.gpsEnabled,
+                gpsOn = uiState.gpsActive,
                 cloudReady = uiState.cloudBrainReady,
             )
         }
@@ -167,6 +167,7 @@ fun TodayScreen(
                     onClick = {
                         viewModel.addOptionalNote(optionalNote)
                         optionalNote = ""
+                        showOptionalNote = false
                     },
                     enabled = optionalNote.isNotBlank(),
                 )

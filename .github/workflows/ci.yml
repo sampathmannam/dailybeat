@@ -28,6 +28,14 @@ jobs:
           cd android
           ./gradlew assembleRelease testReleaseUnitTest --no-daemon --stacktrace
 
+      - name: Instrumentation tests (emulator)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: Nexus 6
+          script: cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+
       - name: Python tests
         run: |
           pip install -e ".[dev]"

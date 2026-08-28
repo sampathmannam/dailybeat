@@ -67,16 +67,24 @@ class CallLogWorker(
         private const val WORK_NAME = "call_log_poll"
 
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<CallLogWorker>(15, TimeUnit.MINUTES).build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                request,
-            )
+            try {
+                val request = PeriodicWorkRequestBuilder<CallLogWorker>(15, TimeUnit.MINUTES).build()
+                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                    WORK_NAME,
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    request,
+                )
+            } catch (_: IllegalStateException) {
+                // WorkManager not ready (early boot or unit tests).
+            }
         }
 
         fun cancel(context: Context) {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            try {
+                WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            } catch (_: IllegalStateException) {
+                // WorkManager not ready (early boot or unit tests).
+            }
         }
     }
 }

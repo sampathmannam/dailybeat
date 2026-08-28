@@ -12,8 +12,9 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "3.0.0"
+        versionCode = 6
+        versionName = "3.0.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -61,6 +62,10 @@ android {
         jvmTarget = "17"
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     packaging {
         resources {
             excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1")
@@ -101,4 +106,12 @@ dependencies {
     testImplementation("androidx.room:room-testing:2.6.1")
     testImplementation("org.robolectric:robolectric:4.12.2")
     testImplementation("androidx.test:core:1.6.1")
+
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

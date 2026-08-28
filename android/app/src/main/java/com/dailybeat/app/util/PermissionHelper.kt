@@ -32,6 +32,15 @@ object PermissionHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** Foreground location on all APIs; background location on API 29+ when passive GPS is expected. */
+    fun canCaptureLocation(context: Context): Boolean {
+        if (!hasLocation(context)) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return hasBackgroundLocation(context)
+        }
+        return true
+    }
+
     fun hasCallLog(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
             PackageManager.PERMISSION_GRANTED

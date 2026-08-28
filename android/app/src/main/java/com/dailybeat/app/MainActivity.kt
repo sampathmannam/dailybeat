@@ -17,13 +17,20 @@ import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.ui.DailyBeatAppScaffold
 import com.dailybeat.app.ui.onboarding.OnboardingScreen
 import com.dailybeat.app.ui.theme.DailyBeatTheme
+import com.dailybeat.app.util.PermissionHelper
 
 class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { _ ->
-        CaptureController.applyFromSettings(this)
+    ) { results ->
+        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            requestBackgroundLocationIfNeeded()
+        } else {
+            CaptureController.applyFromSettings(this)
+        }
     }
 
     private val backgroundLocationLauncher = registerForActivityResult(
@@ -74,9 +81,15 @@ class MainActivity : ComponentActivity() {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         permissionLauncher.launch(permissions.toTypedArray())
+    }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    private fun requestBackgroundLocationIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            !PermissionHelper.hasBackgroundLocation(this)
+        ) {
             backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        } else {
+            CaptureController.applyFromSettings(this)
         }
     }
 }

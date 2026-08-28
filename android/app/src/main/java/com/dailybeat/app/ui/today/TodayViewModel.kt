@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ data class TodayUiState(
     val hasDiary: Boolean = false,
     val cloudBrainReady: Boolean = false,
     val gpsEnabled: Boolean = true,
+    val gpsActive: Boolean = false,
     val isGeneratingReport: Boolean = false,
     val error: String? = null,
 )
@@ -39,6 +41,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         TodayUiState(
             cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
             gpsEnabled = app.settingsRepository.get().gpsCaptureEnabled,
+            gpsActive = isGpsCaptureActive(),
         ),
     )
     val uiState: StateFlow<TodayUiState> = _uiState.asStateFlow()
@@ -56,6 +59,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                     hasDiary = !diary?.text.isNullOrBlank(),
                     cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
                     gpsEnabled = app.settingsRepository.get().gpsCaptureEnabled,
+                    gpsActive = isGpsCaptureActive(),
                     isGeneratingReport = _uiState.value.isGeneratingReport,
                     error = _uiState.value.error,
                 )
@@ -97,5 +101,11 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    private fun isGpsCaptureActive(): Boolean {
+        val settings = app.settingsRepository.get()
+        return settings.gpsCaptureEnabled &&
+            PermissionHelper.canCaptureLocation(getApplication())
     }
 }

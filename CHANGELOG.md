@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.0.1 — 2026-08-28
+
+E2E hardening: bug fixes, instrumentation tests, and CI emulator suite.
+
+### Fixed
+- BootReceiver restarts passive GPS/call capture after device reboot
+- Background location requested after foreground grant (Android 11+ flow)
+- GPS status chip reflects permissions, not just the settings toggle
+- Optional note section collapses after save
+- Settings place validation shows errors instead of silent no-op
+- SecureApiKeyStore falls back when encrypted prefs unavailable (tests)
+- CallLogWorker and LocationService tolerate restricted/test contexts
+- Onboarding copy updated for passive GPS + cloud AI model
+
+### Tests
+- Compose instrumentation: onboarding flow, bottom-nav, optional note, settings/diary sections
+- Robolectric: BootReceiver smoke test
+- CI runs `connectedDebugAndroidTest` on API 34 emulator
+
 ## v3.0.0 — 2026-08-28
 
 Cloud AI brain + passive daily capture. GPS journey tracking, OpenStreetMap place names, and end-of-day LLM reports.

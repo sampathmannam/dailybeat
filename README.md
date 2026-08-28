@@ -2,7 +2,7 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + cloud LLM reports (or offline GGUF fallback).
 
-**v3.0.0** — Cloud AI brain, passive visit/transit detection, OpenStreetMap place names, evening auto-report.
+**v3.0.1** — E2E-tested release: reboot capture fix, permission flow, instrumentation tests in CI.
 
 ## Install
 

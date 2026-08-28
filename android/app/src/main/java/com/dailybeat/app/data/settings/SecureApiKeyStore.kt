@@ -7,13 +7,7 @@ import androidx.security.crypto.MasterKey
 
 class SecureApiKeyStore(private val context: Context) {
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "dailybeat_secure",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs: SharedPreferences = createPrefs(context)
 
     fun getApiKey(): String? = prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
 
@@ -27,7 +21,23 @@ class SecureApiKeyStore(private val context: Context) {
 
     fun hasApiKey(): Boolean = !getApiKey().isNullOrBlank()
 
-    companion object {
+    private companion object {
         private const val KEY_API = "cloud_llm_api_key"
+        private const val ENCRYPTED_FILE = "dailybeat_secure"
+        private const val FALLBACK_FILE = "dailybeat_secure_fallback"
+
+        private fun createPrefs(context: Context): SharedPreferences {
+            return try {
+                EncryptedSharedPreferences.create(
+                    context,
+                    ENCRYPTED_FILE,
+                    MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                )
+            } catch (_: Exception) {
+                context.getSharedPreferences(FALLBACK_FILE, Context.MODE_PRIVATE)
+            }
+        }
     }
 }

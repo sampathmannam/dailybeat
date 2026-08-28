@@ -210,6 +210,9 @@ fun SettingsScreen(
                     colors = fieldColors,
                 )
                 PrimaryButton(text = stringResource(R.string.add_place_button), onClick = viewModel::addPlace)
+                state.placeError?.let { error ->
+                    Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
 

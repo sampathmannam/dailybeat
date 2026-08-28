@@ -84,10 +84,10 @@
     <string name="diary_cloud_hint">Cloud AI merges GPS journey, calls, and notes into your official diary.</string>
     <string name="diary_local_hint">Add a cloud API key in Settings for AI reports, or import a local GGUF model.</string>
     <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
-    <string name="onboarding_welcome_body">Your offline IPS daily diary. Events stay on this device. No cloud, no telemetry.</string>
+    <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports. Data stays on your device until you generate.</string>
     <string name="onboarding_officer_title">Your name for PDF headers</string>
     <string name="onboarding_privacy_title">Privacy first</string>
-    <string name="onboarding_privacy_body">Microphone, location, and call log are optional. Grant permissions when prompted. You control capture in Settings.</string>
+    <string name="onboarding_privacy_body">Grant location (all the time for passive tracking), notifications, and optional call log when prompted. You control capture in Settings.</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_get_started">Get started</string>
 </resources>

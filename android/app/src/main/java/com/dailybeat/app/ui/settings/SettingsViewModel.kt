@@ -33,6 +33,7 @@ data class SettingsUiState(
     val placeLat: String = "",
     val placeLon: String = "",
     val places: List<Place> = emptyList(),
+    val placeError: String? = null,
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -160,15 +161,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun addPlace() {
         val state = _uiState.value
-        val lat = state.placeLat.toDoubleOrNull() ?: return
-        val lon = state.placeLon.toDoubleOrNull() ?: return
         val name = state.placeName.trim()
-        if (name.isEmpty()) return
+        if (name.isEmpty()) {
+            _uiState.update { it.copy(placeError = "Enter a place name.") }
+            return
+        }
+        val lat = state.placeLat.toDoubleOrNull()
+        val lon = state.placeLon.toDoubleOrNull()
+        if (lat == null || lon == null) {
+            _uiState.update { it.copy(placeError = "Enter valid latitude and longitude.") }
+            return
+        }
 
         viewModelScope.launch {
             app.placeRepository.add(name, lat, lon)
             refresh()
-            _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "") }
+            _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "", placeError = null) }
         }
     }
 
