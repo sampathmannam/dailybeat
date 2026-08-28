@@ -2,7 +2,7 @@
 
 Local-model-only police dairy writer. Android app, fully offline.
 
-**v1.0.0** — walking-skeleton release. Reliable core path: events → dairy → PDF. Works without fine-tuned model (rule-based fallback).
+**v1.0.1** — walking-skeleton release. Reliable core path: events → dairy → PDF. Works without fine-tuned model (rule-based fallback).
 
 ## Install
 
@@ -13,7 +13,7 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ./scripts/mac_sync_and_run.sh
 ```
 
-APKs: GitHub Releases `v1.0.0` or build locally:
+APKs: GitHub Releases `v1.0.1` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease

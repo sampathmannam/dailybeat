@@ -69,8 +69,16 @@ class LlmEngine(private val ctx: Context) {
         if (out.exists() && out.length() > 0L) {
             return
         }
-        ctx.assets.open(MODEL_ASSET).use { input ->
-            out.outputStream().use { output -> input.copyTo(output) }
+        try {
+            ctx.assets.open(MODEL_ASSET).use { input ->
+                out.outputStream().use { output -> input.copyTo(output) }
+            }
+        } catch (_: Exception) {
+            if (!out.exists() || out.length() == 0L) {
+                throw IllegalStateException(
+                    "GGUF model not found. Import dailybeat-q4_k_m.gguf from Downloads in Settings.",
+                )
+            }
         }
     }
 }

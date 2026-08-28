@@ -1,12 +1,12 @@
-# DailyBeat v1.0.0 — Install
+# DailyBeat v1.0.1 — Install
 
 ## APK
 
-Download from GitHub Releases (tag `v1.0.0`):
+Download from GitHub Releases (tag `v1.0.1`):
 - `app-release.apk` — recommended for daily phone (~10 MB)
 - `app-debug.apk` — development build
 
-If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v1.0.0`, or build locally:
+If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v1.0.1`, or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
