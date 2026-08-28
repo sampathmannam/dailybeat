@@ -80,6 +80,9 @@ Optional mirror: `brew install scrcpy && scrcpy`
 
 | Problem | Fix |
 |---------|-----|
+| `adb: more than one device` | `export DAILYBEAT_ADB_SERIAL=ZD2232FCR5` (phone) or `emulator-5554` |
+| `Unable to locate a Java Runtime` | `brew install openjdk@17` then add to `~/.zshrc`: `export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"` |
+| No Java needed | `./scripts/mac_install_release_apk.sh` installs pre-built APK |
 | `adb: no devices` | Start emulator or check USB cable / debugging |
 | `adb offline` | `adb kill-server && adb start-server` |
 | Gradle fails | `cd android && ./gradlew clean assembleDebug` |

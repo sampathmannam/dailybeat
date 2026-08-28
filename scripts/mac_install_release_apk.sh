@@ -2,6 +2,10 @@
 # Install pre-built release APK from GitHub (no Gradle build). Mac only.
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=mac_adb_common.sh
+source "$ROOT/scripts/mac_adb_common.sh"
+
 TAG="${DAILYBEAT_RELEASE_TAG:-v2.0.0}"
 APK_NAME="app-release.apk"
 TMP="${TMPDIR:-/tmp}/dailybeat-${TAG}.apk"
@@ -13,12 +17,9 @@ if ! command -v adb >/dev/null; then
   exit 1
 fi
 
-adb start-server
-adb devices -l
-if ! adb devices | grep -E 'emulator|device$' | grep -v 'List of' | grep -q 'device'; then
-  echo "Connect an emulator or phone first (USB debugging on)."
-  exit 1
-fi
+mac_adb start-server
+mac_adb devices -l
+mac_adb_pick_device
 
 echo "=== Download $TAG release APK ==="
 curl -fsSL -o "$TMP" "$URL" || {
@@ -26,14 +27,14 @@ curl -fsSL -o "$TMP" "$URL" || {
   exit 1
 }
 
-echo "=== Install ==="
-adb install -r "$TMP"
+echo "=== Install on $ANDROID_SERIAL ==="
+mac_adb install -r "$TMP"
 
-adb shell pm grant "$PKG" android.permission.RECORD_AUDIO 2>/dev/null || true
-adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION 2>/dev/null || true
-adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true
-adb shell pm grant "$PKG" android.permission.READ_CALL_LOG 2>/dev/null || true
-adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.RECORD_AUDIO 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.READ_CALL_LOG 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
-adb shell am start -n "$PKG/.MainActivity"
-echo "Installed DailyBeat $TAG from GitHub Releases."
+mac_adb shell am start -n "$PKG/.MainActivity"
+echo "Installed DailyBeat $TAG on $ANDROID_SERIAL."
