@@ -2,7 +2,7 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + cloud LLM reports (or offline GGUF fallback).
 
-**v3.0.1** — E2E-tested release: reboot capture fix, permission flow, instrumentation tests in CI.
+**v3.2.0** — Voice FAB, journey map, LLM citations, weekly rollup, place learning, ZIP export.
 
 ## Install
 
@@ -14,7 +14,7 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ./scripts/mac_install_release_apk.sh emulator-5554   # or your device id
 ```
 
-APKs: GitHub Releases `v3.0.1` or build locally:
+APKs: GitHub Releases `v3.1.0` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease

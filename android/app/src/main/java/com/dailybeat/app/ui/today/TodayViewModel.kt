@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.capture.VoiceCaptureOrchestrator
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,8 @@ data class TodayUiState(
     val isGeneratingReport: Boolean = false,
     val isSeeding: Boolean = false,
     val seedMessage: String? = null,
+    val isRecordingVoice: Boolean = false,
+    val voiceMessage: String? = null,
     val error: String? = null,
 )
 
@@ -65,6 +68,10 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                     gpsEnabled = app.settingsRepository.get().gpsCaptureEnabled,
                     gpsActive = isGpsCaptureActive(),
                     isGeneratingReport = _uiState.value.isGeneratingReport,
+                    isSeeding = _uiState.value.isSeeding,
+                    seedMessage = _uiState.value.seedMessage,
+                    isRecordingVoice = _uiState.value.isRecordingVoice,
+                    voiceMessage = _uiState.value.voiceMessage,
                     error = _uiState.value.error,
                 )
             }.collect { state ->
@@ -91,6 +98,27 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             repository.addMomentMarker("Significant moment flagged (passive marker)")
             CaptureAuditLog.log(getApplication(), "moment", "User flagged significant moment")
             clearError()
+        }
+    }
+
+    fun recordVoiceNote() {
+        if (_uiState.value.isRecordingVoice) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRecordingVoice = true, voiceMessage = null, error = null)
+            VoiceCaptureOrchestrator(app).captureAndSave().fold(
+                onSuccess = { transcript ->
+                    _uiState.value = _uiState.value.copy(
+                        isRecordingVoice = false,
+                        voiceMessage = "Voice saved: ${transcript.take(80)}",
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isRecordingVoice = false,
+                        error = error.message ?: "Voice capture failed.",
+                    )
+                },
+            )
         }
     }
 

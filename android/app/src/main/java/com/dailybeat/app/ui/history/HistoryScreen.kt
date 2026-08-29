@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -23,6 +24,8 @@ import com.dailybeat.app.R
 import com.dailybeat.app.data.model.DiaryEntry
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
+import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SecondaryButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -34,6 +37,7 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = viewModel(),
 ) {
     val diaries by viewModel.recentDiaries.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = modifier
@@ -46,6 +50,28 @@ fun HistoryScreen(
                 title = stringResource(R.string.history_title),
                 subtitle = stringResource(R.string.history_subtitle),
             )
+        }
+
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.generate_weekly_rollup),
+                onClick = viewModel::generateWeeklyRollup,
+                enabled = !uiState.isGeneratingWeekly,
+            )
+            SecondaryButton(
+                text = stringResource(R.string.export_week_package),
+                onClick = viewModel::exportPackage,
+                enabled = !uiState.isExporting,
+            )
+            if (uiState.isGeneratingWeekly || uiState.isExporting) {
+                CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+            }
+            uiState.message?.let { msg ->
+                Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            uiState.error?.let { err ->
+                Text(text = err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
         }
 
         if (diaries.isEmpty()) {

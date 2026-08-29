@@ -35,4 +35,6 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
         diaryDao.forDate(DateKeys.format(date))?.text
 
     suspend fun countNonEmpty(): Int = diaryDao.countNonEmpty()
+
+    suspend fun recentSync(limit: Int = 30): List<DiaryEntry> = diaryDao.recent(limit)
 }

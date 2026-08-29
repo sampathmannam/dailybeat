@@ -9,6 +9,8 @@ import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.audit.CaptureAuditLog
+import com.dailybeat.app.domain.FrequentPlaceLearner
+import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.DayContextBuilder
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val officerName: String = "",
+    val supervisorName: String = "",
     val gpsEnabled: Boolean = true,
     val callLogEnabled: Boolean = false,
     val cloudLlmEnabled: Boolean = true,
@@ -41,6 +44,7 @@ data class SettingsUiState(
     val auditLines: List<String> = emptyList(),
     val syntheticResult: String? = null,
     val isSeedingSynthetic: Boolean = false,
+    val placeSuggestions: List<PlaceSuggestion> = emptyList(),
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -59,8 +63,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val current = _uiState.value
         viewModelScope.launch {
             val places = app.placeRepository.all()
+            val recentVisits = app.visitRepository.visitsLastDays(14)
+            val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
             _uiState.value = SettingsUiState(
                 officerName = settings.officerName,
+                supervisorName = settings.supervisorName,
                 gpsEnabled = settings.gpsCaptureEnabled,
                 callLogEnabled = settings.callLogEnabled,
                 cloudLlmEnabled = settings.cloudLlmEnabled,
@@ -74,7 +81,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 modelImported = app.modelImporter.hasBundledOrLocalModel(),
                 places = places,
                 auditLines = CaptureAuditLog.readRecent(app),
+                placeSuggestions = suggestions,
             )
+        }
+    }
+
+    fun setSupervisorName(name: String) {
+        app.settingsRepository.setSupervisorName(name)
+        _uiState.update { it.copy(supervisorName = name) }
+    }
+
+    fun addSuggestedPlace(suggestion: PlaceSuggestion) {
+        viewModelScope.launch {
+            app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
+            refresh()
         }
     }
 

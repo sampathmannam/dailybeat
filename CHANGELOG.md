@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.2.0 — 2026-08-29
+
+State-of-the-art passive upgrades from v3.2 roadmap.
+
+### Features
+- **Voice FAB** on Today — SpeechRecognizer → structured voice events
+- **Journey map preview** — offline canvas timeline from GPS visits
+- **LLM citations** — [V#]/[E#] refs in context; reports cite sources
+- **Weekly AI rollup** on History tab
+- **Export week package** — ZIP with diaries, PDFs, audit log
+- **Frequent-place learning** — suggests geofences from visit clusters
+- **Supervisor name** on PDF sign-off line
+
 ## v3.1.0 — 2026-08-28
 
 Triple audit loop: adversarial tests, synthetic data, passive LLM features.

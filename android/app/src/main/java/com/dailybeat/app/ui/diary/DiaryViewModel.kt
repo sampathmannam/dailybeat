@@ -180,6 +180,11 @@ class DiaryViewModel(
         val dairy = _uiState.value.text.trim()
         if (dairy.isEmpty()) return null
         val officer = app.settingsRepository.get().officerName
-        return app.pdfExporter.exportDairy(officer, dairy, date).absolutePath
+        return app.pdfExporter.exportDairy(
+            officer,
+            dairy,
+            date,
+            app.settingsRepository.get().supervisorName,
+        ).absolutePath
     }
 }

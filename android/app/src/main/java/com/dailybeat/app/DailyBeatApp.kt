@@ -16,6 +16,8 @@ import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.cloud.WeeklyReportGenerator
+import com.dailybeat.app.export.PackageExporter
 import com.dailybeat.app.export.PdfExporter
 import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.DairyGenerator
@@ -78,6 +80,20 @@ class DailyBeatApp : Application() {
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
         )
+    }
+
+    val weeklyGenerator: WeeklyReportGenerator by lazy {
+        WeeklyReportGenerator(
+            settingsRepository = settingsRepository,
+            cloudLlm = cloudLlm,
+            visitRepository = visitRepository,
+            eventRepository = eventRepository,
+            diaryRepository = diaryRepository,
+        )
+    }
+
+    val packageExporter: PackageExporter by lazy {
+        PackageExporter(this, diaryRepository, pdfExporter)
     }
 
     override fun onCreate() {

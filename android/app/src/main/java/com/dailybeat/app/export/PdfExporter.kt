@@ -18,8 +18,14 @@ class PdfExporter(private val context: Context) {
         private const val FOOTER_RESERVE = 40f
     }
 
-    fun exportDairy(officerName: String, dairyText: String, date: LocalDate = LocalDate.now()): File {
+    fun exportDairy(
+        officerName: String,
+        dairyText: String,
+        date: LocalDate = LocalDate.now(),
+        supervisorName: String = "",
+    ): File {
         val safeOfficer = officerName.trim().ifBlank { "IPS Officer" }
+        val safeSupervisor = supervisorName.trim()
         val safeText = dairyText.trim().ifBlank { "No diary content." }
         val document = PdfDocument()
         val titlePaint = Paint().apply {
@@ -34,7 +40,7 @@ class PdfExporter(private val context: Context) {
 
         var pageNumber = 1
         var lineIndex = 0
-            var page = startPage(document, pageNumber, dateStr, safeOfficer, titlePaint, bodyPaint)
+            var page = startPage(document, pageNumber, dateStr, safeOfficer, safeSupervisor, titlePaint, bodyPaint)
         var canvas = page.canvas
         var y = MARGIN + 72f
 
@@ -43,7 +49,7 @@ class PdfExporter(private val context: Context) {
             if (y + LINE_HEIGHT > maxY) {
                 finishPage(document, page, canvas, pageNumber, footerPaint)
                 pageNumber++
-                page = startPage(document, pageNumber, dateStr, safeOfficer, titlePaint, bodyPaint)
+                page = startPage(document, pageNumber, dateStr, safeOfficer, safeSupervisor, titlePaint, bodyPaint)
                 canvas = page.canvas
                 y = MARGIN + 72f
             }
@@ -73,6 +79,7 @@ class PdfExporter(private val context: Context) {
         pageNumber: Int,
         dateStr: String,
         officerName: String,
+        supervisorName: String,
         titlePaint: Paint,
         bodyPaint: Paint,
     ): PdfDocument.Page {
@@ -83,6 +90,10 @@ class PdfExporter(private val context: Context) {
         canvas.drawText("Daily Diary — $dateStr", MARGIN, y, titlePaint)
         y += 28f
         canvas.drawText("Officer: $officerName", MARGIN, y, bodyPaint)
+        if (supervisorName.isNotBlank()) {
+            y += LINE_HEIGHT
+            canvas.drawText("Supervisor: $supervisorName", MARGIN, y, bodyPaint)
+        }
         return page
     }
 

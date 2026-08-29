@@ -18,6 +18,7 @@ class SettingsRepository(private val context: Context) {
         cloudBaseUrl = prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "",
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
+        supervisorName = prefs.getString(KEY_SUPERVISOR, "") ?: "",
     )
 
     fun setOfficerName(name: String) {
@@ -52,6 +53,10 @@ class SettingsRepository(private val context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled).apply()
     }
 
+    fun setSupervisorName(name: String) {
+        prefs.edit().putString(KEY_SUPERVISOR, name.trim()).apply()
+    }
+
     fun setAutoMiddayPulse(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_MIDDAY_PULSE, enabled).apply()
     }
@@ -75,5 +80,6 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_CLOUD_BASE_URL = "cloud_base_url"
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
+        private const val KEY_SUPERVISOR = "supervisor_name"
     }
 }

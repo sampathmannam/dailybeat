@@ -71,6 +71,15 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
+                OutlinedTextField(
+                    value = state.supervisorName,
+                    onValueChange = viewModel::setSupervisorName,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.supervisor_name_label)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
             }
         }
 
@@ -210,6 +219,19 @@ fun SettingsScreen(
 
         item {
             SettingsGroup(title = stringResource(R.string.places_title)) {
+                if (state.placeSuggestions.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.suggested_places_label),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    state.placeSuggestions.forEach { suggestion ->
+                        SecondaryButton(
+                            text = "${suggestion.name} (${suggestion.visitCount} visits)",
+                            onClick = { viewModel.addSuggestedPlace(suggestion) },
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = state.placeName,
                     onValueChange = { viewModel.updatePlaceDraft(it, state.placeLat, state.placeLon) },

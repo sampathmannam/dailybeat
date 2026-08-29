@@ -10,6 +10,7 @@ data class AppSettings(
     val cloudBaseUrl: String = "",
     val autoEveningReport: Boolean = true,
     val autoMiddayPulse: Boolean = false,
+    val supervisorName: String = "",
 )
 
 enum class CloudProvider(val id: String, val displayName: String, val defaultModel: String) {

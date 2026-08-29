@@ -22,5 +22,13 @@ class VisitRepository(private val visitDao: VisitDao) {
         return visitDao.between(start, end)
     }
 
+    suspend fun visitsLastDays(days: Int): List<LocationVisit> {
+        val endDate = DateKeys.today()
+        val startDate = endDate.minusDays((days - 1).toLong().coerceAtLeast(0))
+        val (startMs, _) = DayBounds.dayStartEnd(startDate)
+        val (_, endMs) = DayBounds.dayStartEnd(endDate)
+        return visitDao.between(startMs, endMs)
+    }
+
     suspend fun insert(visit: LocationVisit) = visitDao.insert(visit)
 }

@@ -21,6 +21,9 @@ interface DiaryDao {
     @Query("SELECT * FROM diaries ORDER BY dateKey DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<DiaryEntry>>
 
+    @Query("SELECT * FROM diaries ORDER BY dateKey DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<DiaryEntry>
+
     @Query("SELECT COUNT(*) FROM diaries WHERE text != ''")
     suspend fun countNonEmpty(): Int
 }

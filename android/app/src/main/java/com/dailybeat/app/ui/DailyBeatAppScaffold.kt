@@ -16,6 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +39,7 @@ import com.dailybeat.app.ui.diary.DiaryScreen
 import com.dailybeat.app.ui.history.HistoryScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
+import com.dailybeat.app.ui.today.TodayViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -56,8 +60,21 @@ fun DailyBeatAppScaffold() {
     val currentRoute = navBackStackEntry?.destination?.route ?: Routes.TODAY
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
+    val todayViewModel: TodayViewModel = viewModel()
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            if (currentRoute == Routes.TODAY) {
+                FloatingActionButton(
+                    onClick = todayViewModel::recordVoiceNote,
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
+                ) {
+                    Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.voice_fab_label))
+                }
+            }
+        },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,

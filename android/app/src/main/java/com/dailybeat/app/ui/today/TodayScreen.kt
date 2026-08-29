@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
+import com.dailybeat.app.ui.components.JourneyMapPreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
@@ -158,17 +159,38 @@ fun TodayScreen(
             item { Text(text = error, color = MaterialTheme.colorScheme.error) }
         }
 
-        if (visits.isEmpty()) {
+        if (visits.isNotEmpty()) {
+            item {
+                JourneyMapPreview(visits = visits)
+            }
+            item { SectionHeader(title = stringResource(R.string.journey_section)) }
+            items(visits, key = { it.id }) { visit ->
+                VisitCard(visit = visit)
+            }
+        } else {
             item {
                 EmptyState(
                     title = stringResource(R.string.journey_empty_title),
                     subtitle = stringResource(R.string.journey_empty_subtitle),
                 )
             }
-        } else {
-            item { SectionHeader(title = stringResource(R.string.journey_section)) }
-            items(visits, key = { it.id }) { visit ->
-                VisitCard(visit = visit)
+        }
+
+        if (uiState.isRecordingVoice) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+                    Text(stringResource(R.string.recording_label))
+                }
+            }
+        }
+
+        uiState.voiceMessage?.let { msg ->
+            item {
+                Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
         }
 

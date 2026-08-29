@@ -30,6 +30,11 @@
     <string name="auto_midday_pulse">Auto midday pulse at 1 PM (cloud AI)</string>
     <string name="settings_qa_group">QA &amp; transparency</string>
     <string name="refresh_audit_log">Refresh capture audit log</string>
+    <string name="supervisor_name_label">Supervisor name (PDF sign-off)</string>
+    <string name="generate_weekly_rollup">Generate weekly AI rollup</string>
+    <string name="export_week_package">Export week package (ZIP)</string>
+    <string name="suggested_places_label">Suggested from frequent visits</string>
+    <string name="journey_map_label">Journey map</string>
     <string name="stat_diary">Diary saved</string>
     <string name="quick_add_section">Quick add</string>
     <string name="manual_event_label">Event note</string>

@@ -13,48 +13,57 @@ object DayContextBuilder {
 
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
 
+    data class BuiltContext(
+        val text: String,
+        val visitRefCount: Int,
+        val eventRefCount: Int,
+    )
+
     fun build(
         date: LocalDate,
         officerName: String,
         visits: List<LocationVisit>,
         events: List<Event>,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): String {
+    ): String = buildDetailed(date, officerName, visits, events, zone).text
+
+    fun buildDetailed(
+        date: LocalDate,
+        officerName: String,
+        visits: List<LocationVisit>,
+        events: List<Event>,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): BuiltContext {
         val sections = mutableListOf<String>()
         sections += "OFFICER: $officerName"
         sections += "DATE: ${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
+        sections += "CITATION RULE: Reference items as [V#] for visits and [E#] for events in your report."
 
         if (visits.isNotEmpty()) {
             sections += "LOCATION TIMELINE (passive GPS + OpenStreetMap):"
-            visits.forEach { visit ->
-                sections += formatVisit(visit, zone)
+            visits.forEachIndexed { index, visit ->
+                sections += formatVisitRef(index + 1, visit, zone)
             }
         } else {
-            sections += "LOCATION TIMELINE: No visit segments recorded yet. GPS may still be collecting."
+            sections += "LOCATION TIMELINE: No visit segments recorded yet."
         }
 
-        val calls = events.filter { it.type == "call" }
-        if (calls.isNotEmpty()) {
-            sections += "PHONE CALLS:"
-            calls.forEach { e -> sections += "- ${formatTime(e.timestamp, zone)}: ${e.rawText}" }
+        val notableEvents = events.filter { it.type in listOf("call", "voice", "manual", "moment") }
+        if (notableEvents.isNotEmpty()) {
+            sections += "EVENTS:"
+            notableEvents.forEachIndexed { index, event ->
+                sections += formatEventRef(index + 1, event, zone)
+            }
         }
 
-        val voice = events.filter { it.type == "voice" }
-        if (voice.isNotEmpty()) {
-            sections += "VOICE NOTES:"
-            voice.forEach { e -> sections += "- ${formatTime(e.timestamp, zone)}: ${e.rawText}" }
-        }
-
-        val manual = events.filter { it.type == "manual" }
-        if (manual.isNotEmpty()) {
-            sections += "OFFICER NOTES:"
-            manual.forEach { e -> sections += "- ${formatTime(e.timestamp, zone)}: ${e.rawText}" }
-        }
-
-        return sections.joinToString("\n")
+        return BuiltContext(
+            text = sections.joinToString("\n"),
+            visitRefCount = visits.size,
+            eventRefCount = notableEvents.size,
+        )
     }
 
-    private fun formatVisit(visit: LocationVisit, zone: ZoneId): String {
+    private fun formatVisitRef(ref: Int, visit: LocationVisit, zone: ZoneId): String {
         val start = formatTime(visit.startMs, zone)
         val end = formatTime(visit.endMs, zone)
         val durationMin = ((visit.endMs - visit.startMs) / 60000.0).roundToInt()
@@ -63,7 +72,13 @@ object DayContextBuilder {
             else -> visit.placeName ?: visit.address ?: "Unknown place"
         }
         val coords = String.format(Locale.US, "(%.4f, %.4f)", visit.latitude, visit.longitude)
-        return "- $start–$end (${durationMin} min): $label $coords"
+        return "[V$ref] $start–$end (${durationMin} min): $label $coords"
+    }
+
+    private fun formatEventRef(ref: Int, event: Event, zone: ZoneId): String {
+        val time = formatTime(event.timestamp, zone)
+        val typeLabel = event.type.uppercase(Locale.getDefault())
+        return "[E$ref] $time ($typeLabel): ${event.rawText}"
     }
 
     private fun formatTime(epochMs: Long, zone: ZoneId): String =
@@ -71,10 +86,9 @@ object DayContextBuilder {
 
     const val SYSTEM_PROMPT =
         "You are an expert assistant for an Indian Police Service officer writing the official daily diary. " +
-        "You receive PASSIVE DATA: GPS visit timeline (where they stayed and traveled, with durations), " +
-        "phone calls, and optional voice or typed notes. " +
-        "Write a formal, factual daily diary report in standard IPS format. " +
-        "Use only information provided. Do not invent meetings, people, or cases. " +
-        "Use 24-hour times. Structure: brief overview, then chronological narrative, then closing line. " +
-        "If data is sparse, state what was observed and what is missing."
+        "You receive PASSIVE DATA with citation IDs: [V1],[V2] for GPS visits and [E1],[E2] for calls/voice/notes. " +
+        "Write a formal, factual daily diary in standard IPS format. " +
+        "INLINE CITATIONS REQUIRED: after each factual sentence, cite sources like [V2][E1]. " +
+        "Use only provided data. Do not invent meetings, people, or cases. " +
+        "Use 24-hour times. Structure: overview, chronological narrative, closing line."
 }

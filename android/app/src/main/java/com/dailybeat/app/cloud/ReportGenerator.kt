@@ -45,6 +45,7 @@ class ReportGenerator(
         if (settingsRepository.isCloudBrainReady()) {
             val userPrompt = """
                 Generate today's official daily diary from this passive activity log.
+                Cite every fact with [V#] and [E#] refs from the DATA block.
                 End with a one-line summary of the day.
 
                 DATA:
