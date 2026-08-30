@@ -4,7 +4,11 @@
 
 - Added DeepSeek as the default OpenAI-compatible cloud provider.
 - Made diary generation cloud-only with an explicit configuration/network error.
-- Matched CI instrumentation emulator architecture to the arm64-v8a MediaPipe native library.
+- Removed the native on-device LLM dependency and moved CI instrumentation to the supported x86_64 emulator.
+- Added the Smart Field Note launcher icon with Android themed-icon support.
+- Hardened microphone and location capture against permission-revocation races.
+- Corrected cloud-only product copy and diary labels across the app and PDF export.
+- Stabilized Compose instrumentation selectors and release asset generation.
 
 ## v3.2.0 — 2026-08-29
 
