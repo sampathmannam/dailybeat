@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,7 +44,7 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun launcherUsesSelectedSmartFieldNoteBrand() {
+    fun launcherUsesSelectedJourneyBeatBrand() {
         val colors = resource("values/colors.xml")
         val foreground = resource("drawable/ic_launcher_foreground.xml")
 
@@ -51,7 +52,8 @@ class BrandAssetsTest {
         assertTrue("#FFF7E8" in foreground)
         assertTrue("#FF6B4A" in foreground)
         assertTrue("#F4A629" in foreground)
-        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 4)
+        assertEquals(3, Regex("<path\\b").findAll(foreground).count())
+        assertTrue("M54,25 C38,25 25,37 25,52" in foreground)
         assertFalse("M54,30 L70,54 L54,78 L38,54 Z" in foreground)
     }
 

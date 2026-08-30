@@ -56,3 +56,27 @@ def test_release_injects_public_supabase_configuration_from_github_secrets():
     assert "SUPABASE_ANON_KEY" in gradle
     assert "supabase.co" not in gradle
     assert "eyJ" not in gradle
+
+
+def test_launcher_icon_uses_centered_journey_beat_vectors():
+    foreground = (
+        ROOT / "android/app/src/main/res/drawable/ic_launcher_foreground.xml"
+    ).read_text(encoding="utf-8")
+    monochrome = (
+        ROOT / "android/app/src/main/res/drawable/ic_launcher_monochrome.xml"
+    ).read_text(encoding="utf-8")
+
+    assert 'android:viewportWidth="108"' in foreground
+    assert 'android:viewportHeight="108"' in foreground
+    assert 'android:pathData="M54,25' in foreground
+    assert 'android:pathData="M35,53' in foreground
+    assert 'android:fillColor="#FFF7E8"' in foreground
+    assert 'android:strokeColor="#F4A629"' in foreground
+    assert 'android:fillColor="#FF6B4A"' in foreground
+    assert "M30,20" not in foreground
+    assert "M69,88" not in foreground
+
+    assert 'android:viewportWidth="108"' in monochrome
+    assert 'android:pathData="M54,25' in monochrome
+    assert 'android:pathData="M35,53' in monochrome
+    assert "M30,20" not in monochrome
