@@ -18,6 +18,12 @@ def test_release_build_requires_the_permanent_signing_key():
     assert 'signingConfig = signingConfigs.getByName("release")' in gradle
 
 
+def test_debug_build_is_isolated_from_the_installed_release_app():
+    gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
+
+    assert 'applicationIdSuffix = ".qa"' in gradle
+
+
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 

@@ -27,6 +27,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".qa"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
