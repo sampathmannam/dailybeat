@@ -79,7 +79,9 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
         composeRule.waitUntilAtLeastOneExists(
             hasTestTag("journey_map_ready"),
-            timeoutMillis = 20_000,
+            // Software-rendered CI emulators can take substantially longer to fetch and
+            // fully render the live OpenFreeMap style than a local hardware-accelerated AVD.
+            timeoutMillis = 60_000,
         )
         composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").assertIsDisplayed()
