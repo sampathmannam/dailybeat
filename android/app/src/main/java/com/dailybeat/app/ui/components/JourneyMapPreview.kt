@@ -27,12 +27,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -83,6 +85,7 @@ fun JourneyMapPreview(
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var mapError by remember { mutableStateOf(false) }
     var mapRendered by remember { mutableStateOf(false) }
+    var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
@@ -100,10 +103,10 @@ fun JourneyMapPreview(
         onMapError = { mapError = true },
     )
 
-    DisposableEffect(map, loadedStyle, model, mapView) {
+    DisposableEffect(map, loadedStyle, model, mapView, mapViewportSize) {
         val readyMap = map
         val style = loadedStyle
-        if (readyMap == null || style == null) {
+        if (readyMap == null || style == null || mapViewportSize == IntSize.Zero) {
             onDispose { }
         } else {
             mapRendered = false
@@ -117,15 +120,11 @@ fun JourneyMapPreview(
             mapView.addOnDidFinishRenderingMapListener(renderListener)
             val density = mapView.resources.displayMetrics.density
             val cameraPaddingPx = (48 * density).roundToInt()
-            val viewportWidthPx = mapView.width.takeIf { it > cameraPaddingPx * 2 }
-                ?: (360 * density).roundToInt()
-            val viewportHeightPx = mapView.height.takeIf { it > cameraPaddingPx * 2 }
-                ?: (220 * density).roundToInt()
             readyMap.renderJourney(
                 style = style,
                 model = model,
-                viewportWidthPx = viewportWidthPx,
-                viewportHeightPx = viewportHeightPx,
+                viewportWidthPx = mapViewportSize.width,
+                viewportHeightPx = mapViewportSize.height,
                 cameraPaddingPx = cameraPaddingPx,
                 onError = {
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
@@ -177,6 +176,7 @@ fun JourneyMapPreview(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp)
+                            .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )
                     if (mapRendered) {
