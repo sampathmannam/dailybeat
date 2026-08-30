@@ -36,7 +36,11 @@ class ValidatedReportClient(
             systemPrompt,
             correction,
             CloudTokenBudgets.DAILY_DIARY,
-        ).getOrElse { return Result.failure(it) }.trim()
+        ).getOrElse {
+            return Result.failure(
+                ReportIntegrityException("Cloud report correction failed after source-integrity validation."),
+            )
+        }.trim()
         val secondCheck = ReportIntegrityValidator.validate(
             second,
             source.visitRefCount,

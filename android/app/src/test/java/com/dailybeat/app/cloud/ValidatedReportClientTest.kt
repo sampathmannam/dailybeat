@@ -3,6 +3,7 @@ package com.dailybeat.app.cloud
 import com.dailybeat.app.data.settings.AppSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -85,6 +86,36 @@ class ValidatedReportClientTest {
 
         assertSame(cloudError, error)
         assertEquals(1, cloud.prompts.size)
+    }
+
+    @Test
+    fun retryableCorrectionFailureIsTerminalAfterTwoCalls() = runBlocking {
+        val correctionError = CloudRequestException(
+            provider = "Fake",
+            statusCode = 503,
+            retryable = true,
+            safeMessage = "private correction failure",
+        )
+        val cloud = FakeCloud(
+            ArrayDeque(
+                listOf(
+                    Result.success("Invented visit [V1]."),
+                    Result.failure(correctionError),
+                ),
+            ),
+        )
+
+        val error = ValidatedReportClient(cloud).generate(
+            AppSettings(),
+            "system",
+            "DATA: [E1] note",
+            DayContextBuilder.BuiltContext("", 0, 1),
+        ).exceptionOrNull()
+
+        assertEquals(2, cloud.prompts.size)
+        assertTrue(error is ReportIntegrityException)
+        assertFalse(ReportRetryPolicy.shouldRetry(error!!))
+        assertFalse(error.message.orEmpty().contains("private correction failure"))
     }
 
     private class FakeCloud(
