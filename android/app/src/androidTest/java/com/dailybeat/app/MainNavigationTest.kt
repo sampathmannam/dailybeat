@@ -3,7 +3,6 @@ package com.dailybeat.app
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -15,9 +14,13 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -76,15 +79,6 @@ class MainNavigationTest {
             hasText("Synthetic day loaded: 7 visits, 8 events."),
             timeoutMillis = 10_000,
         )
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
-        composeRule.waitUntilAtLeastOneExists(
-            hasTestTag("journey_map_ready"),
-            // Software-rendered CI emulators can take substantially longer to fetch and
-            // fully render the live OpenFreeMap style than a local hardware-accelerated AVD.
-            timeoutMillis = 60_000,
-        )
-        composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
-        composeRule.onNodeWithText("Open full map").assertIsDisplayed()
 
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
         composeRule.waitUntilAtLeastOneExists(
@@ -94,6 +88,20 @@ class MainNavigationTest {
 
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithText("8 events logged for this day").assertIsDisplayed()
+
+        // MapLibre continuously invalidates frames on the software-rendered CI emulator,
+        // so verify the final accessibility signal with UiAutomator instead of waiting for
+        // Compose's global idling resource after the map enters the viewport.
+        composeRule.onNodeWithTag("nav_today").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val readyDescription = instrumentation.targetContext
+            .getString(R.string.journey_map_ready_content_description)
+        val device = UiDevice.getInstance(instrumentation)
+        assertTrue(
+            "Live OpenStreetMap did not fully render within 60 seconds",
+            device.wait(Until.hasObject(By.desc(readyDescription)), 60_000),
+        )
     }
 
     @Test

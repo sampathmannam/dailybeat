@@ -87,6 +87,8 @@ fun JourneyMapPreview(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
+    val mapDescription = stringResource(R.string.journey_map_content_description)
+    val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
         mapRendered = false
@@ -110,10 +112,12 @@ fun JourneyMapPreview(
             onDispose { }
         } else {
             mapRendered = false
+            mapView.contentDescription = mapDescription
             lateinit var renderListener: MapView.OnDidFinishRenderingMapListener
             renderListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
                 if (fullyRendered) {
                     mapRendered = true
+                    mapView.contentDescription = readyMapDescription
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                 }
             }
@@ -129,6 +133,7 @@ fun JourneyMapPreview(
                 onError = {
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
+                    mapView.contentDescription = mapDescription
                     mapError = true
                 },
             )
@@ -163,6 +168,7 @@ fun JourneyMapPreview(
                     TextButton(
                         onClick = {
                             loadedStyle = null
+                            mapView.contentDescription = mapDescription
                             map?.let(loadStyle)
                         },
                     ) {

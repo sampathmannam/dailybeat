@@ -19,6 +19,7 @@
     <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
+    <string name="journey_map_ready_content_description">OpenStreetMap journey fully rendered</string>
     <string name="journey_map_open_error">No app is available to open the full map.</string>
     <string name="journey_empty_title">No visits recorded yet</string>
     <string name="journey_empty_subtitle">Keep GPS on and move between places. Stays (8+ min) and transit appear here automatically.</string>
