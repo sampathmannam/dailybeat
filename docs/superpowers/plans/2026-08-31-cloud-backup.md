@@ -93,7 +93,7 @@
 **Files:**
 - Create: `supabase/migrations/202608310001_dailybeat_backups.sql`
 - Create: `supabase/tests/dailybeat_backups_rls.sql`
-- Modify: `.github/workflows/android-release.yml`
+- Modify: `.github/workflows/release.yml`
 - Modify: `docs/RELEASE.md`
 - Test: `scripts/tests/test_release_pipeline.py`
 

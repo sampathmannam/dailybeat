@@ -8,6 +8,20 @@ Cloud AI after installation. No API key is included in the source code or APK.
 Diary generation requires network access and a valid provider key; it does not
 use an offline fallback.
 
+## Cloud backup
+
+Cloud backup uses a DailyBeat Supabase project configured at build time with
+`SUPABASE_URL` and `SUPABASE_ANON_KEY`. These are public client configuration;
+the database protects every backup with authenticated owner-only row-level
+security. The release workflow reads both values from GitHub Actions secrets.
+
+After installation, open Settings → Cloud backup, sign in, and select **Back up
+now**. On a replacement phone, install the same signed DailyBeat package, sign
+in to the same account, and explicitly confirm **Restore from cloud**. Restore
+replaces local records only after the complete remote snapshot validates.
+
+The Cloud AI provider key is never backed up. Enter it again on a new phone.
+
 ## APK
 
 Download from GitHub Releases (tag `v3.4.0`):
