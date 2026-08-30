@@ -4,11 +4,14 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
@@ -79,9 +82,11 @@ fun JourneyMapPreview(
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var mapError by remember { mutableStateOf(false) }
+    var mapRendered by remember { mutableStateOf(false) }
     var externalMapError by remember { mutableStateOf(false) }
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
+        mapRendered = false
         readyMap.setStyle(MAP_STYLE_URL) { style ->
             loadedStyle = style
             mapError = false
@@ -99,7 +104,15 @@ fun JourneyMapPreview(
         val readyMap = map
         val style = loadedStyle
         if (readyMap != null && style != null) {
-            readyMap.renderJourney(style, model) { mapError = true }
+            readyMap.renderJourney(
+                style = style,
+                model = model,
+                onRendered = { mapRendered = true },
+                onError = {
+                    mapRendered = false
+                    mapError = true
+                },
+            )
         }
     }
 
@@ -135,13 +148,22 @@ fun JourneyMapPreview(
                     }
                 }
             } else {
-                AndroidView(
-                    factory = { mapView },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .testTag("journey_map"),
-                )
+                Box {
+                    AndroidView(
+                        factory = { mapView },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .testTag("journey_map"),
+                    )
+                    if (mapRendered) {
+                        Spacer(
+                            modifier = Modifier
+                                .size(1.dp)
+                                .testTag("journey_map_ready"),
+                        )
+                    }
+                }
             }
 
             Row(
@@ -235,6 +257,7 @@ private fun rememberMapViewWithLifecycle(
 private fun MapLibreMap.renderJourney(
     style: Style,
     model: JourneyMapModel,
+    onRendered: () -> Unit,
     onError: () -> Unit,
 ) {
     runCatching {
@@ -321,5 +344,6 @@ private fun MapLibreMap.renderJourney(
                 ),
             )
         }
-    }.onFailure { onError() }
+    }.onSuccess { onRendered() }
+        .onFailure { onError() }
 }

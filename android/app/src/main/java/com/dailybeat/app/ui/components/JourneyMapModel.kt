@@ -3,6 +3,12 @@ package com.dailybeat.app.ui.components
 import com.dailybeat.app.data.model.LocationVisit
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.log2
+import kotlin.math.min
+import kotlin.math.tan
 
 data class JourneyPoint(
     val startMs: Long,
@@ -35,8 +41,35 @@ data class JourneyMapModel(
             if (points.isEmpty()) return emptyList()
             val segments = mutableListOf(mutableListOf(points.first()))
             points.zipWithNext().forEach { (previous, next) ->
-                if (abs(next.longitude - previous.longitude) > 180.0) {
-                    segments += mutableListOf(next)
+                val rawDelta = next.longitude - previous.longitude
+                if (abs(rawDelta) > 180.0) {
+                    val adjustedNextLongitude = if (rawDelta < 0) {
+                        next.longitude + 360.0
+                    } else {
+                        next.longitude - 360.0
+                    }
+                    val boundaryLongitude = if (rawDelta < 0) 180.0 else -180.0
+                    val oppositeBoundaryLongitude = -boundaryLongitude
+                    val fraction = (boundaryLongitude - previous.longitude) /
+                        (adjustedNextLongitude - previous.longitude)
+                    val boundaryLatitude = previous.latitude +
+                        (next.latitude - previous.latitude) * fraction
+                    val boundaryStartMs = previous.startMs +
+                        ((next.startMs - previous.startMs) * fraction).toLong()
+
+                    segments.last() += previous.copy(
+                        startMs = boundaryStartMs,
+                        latitude = boundaryLatitude,
+                        longitude = boundaryLongitude,
+                    )
+                    segments += mutableListOf(
+                        next.copy(
+                            startMs = boundaryStartMs,
+                            latitude = boundaryLatitude,
+                            longitude = oppositeBoundaryLongitude,
+                        ),
+                        next,
+                    )
                 } else {
                     segments.last() += next
                 }
@@ -47,23 +80,13 @@ data class JourneyMapModel(
     val cameraZoom: Int
         get() {
             if (points.size <= 1) return 16
-            return when (maxOf(latitudeSpan, longitudeSpan)) {
-                in 0.0..0.005 -> 16
-                in 0.005..0.02 -> 15
-                in 0.02..0.05 -> 14
-                in 0.05..0.1 -> 13
-                in 0.1..0.25 -> 12
-                in 0.25..0.5 -> 11
-                in 0.5..1.0 -> 10
-                in 1.0..2.0 -> 9
-                in 2.0..5.0 -> 8
-                in 5.0..10.0 -> 7
-                in 10.0..20.0 -> 6
-                in 20.0..45.0 -> 5
-                in 45.0..90.0 -> 4
-                in 90.0..180.0 -> 3
-                else -> 2
-            }
+            val longitudeFraction = (longitudeSpan / 360.0).coerceAtLeast(MIN_PROJECTED_SPAN)
+            val latitudeFraction = abs(
+                mercatorY(bounds.north) - mercatorY(bounds.south),
+            ).coerceAtLeast(MIN_PROJECTED_SPAN)
+            val horizontalZoom = log2(MAP_CONTENT_WIDTH_PX / (TILE_SIZE_PX * longitudeFraction))
+            val verticalZoom = log2(MAP_CONTENT_HEIGHT_PX / (TILE_SIZE_PX * latitudeFraction))
+            return floor(min(horizontalZoom, verticalZoom)).toInt().coerceIn(1, 16)
         }
 
     val openStreetMapUrlOrNull: String?
@@ -82,6 +105,15 @@ data class JourneyMapModel(
     companion object {
         const val WEB_MERCATOR_MAX_LATITUDE = 85.05112878
         private const val SINGLE_POINT_PADDING = 0.001
+        private const val TILE_SIZE_PX = 256.0
+        private const val MAP_CONTENT_WIDTH_PX = 264.0
+        private const val MAP_CONTENT_HEIGHT_PX = 124.0
+        private const val MIN_PROJECTED_SPAN = 1e-9
+
+        private fun mercatorY(latitude: Double): Double {
+            val radians = Math.toRadians(latitude)
+            return (1.0 - ln(tan(radians) + 1.0 / cos(radians)) / Math.PI) / 2.0
+        }
 
         fun fromVisits(visits: List<LocationVisit>): JourneyMapModel {
             val points = visits

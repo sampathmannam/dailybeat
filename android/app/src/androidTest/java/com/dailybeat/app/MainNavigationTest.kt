@@ -3,6 +3,7 @@ package com.dailybeat.app
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -76,7 +77,11 @@ class MainNavigationTest {
             timeoutMillis = 10_000,
         )
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
-        composeRule.onNodeWithTag("journey_map_card").assertExists()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("journey_map_ready"),
+            timeoutMillis = 20_000,
+        )
+        composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").assertIsDisplayed()
 
         composeRule.onNodeWithText("Load synthetic demo day").performClick()

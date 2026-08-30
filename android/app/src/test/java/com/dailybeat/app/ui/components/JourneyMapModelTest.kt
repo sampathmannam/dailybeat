@@ -77,7 +77,10 @@ class JourneyMapModelTest {
         assertEquals(true, model.crossesAntimeridian)
         assertEquals(2.0, model.longitudeSpan, 0.0000001)
         assertEquals(180.0, kotlin.math.abs(requireNotNull(model.centerLongitude)), 0.0000001)
-        assertEquals(listOf(1, 1), model.routeSegments.map { it.size })
+        assertEquals(listOf(2, 2), model.routeSegments.map { it.size })
+        assertEquals(180.0, model.routeSegments[0].last().longitude, 0.0)
+        assertEquals(-180.0, model.routeSegments[1].first().longitude, 0.0)
+        assertEquals(10.05, model.routeSegments[0].last().latitude, 0.0000001)
     }
 
     @Test
@@ -101,7 +104,7 @@ class JourneyMapModelTest {
         )
 
         assertEquals(
-            "https://www.openstreetmap.org/#map=14/12.970000/77.600000",
+            "https://www.openstreetmap.org/#map=13/12.970000/77.600000",
             model.openStreetMapUrlOrNull,
         )
     }
@@ -116,9 +119,27 @@ class JourneyMapModelTest {
         )
 
         assertEquals(
-            "https://www.openstreetmap.org/#map=4/10.000000/41.000000",
+            "https://www.openstreetmap.org/#map=2/10.000000/41.000000",
             model.openStreetMapUrlOrNull,
         )
+    }
+
+    @Test
+    fun cameraZoom_accountsForMercatorLatitudeAndPhoneViewport() {
+        val equator = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 0.1, longitude = 10.0),
+                visit(startMs = 200, latitude = 10.1, longitude = 10.0),
+            ),
+        )
+        val highLatitude = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 70.0, longitude = 10.0),
+                visit(startMs = 200, latitude = 80.0, longitude = 10.0),
+            ),
+        )
+
+        assert(highLatitude.cameraZoom < equator.cameraZoom)
     }
 
     private fun visit(
