@@ -11,10 +11,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
-/**
- * On-device speech recognition fallback when Whisper model is not bundled.
- * Uses Android SpeechRecognizer with offline preference (works when offline packs installed).
- */
+/** Captures one voice note using Android's configured speech-recognition service. */
 class SpeechTranscriber(private val context: Context) {
 
     suspend fun transcribe(): String = withContext(Dispatchers.Main) {

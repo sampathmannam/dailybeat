@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DailyBeatScreenHeader(
     title: String,
-    subtitle: String? = null,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
 ) {
     Column(
         modifier = modifier

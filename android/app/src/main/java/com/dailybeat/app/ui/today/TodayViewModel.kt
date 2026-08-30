@@ -122,6 +122,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onVoicePermissionDenied() {
+        _uiState.value = _uiState.value.copy(
+            error = "Microphone permission is required for voice notes.",
+        )
+    }
+
     fun seedSyntheticDay() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSeeding = true, seedMessage = null, error = null)

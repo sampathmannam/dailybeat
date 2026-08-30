@@ -3,9 +3,7 @@ package com.dailybeat.app.capture
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 
-/**
- * Orchestrates passive voice capture: SpeechRecognizer → Whisper/demo fallback → structured event.
- */
+/** Orchestrates speech recognition and cloud structuring into a saved event. */
 class VoiceCaptureOrchestrator(private val app: DailyBeatApp) {
 
     suspend fun captureAndSave(): Result<String> {
@@ -14,9 +12,6 @@ class VoiceCaptureOrchestrator(private val app: DailyBeatApp) {
         var transcript = ""
         if (transcriber.isAvailable()) {
             transcript = transcriber.transcribe().trim()
-        }
-        if (transcript.isBlank()) {
-            transcript = VoiceTranscriptProvider.emulatorDemoTranscript()?.trim() ?: ""
         }
         if (transcript.isBlank()) {
             return Result.failure(IllegalStateException("Voice not recognized. Try again or use optional note."))

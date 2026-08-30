@@ -26,6 +26,10 @@ object SyntheticDayGenerator {
         val random = Random(seed)
         val zone = ZoneId.systemDefault()
         val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val sourceId = "synthetic:${date}:$seed"
+        if (app.db.events().countBySource("synthetic", sourceId, dayStart) > 0) {
+            return Result(visitsInserted = 0, eventsInserted = 0)
+        }
 
         val scenarios = listOf(
             Triple("Police Headquarters", 12.9716, 77.5946),
@@ -96,7 +100,14 @@ object SyntheticDayGenerator {
             events++
         }
 
-        app.eventRepository.addManualEvent("Synthetic briefing: sector patrol and court attendance logged for QA.")
+        app.db.events().insert(
+            Event(
+                timestamp = dayStart,
+                type = "synthetic",
+                rawText = "Synthetic briefing: sector patrol and court attendance logged for QA.",
+                sourceId = sourceId,
+            ),
+        )
         events++
 
         return Result(visitsInserted = visits, eventsInserted = events)

@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -42,14 +43,16 @@ import com.dailybeat.app.ui.components.VisitCard
 @Composable
 fun TodayScreen(
     onOpenDiary: () -> Unit,
-    headerSubtitle: String? = null,
     modifier: Modifier = Modifier,
+    onRecordVoice: (() -> Unit)? = null,
+    headerSubtitle: String? = null,
     viewModel: TodayViewModel = viewModel(),
 ) {
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var optionalNote by remember { mutableStateOf("") }
     var showOptionalNote by remember { mutableStateOf(false) }
+    val showQaTools = booleanResource(R.bool.show_qa_tools)
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -84,8 +87,16 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                MetricPill(label = stringResource(R.string.stat_visits), value = "${uiState.visitCount}")
-                MetricPill(label = stringResource(R.string.stat_events), value = "${uiState.eventCount}")
+                MetricPill(
+                    label = stringResource(R.string.stat_visits),
+                    value = "${uiState.visitCount}",
+                    modifier = Modifier.weight(1f),
+                )
+                MetricPill(
+                    label = stringResource(R.string.stat_events),
+                    value = "${uiState.eventCount}",
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
 
@@ -98,15 +109,24 @@ fun TodayScreen(
 
         item {
             SecondaryButton(
-                text = stringResource(R.string.load_synthetic_day),
-                onClick = viewModel::seedSyntheticDay,
-                enabled = !uiState.isSeeding,
+                text = stringResource(R.string.record_voice_note),
+                onClick = onRecordVoice ?: viewModel::recordVoiceNote,
             )
         }
 
-        uiState.seedMessage?.let { msg ->
+        if (showQaTools) {
             item {
-                Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                SecondaryButton(
+                    text = stringResource(R.string.load_synthetic_day),
+                    onClick = viewModel::seedSyntheticDay,
+                    enabled = !uiState.isSeeding,
+                )
+            }
+
+            uiState.seedMessage?.let { msg ->
+                item {
+                    Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
 
