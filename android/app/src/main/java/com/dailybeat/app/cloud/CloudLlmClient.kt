@@ -40,6 +40,13 @@ class CloudLlmClient(
 
             try {
                 when (provider) {
+                    CloudProvider.DEEPSEEK -> openAi(
+                        apiKey,
+                        settings.cloudModel.ifBlank { CloudProvider.DEEPSEEK.defaultModel },
+                        systemPrompt,
+                        userPrompt,
+                        DEEPSEEK_URL,
+                    )
                     CloudProvider.ANTHROPIC -> anthropic(apiKey, settings.cloudModel, systemPrompt, userPrompt)
                     CloudProvider.OPENAI -> openAi(apiKey, settings.cloudModel, systemPrompt, userPrompt, OPENAI_URL)
                     CloudProvider.COMPATIBLE -> {
@@ -136,6 +143,7 @@ class CloudLlmClient(
 
     companion object {
         private const val OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+        private const val DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
         private const val ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
     }
 }

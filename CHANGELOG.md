@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.0 — 2026-08-30
+
+- Added DeepSeek as the default OpenAI-compatible cloud provider.
+- Made diary generation cloud-only with an explicit configuration/network error.
+- Matched CI instrumentation emulator architecture to the arm64-v8a MediaPipe native library.
+
 ## v3.2.0 — 2026-08-29
 
 State-of-the-art passive upgrades from v3.2 roadmap.

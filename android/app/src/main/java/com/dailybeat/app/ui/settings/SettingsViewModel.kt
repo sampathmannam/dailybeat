@@ -26,8 +26,8 @@ data class SettingsUiState(
     val gpsEnabled: Boolean = true,
     val callLogEnabled: Boolean = false,
     val cloudLlmEnabled: Boolean = true,
-    val cloudProvider: String = CloudProvider.OPENAI.id,
-    val cloudModel: String = CloudProvider.OPENAI.defaultModel,
+    val cloudProvider: String = CloudProvider.DEEPSEEK.id,
+    val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
     val cloudBaseUrl: String = "",
     val apiKeyDraft: String = "",
     val hasApiKey: Boolean = false,
@@ -35,7 +35,6 @@ data class SettingsUiState(
     val autoMiddayPulse: Boolean = false,
     val cloudTestResult: String? = null,
     val cloudTesting: Boolean = false,
-    val modelImported: Boolean = false,
     val placeName: String = "",
     val placeLat: String = "",
     val placeLon: String = "",
@@ -78,7 +77,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
                 autoEveningReport = settings.autoEveningReport,
                 autoMiddayPulse = settings.autoMiddayPulse,
-                modelImported = app.modelImporter.hasBundledOrLocalModel(),
                 places = places,
                 auditLines = CaptureAuditLog.readRecent(app),
                 placeSuggestions = suggestions,
@@ -155,7 +153,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setCloudProvider(providerId: String) {
         app.settingsRepository.setCloudProvider(providerId)
-        val provider = CloudProvider.entries.find { it.id == providerId } ?: CloudProvider.OPENAI
+        val provider = CloudProvider.entries.find { it.id == providerId } ?: CloudProvider.DEEPSEEK
         app.settingsRepository.setCloudModel(provider.defaultModel)
         _uiState.update {
             it.copy(cloudProvider = providerId, cloudModel = provider.defaultModel)
@@ -247,8 +245,4 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun importModel() {
-        val imported = app.modelImporter.importFromDownloads()
-        _uiState.update { it.copy(modelImported = imported || app.modelImporter.hasBundledOrLocalModel()) }
-    }
 }

@@ -20,12 +20,9 @@ import com.dailybeat.app.cloud.WeeklyReportGenerator
 import com.dailybeat.app.export.PackageExporter
 import com.dailybeat.app.export.PdfExporter
 import com.dailybeat.app.geo.OsmGeocoder
-import com.dailybeat.app.llm.DairyGenerator
 import com.dailybeat.app.llm.EventExtractor
-import com.dailybeat.app.llm.LlmEngine
 import com.dailybeat.app.notify.DailyReminderScheduler
 import com.dailybeat.app.notify.PulseScheduler
-import com.dailybeat.app.util.ModelImporter
 
 class DailyBeatApp : Application() {
 
@@ -36,11 +33,7 @@ class DailyBeatApp : Application() {
             .build()
     }
 
-    val llm: LlmEngine by lazy { LlmEngine(this) }
-
-    val dairyGenerator: DairyGenerator by lazy { DairyGenerator(llm, db) }
-
-    val eventExtractor: EventExtractor by lazy { EventExtractor(llm) }
+    val eventExtractor: EventExtractor by lazy { EventExtractor(cloudLlm, settingsRepository) }
 
     val eventRepository: EventRepository by lazy { EventRepository(db.events()) }
 
@@ -54,8 +47,6 @@ class DailyBeatApp : Application() {
 
     val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
 
-    val modelImporter: ModelImporter by lazy { ModelImporter(this) }
-
     val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes()) }
 
     val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
@@ -67,7 +58,6 @@ class DailyBeatApp : Application() {
             visitRepository = visitRepository,
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
-            localGenerator = dairyGenerator,
             appContext = this,
         )
     }
@@ -102,7 +92,6 @@ class DailyBeatApp : Application() {
         DailyReminderScheduler.createChannel(this)
         DailyReminderScheduler.scheduleNext(this)
         PulseScheduler.scheduleNext(this)
-        modelImporter.importFromDownloads()
     }
 
     private fun createNotificationChannels() {

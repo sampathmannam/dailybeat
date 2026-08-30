@@ -200,24 +200,6 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup(title = stringResource(R.string.settings_model_group)) {
-                Text(
-                    text = if (state.modelImported) {
-                        stringResource(R.string.model_ready)
-                    } else {
-                        stringResource(R.string.model_import_hint)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PrimaryButton(
-                    text = stringResource(R.string.import_model_button),
-                    onClick = viewModel::importModel,
-                )
-            }
-        }
-
-        item {
             SettingsGroup(title = stringResource(R.string.places_title)) {
                 if (state.placeSuggestions.isNotEmpty()) {
                     Text(

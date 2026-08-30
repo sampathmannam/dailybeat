@@ -22,7 +22,7 @@ class VoiceCaptureOrchestrator(private val app: DailyBeatApp) {
             return Result.failure(IllegalStateException("Voice not recognized. Try again or use optional note."))
         }
 
-        val structured = app.eventExtractor.extract(transcript)
+        val structured = app.eventExtractor.extract(transcript).getOrElse { return Result.failure(it) }
         app.eventRepository.addStructuredEvent(structured, type = "voice")
         CaptureAuditLog.log(context, "voice", transcript.take(120))
         return Result.success(transcript)

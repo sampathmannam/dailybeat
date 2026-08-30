@@ -1,4 +1,11 @@
-# DailyBeat v2.0.0 — Install
+# DailyBeat v3.3.0 — Install
+
+## Cloud AI configuration
+
+This release uses DeepSeek (`deepseek-chat`) for diary generation. Configure the
+provider and API key in Settings → Cloud AI after installation. No API key is
+included in the source code or APK. Diary generation requires network access and
+a valid DeepSeek key; it does not use an offline fallback.
 
 ## APK
 

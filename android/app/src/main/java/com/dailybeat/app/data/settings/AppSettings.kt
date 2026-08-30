@@ -5,8 +5,8 @@ data class AppSettings(
     val gpsCaptureEnabled: Boolean = true,
     val callLogEnabled: Boolean = false,
     val cloudLlmEnabled: Boolean = true,
-    val cloudProvider: String = CloudProvider.OPENAI.id,
-    val cloudModel: String = "gpt-4o-mini",
+    val cloudProvider: String = CloudProvider.DEEPSEEK.id,
+    val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
     val cloudBaseUrl: String = "",
     val autoEveningReport: Boolean = true,
     val autoMiddayPulse: Boolean = false,
@@ -14,6 +14,7 @@ data class AppSettings(
 )
 
 enum class CloudProvider(val id: String, val displayName: String, val defaultModel: String) {
+    DEEPSEEK("deepseek", "DeepSeek", "deepseek-chat"),
     OPENAI("openai", "OpenAI", "gpt-4o-mini"),
     ANTHROPIC("anthropic", "Anthropic", "claude-3-5-haiku-20241022"),
     COMPATIBLE("compatible", "OpenAI-compatible (Groq, OpenRouter…)", "gpt-4o-mini"),

@@ -5,8 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
-import com.dailybeat.app.data.model.Event
-import com.dailybeat.app.domain.DairyFormatter
 import com.dailybeat.app.llm.buildDairyPrompt
 import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.Job
@@ -141,25 +139,14 @@ class DiaryViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
             val settings = app.settingsRepository.get()
-            val result = if (app.settingsRepository.isCloudBrainReady()) {
+            val result = if (!app.settingsRepository.isCloudBrainReady()) {
+                Result.failure(IllegalStateException("DeepSeek is required. Enable Cloud AI and add a DeepSeek API key."))
+            } else {
                 app.cloudLlm.generate(
                     settings,
                     com.dailybeat.app.cloud.DayContextBuilder.SYSTEM_PROMPT,
                     buildDairyPrompt(eventsText),
                 )
-            } else if (app.llm.isModelAvailable()) {
-                app.llm.generate(buildDairyPrompt(eventsText))
-            } else {
-                val pseudo = eventsText.lines()
-                    .filter { it.isNotBlank() }
-                    .mapIndexed { index, line ->
-                        Event(
-                            timestamp = System.currentTimeMillis() + index,
-                            type = "manual",
-                            rawText = line.trim(),
-                        )
-                    }
-                Result.success(DairyFormatter.formatEvents(pseudo))
             }
             result.fold(
                 onSuccess = { dairy ->
