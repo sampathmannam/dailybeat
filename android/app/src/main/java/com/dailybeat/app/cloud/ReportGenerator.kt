@@ -55,7 +55,12 @@ class ReportGenerator(
             $context
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, userPrompt).map { report ->
+        return cloudLlm.generate(
+            settings,
+            DayContextBuilder.SYSTEM_PROMPT,
+            userPrompt,
+            maxOutputTokens = CloudTokenBudgets.DAILY_DIARY,
+        ).map { report ->
             report.trim()
         }.onFailure {
             ReportRetryWorker.enqueue(appContext, date)

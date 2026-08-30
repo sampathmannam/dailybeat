@@ -12,6 +12,7 @@ import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.domain.FrequentPlaceLearner
 import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.DayContextBuilder
+import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -379,6 +380,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 settings,
                 DayContextBuilder.SYSTEM_PROMPT,
                 "Reply with exactly: DailyBeat cloud AI is connected.",
+                maxOutputTokens = CloudTokenBudgets.CONNECTION,
             )
             _uiState.update {
                 it.copy(

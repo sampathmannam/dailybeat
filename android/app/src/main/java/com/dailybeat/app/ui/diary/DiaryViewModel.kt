@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.llm.buildDairyPrompt
 import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.Job
@@ -146,6 +147,7 @@ class DiaryViewModel(
                     settings,
                     com.dailybeat.app.cloud.DayContextBuilder.SYSTEM_PROMPT,
                     buildDairyPrompt(eventsText),
+                    maxOutputTokens = CloudTokenBudgets.DAILY_DIARY,
                 )
             }
             result.fold(

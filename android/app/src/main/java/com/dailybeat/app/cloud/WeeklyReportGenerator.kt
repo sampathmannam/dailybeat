@@ -56,7 +56,12 @@ class WeeklyReportGenerator(
             $context
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).map { report ->
+        return cloudLlm.generate(
+            settings,
+            DayContextBuilder.SYSTEM_PROMPT,
+            prompt,
+            maxOutputTokens = CloudTokenBudgets.WEEKLY_ROLLUP,
+        ).map { report ->
             val block = "— Weekly rollup (${DateKeys.format(start)} – ${DateKeys.format(end)}) —\n${report.trim()}"
             diaryRepository.saveForDate(end, block)
             block
