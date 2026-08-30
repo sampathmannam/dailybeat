@@ -1,5 +1,7 @@
 package com.dailybeat.app.cloud
 
+import android.content.Context
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.VisitRepository
@@ -7,6 +9,7 @@ import com.dailybeat.app.data.settings.SettingsRepository
 import java.time.LocalDate
 
 class ReportGenerator(
+    private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val validatedReportClient: ValidatedReportClient,
     private val visitRepository: VisitRepository,
@@ -35,7 +38,7 @@ class ReportGenerator(
             visits = visits,
             events = events,
         )
-        val context = ContextLimiter.trimForLlm(source.text)
+        val limitedContext = ContextLimiter.trimForLlm(source.text)
 
         if (!settingsRepository.isCloudBrainReady()) {
             return Result.failure(
@@ -49,7 +52,7 @@ class ReportGenerator(
             End with a one-line summary of the day.
 
             DATA:
-            $context
+            $limitedContext
         """.trimIndent()
 
         return validatedReportClient.generate(
@@ -57,7 +60,17 @@ class ReportGenerator(
             DayContextBuilder.SYSTEM_PROMPT,
             userPrompt,
             source,
-        )
+        ).onFailure { error ->
+            OperationalFailureLog.record(
+                context = context,
+                category = "daily-report",
+                retryable = ReportRetryPolicy.shouldRetry(error),
+                message = when (error) {
+                    is CloudRequestException, is ReportIntegrityException -> error.message.orEmpty()
+                    else -> "Daily report generation failed (${error.javaClass.simpleName})."
+                },
+            )
+        }
     }
 
     suspend fun generateAndSaveForDate(date: LocalDate): Result<String> {

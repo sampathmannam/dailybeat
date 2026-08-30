@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.settings
 
 import android.app.Application
+import com.dailybeat.app.BuildConfig
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
@@ -9,6 +10,7 @@ import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.audit.CaptureAuditLog
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.domain.FrequentPlaceLearner
 import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.DayContextBuilder
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 data class SettingsUiState(
     val officerName: String = "",
@@ -45,6 +48,7 @@ data class SettingsUiState(
     val places: List<Place> = emptyList(),
     val placeError: String? = null,
     val auditLines: List<String> = emptyList(),
+    val operationalFailureLines: List<String> = emptyList(),
     val syntheticResult: String? = null,
     val isSeedingSynthetic: Boolean = false,
     val placeSuggestions: List<PlaceSuggestion> = emptyList(),
@@ -93,6 +97,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 autoMiddayPulse = settings.autoMiddayPulse,
                 places = places,
                 auditLines = CaptureAuditLog.readRecent(app),
+                operationalFailureLines = if (BuildConfig.DEBUG) {
+                    OperationalFailureLog.readRecent(app, 8)
+                } else {
+                    emptyList()
+                },
                 placeSuggestions = suggestions,
                 backupConfigured = app.backupCoordinator.isConfigured,
                 backupEmailDraft = current.backupEmailDraft,
@@ -130,6 +139,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     }
                 },
                 onFailure = { error ->
+                    recordOperationalFailure(
+                        category = "backup-sign-in",
+                        retryable = error is IOException,
+                        message = "Cloud backup sign-in failed.",
+                    )
                     _uiState.update {
                         it.copy(backupBusy = false, backupMessage = error.message ?: "Unable to sign in.")
                     }
@@ -176,6 +190,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update { it.copy(backupBusy = false, backupMessage = "Cloud backup completed.") }
                 },
                 onFailure = { error ->
+                    recordOperationalFailure(
+                        category = "backup-upload",
+                        retryable = error is IOException,
+                        message = "Cloud backup upload failed.",
+                    )
                     _uiState.update {
                         it.copy(backupBusy = false, backupMessage = error.message ?: "Cloud backup failed.")
                     }
@@ -207,6 +226,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     refresh()
                 },
                 onFailure = { error ->
+                    recordOperationalFailure(
+                        category = "backup-restore",
+                        retryable = error is IOException,
+                        message = "Cloud backup restore failed.",
+                    )
                     _uiState.update {
                         it.copy(backupBusy = false, backupMessage = error.message ?: "Cloud restore failed.")
                     }
@@ -241,6 +265,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun loadAuditLog() {
         _uiState.update { it.copy(auditLines = CaptureAuditLog.readRecent(app)) }
+    }
+
+    fun loadOperationalFailureLog() {
+        if (!BuildConfig.DEBUG) return
+        _uiState.update {
+            it.copy(operationalFailureLines = OperationalFailureLog.readRecent(app, 8))
+        }
     }
 
     fun setAutoMiddayPulse(enabled: Boolean) {
@@ -424,6 +455,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             app.placeRepository.delete(place)
             refresh()
+        }
+    }
+
+    private fun recordOperationalFailure(category: String, retryable: Boolean, message: String) {
+        OperationalFailureLog.record(app, category, retryable, message)
+        if (BuildConfig.DEBUG) {
+            _uiState.update {
+                it.copy(operationalFailureLines = OperationalFailureLog.readRecent(app, 8))
+            }
         }
     }
 

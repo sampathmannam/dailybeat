@@ -72,6 +72,7 @@ class DailyBeatApp : Application() {
 
     val reportGenerator: ReportGenerator by lazy {
         ReportGenerator(
+            context = this,
             settingsRepository = settingsRepository,
             validatedReportClient = validatedReportClient,
             visitRepository = visitRepository,
