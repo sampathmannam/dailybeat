@@ -132,7 +132,7 @@ class MainNavigationTest {
 
         assertTrue(
             "Dedicated map destination remained after pressing back",
-            device.wait(Until.gone(By.desc(mapDescription)), 10_000),
+            device.wait(Until.gone(By.desc(backDescription)), 10_000),
         )
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_today").assertIsDisplayed()
@@ -153,7 +153,7 @@ class MainNavigationTest {
 
         assertTrue(
             "Dedicated map destination remained after tapping its back control",
-            device.wait(Until.gone(By.desc(mapDescription)), 10_000),
+            device.wait(Until.gone(By.desc(backDescription)), 10_000),
         )
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_today").assertIsDisplayed()

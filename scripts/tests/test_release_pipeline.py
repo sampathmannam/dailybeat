@@ -68,3 +68,12 @@ def test_today_defers_maplibre_to_dedicated_destination():
     assert 'const val MAP = "journey-map"' in scaffold
     assert "MapLibre" not in preview
     assert "MapView" not in preview
+
+
+def test_map_presence_semantics_remain_stable():
+    map_view = (ROOT / "android/app/src/main/java/com/dailybeat/app/ui/components/JourneyMapPreview.kt").read_text()
+    navigation_test = (ROOT / "android/app/src/androidTest/java/com/dailybeat/app/MainNavigationTest.kt").read_text()
+
+    assert "mapView.contentDescription =" not in map_view
+    assert 'testTag("journey_map_ready")' in map_view
+    assert navigation_test.count("Until.gone(By.desc(backDescription))") == 2

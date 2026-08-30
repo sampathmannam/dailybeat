@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
@@ -88,7 +90,6 @@ fun JourneyMapView(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
-    val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
@@ -113,12 +114,10 @@ fun JourneyMapView(
             onDispose { }
         } else {
             mapRendered = false
-            mapView.contentDescription = mapDescription
             lateinit var renderListener: MapView.OnDidFinishRenderingMapListener
             renderListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
                 if (fullyRendered) {
                     mapRendered = true
-                    mapView.contentDescription = readyMapDescription
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                 }
             }
@@ -134,7 +133,6 @@ fun JourneyMapView(
                 onError = {
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
-                    mapView.contentDescription = mapDescription
                     mapError = true
                 },
             )
@@ -169,7 +167,6 @@ fun JourneyMapView(
                     TextButton(
                         onClick = {
                             loadedStyle = null
-                            mapView.contentDescription = mapDescription
                             map?.let(loadStyle)
                         },
                     ) {
@@ -196,7 +193,8 @@ fun JourneyMapView(
                         Spacer(
                             modifier = Modifier
                                 .size(1.dp)
-                                .testTag("journey_map_ready"),
+                                .testTag("journey_map_ready")
+                                .semantics { contentDescription = readyMapDescription },
                         )
                     }
                 }
