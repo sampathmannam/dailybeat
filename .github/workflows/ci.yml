@@ -32,9 +32,8 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          # MediaPipe Tasks GenAI currently packages libllm_inference_engine_jni.so
-          # for arm64-v8a only. Match the hosted emulator to the APK ABI.
-          arch: arm64-v8a
+          # The cloud-only build has no native LLM library and runs on x86_64.
+          arch: x86_64
           profile: Nexus 6
           script: cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
 
