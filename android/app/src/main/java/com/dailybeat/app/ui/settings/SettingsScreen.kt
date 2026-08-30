@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +54,7 @@ fun SettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .testTag("settings_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -195,24 +197,6 @@ fun SettingsScreen(
                     label = stringResource(R.string.call_log_label),
                     checked = state.callLogEnabled,
                     onCheckedChange = viewModel::setCallLogEnabled,
-                )
-            }
-        }
-
-        item {
-            SettingsGroup(title = stringResource(R.string.settings_model_group)) {
-                Text(
-                    text = if (state.modelImported) {
-                        stringResource(R.string.model_ready)
-                    } else {
-                        stringResource(R.string.model_import_hint)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PrimaryButton(
-                    text = stringResource(R.string.import_model_button),
-                    onClick = viewModel::importModel,
                 )
             }
         }

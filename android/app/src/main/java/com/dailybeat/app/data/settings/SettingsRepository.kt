@@ -12,9 +12,9 @@ class SettingsRepository(private val context: Context) {
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
         callLogEnabled = prefs.getBoolean(KEY_CALL_LOG, false),
         cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
-        cloudProvider = prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.OPENAI.id) ?: CloudProvider.OPENAI.id,
-        cloudModel = prefs.getString(KEY_CLOUD_MODEL, CloudProvider.OPENAI.defaultModel)
-            ?: CloudProvider.OPENAI.defaultModel,
+        cloudProvider = prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id) ?: CloudProvider.DEEPSEEK.id,
+        cloudModel = prefs.getString(KEY_CLOUD_MODEL, CloudProvider.DEEPSEEK.defaultModel)
+            ?: CloudProvider.DEEPSEEK.defaultModel,
         cloudBaseUrl = prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "",
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),

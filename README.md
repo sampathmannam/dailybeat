@@ -1,8 +1,11 @@
 # DailyBeat
 
-IPS daily diary app for Android. Passive GPS journey tracking + cloud LLM reports (or offline GGUF fallback).
+IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.2.0** — Voice FAB, journey map, LLM citations, weekly rollup, place learning, ZIP export.
+**v3.3.0** — DeepSeek cloud-only reports, Voice FAB, journey map, LLM citations, weekly rollup, place learning, ZIP export.
+
+Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
+Configure it at runtime in Settings → Cloud AI. The key is not bundled in the APK.
 
 ## Install
 

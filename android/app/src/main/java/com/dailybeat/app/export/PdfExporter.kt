@@ -59,7 +59,7 @@ class PdfExporter(private val context: Context) {
         }
 
         canvas.drawText(
-            "Page $pageNumber — Submitted via DailyBeat (offline).",
+            "Page $pageNumber — Submitted via DailyBeat.",
             MARGIN,
             PAGE_HEIGHT - MARGIN,
             footerPaint,
@@ -105,7 +105,7 @@ class PdfExporter(private val context: Context) {
         footerPaint: Paint,
     ) {
         canvas.drawText(
-            "Page $pageNumber — Submitted via DailyBeat (offline).",
+            "Page $pageNumber — Submitted via DailyBeat.",
             MARGIN,
             PAGE_HEIGHT - MARGIN,
             footerPaint,

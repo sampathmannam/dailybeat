@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
+import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -22,14 +23,22 @@ class VoiceRecorder(private val context: Context) {
 
   suspend fun recordUntilSilence(maxSeconds: Int = 30, silenceMs: Long = 1500): FloatArray =
     withContext(Dispatchers.IO) {
+      if (!PermissionHelper.hasRecordAudio(context)) {
+        throw SecurityException("Microphone permission required.")
+      }
       val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
-      val recorder = AudioRecord(
-        MediaRecorder.AudioSource.MIC,
-        SAMPLE_RATE,
-        CHANNEL,
-        ENCODING,
-        minBuffer * 2,
-      )
+      val recorder = try {
+        AudioRecord(
+          MediaRecorder.AudioSource.MIC,
+          SAMPLE_RATE,
+          CHANNEL,
+          ENCODING,
+          minBuffer * 2,
+        )
+      } catch (error: SecurityException) {
+        // Permission can be revoked after the guard above.
+        throw SecurityException("Microphone permission required.", error)
+      }
       audioRecord = recorder
       if (recorder.state != AudioRecord.STATE_INITIALIZED) {
         recorder.release()

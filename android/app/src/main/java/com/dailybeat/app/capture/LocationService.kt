@@ -84,8 +84,13 @@ class LocationService : Service() {
             .setMinUpdateDistanceMeters(75f)
             .setMaxUpdateDelayMillis(120_000L)
             .build()
-        LocationServices.getFusedLocationProviderClient(this)
-            .requestLocationUpdates(request, callback, Looper.getMainLooper())
+        try {
+            LocationServices.getFusedLocationProviderClient(this)
+                .requestLocationUpdates(request, callback, Looper.getMainLooper())
+        } catch (_: SecurityException) {
+            // Permission can be revoked after the guard at the start of onCreate().
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {

@@ -32,9 +32,17 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          # The cloud-only build has no native LLM library and runs on x86_64.
           arch: x86_64
           profile: Nexus 6
-          script: cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+          force-avd-creation: true
+          wipe-data: true
+          disable-animations: true
+          emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            adb shell getprop sys.boot_completed | grep -q 1
+            until adb shell pm list packages >/dev/null 2>&1; do sleep 2; done
+            cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
 
       - name: Python tests
         run: |
