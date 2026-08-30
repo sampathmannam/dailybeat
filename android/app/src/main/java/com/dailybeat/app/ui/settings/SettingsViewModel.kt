@@ -18,7 +18,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val officerName: String = "",
@@ -76,7 +78,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 cloudModel = settings.cloudModel,
                 cloudBaseUrl = settings.cloudBaseUrl,
                 apiKeyDraft = current.apiKeyDraft,
-                hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                hasApiKey = withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.hasApiKey()
+                },
                 autoEveningReport = settings.autoEveningReport,
                 autoMiddayPulse = settings.autoMiddayPulse,
                 places = places,
@@ -189,18 +193,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveApiKey() {
         val key = _uiState.value.apiKeyDraft.trim()
         if (key.isEmpty()) return
-        runCatching { app.settingsRepository.secureApiKey.setApiKey(key) }.fold(
-            onSuccess = {
-                _uiState.update {
-                    it.copy(apiKeyDraft = "", hasApiKey = true, cloudTestResult = "API key saved securely.")
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.setApiKey(key)
                 }
-            },
-            onFailure = { error ->
-                _uiState.update {
-                    it.copy(cloudTestResult = error.message ?: "Unable to save the API key securely.")
-                }
-            },
-        )
+            }.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(apiKeyDraft = "", hasApiKey = true, cloudTestResult = "API key saved securely.")
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(cloudTestResult = error.message ?: "Unable to save the API key securely.")
+                    }
+                },
+            )
+        }
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
@@ -214,9 +224,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val settings = app.settingsRepository.get()
             val draft = _uiState.value.apiKeyDraft.trim()
             if (draft.isNotEmpty()) {
-                val saveError = runCatching {
-                    app.settingsRepository.secureApiKey.setApiKey(draft)
-                }.exceptionOrNull()
+                val saveError = withContext(Dispatchers.IO) {
+                    runCatching {
+                        app.settingsRepository.secureApiKey.setApiKey(draft)
+                    }.exceptionOrNull()
+                }
                 if (saveError != null) {
                     _uiState.update {
                         it.copy(
@@ -239,7 +251,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         onSuccess = { "Connected successfully." },
                         onFailure = { error -> error.message ?: "Connection failed." },
                     ),
-                    hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                    hasApiKey = withContext(Dispatchers.IO) {
+                        app.settingsRepository.secureApiKey.hasApiKey()
+                    },
                     apiKeyDraft = "",
                 )
             }

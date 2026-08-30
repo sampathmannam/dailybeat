@@ -92,8 +92,6 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.officer_name_label)) },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
@@ -127,6 +125,8 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.cloud_api_key_label)) },
                     singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )

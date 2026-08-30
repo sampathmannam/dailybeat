@@ -86,6 +86,19 @@ class BrandAssetsTest {
     }
 
     @Test
+    fun officerNameIsReadableWhileApiKeyIsMasked() {
+        val settings = source("ui/settings/SettingsScreen.kt")
+        val officerField = settings.substringAfter("value = state.officerName")
+            .substringBefore("value = state.supervisorName")
+        val apiKeyField = settings.substringAfter("value = state.apiKeyDraft")
+            .substringBefore("if (state.hasApiKey)")
+
+        assertFalse("PasswordVisualTransformation" in officerField)
+        assertTrue("PasswordVisualTransformation" in apiKeyField)
+        assertTrue("KeyboardType.Password" in apiKeyField)
+    }
+
+    @Test
     fun productionVoiceCaptureNeverInventsAnEmulatorTranscript() {
         val orchestrator = source("capture/VoiceCaptureOrchestrator.kt")
 

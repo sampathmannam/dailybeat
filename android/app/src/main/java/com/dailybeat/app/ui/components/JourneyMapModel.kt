@@ -3,11 +3,13 @@ package com.dailybeat.app.ui.components
 import com.dailybeat.app.data.model.LocationVisit
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.log2
 import kotlin.math.min
+import kotlin.math.sinh
 import kotlin.math.tan
 
 data class JourneyPoint(
@@ -78,16 +80,24 @@ data class JourneyMapModel(
         }
 
     val cameraZoom: Int
-        get() {
-            if (points.size <= 1) return 16
-            val longitudeFraction = (longitudeSpan / 360.0).coerceAtLeast(MIN_PROJECTED_SPAN)
-            val latitudeFraction = abs(
-                mercatorY(bounds.north) - mercatorY(bounds.south),
-            ).coerceAtLeast(MIN_PROJECTED_SPAN)
-            val horizontalZoom = log2(MAP_CONTENT_WIDTH_PX / (TILE_SIZE_PX * longitudeFraction))
-            val verticalZoom = log2(MAP_CONTENT_HEIGHT_PX / (TILE_SIZE_PX * latitudeFraction))
-            return floor(min(horizontalZoom, verticalZoom)).toInt().coerceIn(1, 16)
-        }
+        get() = cameraZoomForViewport(
+            widthPx = DEFAULT_MAP_WIDTH_PX,
+            heightPx = DEFAULT_MAP_HEIGHT_PX,
+            paddingPx = DEFAULT_MAP_PADDING_PX,
+        )
+
+    fun cameraZoomForViewport(widthPx: Int, heightPx: Int, paddingPx: Int): Int {
+        if (points.size <= 1) return 16
+        val longitudeFraction = (longitudeSpan / 360.0).coerceAtLeast(MIN_PROJECTED_SPAN)
+        val latitudeFraction = abs(
+            mercatorY(bounds.north) - mercatorY(bounds.south),
+        ).coerceAtLeast(MIN_PROJECTED_SPAN)
+        val contentWidth = (widthPx - paddingPx * 2).coerceAtLeast(1).toDouble()
+        val contentHeight = (heightPx - paddingPx * 2).coerceAtLeast(1).toDouble()
+        val horizontalZoom = log2(contentWidth / (TILE_SIZE_PX * longitudeFraction))
+        val verticalZoom = log2(contentHeight / (TILE_SIZE_PX * latitudeFraction))
+        return floor(min(horizontalZoom, verticalZoom)).toInt().coerceIn(1, 16)
+    }
 
     val openStreetMapUrlOrNull: String?
         get() {
@@ -106,14 +116,18 @@ data class JourneyMapModel(
         const val WEB_MERCATOR_MAX_LATITUDE = 85.05112878
         private const val SINGLE_POINT_PADDING = 0.001
         private const val TILE_SIZE_PX = 256.0
-        private const val MAP_CONTENT_WIDTH_PX = 264.0
-        private const val MAP_CONTENT_HEIGHT_PX = 124.0
+        private const val DEFAULT_MAP_WIDTH_PX = 360
+        private const val DEFAULT_MAP_HEIGHT_PX = 220
+        private const val DEFAULT_MAP_PADDING_PX = 48
         private const val MIN_PROJECTED_SPAN = 1e-9
 
         private fun mercatorY(latitude: Double): Double {
             val radians = Math.toRadians(latitude)
             return (1.0 - ln(tan(radians) + 1.0 / cos(radians)) / Math.PI) / 2.0
         }
+
+        private fun latitudeFromMercatorY(y: Double): Double =
+            Math.toDegrees(atan(sinh(Math.PI * (1.0 - 2.0 * y))))
 
         fun fromVisits(visits: List<LocationVisit>): JourneyMapModel {
             val points = visits
@@ -154,7 +168,7 @@ data class JourneyMapModel(
             return JourneyMapModel(
                 points = points,
                 boundsOrNull = bounds,
-                centerLatitude = (south + north) / 2,
+                centerLatitude = latitudeFromMercatorY((mercatorY(south) + mercatorY(north)) / 2),
                 centerLongitude = longitudeBounds.center,
                 latitudeSpan = north - south,
                 longitudeSpan = longitudeBounds.span,

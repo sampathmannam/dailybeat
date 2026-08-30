@@ -32,4 +32,12 @@ class PlaceInputValidatorTest {
             PlaceInputValidator.errorFor("HQ", "north", "east"),
         )
     }
+
+    @Test
+    fun rejectsNonFiniteCoordinates() {
+        assertEquals(
+            "Enter valid latitude and longitude.",
+            PlaceInputValidator.errorFor("HQ", "NaN", "Infinity"),
+        )
+    }
 }

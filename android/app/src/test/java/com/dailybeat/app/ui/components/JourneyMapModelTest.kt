@@ -142,6 +142,48 @@ class JourneyMapModelTest {
         assert(highLatitude.cameraZoom < equator.cameraZoom)
     }
 
+    @Test
+    fun cameraZoom_usesMeasuredViewportAndPadding() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 10.0, longitude = 1.0),
+                visit(startMs = 200, latitude = 10.0, longitude = 81.0),
+            ),
+        )
+
+        val phoneZoom = model.cameraZoomForViewport(widthPx = 1080, heightPx = 660, paddingPx = 144)
+        val narrowZoom = model.cameraZoomForViewport(widthPx = 320, heightPx = 220, paddingPx = 48)
+
+        assert(phoneZoom > narrowZoom)
+        assertEquals(1, narrowZoom)
+    }
+
+    @Test
+    fun fromVisits_usesMercatorMidpointAtHighLatitude() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 70.0, longitude = 10.0),
+                visit(startMs = 200, latitude = 80.0, longitude = 10.0),
+            ),
+        )
+
+        assert(requireNotNull(model.centerLatitude) > 75.0)
+    }
+
+    @Test
+    fun fromVisits_splitsReverseAntimeridianCrossingIntoRenderableSegments() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 10.0, longitude = -179.0),
+                visit(startMs = 200, latitude = 10.2, longitude = 179.0),
+            ),
+        )
+
+        assertEquals(listOf(2, 2), model.routeSegments.map { it.size })
+        assertEquals(-180.0, model.routeSegments[0].last().longitude, 0.0)
+        assertEquals(180.0, model.routeSegments[1].first().longitude, 0.0)
+    }
+
     private fun visit(
         startMs: Long,
         latitude: Double,

@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +62,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import kotlin.math.roundToInt
 
 private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
@@ -100,19 +100,42 @@ fun JourneyMapPreview(
         onMapError = { mapError = true },
     )
 
-    LaunchedEffect(map, loadedStyle, model) {
+    DisposableEffect(map, loadedStyle, model, mapView) {
         val readyMap = map
         val style = loadedStyle
-        if (readyMap != null && style != null) {
+        if (readyMap == null || style == null) {
+            onDispose { }
+        } else {
+            mapRendered = false
+            lateinit var renderListener: MapView.OnDidFinishRenderingMapListener
+            renderListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
+                if (fullyRendered) {
+                    mapRendered = true
+                    mapView.removeOnDidFinishRenderingMapListener(renderListener)
+                }
+            }
+            mapView.addOnDidFinishRenderingMapListener(renderListener)
+            val density = mapView.resources.displayMetrics.density
+            val cameraPaddingPx = (48 * density).roundToInt()
+            val viewportWidthPx = mapView.width.takeIf { it > cameraPaddingPx * 2 }
+                ?: (360 * density).roundToInt()
+            val viewportHeightPx = mapView.height.takeIf { it > cameraPaddingPx * 2 }
+                ?: (220 * density).roundToInt()
             readyMap.renderJourney(
                 style = style,
                 model = model,
-                onRendered = { mapRendered = true },
+                viewportWidthPx = viewportWidthPx,
+                viewportHeightPx = viewportHeightPx,
+                cameraPaddingPx = cameraPaddingPx,
                 onError = {
+                    mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
                     mapError = true
                 },
             )
+            onDispose {
+                mapView.removeOnDidFinishRenderingMapListener(renderListener)
+            }
         }
     }
 
@@ -230,13 +253,42 @@ private fun rememberMapViewWithLifecycle(
 
     DisposableEffect(lifecycle, mapView) {
         var destroyed = false
+        var started = false
+        var resumed = false
+        fun start() {
+            if (!started) {
+                mapView.onStart()
+                started = true
+            }
+        }
+        fun resume() {
+            start()
+            if (!resumed) {
+                mapView.onResume()
+                resumed = true
+            }
+        }
+        fun pause() {
+            if (resumed) {
+                mapView.onPause()
+                resumed = false
+            }
+        }
+        fun stop() {
+            pause()
+            if (started) {
+                mapView.onStop()
+                started = false
+            }
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_START -> start()
+                Lifecycle.Event.ON_RESUME -> resume()
+                Lifecycle.Event.ON_PAUSE -> pause()
+                Lifecycle.Event.ON_STOP -> stop()
                 Lifecycle.Event.ON_DESTROY -> {
+                    stop()
                     mapView.onDestroy()
                     destroyed = true
                 }
@@ -244,10 +296,11 @@ private fun rememberMapViewWithLifecycle(
             }
         }
         lifecycle.addObserver(observer)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
         onDispose {
             lifecycle.removeObserver(observer)
-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onPause()
-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) mapView.onStop()
+            stop()
             if (!destroyed) mapView.onDestroy()
         }
     }
@@ -257,7 +310,9 @@ private fun rememberMapViewWithLifecycle(
 private fun MapLibreMap.renderJourney(
     style: Style,
     model: JourneyMapModel,
-    onRendered: () -> Unit,
+    viewportWidthPx: Int,
+    viewportHeightPx: Int,
+    cameraPaddingPx: Int,
     onError: () -> Unit,
 ) {
     runCatching {
@@ -331,7 +386,13 @@ private fun MapLibreMap.renderJourney(
                                 requireNotNull(model.centerLongitude),
                             ),
                         )
-                        .zoom(model.cameraZoom.toDouble())
+                        .zoom(
+                            model.cameraZoomForViewport(
+                                widthPx = viewportWidthPx,
+                                heightPx = viewportHeightPx,
+                                paddingPx = cameraPaddingPx,
+                            ).toDouble(),
+                        )
                         .build(),
                 ),
             )
@@ -340,10 +401,9 @@ private fun MapLibreMap.renderJourney(
             animateCamera(
                 CameraUpdateFactory.newLatLngBounds(
                     LatLngBounds.from(bounds.north, bounds.east, bounds.south, bounds.west),
-                    48,
+                    cameraPaddingPx,
                 ),
             )
         }
-    }.onSuccess { onRendered() }
-        .onFailure { onError() }
+    }.onFailure { onError() }
 }
