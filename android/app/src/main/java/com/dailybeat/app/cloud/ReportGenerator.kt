@@ -60,17 +60,7 @@ class ReportGenerator(
             DayContextBuilder.SYSTEM_PROMPT,
             userPrompt,
             source,
-        ).onFailure { error ->
-            OperationalFailureLog.record(
-                context = context,
-                category = "daily-report",
-                retryable = ReportRetryPolicy.shouldRetry(error),
-                message = when (error) {
-                    is CloudRequestException, is ReportIntegrityException -> error.message.orEmpty()
-                    else -> "Daily report generation failed (${error.javaClass.simpleName})."
-                },
-            )
-        }
+        ).onFailure { error -> recordDailyReportFailure(context, error) }
     }
 
     suspend fun generateAndSaveForDate(date: LocalDate): Result<String> {
@@ -78,4 +68,18 @@ class ReportGenerator(
             diaryRepository.saveForDate(date, text)
         }
     }
+}
+
+internal fun recordDailyReportFailure(context: Context, error: Throwable) {
+    val integrityFailure = error is ReportIntegrityException
+    OperationalFailureLog.record(
+        context = context,
+        category = if (integrityFailure) "daily-report-integrity" else "daily-report",
+        retryable = if (integrityFailure) false else ReportRetryPolicy.shouldRetry(error),
+        message = when {
+            integrityFailure -> "Daily report failed source-integrity validation."
+            error is CloudRequestException -> error.message.orEmpty()
+            else -> "Daily report generation failed (${error.javaClass.simpleName})."
+        },
+    )
 }

@@ -66,25 +66,31 @@ class CallLogWorker(
     companion object {
         private const val WORK_NAME = "call_log_poll"
 
-        fun schedule(context: Context) {
-            try {
-                val request = PeriodicWorkRequestBuilder<CallLogWorker>(15, TimeUnit.MINUTES).build()
-                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                    WORK_NAME,
-                    ExistingPeriodicWorkPolicy.KEEP,
-                    request,
-                )
-            } catch (_: IllegalStateException) {
-                // WorkManager not ready (early boot or unit tests).
-            }
+        fun schedule(context: Context): kotlin.Result<Unit> =
+            schedule(context) { WorkManager.getInstance(it) }
+
+        internal fun schedule(
+            context: Context,
+            workManagerProvider: (Context) -> WorkManager,
+        ): kotlin.Result<Unit> = runCatching {
+            val request = PeriodicWorkRequestBuilder<CallLogWorker>(15, TimeUnit.MINUTES).build()
+            workManagerProvider(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request,
+            )
+            Unit
         }
 
-        fun cancel(context: Context) {
-            try {
-                WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
-            } catch (_: IllegalStateException) {
-                // WorkManager not ready (early boot or unit tests).
-            }
+        fun cancel(context: Context): kotlin.Result<Unit> =
+            cancel(context) { WorkManager.getInstance(it) }
+
+        internal fun cancel(
+            context: Context,
+            workManagerProvider: (Context) -> WorkManager,
+        ): kotlin.Result<Unit> = runCatching {
+            workManagerProvider(context).cancelUniqueWork(WORK_NAME)
+            Unit
         }
     }
 }
