@@ -3,6 +3,7 @@ package com.dailybeat.app.data.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.dailybeat.app.data.model.Event
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface EventDao {
+    @Query("SELECT * FROM events ORDER BY id ASC")
+    suspend fun all(): List<Event>
+
     @Query("SELECT * FROM events WHERE timestamp BETWEEN :start AND :end ORDER BY timestamp ASC")
     fun observeEventsBetween(start: Long, end: Long): Flow<List<Event>>
 
@@ -18,6 +22,12 @@ interface EventDao {
 
     @Insert
     suspend fun insert(event: Event): Long
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(events: List<Event>)
+
+    @Query("DELETE FROM events")
+    suspend fun deleteAll()
 
     @Update
     suspend fun update(event: Event)

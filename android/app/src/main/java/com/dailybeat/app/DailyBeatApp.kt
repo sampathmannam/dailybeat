@@ -4,6 +4,11 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.room.Room
+import com.dailybeat.app.backup.BackupConfiguration
+import com.dailybeat.app.backup.BackupCoordinator
+import com.dailybeat.app.backup.EncryptedBackupSessionStore
+import com.dailybeat.app.backup.LocalBackupStore
+import com.dailybeat.app.backup.SupabaseBackupClient
 import com.dailybeat.app.cloud.CloudLlmClient
 import com.dailybeat.app.cloud.PulseReportGenerator
 import com.dailybeat.app.cloud.ReportGenerator
@@ -42,6 +47,19 @@ class DailyBeatApp : Application() {
     val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+
+    private val backupSessionStore by lazy { EncryptedBackupSessionStore(this) }
+
+    private val localBackupStore by lazy { LocalBackupStore(db, settingsRepository) }
+
+    private val backupClient by lazy {
+        SupabaseBackupClient(
+            configuration = BackupConfiguration(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY),
+            sessionStore = backupSessionStore,
+        )
+    }
+
+    val backupCoordinator by lazy { BackupCoordinator(localBackupStore, backupClient) }
 
     val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
 

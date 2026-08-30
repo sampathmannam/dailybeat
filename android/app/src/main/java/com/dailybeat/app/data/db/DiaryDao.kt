@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DiaryDao {
+    @Query("SELECT * FROM diaries ORDER BY dateKey ASC")
+    suspend fun all(): List<DiaryEntry>
+
     @Query("SELECT * FROM diaries WHERE dateKey = :dateKey LIMIT 1")
     fun observeForDate(dateKey: String): Flow<DiaryEntry?>
 
@@ -17,6 +20,12 @@ interface DiaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: DiaryEntry)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(entries: List<DiaryEntry>)
+
+    @Query("DELETE FROM diaries")
+    suspend fun deleteAll()
 
     @Query("SELECT * FROM diaries ORDER BY dateKey DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<DiaryEntry>>

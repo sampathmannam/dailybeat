@@ -170,6 +170,17 @@ class MainNavigationTest {
             .performScrollToNode(hasText("Officer name") and hasSetTextAction())
         composeRule.onNode(hasText("Officer name") and hasSetTextAction()).assertIsDisplayed()
         composeRule.onNodeWithText("Cloud AI").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud backup"))
+        composeRule.onNodeWithText("Cloud backup").assertIsDisplayed()
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        if (app.backupCoordinator.isConfigured) {
+            composeRule.onNodeWithTag("settings_list")
+                .performScrollToNode(hasText("Email") and hasSetTextAction())
+            composeRule.onNode(hasText("Email") and hasSetTextAction()).assertIsDisplayed()
+            composeRule.onNodeWithText("Create cloud backup account").assertIsDisplayed()
+        } else {
+            composeRule.onNodeWithText("Cloud backup is unavailable in this build.").assertIsDisplayed()
+        }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
     }

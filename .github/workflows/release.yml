@@ -36,9 +36,13 @@ jobs:
         env:
           DAILYBEAT_STORE_PASSWORD: ${{ secrets.DAILYBEAT_STORE_PASSWORD }}
           DAILYBEAT_KEY_PASSWORD: ${{ secrets.DAILYBEAT_KEY_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           test -n "$DAILYBEAT_STORE_PASSWORD"
           test -n "$DAILYBEAT_KEY_PASSWORD"
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_ANON_KEY"
           cd android
           ./gradlew assembleRelease testReleaseUnitTest --no-daemon --stacktrace
 
