@@ -4,12 +4,17 @@ import androidx.room.withTransaction
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.settings.SettingsRepository
 
+interface SnapshotStore {
+    suspend fun createSnapshot(): BackupSnapshot
+    suspend fun restore(snapshot: BackupSnapshot)
+}
+
 class LocalBackupStore(
     private val db: DailyBeatDb,
     private val settingsRepository: SettingsRepository,
     private val clock: () -> Long = System::currentTimeMillis,
-) {
-    suspend fun createSnapshot(): BackupSnapshot {
+) : SnapshotStore {
+    override suspend fun createSnapshot(): BackupSnapshot {
         val settings = settingsRepository.get()
         return BackupSnapshot(
             createdAtMs = clock(),
@@ -32,7 +37,7 @@ class LocalBackupStore(
         )
     }
 
-    suspend fun restore(snapshot: BackupSnapshot) {
+    override suspend fun restore(snapshot: BackupSnapshot) {
         require(snapshot.schemaVersion == BackupSnapshot.CURRENT_SCHEMA_VERSION) {
             "Unsupported backup version: ${snapshot.schemaVersion}"
         }

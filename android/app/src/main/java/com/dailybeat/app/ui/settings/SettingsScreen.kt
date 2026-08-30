@@ -108,6 +108,100 @@ fun SettingsScreen(
         }
 
         item {
+            SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
+                Text(
+                    text = stringResource(R.string.settings_backup_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                when {
+                    !state.backupConfigured -> {
+                        Text(
+                            text = stringResource(R.string.backup_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    state.backupSignedInEmail == null -> {
+                        OutlinedTextField(
+                            value = state.backupEmailDraft,
+                            onValueChange = viewModel::setBackupEmail,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.backup_email)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = fieldColors,
+                        )
+                        OutlinedTextField(
+                            value = state.backupPasswordDraft,
+                            onValueChange = viewModel::setBackupPassword,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.backup_password)) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = fieldColors,
+                        )
+                        PrimaryButton(
+                            text = stringResource(R.string.backup_sign_in),
+                            onClick = viewModel::signInToBackup,
+                            enabled = !state.backupBusy &&
+                                state.backupEmailDraft.isNotBlank() &&
+                                state.backupPasswordDraft.isNotBlank(),
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = stringResource(R.string.backup_signed_in_as, state.backupSignedInEmail.orEmpty()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        PrimaryButton(
+                            text = stringResource(R.string.backup_now),
+                            onClick = viewModel::backupNow,
+                            enabled = !state.backupBusy,
+                        )
+                        SecondaryButton(
+                            text = stringResource(R.string.backup_restore),
+                            onClick = viewModel::requestBackupRestore,
+                            enabled = !state.backupBusy,
+                        )
+                        if (state.backupRestoreConfirmation) {
+                            Text(
+                                text = stringResource(R.string.backup_restore_warning),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            PrimaryButton(
+                                text = stringResource(R.string.backup_restore_confirm),
+                                onClick = viewModel::confirmBackupRestore,
+                                enabled = !state.backupBusy,
+                            )
+                            SecondaryButton(
+                                text = stringResource(R.string.cancel),
+                                onClick = viewModel::cancelBackupRestore,
+                            )
+                        }
+                        SecondaryButton(
+                            text = stringResource(R.string.backup_sign_out),
+                            onClick = viewModel::signOutOfBackup,
+                            enabled = !state.backupBusy,
+                        )
+                    }
+                }
+                state.backupMessage?.let { message ->
+                    Text(text = message, style = MaterialTheme.typography.bodySmall)
+                }
+                Text(
+                    text = stringResource(R.string.backup_api_key_excluded),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        item {
             SettingsGroup(title = stringResource(R.string.settings_cloud_group)) {
                 Text(
                     text = stringResource(R.string.settings_cloud_desc),

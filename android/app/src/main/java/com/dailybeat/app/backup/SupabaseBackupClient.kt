@@ -14,17 +14,26 @@ data class RemoteBackup(
     val updatedAt: String,
 )
 
+interface BackupRemote {
+    val isConfigured: Boolean
+    fun currentSession(): BackupSession?
+    suspend fun signIn(email: String, password: String): Result<BackupSession>
+    suspend fun upload(snapshotJson: String): Result<Unit>
+    suspend fun download(): Result<RemoteBackup?>
+    fun signOut()
+}
+
 class SupabaseBackupClient(
     private val configuration: BackupConfiguration,
     private val sessionStore: BackupSessionStore,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
-) {
-    val isConfigured: Boolean get() = configuration.isConfigured
+) : BackupRemote {
+    override val isConfigured: Boolean get() = configuration.isConfigured
 
-    fun currentSession(): BackupSession? = sessionStore.get()
+    override fun currentSession(): BackupSession? = sessionStore.get()
 
-    suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
+    override suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
             require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
@@ -40,7 +49,7 @@ class SupabaseBackupClient(
         }
     }
 
-    suspend fun upload(snapshotJson: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun upload(snapshotJson: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
             val session = validSession()
@@ -60,7 +69,7 @@ class SupabaseBackupClient(
         }
     }
 
-    suspend fun download(): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
+    override suspend fun download(): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
             val session = validSession()
@@ -81,7 +90,7 @@ class SupabaseBackupClient(
         }
     }
 
-    fun signOut() {
+    override fun signOut() {
         sessionStore.clear()
     }
 

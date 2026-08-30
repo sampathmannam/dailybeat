@@ -170,6 +170,9 @@ class MainNavigationTest {
             .performScrollToNode(hasText("Officer name") and hasSetTextAction())
         composeRule.onNode(hasText("Officer name") and hasSetTextAction()).assertIsDisplayed()
         composeRule.onNodeWithText("Cloud AI").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud backup"))
+        composeRule.onNodeWithText("Cloud backup").assertIsDisplayed()
+        composeRule.onNodeWithText("Cloud backup is unavailable in this build.").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
     }

@@ -47,6 +47,13 @@ data class SettingsUiState(
     val syntheticResult: String? = null,
     val isSeedingSynthetic: Boolean = false,
     val placeSuggestions: List<PlaceSuggestion> = emptyList(),
+    val backupConfigured: Boolean = false,
+    val backupEmailDraft: String = "",
+    val backupPasswordDraft: String = "",
+    val backupSignedInEmail: String? = null,
+    val backupBusy: Boolean = false,
+    val backupMessage: String? = null,
+    val backupRestoreConfirmation: Boolean = false,
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -86,6 +93,106 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 places = places,
                 auditLines = CaptureAuditLog.readRecent(app),
                 placeSuggestions = suggestions,
+                backupConfigured = app.backupCoordinator.isConfigured,
+                backupEmailDraft = current.backupEmailDraft,
+                backupPasswordDraft = current.backupPasswordDraft,
+                backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
+                backupBusy = current.backupBusy,
+                backupMessage = current.backupMessage,
+                backupRestoreConfirmation = current.backupRestoreConfirmation,
+            )
+        }
+    }
+
+    fun setBackupEmail(email: String) {
+        _uiState.update { it.copy(backupEmailDraft = email, backupMessage = null) }
+    }
+
+    fun setBackupPassword(password: String) {
+        _uiState.update { it.copy(backupPasswordDraft = password, backupMessage = null) }
+    }
+
+    fun signInToBackup() {
+        val state = _uiState.value
+        if (state.backupBusy) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
+            app.backupCoordinator.signIn(state.backupEmailDraft, state.backupPasswordDraft).fold(
+                onSuccess = { session ->
+                    _uiState.update {
+                        it.copy(
+                            backupBusy = false,
+                            backupSignedInEmail = session.email,
+                            backupPasswordDraft = "",
+                            backupMessage = "Signed in. Back up this phone now.",
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(backupBusy = false, backupMessage = error.message ?: "Unable to sign in.")
+                    }
+                },
+            )
+        }
+    }
+
+    fun backupNow() {
+        if (_uiState.value.backupBusy) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
+            app.backupCoordinator.backupNow().fold(
+                onSuccess = {
+                    _uiState.update { it.copy(backupBusy = false, backupMessage = "Cloud backup completed.") }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(backupBusy = false, backupMessage = error.message ?: "Cloud backup failed.")
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestBackupRestore() {
+        _uiState.update { it.copy(backupRestoreConfirmation = true, backupMessage = null) }
+    }
+
+    fun cancelBackupRestore() {
+        _uiState.update { it.copy(backupRestoreConfirmation = false) }
+    }
+
+    fun confirmBackupRestore() {
+        if (_uiState.value.backupBusy) return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(backupBusy = true, backupRestoreConfirmation = false, backupMessage = null)
+            }
+            app.backupCoordinator.restoreNow().fold(
+                onSuccess = {
+                    CaptureController.applyFromSettings(app)
+                    _uiState.update {
+                        it.copy(backupBusy = false, backupMessage = "Cloud backup restored on this phone.")
+                    }
+                    refresh()
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(backupBusy = false, backupMessage = error.message ?: "Cloud restore failed.")
+                    }
+                },
+            )
+        }
+    }
+
+    fun signOutOfBackup() {
+        app.backupCoordinator.signOut()
+        _uiState.update {
+            it.copy(
+                backupSignedInEmail = null,
+                backupPasswordDraft = "",
+                backupMessage = "Signed out. Local DailyBeat data remains on this phone.",
+                backupRestoreConfirmation = false,
             )
         }
     }
