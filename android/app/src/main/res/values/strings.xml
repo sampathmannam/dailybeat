@@ -6,7 +6,7 @@
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="today_dashboard_title">Today</string>
-    <string name="today_dashboard_subtitle">Log events, generate your official dairy, share PDF — fully offline.</string>
+    <string name="today_dashboard_subtitle">Capture your day, generate an AI-assisted diary, and share a PDF.</string>
     <string name="today_passive_title">Today</string>
     <string name="today_passive_subtitle">Passive mode: GPS tracks your journey. Cloud AI writes the official diary at the end of the day.</string>
     <string name="generate_ai_report">Generate AI daily report</string>
@@ -58,7 +58,7 @@
     <string name="history_subtitle">Past diaries stored on this device only.</string>
     <string name="history_empty_title">No saved diaries yet</string>
     <string name="history_empty_subtitle">Generate a diary from Today or Diary tab.</string>
-    <string name="model_missing_hint">No LLM model — rule-based formatting is used. Import dailybeat-q4_k_m.gguf in Settings.</string>
+    <string name="model_missing_hint">Cloud AI is not configured. Add an API key in Settings to generate reports.</string>
     <string name="share_pdf_button">Share PDF</string>
     <string name="recording_label">Listening… stop speaking to save</string>
     <string name="voice_fab_label">Voice note</string>
@@ -69,7 +69,7 @@
     <string name="gps_capture_label">GPS breadcrumbs (every 60s / 100m)</string>
     <string name="call_log_label">Call log capture (opt-in)</string>
     <string name="model_ready">LLM model found on device.</string>
-    <string name="model_import_hint">Place dailybeat-q4_k_m.gguf in Downloads, then tap Import.</string>
+    <string name="model_import_hint">DailyBeat uses your configured cloud AI provider to generate reports.</string>
     <string name="import_model_button">Import model from Downloads</string>
     <string name="places_title">Named places (geofences)</string>
     <string name="place_name_label">Place name</string>
@@ -81,7 +81,7 @@
     <string name="location_service_text">Capturing GPS breadcrumbs</string>
     <string name="location_service_passive">Tracking visits and transit for your daily report</string>
     <string name="reminder_title">DailyBeat</string>
-    <string name="reminder_body">Time for your daily dairy?</string>
+    <string name="reminder_body">Time for your daily diary?</string>
     <string name="reminder_body_report">Your daily AI report is ready — open DailyBeat to review.</string>
     <string name="settings_cloud_group">Cloud AI</string>
     <string name="settings_cloud_desc">Your API key is stored encrypted on this device. Activity summaries are sent to your chosen provider when generating reports.</string>
@@ -93,7 +93,7 @@
     <string name="test_cloud_connection">Test connection</string>
     <string name="auto_evening_report">Auto-generate report at 8 PM</string>
     <string name="diary_cloud_hint">Cloud AI merges GPS journey, calls, and notes into your official diary.</string>
-    <string name="diary_local_hint">Add a cloud API key in Settings for AI reports, or import a local GGUF model.</string>
+    <string name="diary_local_hint">Add a cloud API key in Settings to generate AI reports.</string>
     <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
     <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports. Data stays on your device until you generate.</string>
     <string name="onboarding_officer_title">Your name for PDF headers</string>

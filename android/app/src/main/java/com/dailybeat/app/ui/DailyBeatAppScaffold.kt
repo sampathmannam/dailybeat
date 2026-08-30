@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -86,6 +87,7 @@ fun DailyBeatAppScaffold() {
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                 )
                 NavigationBarItem(
+                    modifier = Modifier.testTag("nav_today"),
                     selected = currentRoute == Routes.TODAY,
                     onClick = {
                         navController.navigate(Routes.TODAY) {
@@ -106,6 +108,7 @@ fun DailyBeatAppScaffold() {
                     colors = colors,
                 )
                 NavigationBarItem(
+                    modifier = Modifier.testTag("nav_diary"),
                     selected = currentRoute.startsWith("diary/"),
                     onClick = {
                         navController.navigate(Routes.diary()) {
@@ -126,6 +129,7 @@ fun DailyBeatAppScaffold() {
                     colors = colors,
                 )
                 NavigationBarItem(
+                    modifier = Modifier.testTag("nav_history"),
                     selected = currentRoute == Routes.HISTORY,
                     onClick = {
                         navController.navigate(Routes.HISTORY) {
@@ -146,6 +150,7 @@ fun DailyBeatAppScaffold() {
                     colors = colors,
                 )
                 NavigationBarItem(
+                    modifier = Modifier.testTag("nav_settings"),
                     selected = currentRoute == Routes.SETTINGS,
                     onClick = {
                         navController.navigate(Routes.SETTINGS) {
