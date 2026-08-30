@@ -12,20 +12,17 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "3.3.0"
+        versionCode = 9
+        versionName = "3.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
-            val keystore = file("../release.keystore")
-            if (keystore.exists()) {
-                storeFile = keystore
-                storePassword = System.getenv("DAILYBEAT_STORE_PASSWORD")
-                keyAlias = "dailybeat"
-                keyPassword = System.getenv("DAILYBEAT_KEY_PASSWORD")
-            }
+            storeFile = file("../release.keystore")
+            storePassword = System.getenv("DAILYBEAT_STORE_PASSWORD")
+            keyAlias = "dailybeat"
+            keyPassword = System.getenv("DAILYBEAT_KEY_PASSWORD")
         }
     }
 
@@ -37,11 +34,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = if (System.getenv("DAILYBEAT_STORE_PASSWORD") != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
