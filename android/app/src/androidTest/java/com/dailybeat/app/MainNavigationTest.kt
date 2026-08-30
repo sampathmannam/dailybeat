@@ -76,6 +76,7 @@ class MainNavigationTest {
             timeoutMillis = 10_000,
         )
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        composeRule.onNodeWithTag("journey_map_card").assertExists()
         composeRule.onNodeWithText("Open full map").assertIsDisplayed()
 
         composeRule.onNodeWithText("Load synthetic demo day").performClick()

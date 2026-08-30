@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -36,7 +37,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
 import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -76,6 +79,7 @@ fun JourneyMapPreview(
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var mapError by remember { mutableStateOf(false) }
+    var externalMapError by remember { mutableStateOf(false) }
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
         readyMap.setStyle(MAP_STYLE_URL) { style ->
@@ -100,7 +104,9 @@ fun JourneyMapPreview(
     }
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("journey_map_card"),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
@@ -146,14 +152,20 @@ fun JourneyMapPreview(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.journey_map_points, model.points.size),
+                    text = pluralStringResource(
+                        R.plurals.journey_map_points,
+                        model.points.size,
+                        model.points.size,
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 TextButton(
                     onClick = {
                         model.openStreetMapUrlOrNull?.let { url ->
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            externalMapError = runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }.isFailure
                         }
                     },
                 ) {
@@ -164,6 +176,14 @@ fun JourneyMapPreview(
                         modifier = Modifier.padding(start = 6.dp),
                     )
                 }
+            }
+            if (externalMapError) {
+                Text(
+                    text = stringResource(R.string.journey_map_open_error),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
@@ -202,8 +222,6 @@ private fun rememberMapViewWithLifecycle(
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) mapView.onStart()
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onResume()
         onDispose {
             lifecycle.removeObserver(observer)
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onPause()
@@ -224,8 +242,17 @@ private fun MapLibreMap.renderJourney(
         uiSettings.isLogoEnabled = true
 
         val points = model.points.map { Point.fromLngLat(it.longitude, it.latitude) }
-        if (points.size >= 2) {
-            val route = FeatureCollection.fromFeature(Feature.fromGeometry(LineString.fromLngLats(points)))
+        val routeFeatures = model.routeSegments
+            .filter { it.size >= 2 }
+            .map { segment ->
+                Feature.fromGeometry(
+                    LineString.fromLngLats(
+                        segment.map { Point.fromLngLat(it.longitude, it.latitude) },
+                    ),
+                )
+            }
+        if (routeFeatures.isNotEmpty()) {
+            val route = FeatureCollection.fromFeatures(routeFeatures)
             val routeSource = style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)
             if (routeSource == null) {
                 style.addSource(
@@ -271,12 +298,28 @@ private fun MapLibreMap.renderJourney(
             stopSource.setGeoJson(stops)
         }
 
-        val bounds = model.bounds
-        animateCamera(
-            CameraUpdateFactory.newLatLngBounds(
-                LatLngBounds.from(bounds.north, bounds.east, bounds.south, bounds.west),
-                48,
-            ),
-        )
+        if (model.points.size == 1 || model.crossesAntimeridian) {
+            animateCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(
+                            LatLng(
+                                requireNotNull(model.centerLatitude),
+                                requireNotNull(model.centerLongitude),
+                            ),
+                        )
+                        .zoom(model.cameraZoom.toDouble())
+                        .build(),
+                ),
+            )
+        } else {
+            val bounds = model.bounds
+            animateCamera(
+                CameraUpdateFactory.newLatLngBounds(
+                    LatLngBounds.from(bounds.north, bounds.east, bounds.south, bounds.west),
+                    48,
+                ),
+            )
+        }
     }.onFailure { onError() }
 }

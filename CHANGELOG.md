@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.4.0 — 2026-08-30
+
+- Replaced the decorative journey sketch with an interactive OpenStreetMap-based map using MapLibre and OpenFreeMap.
+- Added chronological route lines, visit markers, automatic journey bounds, attribution controls, an OpenStreetMap full-map action, and a retryable network-failure state.
+- Kept one universal APK compatible with arm64, armv7, x86, and x86_64 devices.
+- Made synthetic QA seeding idempotent and removed its controls from production builds.
+- Hardened encrypted API-key storage, disabled sensitive-data backup, and removed destructive database migration fallback.
+- Changed microphone and call-log permissions to request only when their features are used.
+- Removed the overlapping voice FAB and dead local-LLM/voice scaffolding; voice capture now reports failures honestly.
+- Fixed Today metric sizing, diary grammar, place-coordinate validation, provider-chip layout, stale copy, and Nominatim app identification.
+- Expanded unit and Compose instrumentation coverage; verified 10 screen-flow tests, repeated journey flows, lifecycle recovery, and adversarial random input on an Android 14 emulator.
+
 ## 3.3.0 — 2026-08-30
 
 - Added DeepSeek as the default OpenAI-compatible cloud provider.

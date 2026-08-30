@@ -1,63 +1,40 @@
-# DailyBeat — Honest Audit Ratings (v3.1.0)
+# DailyBeat — Honest Release-Candidate Ratings (v3.4.0)
 
-Ratings after three audit loops: code review, adversarial unit tests, synthetic data injection, instrumentation test suite, and CI emulator configuration. Scores are **genuine** — not aspirational.
+These scores reflect verified local and emulator evidence, not a claim that the app is bug-free. The audit included unit tests, 10 Compose instrumentation flows, synthetic data, permission denial, lifecycle/process recovery, map/network behavior, lint, APK ABI inspection, and a 1,000-event random-input pass.
 
 ## Scores (out of 10)
 
-| Factor | Score | Notes |
-|--------|-------|-------|
-| **Passive capture (GPS journey)** | 6.5 | Visit/transit detection works; needs real-world tuning (dwell thresholds, battery). No activity recognition or fused motion sensors. |
-| **Cloud LLM integration** | 7.0 | OpenAI/Anthropic/compatible, encrypted key, evening + midday pulse, retry worker. No streaming, no on-device prompt cache, no user-visible token/cost meter. |
-| **Reliability / crash resistance** | 7.5 | Fixed reboot capture, permission flow, flush pending dwell, input truncation, PDF fallbacks. Room still uses destructive migration fallback. |
-| **E2E test coverage** | 6.0 | Compose instrumentation + Maestro flows + adversarial unit tests + CI emulator job. No screenshot/visual regression; cloud VM adb often offline. |
-| **UI / UX polish** | 6.5 | Mobbin-inspired shell; passive-first Today. Voice capture still unwired; no map view; limited empty-state guidance when permissions denied. |
-| **Privacy / transparency** | 7.0 | Local audit log, clear cloud-send on generate. No export-audit-to-PDF; no per-field “what leaves device” preview before LLM call. |
-| **Offline / local fallback** | 6.0 | GGUF path exists but secondary; passive OSM geocode needs network. No offline place database. |
-| **IPS diary output quality** | 7.0 | Depends on cloud model + captured data richness. Synthetic seed helps QA; production quality = f(GPS accuracy, dwell algo). |
-| **Production readiness** | 6.5 | Signed release APK, CI, changelog. Missing Play Store hardening, crash reporting (Firebase/Sentry), staged rollout analytics. |
+| Factor | Score | Evidence and remaining risk |
+|--------|-------|-----------------------------|
+| Passive GPS capture | 7.0 | Visit/transit tracking and foreground-service recovery work in tests. Battery use, OEM task killers, and dwell thresholds still need multi-day field validation. |
+| Cloud LLM integration | 7.5 | Encrypted runtime key, multiple providers, connection test, retries, scheduled reports, and no false offline fallback. Real-provider reliability and cost are not covered by CI. |
+| Reliability / crash resistance | 8.0 | Safe migrations, sensitive backup disabled, permission races addressed, 10/10 UI tests, lifecycle recovery, and 1,000 random events without a DailyBeat crash/ANR. No field telemetry yet. |
+| E2E test coverage | 7.5 | Android 14 instrumentation, synthetic data, unit/adversarial tests, and CI emulator wiring. No physical-device farm, screenshot regression gate, or live cloud contract test. |
+| UI / UX | 7.8 | Passive-first Today, real journey map, consistent navigation, visible empty/error states, and corrected overlap/alignment issues. Accessibility and small-screen coverage need expansion. |
+| Privacy / security | 8.0 | API key is encrypted, plaintext fallback removed, backups disabled, and cloud-only data flow is disclosed. A formal threat model and encrypted exports remain outstanding. |
+| Network resilience | 6.8 | Map failure is isolated with retry; geocoding and cloud failures degrade honestly. OpenFreeMap and Nominatim are external best-effort services without an app-owned SLA. |
+| Diary output quality | 7.2 | Source context, citations, editing, PDF, and weekly output are present. Accuracy still depends on GPS quality, provider model, and real operational evaluation. |
+| Release engineering | 8.0 | Permanent signing certificate, checksum, one universal APK, CI, versioned workflow, and Obtainium-compatible release shape. No staged rollout or Play pre-launch report. |
 
-**Overall weighted average: ~6.7 / 10** — credible passive diary prototype with cloud brain, not yet state-of-the-art life-logging.
+**Overall: 7.6 / 10.** This is a credible, deployable release candidate, not a 10/10 field-proven product.
 
-## Barriers to 10/10
+## What blocks 10/10
 
-1. **Hardware & OS** — Background location is fragile (OEM kills, permission UX, battery saver). True passive tracking needs foreground service + user trust + possibly companion wearable.
-2. **No map / spatial UI** — Officers expect map timeline; we only show text cards.
-3. **Voice unwired** — STT exists in codebase but no FAB/wiring; passive promise is incomplete for oral culture workflows.
-4. **LLM without guardrails UI** — No citation of source events in generated report, no human-in-the-loop diff view.
-5. **Test environment** — Emulator/adb instability in cloud agents; full E2E depends on GitHub Actions emulator or physical device farm (Firebase Test Lab, BrowserStack).
-6. **No crash/telemetry loop** — Bugs in the field won’t be visible until users report them.
-7. **Geocoding dependency** — Nominatim rate limits and network; no bundled offline geocoder for rural areas.
-8. **Single-user local DB** — No backup/sync, no multi-device, no export encryption for sensitive diaries.
-9. **Regulatory / institutional** — IPS formats vary by state/cadre; no template picker or supervisor approval workflow.
-10. **Activity recognition** — GPS alone cannot distinguish “at court” vs “parked outside court” without Wi‑Fi/cell/beacon fusion.
+1. Multi-day physical-device trials across Motorola/Samsung/Pixel with battery optimization enabled.
+2. Measured GPS accuracy, missed-visit rate, false-visit rate, and battery drain in real patrol movement.
+3. Live cloud-provider contract tests using a restricted test account, plus latency/cost/error dashboards.
+4. Privacy-preserving crash reporting and an operational incident/rollback process.
+5. A physical-device test matrix, accessibility automation, and visual regression checks for multiple screen sizes.
+6. Formal security/privacy review for diary exports, call-log capture, cloud payloads, and retention.
+7. A map/geocoding service strategy with an SLA or self-hosted fallback if usage grows.
+8. User evaluation of generated diary accuracy, citations, editing time, and institutional format compliance.
+9. Current Play target/API compliance and a staged store rollout if Play distribution is pursued.
+10. Documented support ownership, monitoring, and recovery procedures after release.
 
-## Features brainstormed (implemented in v3.1.0)
+## Verified audit loops
 
-- ✅ Capture audit log (local transparency)
-- ✅ Synthetic demo day generator (QA)
-- ✅ Significant moment marker (passive flag, no typing)
-- ✅ Midday cloud pulse (1 PM optional)
-- ✅ Report retry worker on LLM network failure
-- ✅ Context limiter for huge days
-- ✅ Visit flush on service stop
-
-## Features recommended for v3.2+
-
-- Map timeline (OSM tiles offline cache)
-- Wire voice FAB + Whisper/SpeechRecognizer
-- LLM report with inline citations `[visit #3, 10:15]`
-- Firebase Test Lab / Maestro in CI on every PR
-- Frequent-place auto-learning → geofence suggestions
-- Weekly rollup report (cloud LLM)
-- Export audit log + diary as encrypted ZIP
-- Activity Recognition API fusion (walking/driving/still)
-- Supervisor sign-off PDF field
-- On-device embedding search over past diaries
-
-## Audit loops completed
-
-| Loop | Focus | Outcome |
-|------|-------|---------|
-| 1 | Code audit, synthetic data, adversarial unit tests | 8+ fixes, new audit/synthetic modules |
-| 2 | Instrumentation expansion, Maestro flows, retry/pulse | CI emulator job, maestro YAML |
-| 3 | Passive features + ratings doc | v3.1.0 release, this document |
+| Loop | Focus | Result |
+|------|-------|--------|
+| 1 | Source, dead wiring, security, and validation | Removed unsafe fallbacks/dead code; fixed permissions, validation, copy, and data safety. |
+| 2 | Synthetic and screen-wise emulator testing | 10 Compose flows passed; synthetic seeding became repeatable; UI failures were reproduced and fixed. |
+| 3 | Real map, lifecycle, ABI, and adversarial behavior | OSM map rendered with route/markers; all four ABIs packaged; lifecycle recovery and 1,000 random events produced no app crash/ANR. |

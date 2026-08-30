@@ -32,7 +32,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          # The cloud-only build has no native LLM library and runs on x86_64.
+          # MapLibre ships x86_64, so the cloud-only app can run on this emulator.
           arch: x86_64
           profile: Nexus 6
           force-avd-creation: true

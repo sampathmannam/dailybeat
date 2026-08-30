@@ -1,21 +1,21 @@
-# DailyBeat v3.3.0 — Install
+# DailyBeat v3.4.0 — Install
 
 ## Cloud AI configuration
 
-This release uses DeepSeek (`deepseek-chat`) for diary generation. Configure the
-provider and API key in Settings → Cloud AI after installation. No API key is
-included in the source code or APK. Diary generation requires network access and
-a valid DeepSeek key; it does not use an offline fallback.
+This release defaults to DeepSeek (`deepseek-chat`) and also supports the app's
+other cloud-provider options. Configure the provider and API key in Settings →
+Cloud AI after installation. No API key is included in the source code or APK.
+Diary generation requires network access and a valid provider key; it does not
+use an offline fallback.
 
 ## APK
 
-Download from GitHub Releases (tag `v3.3.0`):
-- `app-release.apk` — recommended for daily phone (~10 MB)
-- `app-debug.apk` — development build
+Download from GitHub Releases (tag `v3.4.0`):
+- `app-release.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 
 Verify downloads against `SHA256SUMS.txt` in the release assets.
 
-If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v3.3.0`, or build locally:
+If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v3.4.0`, or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease

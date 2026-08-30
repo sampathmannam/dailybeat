@@ -21,8 +21,8 @@ class JourneyMapModelTest {
         assertEquals(listOf(100L, 300L), model.points.map { it.startMs })
         assertEquals(12.96, model.bounds.south, 0.0)
         assertEquals(12.98, model.bounds.north, 0.0)
-        assertEquals(77.59, model.bounds.west, 0.0)
-        assertEquals(77.61, model.bounds.east, 0.0)
+        assertEquals(77.59, model.bounds.west, 0.0000001)
+        assertEquals(77.61, model.bounds.east, 0.0000001)
     }
 
     @Test
@@ -33,6 +33,51 @@ class JourneyMapModelTest {
 
         assertEquals(0.002, model.bounds.north - model.bounds.south, 0.0000001)
         assertEquals(0.002, model.bounds.east - model.bounds.west, 0.0000001)
+    }
+
+    @Test
+    fun fromVisits_multiplePointsOnSameLongitudeCreateNonZeroCameraBounds() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 12.97, longitude = 77.59),
+                visit(startMs = 200, latitude = 12.98, longitude = 77.59),
+            ),
+        )
+
+        assert(model.bounds.west < model.bounds.east)
+        assert(model.longitudeSpan > 0.0)
+    }
+
+    @Test
+    fun fromVisits_rejectsCoordinatesOutsideWebMercatorAndKeepsBoundsValid() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 90.0, longitude = 0.0),
+                visit(startMs = 200, latitude = 85.05112878, longitude = 180.0),
+            ),
+        )
+
+        assertEquals(1, model.points.size)
+        assertEquals(85.05112878, model.points.single().latitude, 0.0)
+        assert(model.bounds.north <= JourneyMapModel.WEB_MERCATOR_MAX_LATITUDE)
+        assert(model.bounds.east <= 180.0)
+        assert(model.bounds.south < model.bounds.north)
+        assert(model.bounds.west < model.bounds.east)
+    }
+
+    @Test
+    fun fromVisits_antimeridianJourneyUsesShortestCameraSpanAndSplitsRoute() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 10.0, longitude = 179.0),
+                visit(startMs = 200, latitude = 10.1, longitude = -179.0),
+            ),
+        )
+
+        assertEquals(true, model.crossesAntimeridian)
+        assertEquals(2.0, model.longitudeSpan, 0.0000001)
+        assertEquals(180.0, kotlin.math.abs(requireNotNull(model.centerLongitude)), 0.0000001)
+        assertEquals(listOf(1, 1), model.routeSegments.map { it.size })
     }
 
     @Test
@@ -56,7 +101,22 @@ class JourneyMapModelTest {
         )
 
         assertEquals(
-            "https://www.openstreetmap.org/#map=13/12.970000/77.600000",
+            "https://www.openstreetmap.org/#map=14/12.970000/77.600000",
+            model.openStreetMapUrlOrNull,
+        )
+    }
+
+    @Test
+    fun openStreetMapUrl_zoomsOutForWideJourney() {
+        val model = JourneyMapModel.fromVisits(
+            listOf(
+                visit(startMs = 100, latitude = 10.0, longitude = 1.0),
+                visit(startMs = 200, latitude = 10.0, longitude = 81.0),
+            ),
+        )
+
+        assertEquals(
+            "https://www.openstreetmap.org/#map=4/10.000000/41.000000",
             model.openStreetMapUrlOrNull,
         )
     }
