@@ -18,13 +18,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
     val officerName: String = "",
     val supervisorName: String = "",
     val gpsEnabled: Boolean = true,
     val callLogEnabled: Boolean = false,
+    val captureMessage: String? = null,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
     val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
@@ -69,12 +72,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 supervisorName = settings.supervisorName,
                 gpsEnabled = settings.gpsCaptureEnabled,
                 callLogEnabled = settings.callLogEnabled,
+                captureMessage = current.captureMessage,
                 cloudLlmEnabled = settings.cloudLlmEnabled,
                 cloudProvider = settings.cloudProvider,
                 cloudModel = settings.cloudModel,
                 cloudBaseUrl = settings.cloudBaseUrl,
                 apiKeyDraft = current.apiKeyDraft,
-                hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                hasApiKey = withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.hasApiKey()
+                },
                 autoEveningReport = settings.autoEveningReport,
                 autoMiddayPulse = settings.autoMiddayPulse,
                 places = places,
@@ -138,11 +144,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setCallLogEnabled(enabled: Boolean) {
         app.settingsRepository.setCallLogEnabled(enabled)
-        _uiState.update { it.copy(callLogEnabled = enabled) }
+        _uiState.update { it.copy(callLogEnabled = enabled, captureMessage = null) }
         if (enabled) {
             CaptureController.applyFromSettings(app)
         } else {
             CallLogWorker.cancel(app)
+        }
+    }
+
+    fun onCallLogPermissionDenied() {
+        app.settingsRepository.setCallLogEnabled(false)
+        _uiState.update {
+            it.copy(
+                callLogEnabled = false,
+                captureMessage = "Call-log permission was not granted. Call capture remains off.",
+            )
         }
     }
 
@@ -177,8 +193,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveApiKey() {
         val key = _uiState.value.apiKeyDraft.trim()
         if (key.isEmpty()) return
-        app.settingsRepository.secureApiKey.setApiKey(key)
-        _uiState.update { it.copy(apiKeyDraft = "", hasApiKey = true) }
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.setApiKey(key)
+                }
+            }.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(apiKeyDraft = "", hasApiKey = true, cloudTestResult = "API key saved securely.")
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(cloudTestResult = error.message ?: "Unable to save the API key securely.")
+                    }
+                },
+            )
+        }
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
@@ -192,7 +224,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val settings = app.settingsRepository.get()
             val draft = _uiState.value.apiKeyDraft.trim()
             if (draft.isNotEmpty()) {
-                app.settingsRepository.secureApiKey.setApiKey(draft)
+                val saveError = withContext(Dispatchers.IO) {
+                    runCatching {
+                        app.settingsRepository.secureApiKey.setApiKey(draft)
+                    }.exceptionOrNull()
+                }
+                if (saveError != null) {
+                    _uiState.update {
+                        it.copy(
+                            cloudTesting = false,
+                            cloudTestResult = saveError.message ?: "Unable to save the API key securely.",
+                        )
+                    }
+                    return@launch
+                }
             }
             val result = app.cloudLlm.generate(
                 settings,
@@ -206,7 +251,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         onSuccess = { "Connected successfully." },
                         onFailure = { error -> error.message ?: "Connection failed." },
                     ),
-                    hasApiKey = app.settingsRepository.secureApiKey.hasApiKey(),
+                    hasApiKey = withContext(Dispatchers.IO) {
+                        app.settingsRepository.secureApiKey.hasApiKey()
+                    },
                     apiKeyDraft = "",
                 )
             }
@@ -220,16 +267,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun addPlace() {
         val state = _uiState.value
         val name = state.placeName.trim()
-        if (name.isEmpty()) {
-            _uiState.update { it.copy(placeError = "Enter a place name.") }
+        val validationError = PlaceInputValidator.errorFor(name, state.placeLat, state.placeLon)
+        if (validationError != null) {
+            _uiState.update { it.copy(placeError = validationError) }
             return
         }
-        val lat = state.placeLat.toDoubleOrNull()
-        val lon = state.placeLon.toDoubleOrNull()
-        if (lat == null || lon == null) {
-            _uiState.update { it.copy(placeError = "Enter valid latitude and longitude.") }
-            return
-        }
+        val lat = state.placeLat.toDouble()
+        val lon = state.placeLon.toDouble()
 
         viewModelScope.launch {
             app.placeRepository.add(name, lat, lon)

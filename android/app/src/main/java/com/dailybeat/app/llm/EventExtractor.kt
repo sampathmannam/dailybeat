@@ -15,7 +15,7 @@ class EventExtractor(
     suspend fun extract(transcript: String): Result<StructuredEvent> {
         val settings = settingsRepository.get()
         if (!settingsRepository.isCloudBrainReady()) {
-            return Result.failure(IllegalStateException("DeepSeek is required. Enable Cloud AI and add a DeepSeek API key."))
+            return Result.failure(IllegalStateException("Cloud AI is required. Enable it and add an API key in Settings."))
         }
         val prompt = """
             Extract a structured event from this voice note.
@@ -33,7 +33,7 @@ class EventExtractor(
         return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).fold(
             onSuccess = { response ->
                 parseJsonResponse(response, transcript)?.let { Result.success(it) }
-                    ?: Result.failure(IllegalStateException("DeepSeek returned invalid event JSON."))
+                    ?: Result.failure(IllegalStateException("The cloud model returned invalid event JSON."))
             },
             onFailure = { Result.failure(it) },
         )

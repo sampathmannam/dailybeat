@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,7 +64,11 @@ fun DiaryScreen(
         item {
             SectionHeader(title = stringResource(R.string.generate_section))
             Text(
-                text = stringResource(R.string.generate_events_count, uiState.eventCount),
+                text = pluralStringResource(
+                    R.plurals.generate_events_count,
+                    uiState.eventCount,
+                    uiState.eventCount,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

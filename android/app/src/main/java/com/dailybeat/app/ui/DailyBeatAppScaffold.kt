@@ -1,5 +1,10 @@
 package com.dailybeat.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
@@ -16,14 +21,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -62,20 +65,30 @@ fun DailyBeatAppScaffold() {
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
     val todayViewModel: TodayViewModel = viewModel()
+    val context = LocalContext.current
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            todayViewModel.recordVoiceNote()
+        } else {
+            todayViewModel.onVoicePermissionDenied()
+        }
+    }
+
+    fun startVoiceCapture() {
+        if (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            todayViewModel.recordVoiceNote()
+        } else {
+            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            if (currentRoute == Routes.TODAY) {
-                FloatingActionButton(
-                    onClick = todayViewModel::recordVoiceNote,
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation(),
-                ) {
-                    Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.voice_fab_label))
-                }
-            }
-        },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -181,6 +194,8 @@ fun DailyBeatAppScaffold() {
             composable(Routes.TODAY) {
                 TodayScreen(
                     headerSubtitle = todayLabel,
+                    viewModel = todayViewModel,
+                    onRecordVoice = ::startVoiceCapture,
                     onOpenDiary = {
                         navController.navigate(Routes.diary()) {
                             launchSingleTop = true

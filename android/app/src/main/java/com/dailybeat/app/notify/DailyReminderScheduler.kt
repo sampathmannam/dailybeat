@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import java.util.Calendar
 
 object DailyReminderScheduler {
@@ -15,7 +14,6 @@ object DailyReminderScheduler {
     const val NOTIFICATION_ID = 2001
 
     fun createChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Daily reminder",

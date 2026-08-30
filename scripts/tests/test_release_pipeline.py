@@ -7,8 +7,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
 
-    assert 'versionCode = 9' in gradle
-    assert 'versionName = "3.3.1"' in gradle
+    assert 'versionCode = 10' in gradle
+    assert 'versionName = "3.4.0"' in gradle
 
 
 def test_release_build_requires_the_permanent_signing_key():

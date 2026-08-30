@@ -3,7 +3,6 @@ package com.dailybeat.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.os.Build
 import androidx.room.Room
 import com.dailybeat.app.cloud.CloudLlmClient
 import com.dailybeat.app.cloud.PulseReportGenerator
@@ -29,7 +28,6 @@ class DailyBeatApp : Application() {
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
             .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
-            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -95,7 +93,6 @@ class DailyBeatApp : Application() {
     }
 
     private fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(

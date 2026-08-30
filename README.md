@@ -2,7 +2,7 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.3.0** — DeepSeek cloud-only reports, Voice FAB, journey map, LLM citations, weekly rollup, place learning, ZIP export.
+**v3.4.0** — Cloud-only reports, interactive OpenStreetMap journey, passive capture hardening, permission fixes, and production QA.
 
 Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
 Configure it at runtime in Settings → Cloud AI. The key is not bundled in the APK.
@@ -17,7 +17,7 @@ See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 ./scripts/mac_install_release_apk.sh emulator-5554   # or your device id
 ```
 
-APKs: GitHub Releases `v3.1.0` or build locally:
+APKs: GitHub Releases `v3.4.0` or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
@@ -37,13 +37,14 @@ cd android && ./gradlew assembleRelease
 | Feature | Status |
 |---------|--------|
 | Passive GPS visits + transit | ✅ |
+| Interactive OpenStreetMap journey | ✅ network required |
 | OpenStreetMap place names | ✅ |
 | Cloud LLM reports (OpenAI / Anthropic / compatible) | ✅ |
 | Encrypted API key storage | ✅ |
 | 8 PM auto evening report | ✅ |
 | Optional manual notes | ✅ |
 | Call log capture | ✅ opt-in |
-| Local GGUF fallback | ✅ |
+| Offline LLM fallback | ❌ intentionally cloud-only |
 | Diary edit + PDF share | ✅ |
 | History | ✅ |
 | Unit tests | ✅ |

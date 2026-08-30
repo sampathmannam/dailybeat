@@ -12,6 +12,8 @@ class BrandAssetsTest {
     private fun source(path: String): String =
         File("src/main/java/com/dailybeat/app/$path").readText()
 
+    private fun manifest(): String = File("src/main/AndroidManifest.xml").readText()
+
     private fun visibleStrings(): String =
         Regex("<string\\b[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
             .findAll(resource("values/strings.xml"))
@@ -62,5 +64,46 @@ class BrandAssetsTest {
         assertTrue("<monochrome android:drawable=\"@drawable/ic_launcher_monochrome\"" in launcher)
         assertTrue("<monochrome android:drawable=\"@drawable/ic_launcher_monochrome\"" in roundLauncher)
         assertTrue(Regex("<path\\b").findAll(monochrome).count() >= 2)
+    }
+
+    @Test
+    fun sensitiveUserDataIsExcludedFromAndroidBackupAndTransfer() {
+        val manifest = manifest()
+
+        assertTrue("android:allowBackup=\"false\"" in manifest)
+        assertTrue("android:fullBackupContent=\"false\"" in manifest)
+        assertTrue("android:dataExtractionRules=\"@xml/data_extraction_rules\"" in manifest)
+        assertTrue("<cloud-backup>" in resource("xml/data_extraction_rules.xml"))
+        assertTrue("<device-transfer>" in resource("xml/data_extraction_rules.xml"))
+    }
+
+    @Test
+    fun apiKeyStoreNeverFallsBackToPlaintextPreferences() {
+        val keyStore = source("data/settings/SecureApiKeyStore.kt")
+
+        assertFalse("FALLBACK_FILE" in keyStore)
+        assertFalse("context.getSharedPreferences" in keyStore)
+    }
+
+    @Test
+    fun officerNameIsReadableWhileApiKeyIsMasked() {
+        val settings = source("ui/settings/SettingsScreen.kt")
+        val officerField = settings.substringAfter("value = state.officerName")
+            .substringBefore("value = state.supervisorName")
+        val apiKeyField = settings.substringAfter("value = state.apiKeyDraft")
+            .substringBefore("if (state.hasApiKey)")
+
+        assertFalse("PasswordVisualTransformation" in officerField)
+        assertTrue("PasswordVisualTransformation" in apiKeyField)
+        assertTrue("KeyboardType.Password" in apiKeyField)
+    }
+
+    @Test
+    fun productionVoiceCaptureNeverInventsAnEmulatorTranscript() {
+        val orchestrator = source("capture/VoiceCaptureOrchestrator.kt")
+
+        assertFalse("emulatorDemoTranscript" in orchestrator)
+        assertFalse(File("src/main/java/com/dailybeat/app/capture/WhisperBridge.kt").exists())
+        assertFalse(File("src/main/java/com/dailybeat/app/capture/VoiceRecorder.kt").exists())
     }
 }

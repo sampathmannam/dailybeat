@@ -65,17 +65,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (!showOnboarding) {
-            requestRuntimePermissions()
-        }
     }
 
     private fun requestRuntimePermissions() {
         val permissions = mutableListOf(
-            Manifest.permission.RECORD_AUDIO,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.READ_CALL_LOG,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)

@@ -17,5 +17,5 @@ enum class CloudProvider(val id: String, val displayName: String, val defaultMod
     DEEPSEEK("deepseek", "DeepSeek", "deepseek-chat"),
     OPENAI("openai", "OpenAI", "gpt-4o-mini"),
     ANTHROPIC("anthropic", "Anthropic", "claude-3-5-haiku-20241022"),
-    COMPATIBLE("compatible", "OpenAI-compatible (Groq, OpenRouter…)", "gpt-4o-mini"),
+    COMPATIBLE("compatible", "Compatible API", "gpt-4o-mini"),
 }

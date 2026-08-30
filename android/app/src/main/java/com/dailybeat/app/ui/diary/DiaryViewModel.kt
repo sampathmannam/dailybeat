@@ -140,7 +140,7 @@ class DiaryViewModel(
             _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
             val settings = app.settingsRepository.get()
             val result = if (!app.settingsRepository.isCloudBrainReady()) {
-                Result.failure(IllegalStateException("DeepSeek is required. Enable Cloud AI and add a DeepSeek API key."))
+                Result.failure(IllegalStateException("Cloud AI is required. Enable it and add an API key in Settings."))
             } else {
                 app.cloudLlm.generate(
                     settings,

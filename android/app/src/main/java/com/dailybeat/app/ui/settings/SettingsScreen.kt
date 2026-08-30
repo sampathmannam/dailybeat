@@ -1,11 +1,17 @@
 package com.dailybeat.app.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +29,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,6 +55,17 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val showQaTools = booleanResource(R.bool.show_qa_tools)
+    val context = LocalContext.current
+    val callLogPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.setCallLogEnabled(true)
+        } else {
+            viewModel.onCallLogPermissionDenied()
+        }
+    }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -98,16 +120,23 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setCloudLlmEnabled,
                 )
                 OutlinedTextField(
-                    value = if (state.apiKeyDraft.isNotEmpty()) state.apiKeyDraft else {
-                        if (state.hasApiKey) "••••••••••••••••" else ""
-                    },
+                    value = state.apiKeyDraft,
                     onValueChange = viewModel::setApiKeyDraft,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.cloud_api_key_label)) },
                     singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
+                if (state.hasApiKey) {
+                    Text(
+                        text = stringResource(R.string.cloud_api_key_saved_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 PrimaryButton(
                     text = stringResource(R.string.save_api_key),
                     onClick = viewModel::saveApiKey,
@@ -133,16 +162,19 @@ fun SettingsScreen(
                         colors = fieldColors,
                     )
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CloudProvider.entries.forEach { provider ->
-                        SecondaryProviderChip(
-                            label = provider.displayName,
-                            selected = state.cloudProvider == provider.id,
-                            onClick = { viewModel.setCloudProvider(provider.id) },
-                        )
+                CloudProvider.entries.toList().chunked(2).forEach { providers ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        providers.forEach { provider ->
+                            SecondaryProviderChip(
+                                label = provider.displayName,
+                                selected = state.cloudProvider == provider.id,
+                                onClick = { viewModel.setCloudProvider(provider.id) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
                 SecondaryButton(
@@ -166,22 +198,24 @@ fun SettingsScreen(
             }
         }
 
-        item {
-            SettingsGroup(title = stringResource(R.string.settings_qa_group)) {
-                SecondaryButton(
-                    text = stringResource(R.string.load_synthetic_day),
-                    onClick = viewModel::seedSyntheticData,
-                    enabled = !state.isSeedingSynthetic,
-                )
-                state.syntheticResult?.let { msg ->
-                    Text(text = msg, style = MaterialTheme.typography.bodySmall)
-                }
-                SecondaryButton(
-                    text = stringResource(R.string.refresh_audit_log),
-                    onClick = viewModel::loadAuditLog,
-                )
-                state.auditLines.takeLast(8).forEach { line ->
-                    Text(text = line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (showQaTools) {
+            item {
+                SettingsGroup(title = stringResource(R.string.settings_qa_group)) {
+                    SecondaryButton(
+                        text = stringResource(R.string.load_synthetic_day),
+                        onClick = viewModel::seedSyntheticData,
+                        enabled = !state.isSeedingSynthetic,
+                    )
+                    state.syntheticResult?.let { msg ->
+                        Text(text = msg, style = MaterialTheme.typography.bodySmall)
+                    }
+                    SecondaryButton(
+                        text = stringResource(R.string.refresh_audit_log),
+                        onClick = viewModel::loadAuditLog,
+                    )
+                    state.auditLines.takeLast(8).forEach { line ->
+                        Text(text = line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -196,8 +230,26 @@ fun SettingsScreen(
                 ToggleRow(
                     label = stringResource(R.string.call_log_label),
                     checked = state.callLogEnabled,
-                    onCheckedChange = viewModel::setCallLogEnabled,
+                    onCheckedChange = { enabled ->
+                        if (!enabled) {
+                            viewModel.setCallLogEnabled(false)
+                        } else if (
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            viewModel.setCallLogEnabled(true)
+                        } else {
+                            callLogPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
+                        }
+                    },
                 )
+                state.captureMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
 
@@ -254,9 +306,15 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SecondaryProviderChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun SecondaryProviderChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         onClick = onClick,
+        modifier = modifier,
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
@@ -268,6 +326,7 @@ private fun SecondaryProviderChip(label: String, selected: Boolean, onClick: () 
             text = label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
         )
     }
 }
