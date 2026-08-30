@@ -9,7 +9,7 @@
 - Hardened encrypted API-key storage, disabled sensitive-data backup, and removed destructive database migration fallback.
 - Changed microphone and call-log permissions to request only when their features are used.
 - Removed the overlapping voice FAB and dead local-LLM/voice scaffolding; voice capture now reports failures honestly.
-- Fixed Today metric sizing, diary grammar, place-coordinate validation, provider-chip layout, stale copy, and Nominatim app identification.
+- Fixed dateline route rendering, viewport-aware map fitting, map lifecycle catch-up, officer/API-key field visibility, Today metric sizing, diary grammar, place-coordinate validation, provider-chip layout, stale copy, and Nominatim app identification.
 - Expanded unit and Compose instrumentation coverage; verified 10 screen-flow tests, repeated journey flows, lifecycle recovery, and adversarial random input on an Android 14 emulator.
 
 ## 3.3.0 — 2026-08-30
