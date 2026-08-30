@@ -16,6 +16,9 @@
         <item quantity="other">Journey map (%1$d points)</item>
     </plurals>
     <string name="journey_map_open">Open full map</string>
+    <string name="journey_map_title">Journey map</string>
+    <string name="journey_map_back_content_description">Back from full journey map</string>
+    <string name="journey_preview_content_description">Journey preview with %1$d recorded points</string>
     <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>

@@ -56,3 +56,15 @@ def test_release_injects_public_supabase_configuration_from_github_secrets():
     assert "SUPABASE_ANON_KEY" in gradle
     assert "supabase.co" not in gradle
     assert "eyJ" not in gradle
+
+
+def test_today_defers_maplibre_to_dedicated_destination():
+    today = (ROOT / "android/app/src/main/java/com/dailybeat/app/ui/today/TodayScreen.kt").read_text()
+    scaffold = (ROOT / "android/app/src/main/java/com/dailybeat/app/ui/DailyBeatAppScaffold.kt").read_text()
+    preview = (ROOT / "android/app/src/main/java/com/dailybeat/app/ui/components/JourneyRoutePreview.kt").read_text()
+
+    assert "JourneyMapPreview" not in today
+    assert "JourneyRoutePreview" in today
+    assert 'const val MAP = "journey-map"' in scaffold
+    assert "MapLibre" not in preview
+    assert "MapView" not in preview

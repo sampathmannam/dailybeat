@@ -2,6 +2,7 @@ package com.dailybeat.app
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -20,6 +21,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
@@ -88,23 +90,73 @@ class MainNavigationTest {
 
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithText("8 events logged for this day").assertIsDisplayed()
+    }
 
-        // MapLibre continuously invalidates frames on the software-rendered CI emulator,
-        // so verify the final accessibility signal with UiAutomator instead of waiting for
-        // Compose's global idling resource after the map enters the viewport.
-        composeRule.onNodeWithTag("nav_today").performClick()
+    @Test
+    fun fullMapOpensOnDedicatedDestinationAndReturnsToToday() {
+        composeRule.onNodeWithText("Load synthetic demo day").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("Synthetic day loaded: 7 visits, 8 events."),
+            timeoutMillis = 10_000,
+        )
+
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        composeRule.onNodeWithTag("open_full_map").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("journey_map_screen"),
+            timeoutMillis = 10_000,
+        )
+
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val readyDescription = instrumentation.targetContext
-            .getString(R.string.journey_map_ready_content_description)
+        val mapDescription = instrumentation.targetContext
+            .getString(R.string.journey_map_content_description)
+        val backDescription = instrumentation.targetContext
+            .getString(R.string.journey_map_back_content_description)
         val device = UiDevice.getInstance(instrumentation)
-        val fullyRendered = device.wait(Until.hasObject(By.desc(readyDescription)), 30_000)
-        if (!fullyRendered) {
-            composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
-            composeRule.onNodeWithText("Map tiles are unavailable").assertDoesNotExist()
-        } else {
-            assertTrue("Live OpenStreetMap did not fully render within 60 seconds", fullyRendered)
-        }
+        assertTrue(
+            "Dedicated map destination did not expose its map container",
+            device.wait(Until.hasObject(By.desc(mapDescription)), 10_000),
+        )
+        assertEquals(
+            "Dedicated map destination exposed duplicate map descriptions",
+            1,
+            device.findObjects(By.desc(mapDescription)).size,
+        )
+        assertTrue(
+            "Dedicated map destination did not expose its back control",
+            device.wait(Until.hasObject(By.desc(backDescription)), 10_000),
+        )
+
+        device.pressBack()
+        composeRule.mainClock.advanceTimeBy(1_000)
+
+        assertTrue(
+            "Dedicated map destination remained after pressing back",
+            device.wait(Until.gone(By.desc(mapDescription)), 10_000),
+        )
+        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_today").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        composeRule.onNodeWithTag("open_full_map").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("journey_map_screen"),
+            timeoutMillis = 10_000,
+        )
+        assertTrue(
+            "Dedicated map destination did not expose its back control after reopening",
+            device.wait(Until.hasObject(By.desc(backDescription)), 10_000),
+        )
+
+        device.findObject(By.desc(backDescription)).click()
+        composeRule.mainClock.advanceTimeBy(1_000)
+
+        assertTrue(
+            "Dedicated map destination remained after tapping its back control",
+            device.wait(Until.gone(By.desc(mapDescription)), 10_000),
+        )
+        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_today").assertIsDisplayed()
     }
 
     @Test

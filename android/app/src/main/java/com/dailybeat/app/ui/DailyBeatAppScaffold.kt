@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -41,6 +42,7 @@ import androidx.navigation.navArgument
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.diary.DiaryScreen
 import com.dailybeat.app.ui.history.HistoryScreen
+import com.dailybeat.app.ui.map.JourneyMapScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
 import com.dailybeat.app.ui.today.TodayViewModel
@@ -49,6 +51,7 @@ import java.time.format.DateTimeFormatter
 
 object Routes {
     const val TODAY = "today"
+    const val MAP = "journey-map"
     const val DIARY = "diary/{dateKey}"
     const val HISTORY = "history"
     const val SETTINGS = "settings"
@@ -65,6 +68,7 @@ fun DailyBeatAppScaffold() {
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
     val todayViewModel: TodayViewModel = viewModel()
+    val todayVisits by todayViewModel.todayVisits.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val voicePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -90,7 +94,7 @@ fun DailyBeatAppScaffold() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
+            if (currentRoute != Routes.MAP) NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
             ) {
@@ -201,6 +205,17 @@ fun DailyBeatAppScaffold() {
                             launchSingleTop = true
                         }
                     },
+                    onOpenMap = {
+                        navController.navigate(Routes.MAP) {
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+            composable(Routes.MAP) {
+                JourneyMapScreen(
+                    visits = todayVisits,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

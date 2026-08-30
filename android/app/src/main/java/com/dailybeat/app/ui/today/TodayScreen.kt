@@ -33,7 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
-import com.dailybeat.app.ui.components.JourneyMapPreview
+import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
@@ -43,6 +43,7 @@ import com.dailybeat.app.ui.components.VisitCard
 @Composable
 fun TodayScreen(
     onOpenDiary: () -> Unit,
+    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
     onRecordVoice: (() -> Unit)? = null,
     headerSubtitle: String? = null,
@@ -183,7 +184,10 @@ fun TodayScreen(
 
         if (visits.isNotEmpty()) {
             item {
-                JourneyMapPreview(visits = visits)
+                JourneyRoutePreview(
+                    visits = visits,
+                    onOpenMap = onOpenMap,
+                )
             }
             item { SectionHeader(title = stringResource(R.string.journey_section)) }
             items(visits, key = { it.id }) { visit ->

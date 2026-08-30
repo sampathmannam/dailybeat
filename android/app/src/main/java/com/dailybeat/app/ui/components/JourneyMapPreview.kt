@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -73,7 +74,7 @@ private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 
 @Composable
-fun JourneyMapPreview(
+fun JourneyMapView(
     visits: List<LocationVisit>,
     modifier: Modifier = Modifier,
 ) {
@@ -185,7 +186,13 @@ fun JourneyMapPreview(
                             .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )
-                    if (mapRendered) {
+                    if (!mapRendered) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .testTag("journey_map_loading"),
+                        )
+                    } else {
                         Spacer(
                             modifier = Modifier
                                 .size(1.dp)
@@ -287,17 +294,20 @@ private fun rememberMapViewWithLifecycle(
                 started = false
             }
         }
+        fun destroy() {
+            if (!destroyed) {
+                stop()
+                mapView.onDestroy()
+                destroyed = true
+            }
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> start()
                 Lifecycle.Event.ON_RESUME -> resume()
                 Lifecycle.Event.ON_PAUSE -> pause()
                 Lifecycle.Event.ON_STOP -> stop()
-                Lifecycle.Event.ON_DESTROY -> {
-                    stop()
-                    mapView.onDestroy()
-                    destroyed = true
-                }
+                Lifecycle.Event.ON_DESTROY -> destroy()
                 else -> Unit
             }
         }
@@ -306,8 +316,7 @@ private fun rememberMapViewWithLifecycle(
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
         onDispose {
             lifecycle.removeObserver(observer)
-            stop()
-            if (!destroyed) mapView.onDestroy()
+            destroy()
         }
     }
     return mapView
