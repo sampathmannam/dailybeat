@@ -137,6 +137,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun createBackupAccount() {
+        val state = _uiState.value
+        if (state.backupBusy) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
+            app.backupCoordinator.signUp(state.backupEmailDraft, state.backupPasswordDraft).fold(
+                onSuccess = { result ->
+                    _uiState.update {
+                        it.copy(
+                            backupBusy = false,
+                            backupSignedInEmail = result.session?.email,
+                            backupPasswordDraft = "",
+                            backupMessage = if (result.requiresEmailConfirmation) {
+                                "Account created. Confirm the email, then sign in."
+                            } else {
+                                "Account created. Back up this phone now."
+                            },
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(backupBusy = false, backupMessage = error.message ?: "Unable to create account.")
+                    }
+                },
+            )
+        }
+    }
+
     fun backupNow() {
         if (_uiState.value.backupBusy) return
         viewModelScope.launch {

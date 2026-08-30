@@ -57,6 +57,24 @@ class SupabaseBackupClientTest {
     }
 
     @Test
+    fun `sign up reports email confirmation without storing password`() = runBlocking {
+        server.enqueue(
+            jsonResponse(
+                """{"id":"user-2","email":"new@example.com","confirmation_sent_at":"2026-08-31T01:00:00Z"}""",
+            ),
+        )
+
+        val result = client.signUp("new@example.com", "new password").getOrThrow()
+
+        assertTrue(result.requiresEmailConfirmation)
+        assertEquals(null, result.session)
+        assertEquals(null, sessions.current)
+        val request = server.takeRequest()
+        assertEquals("/auth/v1/signup", request.path)
+        assertFalse(sessions.toString().contains("new password"))
+    }
+
+    @Test
     fun `upload sends authenticated snapshot for current user`() = runBlocking {
         sessions.current = activeSession()
         server.enqueue(MockResponse().setResponseCode(201).setBody("[]"))

@@ -14,9 +14,15 @@ data class RemoteBackup(
     val updatedAt: String,
 )
 
+data class BackupSignUpResult(
+    val session: BackupSession?,
+    val requiresEmailConfirmation: Boolean,
+)
+
 interface BackupRemote {
     val isConfigured: Boolean
     fun currentSession(): BackupSession?
+    suspend fun signUp(email: String, password: String): Result<BackupSignUpResult>
     suspend fun signIn(email: String, password: String): Result<BackupSession>
     suspend fun upload(snapshotJson: String): Result<Unit>
     suspend fun download(): Result<RemoteBackup?>
@@ -32,6 +38,29 @@ class SupabaseBackupClient(
     override val isConfigured: Boolean get() = configuration.isConfigured
 
     override fun currentSession(): BackupSession? = sessionStore.get()
+
+    override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                ensureConfigured()
+                require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+                val body = JSONObject()
+                    .put("email", email.trim())
+                    .put("password", password)
+                    .toString()
+                val request = requestBuilder("/auth/v1/signup")
+                    .post(body.toRequestBody(JSON))
+                    .build()
+                val responseBody = execute(request, authRequest = true)
+                val root = JSONObject(responseBody)
+                if (root.optString("access_token").isNotBlank()) {
+                    val session = parseSession(responseBody).also(sessionStore::save)
+                    BackupSignUpResult(session = session, requiresEmailConfirmation = false)
+                } else {
+                    BackupSignUpResult(session = null, requiresEmailConfirmation = true)
+                }
+            }
+        }
 
     override suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
         runCatching {

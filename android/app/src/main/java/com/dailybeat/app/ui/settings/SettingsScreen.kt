@@ -151,6 +151,13 @@ fun SettingsScreen(
                                 state.backupEmailDraft.isNotBlank() &&
                                 state.backupPasswordDraft.isNotBlank(),
                         )
+                        SecondaryButton(
+                            text = stringResource(R.string.backup_create_account),
+                            onClick = viewModel::createBackupAccount,
+                            enabled = !state.backupBusy &&
+                                state.backupEmailDraft.isNotBlank() &&
+                                state.backupPasswordDraft.length >= 8,
+                        )
                     }
                     else -> {
                         Text(

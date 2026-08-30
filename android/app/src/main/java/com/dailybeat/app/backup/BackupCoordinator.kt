@@ -8,6 +8,9 @@ class BackupCoordinator(
 
     fun currentSession(): BackupSession? = remote.currentSession()
 
+    suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
+        remote.signUp(email, password)
+
     suspend fun signIn(email: String, password: String): Result<BackupSession> =
         remote.signIn(email, password)
 

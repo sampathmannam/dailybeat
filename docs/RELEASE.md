@@ -1,4 +1,4 @@
-# DailyBeat v3.4.0 — Install
+# DailyBeat v3.5.0 — Install
 
 ## Cloud AI configuration
 
@@ -24,12 +24,12 @@ The Cloud AI provider key is never backed up. Enter it again on a new phone.
 
 ## APK
 
-Download from GitHub Releases (tag `v3.4.0`):
+Download from GitHub Releases (tag `v3.5.0`):
 - `app-release.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 
 Verify downloads against `SHA256SUMS.txt` in the release assets.
 
-If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v3.4.0`, or build locally:
+If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v3.5.0`, or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease

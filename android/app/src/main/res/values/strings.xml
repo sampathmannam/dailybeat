@@ -85,6 +85,7 @@
     <string name="backup_email">Email</string>
     <string name="backup_password">Password</string>
     <string name="backup_sign_in">Sign in to cloud backup</string>
+    <string name="backup_create_account">Create cloud backup account</string>
     <string name="backup_signed_in_as">Signed in as %1$s</string>
     <string name="backup_now">Back up now</string>
     <string name="backup_restore">Restore from cloud</string>

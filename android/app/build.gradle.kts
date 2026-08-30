@@ -22,8 +22,8 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "3.4.0"
+        versionCode = 11
+        versionName = "3.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
