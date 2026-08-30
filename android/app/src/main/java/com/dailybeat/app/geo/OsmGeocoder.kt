@@ -49,7 +49,7 @@ class OsmGeocoder(
         )
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "DailyBeat/3.0 (offline diary; contact: dailybeat-app)")
+            .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
             .header("Accept-Language", "en")
             .build()
 

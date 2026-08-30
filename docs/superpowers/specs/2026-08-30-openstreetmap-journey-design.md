@@ -17,7 +17,7 @@ Replace the decorative journey drawing on Today with a real, interactive map tha
 
 ## Technical design
 
-- Use MapLibre Native Android `13.6.0`, the current maintained Android release verified from the project's official releases.
+- Use MapLibre Native Android `11.8.0`, the official Android quickstart's compatible line for DailyBeat's Kotlin 1.9/Compose toolchain. The current 13.x line requires Kotlin 2.2 and would turn this feature into a risky platform migration.
 - Use OpenFreeMap's Liberty style at `https://tiles.openfreemap.org/styles/liberty`. It is based on OpenStreetMap data, requires no account or API key, and its official mobile guidance supports MapLibre Native.
 - Host MapLibre's `MapView` inside Compose with `AndroidView` and forward Android lifecycle events.
 - Add a GeoJSON route source with a line layer and a point layer. Keep all geometry generation in a small pure Kotlin model so coordinate filtering and ordering can be unit-tested.
@@ -46,4 +46,3 @@ Replace the decorative journey drawing on Today with a real, interactive map tha
 - No navigation or turn-by-turn directions.
 - No paid map API key.
 - No custom map-style editor or provider settings.
-

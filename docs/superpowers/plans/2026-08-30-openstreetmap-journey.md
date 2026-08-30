@@ -4,7 +4,7 @@
 
 **Architecture:** A pure Kotlin journey model validates and orders visit coordinates. A Compose wrapper owns a MapLibre `MapView`, loads OpenFreeMap's style, renders GeoJSON layers, fits the camera, and exposes a full-map action. Today remains usable if map loading fails.
 
-**Tech stack:** Kotlin, Jetpack Compose, MapLibre Native Android 13.6.0, OpenFreeMap vector style, JUnit, Compose instrumentation.
+**Tech stack:** Kotlin, Jetpack Compose, MapLibre Native Android 11.8.0, OpenFreeMap vector style, JUnit, Compose instrumentation.
 
 ### Task 1: Lock journey geometry behavior with tests
 
@@ -56,4 +56,3 @@
 2. Build the signed release APK and inspect its native ABIs.
 3. Upgrade the existing physical-device installation and verify user data remains present without reading secrets.
 4. Run final critical-flow checks, review the diff, commit, push, merge, and publish one stable APK plus checksum through the existing release workflow.
-

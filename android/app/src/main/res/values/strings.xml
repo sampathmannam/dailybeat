@@ -11,6 +11,11 @@
     <string name="generating_ai_report">Generating your daily report…</string>
     <string name="cloud_brain_setup_hint">Add your cloud LLM API key in Settings → Cloud AI to enable automatic daily reports.</string>
     <string name="journey_section">Your journey today</string>
+    <string name="journey_map_points">Journey map (%1$d points)</string>
+    <string name="journey_map_open">Open full map</string>
+    <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
+    <string name="journey_map_retry">Retry map</string>
+    <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
     <string name="journey_empty_title">No visits recorded yet</string>
     <string name="journey_empty_subtitle">Keep GPS on and move between places. Stays (8+ min) and transit appear here automatically.</string>
     <string name="add_optional_note">Add optional note</string>

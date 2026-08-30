@@ -75,6 +75,8 @@ class MainNavigationTest {
             hasText("Synthetic day loaded: 7 visits, 8 events."),
             timeoutMillis = 10_000,
         )
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        composeRule.onNodeWithText("Open full map").assertIsDisplayed()
 
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
         composeRule.waitUntilAtLeastOneExists(
