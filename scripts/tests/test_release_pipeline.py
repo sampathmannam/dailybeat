@@ -1,7 +1,23 @@
 from pathlib import Path
 
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_workflow(name: str) -> dict:
+    return yaml.safe_load((ROOT / f".github/workflows/{name}").read_text(encoding="utf-8"))
+
+
+def _workflow_step(job: dict, *, name: str | None = None, uses: str | None = None) -> dict:
+    matches = [
+        step
+        for step in job["steps"]
+        if (name is None or step.get("name") == name)
+        and (uses is None or step.get("uses") == uses)
+    ]
+    assert len(matches) == 1
+    return matches[0]
 
 
 def test_android_version_advances_for_obtainium_update():
@@ -25,13 +41,24 @@ def test_debug_build_is_isolated_from_the_installed_release_app():
 
 
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
-    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    workflow_text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    workflow = _load_workflow("release.yml")
+    release_job = workflow["jobs"]["build-and-release"]
+    release_step = _workflow_step(release_job, uses="softprops/action-gh-release@v2")
+    release_assets = {
+        line.strip()
+        for line in release_step["with"]["files"].splitlines()
+        if line.strip()
+    }
 
-    assert "assembleDebug" not in workflow
-    assert "app-debug.apk" not in workflow
-    assert "DAILYBEAT_KEYSTORE_BASE64" in workflow
-    assert "apksigner verify --print-certs" in workflow
-    assert "app-release.apk" in workflow
+    assert "assembleDebug" not in workflow_text
+    assert "app-debug.apk" not in workflow_text
+    assert "DAILYBEAT_KEYSTORE_BASE64" in workflow_text
+    assert "apksigner verify --print-certs" in workflow_text
+    assert release_assets == {
+        "android/app/build/outputs/apk/release/app-release.apk",
+        "SHA256SUMS.txt",
+    }
 
 
 def test_cloud_backup_schema_enforces_owner_only_row_level_security():
@@ -80,21 +107,88 @@ def test_map_presence_semantics_remain_stable():
 
 
 def test_ci_separates_fast_verification_from_emulator_and_keeps_failure_evidence():
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    workflow = _load_workflow("ci.yml")
     navigation_test = (
         ROOT / "android/app/src/androidTest/java/com/dailybeat/app/MainNavigationTest.kt"
     ).read_text(encoding="utf-8")
+    jobs = workflow["jobs"]
 
-    assert "  verify:" in workflow
-    assert "  instrumentation:" in workflow
-    assert "python3 -m pytest scripts/tests/ -q" in workflow
-    assert "connectedDebugAndroidTest" in workflow
-    assert "actions/upload-artifact@v4" in workflow
-    assert "instrumentation-failure-evidence" in workflow
-    assert "if: failure()" in workflow
-    assert "android/app/build/reports/androidTests/connected/" in workflow
-    assert "android/app/build/outputs/androidTest-results/connected/" in workflow
-    assert "android/app/build/outputs/managed_device_android_test_additional_output/" in workflow
-    assert "adb exec-out screencap -p" in workflow
-    assert "adb logcat -d" in workflow
+    assert set(jobs) == {"verify", "instrumentation"}
+    verify = jobs["verify"]
+    instrumentation = jobs["instrumentation"]
+    assert "needs" not in verify
+    assert "needs" not in instrumentation
+    assert instrumentation["timeout-minutes"] == 40
+
+    verify_build = _workflow_step(verify, name="Build and test")["run"]
+    verify_python = _workflow_step(verify, name="Python tests")["run"]
+    assert "assembleDebug testDebugUnitTest lintDebug" in verify_build
+    assert "python3 -m pytest scripts/tests/ -q" in verify_python
+
+    emulator_step = _workflow_step(
+        instrumentation,
+        uses="reactivecircus/android-emulator-runner@v2",
+    )
+    assert emulator_step["with"]["api-level"] == 34
+    assert emulator_step["with"]["arch"] == "x86_64"
+    instrumentation_script = emulator_step["with"]["script"]
+    assert instrumentation_script.count("timeout --kill-after=10s 2m bash -c") == 2
+    assert (
+        "timeout --kill-after=30s 25m ./gradlew connectedDebugAndroidTest"
+        in instrumentation_script
+    )
+    assert instrumentation_script.count("connectedDebugAndroidTest") == 1
+    assert 'command_status=$?' in instrumentation_script
+    assert "fail_with_evidence()" in instrumentation_script
+    assert "set +e" in instrumentation_script
+    assert 'exit "$original_status"' in instrumentation_script
+    assert (
+        'fail_with_evidence "connected_tests" "$command_status"'
+        in instrumentation_script
+    )
+    assert "|| true" not in instrumentation_script
+    assert "evidence-status.txt" in instrumentation_script
+    assert "adb exec-out screencap -p" in instrumentation_script
+    assert "adb logcat -d" in instrumentation_script
+    assert "adb pull" in instrumentation_script
+    for evidence_label in (
+        "connected_reports",
+        "raw_results",
+        "screenshots",
+        "stack_traces",
+        "logcat",
+    ):
+        assert f'"{evidence_label}"' in instrumentation_script
+
+    prepare_step = _workflow_step(
+        instrumentation,
+        name="Prepare instrumentation failure evidence",
+    )
+    assert "evidence-status.txt" in prepare_step["run"]
+    assert "capture_state=pending" in prepare_step["run"]
+    for initial_evidence_state in (
+        "initial_connected_reports=not_checked",
+        "initial_raw_results=not_checked",
+        "initial_screenshots=not_attempted",
+        "initial_stack_traces=not_checked",
+        "initial_logcat=not_attempted",
+    ):
+        assert initial_evidence_state in prepare_step["run"]
+
+    upload_step = _workflow_step(instrumentation, uses="actions/upload-artifact@v4")
+    artifact_paths = {
+        line.strip()
+        for line in upload_step["with"]["path"].splitlines()
+        if line.strip()
+    }
+    assert upload_step["if"] == "failure()"
+    assert upload_step["with"]["name"] == "instrumentation-failure-evidence"
+    assert upload_step["with"]["if-no-files-found"] == "error"
+    assert artifact_paths == {
+        "android/app/build/reports/androidTests/connected/",
+        "android/app/build/outputs/androidTest-results/connected/",
+        "android/app/build/outputs/managed_device_android_test_additional_output/",
+    }
+
+    assert "stackTraceToString()" in navigation_test
     assert 'File(evidenceDirectory, "${description.methodName}.png")' in navigation_test
