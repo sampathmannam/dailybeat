@@ -386,8 +386,9 @@ def test_motorola_gate_preserves_key_covers_full_loop_and_caps_one_live_call():
     assert "secureApiKey.hasApiKey()" in gate
     assert "clearApiKey" not in gate
     assert "dailybeat_secure" not in gate
-    assert gate.count("SyntheticDayGenerator.seedToday(app)") == 2
-    assert "repeat(3)" in gate
+    assert "val first = runBlocking(Dispatchers.IO) { SyntheticDayGenerator.seedToday(app) }" in gate
+    assert "val second = runBlocking(Dispatchers.IO) { SyntheticDayGenerator.seedToday(app) }" in gate
+    assert "repeat(MEMORY_DIAGNOSTIC_CYCLES)" in gate
     assert 'hasTestTag("journey_map_ready")' in gate
     assert "SCREEN_ORIENTATION_LANDSCAPE" in gate
     assert "SCREEN_ORIENTATION_PORTRAIT" in gate
@@ -401,3 +402,33 @@ def test_motorola_gate_preserves_key_covers_full_loop_and_caps_one_live_call():
     assert "if (integrity?.isValid == true)" in gate
     assert "output_length_chars=" in gate
     assert "citation_ids=" in gate
+
+
+def test_motorola_memory_gate_uses_detailed_stable_plateau_evidence():
+    gate = (
+        ROOT
+        / "android/app/src/androidTest/java/com/dailybeat/app/Task7ReleaseGateTest.kt"
+    ).read_text(encoding="utf-8")
+
+    assert "repeat(MEMORY_DIAGNOSTIC_CYCLES)" in gate
+    assert "MEMORY_DIAGNOSTIC_CYCLES = 10" in gate
+    assert "MEMORY_SETTLE_MAX_WINDOWS = 6" in gate
+    assert "MEMORY_WARMUP_CYCLES = 3" in gate
+    assert "MEMORY_TREND_WINDOW = 3" in gate
+    for category in ("total", "java", "native", "graphics", "code", "stack"):
+        assert f"{category}PssKb" in gate
+    assert "waitForStableMemoryCheckpoint" in gate
+    assert "hasStableLifecycleCounts" in gate
+    assert "hasNoSustainedGrowthAfterWarmup" in gate
+    assert "lastWindowMedian <= firstWindowMedian" in gate
+    assert "slopeNumerator <= 0" in gate
+    assert "mapRetainedPssKb" in gate
+    assert "map_plateau_after_warmup=" in gate
+    assert "qa_crash_entries=" in gate
+    assert "qa_anr_present=" in gate
+    assert "processThreadCount" in gate
+    assert "viewRootCount" in gate
+    assert "activityCount" in gate
+    assert 'assertTrue("QA PID was not live"' in gate
+    assert "onNodeWithContentDescription(backDescription).performClick()" in gate
+    assert "afterPss.zipWithNext().all" not in gate
