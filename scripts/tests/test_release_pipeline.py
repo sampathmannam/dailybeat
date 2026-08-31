@@ -1,8 +1,43 @@
+import json
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _post_mock(server: ThreadingHTTPServer, scenario: str) -> tuple[int, dict]:
+    payload = json.dumps(
+        {
+            "model": "deepseek-chat",
+            "temperature": 0.2,
+            "messages": [
+                {"role": "system", "content": "Synthetic system instruction."},
+                {"role": "user", "content": "Synthetic visit [V1] and event [E1]."},
+            ],
+        }
+    ).encode()
+    request = Request(
+        f"http://127.0.0.1:{server.server_port}/v1/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": "Bearer synthetic-test-key",
+            "Content-Type": "application/json",
+            "X-DailyBeat-Scenario": scenario,
+        },
+        method="POST",
+    )
+    try:
+        response = urlopen(request, timeout=2)
+    except HTTPError as error:
+        response = error
+    with response:
+        return response.status, json.loads(response.read())
 
 
 def _load_workflow(name: str) -> dict:
@@ -192,3 +227,144 @@ def test_ci_separates_fast_verification_from_emulator_and_keeps_failure_evidence
 
     assert "stackTraceToString()" in navigation_test
     assert 'File(evidenceDirectory, "${description.methodName}.png")' in navigation_test
+
+
+def test_mock_deepseek_serves_every_deterministic_scenario_offline():
+    from tools.locust.mock_deepseek import DeepSeekCompatibleHandler
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), DeepSeekCompatibleHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        results = {
+            scenario: _post_mock(server, scenario)
+            for scenario in (
+                "valid",
+                "invalid-citations",
+                "empty",
+                "rate-limit",
+                "server-error",
+            )
+        }
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert results == {
+        "valid": (
+            200,
+            {"choices": [{"message": {"content": "Synthetic daily report [V1] [E1]."}}]},
+        ),
+        "invalid-citations": (
+            200,
+            {"choices": [{"message": {"content": "Synthetic daily report [V99]."}}]},
+        ),
+        "empty": (200, {"choices": [{"message": {"content": ""}}]}),
+        "rate-limit": (
+            429,
+            {"error": {"type": "rate_limit_error", "message": "Synthetic rate limit."}},
+        ),
+        "server-error": (
+            500,
+            {"error": {"type": "server_error", "message": "Synthetic server error."}},
+        ),
+    }
+
+
+def test_mock_deepseek_rejects_unknown_scenario():
+    from tools.locust.mock_deepseek import DeepSeekCompatibleHandler
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), DeepSeekCompatibleHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, body = _post_mock(server, "not-a-scenario")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert status == 400
+    assert body == {
+        "error": {"type": "invalid_scenario", "message": "Unknown DailyBeat scenario."}
+    }
+
+
+def test_locust_profile_accepts_only_expected_status_and_body_shapes():
+    from tools.locust.locustfile import SCENARIO_WEIGHTS, validate_response
+
+    assert SCENARIO_WEIGHTS == {"valid": 8, "rate-limit": 1, "server-error": 1}
+    assert validate_response(
+        "valid",
+        200,
+        {"choices": [{"message": {"content": "Synthetic daily report [V1] [E1]."}}]},
+    ) is None
+    assert validate_response(
+        "rate-limit",
+        429,
+        {"error": {"type": "rate_limit_error", "message": "Synthetic rate limit."}},
+    ) is None
+    assert validate_response(
+        "server-error",
+        500,
+        {"error": {"type": "server_error", "message": "Synthetic server error."}},
+    ) is None
+
+    assert validate_response("valid", 500, {}) == "valid: expected HTTP 200, got 500"
+    assert validate_response("rate-limit", 429, {}) == (
+        "rate-limit: expected error type rate_limit_error"
+    )
+    assert validate_response("server-error", 500, {"error": {"type": "wrong"}}) == (
+        "server-error: expected error type server_error"
+    )
+
+
+def test_locust_performance_budget_requires_volume_zero_failures_and_low_latency():
+    from tools.locust.locustfile import performance_budget_violations
+
+    passing = SimpleNamespace(
+        total=SimpleNamespace(
+            num_requests=100,
+            fail_ratio=0.0,
+            get_response_time_percentile=lambda percentile: {
+                0.95: 250,
+                0.99: 500,
+            }[percentile],
+        )
+    )
+    assert performance_budget_violations(passing) == []
+
+    failing = SimpleNamespace(
+        total=SimpleNamespace(
+            num_requests=99,
+            fail_ratio=0.01,
+            get_response_time_percentile=lambda percentile: {
+                0.95: 251,
+                0.99: 501,
+            }[percentile],
+        )
+    )
+    assert performance_budget_violations(failing) == [
+        "request count 99 is below 100",
+        "unexpected failure ratio 1.000% exceeds 0.000%",
+        "p95 response time 251 ms exceeds 250 ms",
+        "p99 response time 501 ms exceeds 500 ms",
+    ]
+
+
+def test_release_runbook_documents_local_load_gate_and_nondestructive_rollback():
+    runbook = (ROOT / "docs/RELEASE_RUNBOOK.md").read_text(encoding="utf-8")
+
+    assert "http://127.0.0.1:8765" in runbook
+    assert "tools/locust/mock_deepseek.py --port 8765" in runbook
+    assert "--headless -u 20 -r 5 -t 60s" in runbook
+    assert "zero unexpected failures" in runbook
+    assert "p95 <= 250 ms" in runbook
+    assert "p99 <= 500 ms" in runbook
+    assert "v3.5.0" in runbook
+    assert "last-known-good" in runbook
+    assert "delete" in runbook.lower()
+    assert "apksigner verify --print-certs" in runbook
+    assert "Get-FileHash" in runbook
+    assert "adb install" in runbook
