@@ -368,3 +368,36 @@ def test_release_runbook_documents_local_load_gate_and_nondestructive_rollback()
     assert "apksigner verify --print-certs" in runbook
     assert "Get-FileHash" in runbook
     assert "adb install" in runbook
+    assert "Task7ReleaseGateTest" in runbook
+    assert "Task7LiveContractGateTest" in runbook
+    assert "Do not use `pm clear`" in runbook
+    assert "all three loops pass" in runbook
+    assert "exactly one" in runbook
+
+
+def test_motorola_gate_preserves_key_covers_full_loop_and_caps_one_live_call():
+    gate = (
+        ROOT
+        / "android/app/src/androidTest/java/com/dailybeat/app/Task7ReleaseGateTest.kt"
+    ).read_text(encoding="utf-8")
+
+    assert 'getSharedPreferences("dailybeat_settings"' in gate
+    assert "app.db.clearAllTables()" in gate
+    assert "secureApiKey.hasApiKey()" in gate
+    assert "clearApiKey" not in gate
+    assert "dailybeat_secure" not in gate
+    assert gate.count("SyntheticDayGenerator.seedToday(app)") == 2
+    assert "repeat(3)" in gate
+    assert 'hasTestTag("journey_map_ready")' in gate
+    assert "SCREEN_ORIENTATION_LANDSCAPE" in gate
+    assert "SCREEN_ORIENTATION_PORTRAIT" in gate
+    assert "pressHome()" in gate
+    for nav_tag in ("nav_today", "nav_diary", "nav_history", "nav_settings"):
+        assert f'"{nav_tag}"' in gate
+    assert 'executeShellCommand("dumpsys meminfo $packageName")' in gate
+    assert gate.count("app.cloudLlm.generate(") == 1
+    assert "CloudTokenBudgets.DAILY_DIARY" in gate
+    assert "ReportIntegrityValidator.validate(" in gate
+    assert "if (integrity?.isValid == true)" in gate
+    assert "output_length_chars=" in gate
+    assert "citation_ids=" in gate
