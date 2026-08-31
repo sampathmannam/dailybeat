@@ -18,11 +18,15 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import java.io.File
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.rules.RuleChain
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -32,8 +36,28 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalTestApi::class)
 class MainNavigationTest {
 
+    private val composeRule = createAndroidComposeRule<MainActivity>()
+    private val failureEvidenceRule = object : TestWatcher() {
+        override fun failed(cause: Throwable, description: Description) {
+            runCatching {
+                val instrumentation = InstrumentationRegistry.getInstrumentation()
+                val externalFilesDirectory = instrumentation.targetContext.getExternalFilesDir(null)
+                    ?: return
+                val evidenceDirectory = File(
+                    externalFilesDirectory,
+                    "instrumentation-failure-evidence",
+                ).apply { mkdirs() }
+                File(evidenceDirectory, "${description.methodName}.txt")
+                    .writeText(cause.stackTraceToString())
+                UiDevice.getInstance(instrumentation).takeScreenshot(
+                    File(evidenceDirectory, "${description.methodName}.png"),
+                )
+            }
+        }
+    }
+
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val rules: RuleChain = RuleChain.outerRule(composeRule).around(failureEvidenceRule)
 
     @Before
     fun skipOnboarding() {

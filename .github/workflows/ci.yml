@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +25,28 @@ jobs:
       - name: Build and test
         run: |
           cd android
-          ./gradlew assembleDebug testDebugUnitTest --no-daemon --stacktrace
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
+
+      - name: Python tests
+        run: |
+          pip install -e ".[dev]"
+          python3 -m pytest scripts/tests/ -q
+
+  instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Instrumentation tests (emulator)
         uses: reactivecircus/android-emulator-runner@v2
@@ -39,11 +59,29 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: |
-            adb shell getprop sys.boot_completed | grep -q 1
+            evidence_dir="$GITHUB_WORKSPACE/android/app/build/outputs/managed_device_android_test_additional_output"
+            capture_failure_evidence() {
+              mkdir -p "$evidence_dir"
+              adb exec-out screencap -p > "$evidence_dir/emulator-screen.png" || true
+              adb logcat -d -v threadtime > "$evidence_dir/logcat.txt" || true
+              adb pull /sdcard/Android/data/com.dailybeat.app.qa/files/instrumentation-failure-evidence "$evidence_dir/test-screenshots" || true
+            }
+            until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do sleep 2; done
             until adb shell pm list packages >/dev/null 2>&1; do sleep 2; done
-            cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+            cd android
+            test_status=0
+            ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace || test_status=$?
+            if [ "$test_status" -ne 0 ]; then
+              capture_failure_evidence
+              exit "$test_status"
+            fi
 
-      - name: Python tests
-        run: |
-          pip install -e ".[dev]"
-          python3 -m pytest scripts/tests/ -q
+      - name: Upload instrumentation failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-failure-evidence
+          path: |
+            android/app/build/reports/androidTests/connected/
+            android/app/build/outputs/androidTest-results/connected/
+            android/app/build/outputs/managed_device_android_test_additional_output/

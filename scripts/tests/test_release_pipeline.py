@@ -77,3 +77,24 @@ def test_map_presence_semantics_remain_stable():
     assert "mapView.contentDescription =" not in map_view
     assert 'testTag("journey_map_ready")' in map_view
     assert navigation_test.count("Until.gone(By.desc(backDescription))") == 2
+
+
+def test_ci_separates_fast_verification_from_emulator_and_keeps_failure_evidence():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    navigation_test = (
+        ROOT / "android/app/src/androidTest/java/com/dailybeat/app/MainNavigationTest.kt"
+    ).read_text(encoding="utf-8")
+
+    assert "  verify:" in workflow
+    assert "  instrumentation:" in workflow
+    assert "python3 -m pytest scripts/tests/ -q" in workflow
+    assert "connectedDebugAndroidTest" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "instrumentation-failure-evidence" in workflow
+    assert "if: failure()" in workflow
+    assert "android/app/build/reports/androidTests/connected/" in workflow
+    assert "android/app/build/outputs/androidTest-results/connected/" in workflow
+    assert "android/app/build/outputs/managed_device_android_test_additional_output/" in workflow
+    assert "adb exec-out screencap -p" in workflow
+    assert "adb logcat -d" in workflow
+    assert 'File(evidenceDirectory, "${description.methodName}.png")' in navigation_test
