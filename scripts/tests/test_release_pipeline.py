@@ -292,7 +292,7 @@ def test_mock_deepseek_rejects_unknown_scenario():
 
 
 def test_locust_profile_accepts_only_expected_status_and_body_shapes():
-    from tools.locust.locustfile import SCENARIO_WEIGHTS, validate_response
+    from tools.locust.contracts import SCENARIO_WEIGHTS, validate_response
 
     assert SCENARIO_WEIGHTS == {"valid": 8, "rate-limit": 1, "server-error": 1}
     assert validate_response(
@@ -321,7 +321,7 @@ def test_locust_profile_accepts_only_expected_status_and_body_shapes():
 
 
 def test_locust_performance_budget_requires_volume_zero_failures_and_low_latency():
-    from tools.locust.locustfile import performance_budget_violations
+    from tools.locust.contracts import performance_budget_violations
 
     passing = SimpleNamespace(
         total=SimpleNamespace(

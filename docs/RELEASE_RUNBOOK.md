@@ -16,6 +16,7 @@ Terminal 1:
 $env:PYTEST_DISABLE_PLUGIN_AUTOLOAD='1'
 python -m pytest scripts/tests/ -q
 Remove-Item Env:PYTEST_DISABLE_PLUGIN_AUTOLOAD
+python -m pip install -e ".[dev,loadtest]"
 python tools/locust/mock_deepseek.py --port 8765
 ```
 
