@@ -166,7 +166,12 @@ def test_ci_separates_fast_verification_from_emulator_and_keeps_failure_evidence
     )
     assert emulator_step["with"]["api-level"] == 34
     assert emulator_step["with"]["arch"] == "x86_64"
-    instrumentation_script = emulator_step["with"]["script"]
+    assert emulator_step["with"]["script"] == (
+        "bash .github/scripts/run-instrumentation.sh"
+    )
+    instrumentation_script = (
+        ROOT / ".github/scripts/run-instrumentation.sh"
+    ).read_text(encoding="utf-8")
     assert instrumentation_script.count("timeout --kill-after=10s 2m bash -c") == 2
     assert (
         "timeout --kill-after=30s 25m ./gradlew connectedDebugAndroidTest"
