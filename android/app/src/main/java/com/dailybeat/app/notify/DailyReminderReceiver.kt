@@ -9,10 +9,13 @@ import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
+import com.dailybeat.app.cloud.ReportRetryPolicy
+import com.dailybeat.app.cloud.ReportRetryWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class DailyReminderReceiver : BroadcastReceiver() {
 
@@ -25,9 +28,12 @@ class DailyReminderReceiver : BroadcastReceiver() {
         if (settings.autoEveningReport && app.settingsRepository.isCloudBrainReady()) {
             val pending = goAsync()
             scope.launch {
-                app.reportGenerator.generateAndSaveForDate(
-                    java.time.LocalDate.now(),
-                )
+                val date = LocalDate.now()
+                app.reportGenerator.generateAndSaveForDate(date).onFailure { error ->
+                    if (ReportRetryPolicy.shouldRetry(error)) {
+                        ReportRetryWorker.enqueue(context, date)
+                    }
+                }
                 pending.finish()
             }
         }

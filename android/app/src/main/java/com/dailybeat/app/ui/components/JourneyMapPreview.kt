@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +34,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
@@ -73,9 +76,11 @@ private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 
 @Composable
-fun JourneyMapPreview(
+fun JourneyMapView(
     visits: List<LocationVisit>,
+    isActive: Boolean,
     modifier: Modifier = Modifier,
+    onFailure: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val model = remember(visits) { JourneyMapModel.fromVisits(visits) }
@@ -87,7 +92,6 @@ fun JourneyMapPreview(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
-    val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
@@ -98,11 +102,15 @@ fun JourneyMapPreview(
         }
     }
     val mapView = rememberMapViewWithLifecycle(
+        isActive = isActive,
         onMapReady = { readyMap ->
             map = readyMap
             loadStyle(readyMap)
         },
-        onMapError = { mapError = true },
+        onMapError = {
+            mapError = true
+            onFailure("MapLibre map loading failed.")
+        },
     )
 
     DisposableEffect(map, loadedStyle, model, mapView, mapViewportSize) {
@@ -112,12 +120,10 @@ fun JourneyMapPreview(
             onDispose { }
         } else {
             mapRendered = false
-            mapView.contentDescription = mapDescription
             lateinit var renderListener: MapView.OnDidFinishRenderingMapListener
             renderListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
                 if (fullyRendered) {
                     mapRendered = true
-                    mapView.contentDescription = readyMapDescription
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                 }
             }
@@ -133,8 +139,8 @@ fun JourneyMapPreview(
                 onError = {
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
-                    mapView.contentDescription = mapDescription
                     mapError = true
+                    onFailure("MapLibre journey render failed.")
                 },
             )
             onDispose {
@@ -168,7 +174,6 @@ fun JourneyMapPreview(
                     TextButton(
                         onClick = {
                             loadedStyle = null
-                            mapView.contentDescription = mapDescription
                             map?.let(loadStyle)
                         },
                     ) {
@@ -185,11 +190,18 @@ fun JourneyMapPreview(
                             .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )
-                    if (mapRendered) {
+                    if (!mapRendered) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .testTag("journey_map_loading"),
+                        )
+                    } else {
                         Spacer(
                             modifier = Modifier
                                 .size(1.dp)
-                                .testTag("journey_map_ready"),
+                                .testTag("journey_map_ready")
+                                .semantics { contentDescription = readyMapDescription },
                         )
                     }
                 }
@@ -242,6 +254,7 @@ fun JourneyMapPreview(
 
 @Composable
 private fun rememberMapViewWithLifecycle(
+    isActive: Boolean,
     onMapReady: (MapLibreMap) -> Unit,
     onMapError: () -> Unit,
 ): MapView {
@@ -257,7 +270,7 @@ private fun rememberMapViewWithLifecycle(
         }
     }
 
-    DisposableEffect(lifecycle, mapView) {
+    DisposableEffect(lifecycle, mapView, isActive) {
         var destroyed = false
         var started = false
         var resumed = false
@@ -287,27 +300,36 @@ private fun rememberMapViewWithLifecycle(
                 started = false
             }
         }
+        fun destroy() {
+            if (!destroyed) {
+                stop()
+                mapView.onLowMemory()
+                mapView.onDestroy()
+                destroyed = true
+            }
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> start()
-                Lifecycle.Event.ON_RESUME -> resume()
+                Lifecycle.Event.ON_START -> if (isActive) start()
+                Lifecycle.Event.ON_RESUME -> if (isActive) resume()
                 Lifecycle.Event.ON_PAUSE -> pause()
                 Lifecycle.Event.ON_STOP -> stop()
-                Lifecycle.Event.ON_DESTROY -> {
-                    stop()
-                    mapView.onDestroy()
-                    destroyed = true
-                }
+                Lifecycle.Event.ON_DESTROY -> destroy()
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
+        if (isActive && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
+        if (isActive && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
         onDispose {
             lifecycle.removeObserver(observer)
             stop()
-            if (!destroyed) mapView.onDestroy()
+        }
+    }
+    DisposableEffect(mapView) {
+        onDispose {
+            mapView.onLowMemory()
+            mapView.onDestroy()
         }
     }
     return mapView

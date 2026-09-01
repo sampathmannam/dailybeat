@@ -317,6 +317,21 @@ fun SettingsScreen(
                     state.auditLines.takeLast(8).forEach { line ->
                         Text(text = line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    Text(
+                        text = stringResource(R.string.recent_operational_failures),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.refresh_operational_failure_log),
+                        onClick = viewModel::loadOperationalFailureLog,
+                    )
+                    state.operationalFailureLines.takeLast(8).forEach { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

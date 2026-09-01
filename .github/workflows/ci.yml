@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +25,43 @@ jobs:
       - name: Build and test
         run: |
           cd android
-          ./gradlew assembleDebug testDebugUnitTest --no-daemon --stacktrace
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
+
+      - name: Python tests
+        run: |
+          pip install -e ".[dev]"
+          python3 -m pytest scripts/tests/ -q
+
+  instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare instrumentation failure evidence
+        run: |
+          evidence_dir="$GITHUB_WORKSPACE/android/app/build/outputs/managed_device_android_test_additional_output"
+          mkdir -p "$evidence_dir"
+          {
+            printf 'evidence_version=1\n'
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'capture_state=pending\n'
+            printf 'initial_connected_reports=not_checked\n'
+            printf 'initial_raw_results=not_checked\n'
+            printf 'initial_screenshots=not_attempted\n'
+            printf 'initial_stack_traces=not_checked\n'
+            printf 'initial_logcat=not_attempted\n'
+          } > "$evidence_dir/evidence-status.txt"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Instrumentation tests (emulator)
         uses: reactivecircus/android-emulator-runner@v2
@@ -38,12 +73,15 @@ jobs:
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            adb shell getprop sys.boot_completed | grep -q 1
-            until adb shell pm list packages >/dev/null 2>&1; do sleep 2; done
-            cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+          script: bash .github/scripts/run-instrumentation.sh
 
-      - name: Python tests
-        run: |
-          pip install -e ".[dev]"
-          python3 -m pytest scripts/tests/ -q
+      - name: Upload instrumentation failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-failure-evidence
+          if-no-files-found: error
+          path: |
+            android/app/build/reports/androidTests/connected/
+            android/app/build/outputs/androidTest-results/connected/
+            android/app/build/outputs/managed_device_android_test_additional_output/

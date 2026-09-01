@@ -1,6 +1,7 @@
 package com.dailybeat.app.cloud
 
 import android.content.Context
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.VisitRepository
@@ -8,12 +9,12 @@ import com.dailybeat.app.data.settings.SettingsRepository
 import java.time.LocalDate
 
 class ReportGenerator(
+    private val context: Context,
     private val settingsRepository: SettingsRepository,
-    private val cloudLlm: CloudLlmClient,
+    private val validatedReportClient: ValidatedReportClient,
     private val visitRepository: VisitRepository,
     private val eventRepository: EventRepository,
     private val diaryRepository: DiaryRepository,
-    private val appContext: Context,
 ) {
 
     suspend fun generateForToday(): Result<String> = generateForDate(LocalDate.now())
@@ -31,14 +32,13 @@ class ReportGenerator(
             )
         }
 
-        val context = ContextLimiter.trimForLlm(
-            DayContextBuilder.build(
-                date = date,
-                officerName = settings.officerName,
-                visits = visits,
-                events = events,
-            ),
+        val source = DayContextBuilder.buildDetailed(
+            date = date,
+            officerName = settings.officerName,
+            visits = visits,
+            events = events,
         )
+        val limitedContext = ContextLimiter.trimForLlm(source.text)
 
         if (!settingsRepository.isCloudBrainReady()) {
             return Result.failure(
@@ -52,14 +52,15 @@ class ReportGenerator(
             End with a one-line summary of the day.
 
             DATA:
-            $context
+            $limitedContext
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, userPrompt).map { report ->
-            report.trim()
-        }.onFailure {
-            ReportRetryWorker.enqueue(appContext, date)
-        }
+        return validatedReportClient.generate(
+            settings,
+            DayContextBuilder.SYSTEM_PROMPT,
+            userPrompt,
+            source,
+        ).onFailure { error -> recordDailyReportFailure(context, error) }
     }
 
     suspend fun generateAndSaveForDate(date: LocalDate): Result<String> {
@@ -67,4 +68,18 @@ class ReportGenerator(
             diaryRepository.saveForDate(date, text)
         }
     }
+}
+
+internal fun recordDailyReportFailure(context: Context, error: Throwable) {
+    val integrityFailure = error is ReportIntegrityException
+    OperationalFailureLog.record(
+        context = context,
+        category = if (integrityFailure) "daily-report-integrity" else "daily-report",
+        retryable = if (integrityFailure) false else ReportRetryPolicy.shouldRetry(error),
+        message = when {
+            integrityFailure -> "Daily report failed source-integrity validation."
+            error is CloudRequestException -> error.message.orEmpty()
+            else -> "Daily report generation failed (${error.javaClass.simpleName})."
+        },
+    )
 }

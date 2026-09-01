@@ -1,6 +1,7 @@
 package com.dailybeat.app.llm
 
 import com.dailybeat.app.cloud.CloudLlmClient
+import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.cloud.DayContextBuilder
 import com.dailybeat.app.data.model.StructuredEvent
 import com.dailybeat.app.data.settings.SettingsRepository
@@ -30,7 +31,12 @@ class EventExtractor(
             $transcript
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).fold(
+        return cloudLlm.generate(
+            settings,
+            DayContextBuilder.SYSTEM_PROMPT,
+            prompt,
+            maxOutputTokens = CloudTokenBudgets.EVENT_EXTRACTION,
+        ).fold(
             onSuccess = { response ->
                 parseJsonResponse(response, transcript)?.let { Result.success(it) }
                     ?: Result.failure(IllegalStateException("The cloud model returned invalid event JSON."))

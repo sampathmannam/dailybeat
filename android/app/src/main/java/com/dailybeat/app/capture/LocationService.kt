@@ -121,12 +121,9 @@ class LocationService : Service() {
         const val CHANNEL_ID = "location_capture"
         const val NOTIFICATION_ID = 1002
 
-        fun start(context: Context) {
-            try {
-                context.startForegroundService(Intent(context, LocationService::class.java))
-            } catch (_: IllegalStateException) {
-                // Foreground services unavailable in unit tests or restricted contexts.
-            }
+        fun start(context: Context): Result<Unit> = runCatching {
+            context.startForegroundService(Intent(context, LocationService::class.java))
+            Unit
         }
 
         fun stop(context: Context) {

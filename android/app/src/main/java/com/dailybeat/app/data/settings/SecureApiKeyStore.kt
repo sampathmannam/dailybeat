@@ -4,12 +4,13 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.dailybeat.app.cloud.ApiKeySource
 
-class SecureApiKeyStore(private val context: Context) {
+class SecureApiKeyStore(private val context: Context) : ApiKeySource {
 
     private val prefs: SharedPreferences by lazy { createPrefs(context) }
 
-    fun getApiKey(): String? = runCatching {
+    override fun getApiKey(): String? = runCatching {
         prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
     }.getOrNull()
 

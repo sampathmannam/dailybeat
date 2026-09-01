@@ -42,7 +42,12 @@ class PulseReportGenerator(
             $context
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).map { pulse ->
+        return cloudLlm.generate(
+            settings,
+            DayContextBuilder.SYSTEM_PROMPT,
+            prompt,
+            maxOutputTokens = CloudTokenBudgets.MIDDAY_PULSE,
+        ).map { pulse ->
             val header = "— Midday pulse ${date} —\n"
             val block = header + pulse.trim()
             val existing = diaryRepository.textForDate(date).orEmpty()

@@ -24,8 +24,12 @@ class ReportRetryWorker(
 
         return app.reportGenerator.generateAndSaveForDate(date).fold(
             onSuccess = { Result.success() },
-            onFailure = {
-                if (runAttemptCount < 2) Result.retry() else Result.failure()
+            onFailure = { error ->
+                if (ReportRetryPolicy.shouldRetry(error) && runAttemptCount < 2) {
+                    Result.retry()
+                } else {
+                    Result.failure()
+                }
             },
         )
     }

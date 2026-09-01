@@ -8,6 +8,13 @@ import org.junit.Test
 class JourneyMapModelTest {
 
     @Test
+    fun previewFractions_evenlyDistributesOrderedPoints() {
+        assertEquals(emptyList<Float>(), previewFractions(0))
+        assertEquals(listOf(0.5f), previewFractions(1))
+        assertEquals(listOf(0f, 0.5f, 1f), previewFractions(3))
+    }
+
+    @Test
     fun fromVisits_filtersInvalidCoordinatesAndOrdersChronologically() {
         val visits = listOf(
             visit(startMs = 300, latitude = 12.98, longitude = 77.61),

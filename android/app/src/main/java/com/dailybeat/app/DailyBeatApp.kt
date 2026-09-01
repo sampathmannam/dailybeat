@@ -12,6 +12,7 @@ import com.dailybeat.app.backup.SupabaseBackupClient
 import com.dailybeat.app.cloud.CloudLlmClient
 import com.dailybeat.app.cloud.PulseReportGenerator
 import com.dailybeat.app.cloud.ReportGenerator
+import com.dailybeat.app.cloud.ValidatedReportClient
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
@@ -67,14 +68,16 @@ class DailyBeatApp : Application() {
 
     val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
 
+    private val validatedReportClient by lazy { ValidatedReportClient(cloudLlm) }
+
     val reportGenerator: ReportGenerator by lazy {
         ReportGenerator(
+            context = this,
             settingsRepository = settingsRepository,
-            cloudLlm = cloudLlm,
+            validatedReportClient = validatedReportClient,
             visitRepository = visitRepository,
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
-            appContext = this,
         )
     }
 

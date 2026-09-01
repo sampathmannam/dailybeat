@@ -16,6 +16,9 @@
         <item quantity="other">Journey map (%1$d points)</item>
     </plurals>
     <string name="journey_map_open">Open full map</string>
+    <string name="journey_map_title">Journey map</string>
+    <string name="journey_map_back_content_description">Back from full journey map</string>
+    <string name="journey_preview_content_description">Journey preview with %1$d recorded points</string>
     <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
@@ -39,6 +42,8 @@
     <string name="auto_midday_pulse">Auto midday pulse at 1 PM (cloud AI)</string>
     <string name="settings_qa_group">QA &amp; transparency</string>
     <string name="refresh_audit_log">Refresh capture audit log</string>
+    <string name="recent_operational_failures">Recent operational failures</string>
+    <string name="refresh_operational_failure_log">Refresh operational failure log</string>
     <string name="supervisor_name_label">Supervisor name (PDF sign-off)</string>
     <string name="generate_weekly_rollup">Generate weekly AI rollup</string>
     <string name="export_week_package">Export week package (ZIP)</string>
