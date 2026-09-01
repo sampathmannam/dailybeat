@@ -758,6 +758,27 @@ alter table public.patrolgrid_audit_events enable row level security;
 revoke all on all tables in schema public from anon;
 revoke all on all sequences in schema public from anon;
 
+-- Supabase platform versions can install different default privileges for new
+-- public-schema objects. Reset every PatrolGrid client grant explicitly before
+-- applying the least-privilege list below.
+revoke all on public.patrolgrid_subdivisions from authenticated;
+revoke all on public.patrolgrid_memberships from authenticated;
+revoke all on public.patrolgrid_route_templates from authenticated;
+revoke all on public.patrolgrid_route_template_priorities from authenticated;
+revoke all on public.patrolgrid_units from authenticated;
+revoke all on public.patrolgrid_unit_members from authenticated;
+revoke all on public.patrolgrid_missions from authenticated;
+revoke all on public.patrolgrid_assignments from authenticated;
+revoke all on public.patrolgrid_priority_locations from authenticated;
+revoke all on public.patrolgrid_sessions from authenticated;
+revoke all on public.patrolgrid_track_points from authenticated;
+revoke all on public.patrolgrid_priority_visits from authenticated;
+revoke all on public.patrolgrid_field_updates from authenticated;
+revoke all on public.patrolgrid_reviews from authenticated;
+revoke all on public.patrolgrid_audit_events from authenticated;
+revoke all on sequence public.patrolgrid_track_points_id_seq from authenticated;
+revoke all on sequence public.patrolgrid_audit_events_id_seq from authenticated;
+
 grant all on public.patrolgrid_subdivisions to service_role;
 grant all on public.patrolgrid_memberships to service_role;
 grant all on public.patrolgrid_route_templates to service_role;
