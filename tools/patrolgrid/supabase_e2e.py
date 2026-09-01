@@ -121,6 +121,20 @@ def main() -> int:
     health = harness.client.get(f"{url}/auth/v1/health", headers={"apikey": anon_key})
     assert_status(health, 200, "Supabase Auth health")
 
+    public_signup = harness.client.post(
+        f"{url}/auth/v1/signup",
+        headers={"apikey": anon_key, "Content-Type": "application/json"},
+        json={
+            "email": f"self-register-{run_id}@patrolgrid.test",
+            "password": password,
+        },
+    )
+    if public_signup.status_code not in {400, 422}:
+        raise AssertionError(
+            "public staff registration must be disabled; "
+            f"got HTTP {public_signup.status_code}"
+        )
+
     emails = {
         "supervisor": f"supervisor-{run_id}@patrolgrid.test",
         "patrol_1": f"patrol-1-{run_id}@patrolgrid.test",
