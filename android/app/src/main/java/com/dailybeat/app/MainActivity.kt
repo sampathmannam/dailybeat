@@ -3,6 +3,7 @@ package com.dailybeat.app
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,10 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.dailybeat.app.capture.CaptureController
-import com.dailybeat.app.ui.DailyBeatAppScaffold
 import com.dailybeat.app.ui.onboarding.OnboardingScreen
+import com.dailybeat.app.ui.patrol.PatrolGridAppScaffold
 import com.dailybeat.app.ui.theme.DailyBeatTheme
-import com.dailybeat.app.util.PermissionHelper
 
 class MainActivity : ComponentActivity() {
 
@@ -27,20 +27,15 @@ class MainActivity : ComponentActivity() {
         val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (fineGranted || coarseGranted) {
-            requestBackgroundLocationIfNeeded()
+            CaptureController.applyFromSettings(this)
         } else {
             CaptureController.applyFromSettings(this)
         }
     }
 
-    private val backgroundLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { _ ->
-        CaptureController.applyFromSettings(this)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        hardenSensitiveWindow()
         val app = application as DailyBeatApp
         val showOnboarding = !app.settingsRepository.isOnboardingComplete()
 
@@ -51,20 +46,30 @@ class MainActivity : ComponentActivity() {
 
                     if (!onboardingDone) {
                         OnboardingScreen(
-                            onComplete = { officerName ->
+                            onComplete = { officerName, role ->
                                 app.settingsRepository.setOfficerName(officerName)
+                                app.settingsRepository.setPatrolRole(role)
                                 app.settingsRepository.setOnboardingComplete(true)
                                 requestRuntimePermissions()
                                 onboardingDone = true
                             },
                         )
                     } else {
-                        DailyBeatAppScaffold()
+                        PatrolGridAppScaffold()
                     }
                 }
             }
         }
 
+    }
+
+    private fun hardenSensitiveWindow() {
+        if (!BuildConfig.DEBUG) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.setHideOverlayWindows(true)
+        }
     }
 
     private fun requestRuntimePermissions() {
@@ -78,13 +83,4 @@ class MainActivity : ComponentActivity() {
         permissionLauncher.launch(permissions.toTypedArray())
     }
 
-    private fun requestBackgroundLocationIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            !PermissionHelper.hasBackgroundLocation(this)
-        ) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        } else {
-            CaptureController.applyFromSettings(this)
-        }
-    }
 }

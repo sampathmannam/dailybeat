@@ -43,15 +43,15 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun launcherUsesSelectedSmartFieldNoteBrand() {
+    fun launcherUsesPatrolGridBrand() {
         val colors = resource("values/colors.xml")
         val foreground = resource("drawable/ic_launcher_foreground.xml")
 
-        assertTrue("#0B1633" in colors)
-        assertTrue("#FFF7E8" in foreground)
-        assertTrue("#FF6B4A" in foreground)
-        assertTrue("#F4A629" in foreground)
-        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 4)
+        assertTrue("#0F172A" in colors)
+        assertTrue("#1E3A5F" in foreground)
+        assertTrue("#E8A317" in foreground)
+        assertTrue("#16A34A" in foreground)
+        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 5)
         assertFalse("M54,30 L70,54 L54,78 L38,54 Z" in foreground)
     }
 

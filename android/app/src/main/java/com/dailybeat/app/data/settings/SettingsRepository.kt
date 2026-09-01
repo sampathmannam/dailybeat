@@ -1,6 +1,7 @@
 package com.dailybeat.app.data.settings
 
 import android.content.Context
+import com.dailybeat.app.data.model.PatrolRole
 
 class SettingsRepository(private val context: Context) {
 
@@ -9,7 +10,7 @@ class SettingsRepository(private val context: Context) {
 
     fun get(): AppSettings = AppSettings(
         officerName = prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer",
-        gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
+        gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, false),
         callLogEnabled = prefs.getBoolean(KEY_CALL_LOG, false),
         cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
         cloudProvider = prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id) ?: CloudProvider.DEEPSEEK.id,
@@ -19,6 +20,8 @@ class SettingsRepository(private val context: Context) {
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
         supervisorName = prefs.getString(KEY_SUPERVISOR, "") ?: "",
+        patrolRole = PatrolRole.fromStorage(prefs.getString(KEY_PATROL_ROLE, null)),
+        activePatrolMissionId = prefs.getString(KEY_ACTIVE_PATROL_MISSION, null),
     )
 
     fun setOfficerName(name: String) {
@@ -27,6 +30,17 @@ class SettingsRepository(private val context: Context) {
 
     fun setGpsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_GPS, enabled).apply()
+    }
+
+    fun setPatrolRole(role: PatrolRole) {
+        prefs.edit().putString(KEY_PATROL_ROLE, role.storageValue).apply()
+    }
+
+    fun setActivePatrolMission(missionId: String?) {
+        prefs.edit().apply {
+            if (missionId == null) remove(KEY_ACTIVE_PATROL_MISSION)
+            else putString(KEY_ACTIVE_PATROL_MISSION, missionId)
+        }.apply()
     }
 
     fun setCallLogEnabled(enabled: Boolean) {
@@ -81,5 +95,7 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
         private const val KEY_SUPERVISOR = "supervisor_name"
+        private const val KEY_PATROL_ROLE = "patrol_role"
+        private const val KEY_ACTIVE_PATROL_MISSION = "active_patrol_mission"
     }
 }

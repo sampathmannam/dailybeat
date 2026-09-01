@@ -11,8 +11,8 @@ import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
-import com.dailybeat.app.audit.CaptureAuditLog
-import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.data.model.PatrolTrackPoint
+import com.dailybeat.app.security.PatrolCoordinates
 import com.dailybeat.app.util.PermissionHelper
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -27,16 +27,37 @@ import kotlinx.coroutines.launch
 class LocationService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var visitTracker: VisitTracker
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val location = result.lastLocation ?: return
-            visitTracker.onLocation(
-                latitude = location.latitude,
-                longitude = location.longitude,
-                timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
-            )
+            val app = application as DailyBeatApp
+            val missionId = app.settingsRepository.get().activePatrolMissionId ?: return
+            val timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis()
+            scope.launch {
+                val encryptedPayload = try {
+                    app.patrolTrackCipher.encrypt(
+                        missionId = missionId,
+                        timestampMs = timestampMs,
+                        coordinates = PatrolCoordinates(
+                            latitude = location.latitude,
+                            longitude = location.longitude,
+                            accuracyM = location.accuracy,
+                        ),
+                    )
+                } catch (_: Exception) {
+                    // Route evidence must never fall back to plaintext if the keystore is unavailable.
+                    stopSelf()
+                    return@launch
+                }
+                app.db.patrolTracks().insert(
+                    PatrolTrackPoint(
+                        missionId = missionId,
+                        timestampMs = timestampMs,
+                        encryptedPayload = encryptedPayload,
+                    ),
+                )
+            }
         }
     }
 
@@ -44,45 +65,17 @@ class LocationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        if (!PermissionHelper.hasLocation(this)) {
+        val app = application as DailyBeatApp
+        if (!PermissionHelper.hasLocation(this) || app.settingsRepository.get().activePatrolMissionId == null) {
             stopSelf()
             return
         }
 
-        val app = application as DailyBeatApp
-        visitTracker = VisitTracker(
-            scope = scope,
-            placeRepository = app.placeRepository,
-            osmGeocoder = app.osmGeocoder,
-            onVisitRecorded = { visit ->
-                app.visitRepository.insert(visit)
-                CaptureAuditLog.log(
-                    this,
-                    "visit",
-                    "${visit.visitType}: ${visit.placeName ?: visit.address ?: "coords"}",
-                )
-                val summary = when (visit.visitType) {
-                    "transit" -> "Transit: ${visit.address ?: "en route"}"
-                    else -> "Stay at ${visit.placeName ?: visit.address ?: "location"}"
-                }
-                app.db.events().insert(
-                    Event(
-                        timestamp = visit.startMs,
-                        type = "visit",
-                        rawText = summary,
-                        placeName = visit.placeName,
-                        latitude = visit.latitude,
-                        longitude = visit.longitude,
-                    ),
-                )
-            },
-        )
-
         startForeground(NOTIFICATION_ID, buildNotification())
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 45_000L)
-            .setMinUpdateIntervalMillis(45_000L)
-            .setMinUpdateDistanceMeters(75f)
-            .setMaxUpdateDelayMillis(120_000L)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 30_000L)
+            .setMinUpdateIntervalMillis(20_000L)
+            .setMinUpdateDistanceMeters(25f)
+            .setMaxUpdateDelayMillis(60_000L)
             .build()
         try {
             LocationServices.getFusedLocationProviderClient(this)
@@ -94,9 +87,6 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
-        if (::visitTracker.isInitialized) {
-            visitTracker.flushPending()
-        }
         LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
         super.onDestroy()
     }

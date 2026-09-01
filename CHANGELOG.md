@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — PatrolGrid foundation
+
+- Repositioned the Android product as PatrolGrid for subdivision patrol assignment, coordination, and contextual review.
+- Added role-specific Patrol Control and My Patrol experiences using the approved mission-first design direction.
+- Added a working supervisor assignment flow for route plans, units, duty windows, priority locations, and field-flexibility guidance.
+- Added explicit patrol start/end controls, mission-scoped Room route breadcrumbs, priority-location progress, observations, and operational deviations.
+- Added human-review outcomes that avoid staff scoring and preserve safety, GPS, and operational context.
+- Added PatrolGrid onboarding, role preview, day/night themes, launcher identity, product definition, and Android design documentation.
+- Disabled legacy passive tracking and diary reminder scheduling by default; patrol tracking now runs only during an active mission.
+- Encrypted route coordinates with AES-256-GCM keys held by Android Keystore/StrongBox and added a data-preserving encrypted Room migration.
+- Rejected cleartext network traffic, protected release screens and Android 12+ overlays, and removed the legacy plaintext visit logger from patrol tracking.
+- Limited the local role switch to debug builds, added Keystore/schema security tests, and documented the backend controls required before operational deployment.
+
 ## 3.4.0 — 2026-08-30
 
 - Replaced the decorative journey sketch with an interactive OpenStreetMap-based map using MapLibre and OpenFreeMap.

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,15 +29,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
+import com.dailybeat.app.data.model.PatrolRole
 import com.dailybeat.app.ui.components.PrimaryButton
 
 @Composable
 fun OnboardingScreen(
-    onComplete: (officerName: String) -> Unit,
+    onComplete: (officerName: String, role: PatrolRole) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var step by remember { mutableIntStateOf(0) }
     var officerName by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf(PatrolRole.PATROL) }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -56,7 +59,7 @@ fun OnboardingScreen(
                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("📔", style = MaterialTheme.typography.headlineLarge)
+                Text("PG", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             }
 
             when (step) {
@@ -94,6 +97,23 @@ fun OnboardingScreen(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                         ),
                     )
+                    Text(
+                        text = stringResource(R.string.onboarding_role_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    RoleChoice(
+                        title = stringResource(R.string.onboarding_role_patrol),
+                        description = stringResource(R.string.onboarding_role_patrol_desc),
+                        selected = role == PatrolRole.PATROL,
+                        onClick = { role = PatrolRole.PATROL },
+                    )
+                    RoleChoice(
+                        title = stringResource(R.string.onboarding_role_supervisor),
+                        description = stringResource(R.string.onboarding_role_supervisor_desc),
+                        selected = role == PatrolRole.SUPERVISOR,
+                        onClick = { role = PatrolRole.SUPERVISOR },
+                    )
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_continue),
                         onClick = { step = 2 },
@@ -113,9 +133,39 @@ fun OnboardingScreen(
                     )
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_get_started),
-                        onClick = { onComplete(officerName.trim()) },
+                        onClick = { onComplete(officerName.trim(), role) },
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoleChoice(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+    ) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = onClick)
+            Column(modifier = Modifier.padding(start = 8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

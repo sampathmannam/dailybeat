@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DailyBeat</string>
+    <string name="app_name">PatrolGrid</string>
     <string name="tab_today">Today</string>
     <string name="tab_diary">Diary</string>
     <string name="tab_history">History</string>
@@ -74,8 +74,8 @@
     <string name="place_lon_label">Longitude</string>
     <string name="add_place_button">Add place</string>
     <string name="delete_place">Delete place</string>
-    <string name="location_service_title">DailyBeat location</string>
-    <string name="location_service_passive">Tracking visits and transit for your daily report</string>
+    <string name="location_service_title">PatrolGrid · patrol active</string>
+    <string name="location_service_passive">Recording this mission’s route. End patrol to stop tracking.</string>
     <string name="reminder_title">DailyBeat</string>
     <string name="reminder_body_report">Your daily AI report is ready — open DailyBeat to review.</string>
     <string name="settings_cloud_group">Cloud AI</string>
@@ -105,11 +105,16 @@
     <string name="auto_evening_report">Auto-generate report at 8 PM</string>
     <string name="diary_cloud_hint">Cloud AI merges GPS journey, calls, and notes into your official diary.</string>
     <string name="diary_local_hint">Add a cloud API key in Settings to generate AI reports.</string>
-    <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
-    <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports. Data stays on your device until you generate.</string>
-    <string name="onboarding_officer_title">Your name for PDF headers</string>
-    <string name="onboarding_privacy_title">Privacy first</string>
-    <string name="onboarding_privacy_body">Grant location (all the time for passive tracking), notifications, and optional call log when prompted. You control capture in Settings.</string>
+    <string name="onboarding_welcome_title">Welcome to PatrolGrid</string>
+    <string name="onboarding_welcome_body">Plan patrol missions, coordinate in the field, and review coverage with operational context.</string>
+    <string name="onboarding_officer_title">Set up this device</string>
+    <string name="onboarding_role_title">Preview role</string>
+    <string name="onboarding_role_patrol">Patrol personnel</string>
+    <string name="onboarding_role_patrol_desc">See assignments and record an active patrol</string>
+    <string name="onboarding_role_supervisor">Supervisor</string>
+    <string name="onboarding_role_supervisor_desc">Assign missions and review patrol context</string>
+    <string name="onboarding_privacy_title">Tracking has clear boundaries</string>
+    <string name="onboarding_privacy_body">Location tracking starts only when patrol personnel start an assigned mission and stops when they end it. GPS gaps and route changes always require human review.</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_get_started">Get started</string>
 </resources>

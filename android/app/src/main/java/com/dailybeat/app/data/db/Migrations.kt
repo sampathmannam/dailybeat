@@ -2,6 +2,8 @@ package com.dailybeat.app.data.db
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.dailybeat.app.security.PatrolCoordinates
+import com.dailybeat.app.security.PatrolTrackCipher
 
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -35,6 +37,80 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
                 fetchedAt INTEGER NOT NULL
             )
             """.trimIndent(),
+        )
+    }
+}
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS patrol_track_points (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                missionId TEXT NOT NULL,
+                timestampMs INTEGER NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                accuracyM REAL NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_patrol_track_points_missionId_timestampMs " +
+                "ON patrol_track_points(missionId, timestampMs)",
+        )
+    }
+}
+
+fun migration5To6(cipher: PatrolTrackCipher) = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE patrol_track_points_secure (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                missionId TEXT NOT NULL,
+                timestampMs INTEGER NOT NULL,
+                encryptedPayload BLOB NOT NULL
+            )
+            """.trimIndent(),
+        )
+
+        val insert = db.compileStatement(
+            """
+            INSERT INTO patrol_track_points_secure (id, missionId, timestampMs, encryptedPayload)
+            VALUES (?, ?, ?, ?)
+            """.trimIndent(),
+        )
+        db.query(
+            "SELECT id, missionId, timestampMs, latitude, longitude, accuracyM FROM patrol_track_points",
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val missionId = cursor.getString(1)
+                val timestampMs = cursor.getLong(2)
+                val encryptedPayload = cipher.encrypt(
+                    missionId = missionId,
+                    timestampMs = timestampMs,
+                    coordinates = PatrolCoordinates(
+                        latitude = cursor.getDouble(3),
+                        longitude = cursor.getDouble(4),
+                        accuracyM = cursor.getFloat(5),
+                    ),
+                )
+                insert.clearBindings()
+                insert.bindLong(1, id)
+                insert.bindString(2, missionId)
+                insert.bindLong(3, timestampMs)
+                insert.bindBlob(4, encryptedPayload)
+                insert.executeInsert()
+            }
+        }
+
+        db.execSQL("DROP TABLE patrol_track_points")
+        db.execSQL("ALTER TABLE patrol_track_points_secure RENAME TO patrol_track_points")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_patrol_track_points_missionId_timestampMs " +
+                "ON patrol_track_points(missionId, timestampMs)",
         )
     }
 }

@@ -26,7 +26,7 @@ jobs:
       - name: Build and test
         run: |
           cd android
-          ./gradlew assembleDebug testDebugUnitTest --no-daemon --stacktrace
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
 
       - name: Instrumentation tests (emulator)
         uses: reactivecircus/android-emulator-runner@v2

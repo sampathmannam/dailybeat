@@ -7,10 +7,18 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.GeocodeCache
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.data.model.PatrolTrackPoint
 
 @Database(
-    entities = [Event::class, Place::class, DiaryEntry::class, LocationVisit::class, GeocodeCache::class],
-    version = 4,
+    entities = [
+        Event::class,
+        Place::class,
+        DiaryEntry::class,
+        LocationVisit::class,
+        GeocodeCache::class,
+        PatrolTrackPoint::class,
+    ],
+    version = 6,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {
@@ -19,4 +27,5 @@ abstract class DailyBeatDb : RoomDatabase() {
     abstract fun diaries(): DiaryDao
     abstract fun visits(): VisitDao
     abstract fun geocodes(): GeocodeDao
+    abstract fun patrolTracks(): PatrolTrackDao
 }

@@ -40,7 +40,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".qa"
+            // Keep PatrolGrid QA isolated from historical DailyBeat developer installs.
+            applicationIdSuffix = ".patrolgrid.qa"
         }
         release {
             isMinifyEnabled = true

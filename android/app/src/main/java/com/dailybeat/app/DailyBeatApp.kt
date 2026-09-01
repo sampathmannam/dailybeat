@@ -15,9 +15,12 @@ import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
+import com.dailybeat.app.data.db.MIGRATION_4_5
+import com.dailybeat.app.data.db.migration5To6
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
+import com.dailybeat.app.data.repo.PatrolGridRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.cloud.WeeklyReportGenerator
@@ -25,14 +28,15 @@ import com.dailybeat.app.export.PackageExporter
 import com.dailybeat.app.export.PdfExporter
 import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.EventExtractor
-import com.dailybeat.app.notify.DailyReminderScheduler
-import com.dailybeat.app.notify.PulseScheduler
+import com.dailybeat.app.security.PatrolTrackCipher
 
 class DailyBeatApp : Application() {
 
+    val patrolTrackCipher: PatrolTrackCipher by lazy { PatrolTrackCipher(this) }
+
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, migration5To6(patrolTrackCipher))
             .build()
     }
 
@@ -45,6 +49,10 @@ class DailyBeatApp : Application() {
     val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
     val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
+
+    val patrolGridRepository: PatrolGridRepository by lazy {
+        PatrolGridRepository(this, db.patrolTracks(), settingsRepository)
+    }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
@@ -105,9 +113,6 @@ class DailyBeatApp : Application() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        DailyReminderScheduler.createChannel(this)
-        DailyReminderScheduler.scheduleNext(this)
-        PulseScheduler.scheduleNext(this)
     }
 
     private fun createNotificationChannels() {
@@ -115,15 +120,8 @@ class DailyBeatApp : Application() {
         manager.createNotificationChannel(
             NotificationChannel(
                 com.dailybeat.app.capture.LocationService.CHANNEL_ID,
-                "Location capture",
+                "Active patrol tracking",
                 NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
-        manager.createNotificationChannel(
-            NotificationChannel(
-                DailyReminderScheduler.CHANNEL_ID,
-                "Daily reminder",
-                NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )
     }

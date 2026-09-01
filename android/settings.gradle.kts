@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DailyBeat"
+rootProject.name = "PatrolGrid"
 include(":app")
