@@ -26,6 +26,7 @@ data class PatrolRoutePlan(
 data class PatrolUnitOption(
     val name: String,
     val personnelCount: Int,
+    val id: String = name,
 )
 
 data class PatrolAssignmentDraft(
@@ -33,6 +34,7 @@ data class PatrolAssignmentDraft(
     val unitName: String,
     val personnelCount: Int,
     val guidance: PatrolRouteGuidance,
+    val unitId: String? = null,
 )
 
 enum class PatrolMissionStatus {
@@ -117,11 +119,17 @@ object PatrolVerification {
 
 @Entity(
     tableName = "patrol_track_points",
-    indices = [Index(value = ["missionId", "timestampMs"])],
+    indices = [
+        Index(value = ["missionId", "timestampMs"]),
+        Index(value = ["clientPointId"], unique = true),
+    ],
 )
 data class PatrolTrackPoint(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val missionId: String,
     val timestampMs: Long,
     val encryptedPayload: ByteArray,
+    val sessionId: String? = null,
+    val clientPointId: String? = null,
+    val syncedAtMs: Long? = null,
 )

@@ -28,11 +28,15 @@ import androidx.compose.ui.unit.dp
 import com.dailybeat.app.ui.theme.Gold
 import com.dailybeat.app.ui.theme.Navy
 import com.dailybeat.app.ui.theme.SuccessGreen
+import com.dailybeat.app.patrolgrid.PatrolMapPoint
 
 @Composable
 fun PatrolRouteMap(
     trackingActive: Boolean,
     visitedPriorityCount: Int,
+    recordedPoints: List<PatrolMapPoint> = emptyList(),
+    totalRecordedPoints: Int = recordedPoints.size,
+    demoMode: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.3f
@@ -54,23 +58,66 @@ fun PatrolRouteMap(
                     .fillMaxWidth()
                     .aspectRatio(1.9f)
                     .semantics {
-                        contentDescription = "Mission map showing zone boundary, suggested route, travelled path, and priority locations"
+                        contentDescription = if (demoMode) {
+                            "Demonstration mission map with a suggested route and priority locations"
+                        } else if (recordedPoints.isEmpty()) {
+                            "Recorded patrol trail has no route points yet"
+                        } else {
+                            "Recorded patrol trail showing ${recordedPoints.size} of $totalRecordedPoints route points"
+                        }
                     },
             ) {
                 val w = size.width
                 val h = size.height
-                listOf(
-                    Pair(0.12f, 0.30f) to Pair(0.88f, 0.18f),
-                    Pair(0.08f, 0.72f) to Pair(0.82f, 0.86f),
-                    Pair(0.25f, 0.04f) to Pair(0.18f, 0.95f),
-                    Pair(0.62f, 0.02f) to Pair(0.72f, 0.96f),
-                ).forEach { (start, end) ->
-                    drawLine(
-                        color = street,
-                        start = Offset(start.first * w, start.second * h),
-                        end = Offset(end.first * w, end.second * h),
-                        strokeWidth = 2.dp.toPx(),
+                if (demoMode) {
+                    listOf(
+                        Pair(0.12f, 0.30f) to Pair(0.88f, 0.18f),
+                        Pair(0.08f, 0.72f) to Pair(0.82f, 0.86f),
+                        Pair(0.25f, 0.04f) to Pair(0.18f, 0.95f),
+                        Pair(0.62f, 0.02f) to Pair(0.72f, 0.96f),
+                    ).forEach { (start, end) ->
+                        drawLine(
+                            color = street,
+                            start = Offset(start.first * w, start.second * h),
+                            end = Offset(end.first * w, end.second * h),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                    }
+                }
+
+                if (!demoMode && recordedPoints.isEmpty()) {
+                    drawCircle(
+                        color = remaining,
+                        radius = 7.dp.toPx(),
+                        center = Offset(w / 2f, h / 2f),
                     )
+                    return@Canvas
+                }
+
+                if (!demoMode) {
+                    val minLatitude = recordedPoints.minOf { it.latitude }
+                    val maxLatitude = recordedPoints.maxOf { it.latitude }
+                    val minLongitude = recordedPoints.minOf { it.longitude }
+                    val maxLongitude = recordedPoints.maxOf { it.longitude }
+                    val latitudeSpan = (maxLatitude - minLatitude).takeIf { it > 0.000001 } ?: 0.000001
+                    val longitudeSpan = (maxLongitude - minLongitude).takeIf { it > 0.000001 } ?: 0.000001
+                    val padding = 0.12f
+                    val actual = recordedPoints.map { point ->
+                        Offset(
+                            x = (padding + ((point.longitude - minLongitude) / longitudeSpan).toFloat() * (1f - 2f * padding)) * w,
+                            y = ((1f - padding) - ((point.latitude - minLatitude) / latitudeSpan).toFloat() * (1f - 2f * padding)) * h,
+                        )
+                    }
+                    actual.zipWithNext().forEach { (start, end) ->
+                        drawLine(route, start, end, 4.dp.toPx(), cap = StrokeCap.Round)
+                    }
+                    val start = actual.first()
+                    val end = actual.last()
+                    drawCircle(SuccessGreen, 7.dp.toPx(), start)
+                    drawCircle(Color.White, 7.dp.toPx(), start, style = Stroke(2.dp.toPx()))
+                    drawCircle(route, 8.dp.toPx(), end)
+                    drawCircle(Color.White, 8.dp.toPx(), end, style = Stroke(2.dp.toPx()))
+                    return@Canvas
                 }
 
                 val zone = Path().apply {
@@ -125,9 +172,29 @@ fun PatrolRouteMap(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MapLegendItem(color = route, label = "Suggested route")
-                MapLegendItem(color = SuccessGreen, label = "Completed")
-                MapLegendItem(color = Gold, label = "Priority")
+                if (demoMode) {
+                    MapLegendItem(color = route, label = "Suggested route")
+                    MapLegendItem(color = SuccessGreen, label = "Completed")
+                    MapLegendItem(color = Gold, label = "Priority")
+                } else if (recordedPoints.isEmpty()) {
+                    Text(
+                        "No route points recorded yet",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    MapLegendItem(color = SuccessGreen, label = "Start")
+                    MapLegendItem(color = route, label = "Latest point")
+                    Text(
+                        if (totalRecordedPoints > recordedPoints.size) {
+                            "Latest ${recordedPoints.size} of $totalRecordedPoints"
+                        } else {
+                            "${recordedPoints.size} recorded"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

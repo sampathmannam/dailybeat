@@ -22,6 +22,7 @@ data class BackupSignUpResult(
 interface BackupRemote {
     val isConfigured: Boolean
     fun currentSession(): BackupSession?
+    suspend fun authenticatedSession(): Result<BackupSession>
     suspend fun signUp(email: String, password: String): Result<BackupSignUpResult>
     suspend fun signIn(email: String, password: String): Result<BackupSession>
     suspend fun upload(snapshotJson: String): Result<Unit>
@@ -38,6 +39,13 @@ class SupabaseBackupClient(
     override val isConfigured: Boolean get() = configuration.isConfigured
 
     override fun currentSession(): BackupSession? = sessionStore.get()
+
+    override suspend fun authenticatedSession(): Result<BackupSession> = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureConfigured()
+            validSession()
+        }
+    }
 
     override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
         withContext(Dispatchers.IO) {

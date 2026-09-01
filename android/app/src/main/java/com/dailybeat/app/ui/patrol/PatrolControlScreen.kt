@@ -2,16 +2,19 @@ package com.dailybeat.app.ui.patrol
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -53,6 +56,9 @@ fun PatrolControlScreen(
     onAssignPatrol: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val needsAttention = state.activeMissions.filter {
+        it.status == PatrolMissionStatus.NEEDS_REVIEW || it.status == PatrolMissionStatus.PAUSED_WITH_REASON
+    }
     LazyColumn(
         modifier = modifier.testTag("patrol_control_list"),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -83,9 +89,10 @@ fun PatrolControlScreen(
                 item {
                     Button(
                         onClick = onAssignPatrol,
+                        enabled = !state.operationInProgress,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .heightIn(min = 52.dp)
                             .testTag("assign_patrol"),
                         shape = MaterialTheme.shapes.small,
                     ) {
@@ -95,7 +102,7 @@ fun PatrolControlScreen(
                     }
                 }
                 item {
-                    SectionHeading("Needs attention", "2 items")
+                    SectionHeading("Needs attention", "${needsAttention.size} items")
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.small,
@@ -103,21 +110,27 @@ fun PatrolControlScreen(
                         color = MaterialTheme.colorScheme.surface,
                     ) {
                         Column {
-                            AttentionRow(
-                                warning = true,
-                                title = "Night patrol · Sector 4",
-                                detail = if (state.trackingActive) "Priority location currently in progress" else "Priority point overdue",
-                                unit = "Unit 12",
-                                updated = state.primaryMission?.lastUpdateLabel ?: "8m ago",
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                            AttentionRow(
-                                warning = false,
-                                title = "Foot patrol · Market corridor",
-                                detail = "Operational deviation · Festival crowd",
-                                unit = "Unit 7",
-                                updated = "3m ago",
-                            )
+                            if (needsAttention.isEmpty()) {
+                                Text(
+                                    "No missions currently need supervisor context.",
+                                    modifier = Modifier.padding(16.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                needsAttention.forEachIndexed { index, mission ->
+                                    AttentionRow(
+                                        warning = mission.status == PatrolMissionStatus.NEEDS_REVIEW,
+                                        title = mission.title,
+                                        detail = mission.context,
+                                        unit = mission.unitName,
+                                        updated = mission.lastUpdateLabel,
+                                    )
+                                    if (index != needsAttention.lastIndex) {
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -136,6 +149,9 @@ fun PatrolControlScreen(
                                 visitedPriorityCount = mission.priorityLocations.count {
                                     it.state == com.dailybeat.app.data.model.PriorityLocationState.VISITED
                                 },
+                                recordedPoints = state.routePoints,
+                                totalRecordedPoints = state.recordedTrackPoints,
+                                demoMode = !state.serverBacked,
                             )
                             Text(
                                 text = if (state.recordedTrackPoints > 0) {
@@ -180,17 +196,20 @@ fun PatrolControlScreen(
                         )
                     }
                 }
-                item {
-                    UpcomingMissionRow(
-                        title = "Evening patrol · Transit hub",
-                        dutyWindow = "17:00–21:00",
-                        assignment = "Unit 9 · 3 personnel",
-                    )
+                if (state.upcomingMission == null) {
+                    item {
+                        Text(
+                            "No additional upcoming mission is scheduled.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 item {
                     Button(
                         onClick = onAssignPatrol,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        enabled = !state.operationInProgress,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = MaterialTheme.shapes.small,
                     ) {
                         Text("Assign patrol")
@@ -254,7 +273,6 @@ private fun AttentionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
             .padding(horizontal = 14.dp, vertical = 13.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -278,12 +296,6 @@ private fun AttentionRow(
             Text(unit, style = MaterialTheme.typography.labelMedium)
             Text(updated, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Icon(
-            Icons.AutoMirrored.Filled.ArrowForwardIos,
-            contentDescription = "Open mission",
-            modifier = Modifier.size(14.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -302,8 +314,8 @@ private fun ActiveMissionCard(mission: PatrolMission) {
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Row {
-            Box(Modifier.background(accent).size(width = 4.dp, height = 126.dp))
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            Box(Modifier.background(accent).fillMaxHeight().width(4.dp))
             Column(
                 modifier = Modifier.padding(14.dp).weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

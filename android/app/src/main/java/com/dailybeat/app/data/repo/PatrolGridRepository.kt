@@ -41,12 +41,12 @@ class PatrolGridRepository(
         )
     }
 
-    fun startPatrol() {
+    fun startPatrol(missionId: String = PRIMARY_MISSION_ID) {
         prefs.edit()
             .putBoolean(KEY_ENDED, false)
             .putBoolean(KEY_DEVIATION, false)
             .apply()
-        settings.setActivePatrolMission(PRIMARY_MISSION_ID)
+        settings.setActivePatrolMission(missionId)
         settings.setGpsEnabled(true)
     }
 
@@ -71,6 +71,7 @@ class PatrolGridRepository(
     fun endPatrol() {
         prefs.edit().putBoolean(KEY_ENDED, true).apply()
         settings.setActivePatrolMission(null)
+        settings.setActivePatrolSession(null)
         settings.setGpsEnabled(false)
     }
 

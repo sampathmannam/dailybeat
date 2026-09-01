@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -45,7 +46,9 @@ fun PatrolAssignmentSheet(
     unitOptions: List<PatrolUnitOption>,
     onDismiss: () -> Unit,
     onAssign: (PatrolAssignmentDraft) -> Unit,
+    assigning: Boolean = false,
 ) {
+    if (routePlans.isEmpty() || unitOptions.isEmpty()) return
     var selectedRouteId by rememberSaveable { mutableStateOf(routePlans.first().id) }
     var selectedUnitName by rememberSaveable { mutableStateOf(unitOptions.first().name) }
     var selectedGuidance by rememberSaveable { mutableStateOf(PatrolRouteGuidance.SUGGESTED_ROUTE) }
@@ -133,16 +136,18 @@ fun PatrolAssignmentSheet(
                             unitName = selectedUnit.name,
                             personnelCount = selectedUnit.personnelCount,
                             guidance = selectedGuidance,
+                            unitId = selectedUnit.id,
                         ),
                     )
                 },
+                enabled = !assigning,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .heightIn(min = 54.dp)
                     .testTag("confirm_assignment"),
                 shape = MaterialTheme.shapes.small,
             ) {
-                Text("Assign mission", fontWeight = FontWeight.SemiBold)
+                Text(if (assigning) "Assigning…" else "Assign mission", fontWeight = FontWeight.SemiBold)
             }
         }
     }

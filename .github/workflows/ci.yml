@@ -7,6 +7,48 @@ on:
     branches: [main]
 
 jobs:
+  patrolgrid-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install API and load-test dependencies
+        run: pip install -e . locust
+
+      - name: Start disposable Supabase stack
+        run: supabase start --exclude studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,supavisor
+
+      - name: Verify migrations and row-level security
+        run: |
+          supabase db reset --local --no-seed
+          supabase test db --local supabase/tests/patrolgrid_rls.sql
+
+      - name: Exercise Auth and PostgREST end to end
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" \
+          SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          python3 tools/patrolgrid/supabase_e2e.py
+
+      - name: Run synthetic PatrolGrid load test
+        run: |
+          locust -f tools/locust/patrolgrid_locust.py \
+            --headless --users 10 --spawn-rate 5 --run-time 15s --only-summary
+
+      - name: Stop disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40

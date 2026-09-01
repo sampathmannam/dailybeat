@@ -2,6 +2,7 @@ package com.dailybeat.app.data.settings
 
 import android.content.Context
 import com.dailybeat.app.data.model.PatrolRole
+import java.util.UUID
 
 class SettingsRepository(private val context: Context) {
 
@@ -22,6 +23,9 @@ class SettingsRepository(private val context: Context) {
         supervisorName = prefs.getString(KEY_SUPERVISOR, "") ?: "",
         patrolRole = PatrolRole.fromStorage(prefs.getString(KEY_PATROL_ROLE, null)),
         activePatrolMissionId = prefs.getString(KEY_ACTIVE_PATROL_MISSION, null),
+        activePatrolSessionId = prefs.getString(KEY_ACTIVE_PATROL_SESSION, null),
+        pendingPatrolCloseSessionId = prefs.getString(KEY_PENDING_PATROL_CLOSE_SESSION, null),
+        pendingPatrolCloseMissionId = prefs.getString(KEY_PENDING_PATROL_CLOSE_MISSION, null),
     )
 
     fun setOfficerName(name: String) {
@@ -41,6 +45,33 @@ class SettingsRepository(private val context: Context) {
             if (missionId == null) remove(KEY_ACTIVE_PATROL_MISSION)
             else putString(KEY_ACTIVE_PATROL_MISSION, missionId)
         }.apply()
+    }
+
+    fun setActivePatrolSession(sessionId: String?) {
+        prefs.edit().apply {
+            if (sessionId == null) remove(KEY_ACTIVE_PATROL_SESSION)
+            else putString(KEY_ACTIVE_PATROL_SESSION, sessionId)
+        }.apply()
+    }
+
+    fun setPendingPatrolClose(sessionId: String?, missionId: String?) {
+        prefs.edit().apply {
+            if (sessionId == null || missionId == null) {
+                remove(KEY_PENDING_PATROL_CLOSE_SESSION)
+                remove(KEY_PENDING_PATROL_CLOSE_MISSION)
+            } else {
+                putString(KEY_PENDING_PATROL_CLOSE_SESSION, sessionId)
+                putString(KEY_PENDING_PATROL_CLOSE_MISSION, missionId)
+            }
+        }.commit()
+    }
+
+    fun installationId(): String {
+        val existing = prefs.getString(KEY_INSTALLATION_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        return UUID.randomUUID().toString().also {
+            prefs.edit().putString(KEY_INSTALLATION_ID, it).commit()
+        }
     }
 
     fun setCallLogEnabled(enabled: Boolean) {
@@ -97,5 +128,9 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_SUPERVISOR = "supervisor_name"
         private const val KEY_PATROL_ROLE = "patrol_role"
         private const val KEY_ACTIVE_PATROL_MISSION = "active_patrol_mission"
+        private const val KEY_ACTIVE_PATROL_SESSION = "active_patrol_session"
+        private const val KEY_INSTALLATION_ID = "patrolgrid_installation_id"
+        private const val KEY_PENDING_PATROL_CLOSE_SESSION = "pending_patrol_close_session"
+        private const val KEY_PENDING_PATROL_CLOSE_MISSION = "pending_patrol_close_mission"
     }
 }

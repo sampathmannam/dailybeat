@@ -70,6 +70,7 @@ tmp/
 temp/
 .cache/
 supabase/.temp/
+supabase/.branches/
 
 # Aider chat history
 .aider.chat.history.md

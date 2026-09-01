@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import com.dailybeat.app.data.model.PatrolMission
 import com.dailybeat.app.data.model.PriorityLocation
 import com.dailybeat.app.data.model.PriorityLocationState
@@ -58,7 +64,24 @@ fun MyPatrolScreen(
     onEndPatrol: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val mission = state.primaryMission ?: return
+    val mission = state.primaryMission
+    if (mission == null) {
+        Box(
+            modifier = modifier.fillMaxSize().padding(24.dp).testTag("no_assigned_mission"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.LocalPolice, contentDescription = null, modifier = Modifier.size(40.dp))
+                Text("No patrol assigned", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Your next mission will appear here after your supervisor assigns it.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        return
+    }
     val visitedCount = mission.priorityLocations.count { it.state == PriorityLocationState.VISITED }
     LazyColumn(
         modifier = modifier.testTag("my_patrol_list"),
@@ -103,7 +126,9 @@ fun MyPatrolScreen(
                             PriorityLocationRow(
                                 number = index + 1,
                                 location = location,
-                                enabled = state.trackingActive && location.state == PriorityLocationState.CURRENT,
+                                enabled = state.trackingActive &&
+                                    !state.operationInProgress &&
+                                    location.state == PriorityLocationState.CURRENT,
                                 onClick = onMarkVisited,
                             )
                             if (index != mission.priorityLocations.lastIndex) {
@@ -131,7 +156,11 @@ fun MyPatrolScreen(
                 ) {
                     Text("Route context", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        if (state.recordedTrackPoints > 0) "${state.recordedTrackPoints} points" else "Waiting to start",
+                        when {
+                            state.recordedTrackPoints > 0 -> "${state.recordedTrackPoints} points"
+                            state.trackingActive -> "Tracking active"
+                            else -> "Waiting to start"
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -139,6 +168,9 @@ fun MyPatrolScreen(
                 PatrolRouteMap(
                     trackingActive = state.trackingActive,
                     visitedPriorityCount = visitedCount,
+                    recordedPoints = state.routePoints,
+                    totalRecordedPoints = state.recordedTrackPoints,
+                    demoMode = !state.serverBacked,
                 )
             }
         }
@@ -170,6 +202,7 @@ fun MyPatrolScreen(
         item {
             if (state.trackingActive) {
                 ActivePatrolActions(
+                    enabled = !state.operationInProgress,
                     onAddObservation = onAddObservation,
                     onRecordDeviation = onRecordDeviation,
                     onEndPatrol = onEndPatrol,
@@ -177,9 +210,10 @@ fun MyPatrolScreen(
             } else {
                 Button(
                     onClick = onStartPatrol,
+                    enabled = !state.operationInProgress,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .heightIn(min = 54.dp)
                         .testTag("start_patrol"),
                     shape = MaterialTheme.shapes.small,
                     colors = ButtonDefaults.buttonColors(
@@ -202,17 +236,19 @@ private fun MissionBriefingCard(
     trackingActive: Boolean,
     locationPermissionGranted: Boolean,
 ) {
+    val context = LocalContext.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.56f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -246,9 +282,28 @@ private fun MissionBriefingCard(
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Icon(Icons.Default.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Offline ready", style = MaterialTheme.typography.labelMedium)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Icon(Icons.Default.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (trackingActive) "Encrypted locally" else "Tracking off",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+            if (trackingActive && !locationPermissionGranted) {
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:${context.packageName}"),
+                            ),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text("Open app settings")
+                }
             }
         }
     }
@@ -302,6 +357,7 @@ private fun PriorityLocationRow(
 
 @Composable
 private fun ActivePatrolActions(
+    enabled: Boolean,
     onAddObservation: () -> Unit,
     onRecordDeviation: () -> Unit,
     onEndPatrol: () -> Unit,
@@ -313,7 +369,8 @@ private fun ActivePatrolActions(
         ) {
             OutlinedButton(
                 onClick = onAddObservation,
-                modifier = Modifier.weight(1f).height(56.dp),
+                enabled = enabled,
+                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                 shape = MaterialTheme.shapes.small,
             ) {
                 Icon(Icons.Default.AddComment, contentDescription = null, modifier = Modifier.size(19.dp))
@@ -322,7 +379,8 @@ private fun ActivePatrolActions(
             }
             OutlinedButton(
                 onClick = onRecordDeviation,
-                modifier = Modifier.weight(1f).height(56.dp),
+                enabled = enabled,
+                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                 shape = MaterialTheme.shapes.small,
             ) {
                 Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(19.dp))
@@ -332,7 +390,8 @@ private fun ActivePatrolActions(
         }
         Button(
             onClick = onEndPatrol,
-            modifier = Modifier.fillMaxWidth().height(54.dp).testTag("end_patrol"),
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).testTag("end_patrol"),
             shape = MaterialTheme.shapes.small,
             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF0F172A)),
         ) {

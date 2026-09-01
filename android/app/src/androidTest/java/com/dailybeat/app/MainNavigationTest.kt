@@ -61,7 +61,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("my_patrol_list").assertIsDisplayed()
 
         composeRule.onNodeWithTag("nav_missions").performClick()
-        composeRule.onNodeWithTag("placeholder_missions").assertIsDisplayed()
+        composeRule.onNodeWithTag("missions_list").assertIsDisplayed()
 
         composeRule.onNodeWithTag("nav_messages").performClick()
         composeRule.onNodeWithTag("placeholder_messages").assertIsDisplayed()

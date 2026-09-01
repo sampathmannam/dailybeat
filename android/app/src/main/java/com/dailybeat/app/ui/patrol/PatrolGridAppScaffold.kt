@@ -33,6 +33,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +66,8 @@ private data class PatrolNavItem(
 @Composable
 fun PatrolGridAppScaffold(
     viewModel: PatrolGridViewModel = viewModel(),
+    onSignedOut: () -> Unit = {},
+    onRequestLocationPermission: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     DailyBeatTheme(darkTheme = state.role == PatrolRole.PATROL) {
@@ -72,7 +76,10 @@ fun PatrolGridAppScaffold(
             onSelectSection = viewModel::selectSection,
             onSelectSupervisorTab = viewModel::selectSupervisorTab,
             onRoleSelected = viewModel::setRole,
-            onStartPatrol = viewModel::startPatrol,
+            onStartPatrol = {
+                if (!state.locationPermissionGranted) onRequestLocationPermission()
+                viewModel.startPatrol()
+            },
             onMarkVisited = viewModel::markCurrentPriorityVisited,
             onAddObservation = viewModel::addObservation,
             onRecordDeviation = viewModel::recordDeviation,
@@ -80,6 +87,8 @@ fun PatrolGridAppScaffold(
             onAssignPatrol = viewModel::assignPatrol,
             onDismissAssignment = viewModel::dismissAssignment,
             onSaveAssignment = viewModel::saveAssignment,
+            onSignOut = { viewModel.signOut(onSignedOut) },
+            onRetry = viewModel::retryRefresh,
         )
     }
 }
@@ -99,6 +108,8 @@ private fun PatrolGridScaffoldContent(
     onAssignPatrol: () -> Unit,
     onDismissAssignment: () -> Unit,
     onSaveAssignment: (PatrolAssignmentDraft) -> Unit,
+    onSignOut: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(state.messageId) {
@@ -117,8 +128,9 @@ private fun PatrolGridScaffoldContent(
                 "nav_missions",
             ),
             PatrolNavItem(PatrolSection.UNITS, "Units", Icons.Filled.Groups, Icons.Outlined.Groups, "nav_units"),
-            PatrolNavItem(PatrolSection.ALERTS, "Alerts", Icons.Filled.Notifications, Icons.Outlined.Notifications, "nav_alerts"),
             PatrolNavItem(PatrolSection.MORE, "More", Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz, "nav_more"),
+        ) + if (state.serverBacked) emptyList() else listOf(
+            PatrolNavItem(PatrolSection.ALERTS, "Alerts", Icons.Filled.Notifications, Icons.Outlined.Notifications, "nav_alerts"),
         )
     } else {
         listOf(
@@ -130,6 +142,8 @@ private fun PatrolGridScaffoldContent(
                 Icons.AutoMirrored.Outlined.Assignment,
                 "nav_missions",
             ),
+            PatrolNavItem(PatrolSection.MORE, "More", Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz, "nav_more"),
+        ) + if (state.serverBacked) emptyList() else listOf(
             PatrolNavItem(
                 PatrolSection.MESSAGES,
                 "Messages",
@@ -137,14 +151,13 @@ private fun PatrolGridScaffoldContent(
                 Icons.AutoMirrored.Outlined.Chat,
                 "nav_messages",
             ),
-            PatrolNavItem(PatrolSection.MORE, "More", Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz, "nav_more"),
         )
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { PatrolGridTopBar() },
+        topBar = { PatrolGridTopBar(state, onRetry) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar(
@@ -196,6 +209,17 @@ private fun PatrolGridScaffoldContent(
             PatrolSection.MORE -> PatrolRoleScreen(
                 role = state.role,
                 onRoleSelected = onRoleSelected,
+                serverBacked = state.serverBacked,
+                subdivisionName = state.subdivisionName,
+                onSignOut = onSignOut,
+                modifier = Modifier.padding(innerPadding),
+            )
+            PatrolSection.MISSIONS -> PatrolMissionsScreen(
+                state = state,
+                modifier = Modifier.padding(innerPadding),
+            )
+            PatrolSection.UNITS -> PatrolUnitsScreen(
+                state = state,
                 modifier = Modifier.padding(innerPadding),
             )
             else -> PatrolPlaceholderScreen(
@@ -211,32 +235,60 @@ private fun PatrolGridScaffoldContent(
             unitOptions = state.unitOptions,
             onDismiss = onDismissAssignment,
             onAssign = onSaveAssignment,
+            assigning = state.operationInProgress,
         )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PatrolGridTopBar() {
-    CenterAlignedTopAppBar(
-        title = {
-            Text(
-                buildAnnotatedString {
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) { append("Patrol") }
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)) {
-                        append("Grid")
+private fun PatrolGridTopBar(state: PatrolGridUiState, onRetry: () -> Unit) {
+    Column {
+        CenterAlignedTopAppBar(
+            title = {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) { append("Patrol") }
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)) {
+                            append("Grid")
+                        }
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            },
+        )
+        if (state.loading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        state.refreshError?.let { error ->
+            Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        error,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    TextButton(onClick = onRetry, modifier = Modifier.testTag("retry_refresh")) {
+                        Text("Retry")
                     }
-                },
-                style = MaterialTheme.typography.titleLarge,
-            )
-        },
-    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun PatrolRoleScreen(
     role: PatrolRole,
     onRoleSelected: (PatrolRole) -> Unit,
+    serverBacked: Boolean,
+    subdivisionName: String?,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -244,7 +296,7 @@ private fun PatrolRoleScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Text("More", style = MaterialTheme.typography.headlineLarge)
-        if (BuildConfig.DEBUG) {
+        if (BuildConfig.DEBUG && !serverBacked) {
             Text(
                 "Role preview",
                 style = MaterialTheme.typography.titleLarge,
@@ -284,6 +336,89 @@ private fun PatrolRoleScreen(
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+        if (serverBacked) {
+            Text(
+                subdivisionName ?: "Assigned subdivision",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            TextButton(onClick = onSignOut, modifier = Modifier.testTag("sign_out")) {
+                Text("Sign out")
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatrolMissionsScreen(state: PatrolGridUiState, modifier: Modifier = Modifier) {
+    val missions = buildList {
+        state.primaryMission?.let(::add)
+        addAll(state.activeMissions)
+        state.upcomingMission?.let(::add)
+    }.distinctBy { it.id }
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = modifier.fillMaxSize().testTag("missions_list"),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { Text("Missions", style = MaterialTheme.typography.headlineLarge) }
+        if (missions.isEmpty()) {
+            item {
+                Text(
+                    "No missions are available for this account.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(missions.size, key = { missions[it].id }) { index ->
+                val mission = missions[index]
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(mission.title, style = MaterialTheme.typography.titleLarge)
+                        Text("${mission.dutyWindow} · ${mission.statusLabel}", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            mission.context,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatrolUnitsScreen(state: PatrolGridUiState, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(20.dp).testTag("units_list"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Patrol units", style = MaterialTheme.typography.headlineLarge)
+        if (state.unitOptions.isEmpty()) {
+            Text(
+                "No staffed units are available.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            state.unitOptions.forEach { unit ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(unit.name, style = MaterialTheme.typography.titleMedium)
+                        Text("${unit.personnelCount} active personnel", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
         }
     }
 }

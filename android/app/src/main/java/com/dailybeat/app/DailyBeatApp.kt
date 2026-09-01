@@ -17,6 +17,7 @@ import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
 import com.dailybeat.app.data.db.MIGRATION_4_5
 import com.dailybeat.app.data.db.migration5To6
+import com.dailybeat.app.data.db.MIGRATION_6_7
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
@@ -29,14 +30,28 @@ import com.dailybeat.app.export.PdfExporter
 import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.security.PatrolTrackCipher
+import com.dailybeat.app.patrolgrid.SupabasePatrolGridClient
+import com.dailybeat.app.patrolgrid.PatrolTrackSyncer
+import com.dailybeat.app.patrolgrid.PatrolTrackSyncWorker
+import com.dailybeat.app.patrolgrid.PatrolActionOutbox
+import com.dailybeat.app.patrolgrid.PatrolGridSnapshotCache
 
 class DailyBeatApp : Application() {
+
+    val isPatrolGridConfigured: Boolean
+        get() = BackupConfiguration(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY).isConfigured
 
     val patrolTrackCipher: PatrolTrackCipher by lazy { PatrolTrackCipher(this) }
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, migration5To6(patrolTrackCipher))
+            .addMigrations(
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                migration5To6(patrolTrackCipher),
+                MIGRATION_6_7,
+            )
             .build()
     }
 
@@ -66,6 +81,26 @@ class DailyBeatApp : Application() {
             sessionStore = backupSessionStore,
         )
     }
+
+    val patrolGridRemote by lazy {
+        SupabasePatrolGridClient(
+            configuration = BackupConfiguration(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY),
+            sessionRemote = backupClient,
+        )
+    }
+
+    val patrolTrackSyncer by lazy {
+        PatrolTrackSyncer(
+            dao = db.patrolTracks(),
+            cipher = patrolTrackCipher,
+            remote = patrolGridRemote,
+            settings = settingsRepository,
+        )
+    }
+
+    val patrolActionOutbox by lazy { PatrolActionOutbox(this, patrolGridRemote) }
+
+    val patrolGridSnapshotCache by lazy { PatrolGridSnapshotCache(this) }
 
     val backupCoordinator by lazy { BackupCoordinator(localBackupStore, backupClient) }
 
@@ -113,6 +148,12 @@ class DailyBeatApp : Application() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        if (isPatrolGridConfigured) {
+            PatrolTrackSyncWorker.scheduleSafetyNet(this)
+            if (settingsRepository.get().pendingPatrolCloseSessionId != null) {
+                PatrolTrackSyncWorker.enqueue(this)
+            }
+        }
     }
 
     private fun createNotificationChannels() {

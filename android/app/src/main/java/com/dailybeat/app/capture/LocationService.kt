@@ -23,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.UUID
+import com.dailybeat.app.patrolgrid.PatrolTrackSyncWorker
 
 class LocationService : Service() {
 
@@ -33,6 +35,7 @@ class LocationService : Service() {
             val location = result.lastLocation ?: return
             val app = application as DailyBeatApp
             val missionId = app.settingsRepository.get().activePatrolMissionId ?: return
+            val sessionId = app.settingsRepository.get().activePatrolSessionId
             val timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis()
             scope.launch {
                 val encryptedPayload = try {
@@ -55,8 +58,13 @@ class LocationService : Service() {
                         missionId = missionId,
                         timestampMs = timestampMs,
                         encryptedPayload = encryptedPayload,
+                        sessionId = sessionId,
+                        clientPointId = sessionId?.let { UUID.randomUUID().toString() },
                     ),
                 )
+                if (sessionId != null && app.isPatrolGridConfigured) {
+                    PatrolTrackSyncWorker.enqueue(app)
+                }
             }
         }
     }

@@ -15,6 +15,9 @@ data class AppSettings(
     val supervisorName: String = "",
     val patrolRole: PatrolRole = PatrolRole.PATROL,
     val activePatrolMissionId: String? = null,
+    val activePatrolSessionId: String? = null,
+    val pendingPatrolCloseSessionId: String? = null,
+    val pendingPatrolCloseMissionId: String? = null,
 )
 
 enum class CloudProvider(val id: String, val displayName: String, val defaultModel: String) {

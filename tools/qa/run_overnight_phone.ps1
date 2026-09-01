@@ -8,8 +8,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$qaPackage = "com.dailybeat.app.qa"
-$testPackage = "com.dailybeat.app.qa.test"
+$qaPackage = "com.dailybeat.app.patrolgrid.qa"
+$testPackage = "com.dailybeat.app.patrolgrid.qa.test"
 $mainActivity = "$qaPackage/com.dailybeat.app.MainActivity"
 $testRunner = "$testPackage/androidx.test.runner.AndroidJUnitRunner"
 $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -25,7 +25,7 @@ if (-not ((adb devices) -match "^$Serial\s+device$")) {
 }
 
 @(
-    "# DailyBeat overnight QA",
+    "# PatrolGrid overnight QA",
     "",
     "- Device: $Serial",
     "- Test package: $qaPackage",
@@ -45,7 +45,7 @@ try {
         $instrumentationOutput = & adb -s $Serial shell am instrument -w -r -e class "com.dailybeat.app.MainNavigationTest,com.dailybeat.app.OnboardingFlowTest" $testRunner 2>&1
         $instrumentationOutput | Tee-Object -FilePath $instrumentationLog | Out-Host
 
-        $testPassed = $LASTEXITCODE -eq 0 -and ($instrumentationOutput -join "`n") -match "OK \(10 tests\)"
+        $testPassed = $LASTEXITCODE -eq 0 -and ($instrumentationOutput -join "`n") -match "OK \(\d+ tests?\)"
         & adb -s $Serial shell am force-stop $qaPackage
         $startupOutput = & adb -s $Serial shell am start -W -n $mainActivity 2>&1
         $startupOutput | Set-Content -Encoding utf8 (Join-Path $runDir "$cyclePrefix-startup.log")

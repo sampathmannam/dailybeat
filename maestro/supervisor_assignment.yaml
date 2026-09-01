@@ -1,4 +1,4 @@
-# PatrolGrid patrol-personnel E2E flow.
+# PatrolGrid supervisor assignment E2E flow.
 
 appId: com.dailybeat.app.patrolgrid.qa
 ---
@@ -8,6 +8,7 @@ appId: com.dailybeat.app.patrolgrid.qa
 - tapOn: "Officer name"
 - inputText: "Inspector Audit"
 - hideKeyboard
+- tapOn: "Supervisor"
 - tapOn: "Continue"
 - tapOn: "Get started"
 - tapOn:
@@ -16,20 +17,23 @@ appId: com.dailybeat.app.patrolgrid.qa
 - tapOn:
     text: "Allow"
     optional: true
-- assertVisible: "My Patrol"
+- assertVisible: "Patrol Control"
+- tapOn: "Assign patrol"
+- assertVisible: "Route and duty window"
 - swipe:
     direction: UP
     duration: 600
 - swipe:
     direction: UP
     duration: 600
-- tapOn: "Start patrol"
-- assertVisible: "Observation"
-- tapOn: "Observation"
+- tapOn: "Unit 9"
 - swipe:
     direction: UP
-    duration: 500
-- tapOn: "End patrol"
-- assertVisible: "Start patrol"
-- tapOn: "Missions"
-- assertVisible: "Missions"
+    duration: 600
+- swipe:
+    direction: UP
+    duration: 600
+- tapOn: "Flexible area coverage"
+- tapOn: "Assign mission"
+- assertVisible: "Upcoming"
+- assertVisible: "Day patrol · School corridor"

@@ -1,0 +1,2 @@
+-- Production memberships are provisioned through a trusted administrative path.
+-- Automated tests create isolated users and subdivisions inside transactions.

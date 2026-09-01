@@ -18,7 +18,7 @@ import com.dailybeat.app.data.model.PatrolTrackPoint
         GeocodeCache::class,
         PatrolTrackPoint::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {
