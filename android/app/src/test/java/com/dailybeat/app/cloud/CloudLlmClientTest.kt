@@ -82,6 +82,56 @@ class CloudLlmClientTest {
     }
 
     @Test
+    fun compatibleProviderUsesOpenAiCompatRouteWithHttpsEndpoint() = runBlocking {
+        server.enqueue(jsonResponse("""{"choices":[{"message":{"content":"ok"}}]}"""))
+
+        client.generate(
+            settings(
+                provider = CloudProvider.COMPATIBLE,
+                cloudBaseUrl = server.url("/compatible").toString(),
+            ),
+            "system",
+            "user",
+            32,
+        ).getOrThrow()
+        val request = server.takeRequest()
+
+        assertTrue(request.path?.contains("/chat/completions") == true)
+        assertEquals("Bearer fake-key", request.getHeader("Authorization"))
+        assertTrue(request.getHeader("Content-Type")?.contains("application/json") == true)
+    }
+
+    @Test
+    fun compatibleProviderRejectsInsecureEndpoint() = runBlocking {
+        val error = client.generate(
+            settings(
+                provider = CloudProvider.COMPATIBLE,
+                cloudBaseUrl = "http://insecure.example.com",
+            ),
+            "system",
+            "user",
+            32,
+        ).exceptionOrNull() as IllegalStateException
+
+        assertEquals("OpenAI-compatible base URL must be HTTPS in production.", error.message)
+    }
+
+    @Test
+    fun compatibleProviderRejectsLocalhostUserInfoSpoof() = runBlocking {
+        val error = client.generate(
+            settings(
+                provider = CloudProvider.COMPATIBLE,
+                cloudBaseUrl = "http://localhost:8080@evil.example",
+            ),
+            "system",
+            "user",
+            32,
+        ).exceptionOrNull() as IllegalStateException
+
+        assertEquals("OpenAI-compatible base URL must be HTTPS in production.", error.message)
+    }
+
+    @Test
     fun deepSeek401IsNamedAndNonRetryableWithoutLeakingBody() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(401).setBody("secret-token rejected"))
 
@@ -166,10 +216,14 @@ class CloudLlmClientTest {
         endpoints = endpoints,
     )
 
-    private fun settings(provider: CloudProvider = CloudProvider.DEEPSEEK) = AppSettings(
+    private fun settings(
+        provider: CloudProvider = CloudProvider.DEEPSEEK,
+        cloudBaseUrl: String = "",
+    ) = AppSettings(
         cloudLlmEnabled = true,
         cloudProvider = provider.id,
         cloudModel = provider.defaultModel,
+        cloudBaseUrl = cloudBaseUrl,
     )
 
     private fun jsonResponse(body: String) = MockResponse()

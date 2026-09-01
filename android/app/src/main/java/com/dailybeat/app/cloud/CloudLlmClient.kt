@@ -8,6 +8,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -73,6 +74,17 @@ class CloudLlmClient(
                         if (base.isBlank()) {
                             return@withContext Result.failure(
                                 IllegalStateException("Set base URL for OpenAI-compatible provider (e.g. https://api.groq.com/openai/v1)"),
+                            )
+                        }
+                        val parsedBase = base.toHttpUrlOrNull()
+                        val isHttps = parsedBase?.scheme == "https"
+                        val isLoopbackHttp = parsedBase?.scheme == "http" &&
+                            parsedBase.host in setOf("localhost", "127.0.0.1", "::1")
+                        if (parsedBase == null || (!isHttps && !isLoopbackHttp)) {
+                            return@withContext Result.failure(
+                                IllegalStateException(
+                                    "OpenAI-compatible base URL must be HTTPS in production.",
+                                ),
                             )
                         }
                         openAi(

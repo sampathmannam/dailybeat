@@ -30,6 +30,7 @@ import com.dailybeat.app.ui.components.JourneyMapView
 fun JourneyMapScreen(
     visits: List<LocationVisit>,
     onBack: () -> Unit,
+    isActive: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -44,7 +45,10 @@ fun JourneyMapScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.testTag("journey_map_back"),
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.journey_map_back_content_description),
@@ -67,6 +71,7 @@ fun JourneyMapScreen(
             ) {
                 JourneyMapView(
                     visits = visits,
+                    isActive = isActive,
                     onFailure = { message ->
                         OperationalFailureLog.record(
                             context = context,

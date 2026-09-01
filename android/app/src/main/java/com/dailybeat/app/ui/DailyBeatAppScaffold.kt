@@ -5,6 +5,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
@@ -25,11 +28,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -66,6 +74,7 @@ fun DailyBeatAppScaffold() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Routes.TODAY
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+    var mapWasOpened by rememberSaveable { mutableStateOf(false) }
 
     val todayViewModel: TodayViewModel = viewModel()
     val todayVisits by todayViewModel.todayVisits.collectAsStateWithLifecycle()
@@ -190,56 +199,81 @@ fun DailyBeatAppScaffold() {
             }
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Routes.TODAY,
-            modifier = Modifier.padding(innerPadding),
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
-            composable(Routes.TODAY) {
-                TodayScreen(
-                    headerSubtitle = todayLabel,
-                    viewModel = todayViewModel,
-                    onRecordVoice = ::startVoiceCapture,
-                    onOpenDiary = {
-                        navController.navigate(Routes.diary()) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenMap = {
-                        navController.navigate(Routes.MAP) {
-                            launchSingleTop = true
-                        }
-                    },
-                )
-            }
-            composable(Routes.MAP) {
-                JourneyMapScreen(
-                    visits = todayVisits,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable(
-                route = Routes.DIARY,
-                arguments = listOf(
-                    navArgument("dateKey") {
-                        type = NavType.StringType
-                        defaultValue = "today"
-                    },
-                ),
+            NavHost(
+                navController = navController,
+                startDestination = Routes.TODAY,
+                modifier = Modifier.fillMaxSize(),
             ) {
-                DiaryScreen()
+                composable(Routes.TODAY) {
+                    TodayScreen(
+                        headerSubtitle = todayLabel,
+                        viewModel = todayViewModel,
+                        onRecordVoice = ::startVoiceCapture,
+                        onOpenDiary = {
+                            navController.navigate(Routes.diary()) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenMap = {
+                            mapWasOpened = true
+                            navController.navigate(Routes.MAP) {
+                                launchSingleTop = true
+                            }
+                        },
+                    )
+                }
+                composable(Routes.MAP) {
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+                composable(
+                    route = Routes.DIARY,
+                    arguments = listOf(
+                        navArgument("dateKey") {
+                            type = NavType.StringType
+                            defaultValue = "today"
+                        },
+                    ),
+                ) {
+                    DiaryScreen()
+                }
+                composable(Routes.HISTORY) {
+                    HistoryScreen(
+                        onOpenDiary = { dateKey ->
+                            navController.navigate(Routes.diary(dateKey)) {
+                                launchSingleTop = true
+                            }
+                        },
+                    )
+                }
+                composable(Routes.SETTINGS) {
+                    SettingsScreen()
+                }
             }
-            composable(Routes.HISTORY) {
-                HistoryScreen(
-                    onOpenDiary = { dateKey ->
-                        navController.navigate(Routes.diary(dateKey)) {
-                            launchSingleTop = true
-                        }
+            if (mapWasOpened) {
+                Box(
+                    modifier = if (currentRoute == Routes.MAP) {
+                        Modifier
+                            .fillMaxSize()
+                            .zIndex(1f)
+                    } else {
+                        Modifier
+                            .fillMaxSize()
+                            .offset(x = 10_000.dp)
+                            .clearAndSetSemantics { }
+                            .zIndex(-1f)
                     },
-                )
-            }
-            composable(Routes.SETTINGS) {
-                SettingsScreen()
+                ) {
+                    JourneyMapScreen(
+                        visits = todayVisits,
+                        onBack = { navController.popBackStack() },
+                        isActive = currentRoute == Routes.MAP,
+                    )
+                }
             }
         }
     }

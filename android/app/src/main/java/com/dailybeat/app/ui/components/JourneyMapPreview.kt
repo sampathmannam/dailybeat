@@ -78,6 +78,7 @@ private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 @Composable
 fun JourneyMapView(
     visits: List<LocationVisit>,
+    isActive: Boolean,
     modifier: Modifier = Modifier,
     onFailure: (String) -> Unit = {},
 ) {
@@ -101,6 +102,7 @@ fun JourneyMapView(
         }
     }
     val mapView = rememberMapViewWithLifecycle(
+        isActive = isActive,
         onMapReady = { readyMap ->
             map = readyMap
             loadStyle(readyMap)
@@ -252,6 +254,7 @@ fun JourneyMapView(
 
 @Composable
 private fun rememberMapViewWithLifecycle(
+    isActive: Boolean,
     onMapReady: (MapLibreMap) -> Unit,
     onMapError: () -> Unit,
 ): MapView {
@@ -267,7 +270,7 @@ private fun rememberMapViewWithLifecycle(
         }
     }
 
-    DisposableEffect(lifecycle, mapView) {
+    DisposableEffect(lifecycle, mapView, isActive) {
         var destroyed = false
         var started = false
         var resumed = false
@@ -300,14 +303,15 @@ private fun rememberMapViewWithLifecycle(
         fun destroy() {
             if (!destroyed) {
                 stop()
+                mapView.onLowMemory()
                 mapView.onDestroy()
                 destroyed = true
             }
         }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> start()
-                Lifecycle.Event.ON_RESUME -> resume()
+                Lifecycle.Event.ON_START -> if (isActive) start()
+                Lifecycle.Event.ON_RESUME -> if (isActive) resume()
                 Lifecycle.Event.ON_PAUSE -> pause()
                 Lifecycle.Event.ON_STOP -> stop()
                 Lifecycle.Event.ON_DESTROY -> destroy()
@@ -315,11 +319,17 @@ private fun rememberMapViewWithLifecycle(
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
+        if (isActive && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
+        if (isActive && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
         onDispose {
             lifecycle.removeObserver(observer)
-            destroy()
+            stop()
+        }
+    }
+    DisposableEffect(mapView) {
+        onDispose {
+            mapView.onLowMemory()
+            mapView.onDestroy()
         }
     }
     return mapView

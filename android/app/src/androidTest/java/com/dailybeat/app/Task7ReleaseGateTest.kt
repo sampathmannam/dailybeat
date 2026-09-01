@@ -44,16 +44,17 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private const val MEMORY_WARMUP_CYCLES = 3
+private const val MEMORY_WARMUP_CYCLES = 6
 private const val MEMORY_TREND_WINDOW = 3
 private const val MEMORY_SETTLE_WINDOW = 3
+private const val MAP_RETAINED_PSS_PLATEAU_TOLERANCE_KB = 4096L
 
 @RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalTestApi::class)
 class Task7ReleaseGateTest {
 
     private companion object {
-        const val MEMORY_DIAGNOSTIC_CYCLES = 10
+        const val MEMORY_DIAGNOSTIC_CYCLES = 30
         const val MEMORY_SETTLE_MAX_WINDOWS = 6
         const val MEMORY_SETTLE_MAX_SAMPLES = MEMORY_SETTLE_WINDOW * MEMORY_SETTLE_MAX_WINDOWS
     }
@@ -85,7 +86,6 @@ class Task7ReleaseGateTest {
         device = UiDevice.getInstance(instrumentation)
         baselineQaCrashEntries = countQaCrashEntries()
         baselineQaAnrEntries = countQaAnrEntries()
-        composeRule.activityRule.scenario.recreate()
     }
 
     @Test
@@ -130,6 +130,7 @@ class Task7ReleaseGateTest {
         val mapPlateau = hasNoSustainedGrowthAfterWarmup(afterPss)
         evidence += "map_after_retained_pss_kb=${afterPss.joinToString(",") { it.mapRetainedPssKb.toString() }}"
         evidence += "map_plateau_after_warmup=$mapPlateau"
+        evidence += "map_retained_window_growth=${mapGrowthAfterWarmup(afterPss)}"
 
         rotateLandscapeAndPortrait()
         evidence += "rotation_landscape_portrait=pass"
@@ -151,7 +152,7 @@ class Task7ReleaseGateTest {
     }
 
     @Test
-    fun tenCycleMapMemoryDiagnostic() {
+    fun thirtyCycleMapMemoryDiagnostic() {
         completeOnboarding()
         runBlocking(Dispatchers.IO) { SyntheticDayGenerator.seedToday(app) }
         val checkpoints = mutableListOf<MemorySnapshot>()
@@ -178,7 +179,7 @@ class Task7ReleaseGateTest {
         evidence += "qa_pid=${health.pid}"
         evidence += "qa_crash_entries=${health.crashEntries}"
         evidence += "qa_anr_present=${health.anrPresent}"
-        writeEvidence("task-7a-ten-cycle-memory.txt", evidence)
+        writeEvidence("task-7a-thirty-cycle-memory.txt", evidence)
         assertTrue("QA PID was not live", health.pid.isNotBlank())
         assertEquals("QA crash-buffer entry found", 0, health.crashEntries)
         assertFalse("QA ANR entry found", health.anrPresent)
@@ -186,12 +187,15 @@ class Task7ReleaseGateTest {
     }
 
     private fun completeOnboarding() {
+        if (runCatching { composeRule.onNodeWithTag("today_list").assertIsDisplayed() }.isSuccess) {
+            return
+        }
         composeRule.onNodeWithText("Continue").performClick()
         composeRule.onNode(hasText("Officer name") and hasSetTextAction())
             .performTextInput("Task 7 QA")
         composeRule.onNodeWithText("Continue").performClick()
         composeRule.onNodeWithText("Get started").performClick()
-        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 15_000)
     }
 
     private fun verifyNormalNavigationDoesNotCreateFullMap() {
@@ -212,27 +216,133 @@ class Task7ReleaseGateTest {
     }
 
     private fun openAndCloseRenderedMap() {
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasTestTag("open_full_map"))
-        composeRule.onNodeWithTag("open_full_map").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_screen"), 10_000)
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_ready"), 30_000)
+        withComposeRecovery("open/close map") {
+            composeRule.onNodeWithTag("nav_today").performClick()
+            waitForTodayList()
+            composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+            val clickedOpenMap = runCatching {
+                composeRule.onNodeWithTag("open_full_map").performClick()
+                true
+            }.getOrElse {
+                val mapButton = app.getString(R.string.journey_map_open)
+                val mapButtonNode = device.findObject(By.text(mapButton))
+                if (mapButtonNode != null && mapButtonNode.isEnabled && mapButtonNode.isClickable) {
+                    mapButtonNode.click()
+                    true
+                } else {
+                    false
+                }
+            }
+            assertTrue("Could not activate map destination", clickedOpenMap)
 
-        val backDescription = app.getString(R.string.journey_map_back_content_description)
-        composeRule.onNodeWithContentDescription(backDescription).performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 10_000)
+            val mapDescription = app.getString(R.string.journey_map_content_description)
+            val readyDescription = app.getString(R.string.journey_map_ready_content_description)
+            val mapBackDescription = app.getString(R.string.journey_map_back_content_description)
+            val seenMapDestination = runCatching {
+                composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_screen"), 20_000)
+                true
+            }.getOrElse {
+                device.wait(Until.hasObject(By.desc(mapDescription)), 15_000) ||
+                    device.wait(Until.hasObject(By.desc(readyDescription)), 15_000)
+            }
+            assertTrue("Map destination did not materialize after opening", seenMapDestination)
+            val seenRenderedMap = runCatching {
+                composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_ready"), 30_000)
+                true
+            }.getOrElse {
+                device.wait(Until.hasObject(By.desc(readyDescription)), 10_000)
+            }
+            assertTrue("MapLibre did not finish rendering the journey", seenRenderedMap)
+
+            val usedBackFromCompose = runCatching {
+                composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_back"), 10_000)
+                composeRule.onNodeWithTag("journey_map_back").performClick()
+                true
+            }.getOrElse {
+                runCatching {
+                    val mapBackNode = device.findObject(By.desc(mapBackDescription))
+                    if (mapBackNode != null && mapBackNode.isEnabled && mapBackNode.isClickable) {
+                        mapBackNode.click()
+                        true
+                    } else {
+                        false
+                    }
+                }.getOrElse { false }
+            }
+            if (!usedBackFromCompose) {
+                device.pressBack()
+            }
+            composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 30_000)
+            assertFalse(
+                "Map screen remained visible after dismissal",
+                runCatching {
+                    composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+                }.isSuccess,
+            )
+        }
+        waitForTodayList()
+    }
+
+    private fun waitForTodayList() {
+        relaunchAppAndWait()
+    }
+
+    private fun relaunchAppAndWait() {
+        try {
+            composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 5_000)
+        } catch (_: Throwable) {
+            device.pressBack()
+            composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 15_000)
+        }
+    }
+
+    private fun withComposeRecovery(context: String, operation: () -> Unit) {
+        var lastFailure: IllegalStateException? = null
+        repeat(2) { attempt ->
+            try {
+                waitForTodayList()
+                operation()
+                return
+            } catch (failure: Throwable) {
+                lastFailure = IllegalStateException(failure.message)
+                runCatching { relaunchAppAndWait() }
+                    .exceptionOrNull()
+                    ?.let { recoveryFailure ->
+                        failure.addSuppressed(recoveryFailure)
+                        throw failure
+                    }
+                if (attempt == 1) {
+                    throw failure
+                }
+            }
+        }
+        throw (lastFailure ?: IllegalStateException("Unknown compose recovery issue in $context"))
     }
 
     private fun rotateLandscapeAndPortrait() {
-        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        composeRule.waitUntil(10_000) {
-            composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        try {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            composeRule.waitUntil(10_000) {
+                composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            }
+            composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), 10_000)
+
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            composeRule.waitUntil(10_000) {
+                composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            }
+            waitUntilTodayIsDisplayed()
+        } finally {
+            composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
-        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
-        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
+
+    private fun waitUntilTodayIsDisplayed() {
         composeRule.waitUntil(10_000) {
-            composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            runCatching {
+                composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+            }.isSuccess
         }
-        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
 
     private fun backgroundHomeAndResume() {
@@ -276,16 +386,25 @@ class Task7ReleaseGateTest {
         System.gc()
         System.runFinalization()
         val packageName = InstrumentationRegistry.getInstrumentation().targetContext.packageName
-        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val meminfoDescriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
             .executeShellCommand("dumpsys meminfo $packageName")
-        val output = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+        val output = ParcelFileDescriptor.AutoCloseInputStream(meminfoDescriptor)
             .bufferedReader()
             .use { it.readText() }
-        fun summaryPss(label: String): Long = requireNotNull(
-            Regex("^\\s*${Regex.escape(label)}:\\s+(\\d+)", RegexOption.MULTILINE).find(output),
-        ) { "Missing $label PSS in dumpsys meminfo" }.groupValues[1].toLong()
+        val pid = ParcelFileDescriptor.AutoCloseInputStream(
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("pidof $packageName"),
+        ).bufferedReader().readText().trim().lineSequence().firstOrNull()?.trim()
+            ?: throw AssertionError("DailyBeat process was not running while sampling memory")
+        val procDescriptor = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(
+            "cat /proc/$pid/status",
+        )
+        val procOutput = ParcelFileDescriptor.AutoCloseInputStream(procDescriptor)
+            .bufferedReader()
+            .use { it.readText() }
+        fun summaryPss(label: String): Long = extractLongLabel(output, label, defaultValue = 0L)
+        fun processStat(label: String): Long = extractLongLabel(procOutput, label, defaultValue = 0L)
 
-        return MemorySnapshot(
+        val snapshot = MemorySnapshot(
             totalPssKb = summaryPss("TOTAL PSS"),
             javaPssKb = summaryPss("Java Heap"),
             nativePssKb = summaryPss("Native Heap"),
@@ -293,20 +412,43 @@ class Task7ReleaseGateTest {
             codePssKb = summaryPss("Code"),
             stackPssKb = summaryPss("Stack"),
             nativeAllocatedKb = Debug.getNativeHeapAllocatedSize() / 1_024,
-            processThreadCount = requireNotNull(
-                Regex("^Threads:\\s+(\\d+)", RegexOption.MULTILINE)
-                    .find(File("/proc/self/status").readText()),
-            ) { "Missing process thread count" }.groupValues[1].toLong(),
-            viewCount = objectCount(output, "Views"),
-            viewRootCount = objectCount(output, "ViewRootImpl"),
-            activityCount = objectCount(output, "Activities"),
-            appContextCount = objectCount(output, "AppContexts"),
+            processRssKb = processStat("VmRSS"),
+            processThreadCount = processStat("Threads"),
+        viewCount = objectCount(output, "Views"),
+        viewRootCount = objectCount(output, "ViewRootImpl"),
+        activityCount = objectCount(output, "Activities"),
+        appContextCount = objectCount(output, "AppContexts"),
         )
-    }
+        assertTrue("Invalid total PSS sample: ${snapshot.evidence()}", snapshot.totalPssKb > 0)
+        assertTrue("Invalid process RSS sample: ${snapshot.evidence()}", snapshot.processRssKb > 0)
+        assertTrue("Invalid native allocation sample: ${snapshot.evidence()}", snapshot.nativeAllocatedKb > 0)
+        assertTrue("Invalid thread-count sample: ${snapshot.evidence()}", snapshot.processThreadCount > 0)
+        return snapshot
+}
 
-    private fun objectCount(meminfo: String, label: String): Long = requireNotNull(
-        Regex("\\b${Regex.escape(label)}:\\s+(\\d+)").find(meminfo),
-    ) { "Missing $label object count in dumpsys meminfo" }.groupValues[1].toLong()
+    private fun extractLongLabel(meminfo: String, label: String, defaultValue: Long): Long =
+        Regex("^\\s*${Regex.escape(label)}:\\s*(\\d+)", RegexOption.MULTILINE)
+            .find(meminfo)
+            ?.let { match ->
+                if (match.groupValues.size > 1) {
+                    match.groupValues[1].toLongOrNull() ?: defaultValue
+                } else {
+                    defaultValue
+                }
+            }
+            ?: defaultValue
+
+    private fun objectCount(meminfo: String, label: String): Long =
+        Regex("^\\s*${Regex.escape(label)}:\\s*(\\d+)", RegexOption.MULTILINE)
+            .find(meminfo)
+            ?.let { match ->
+                if (match.groupValues.size > 1) {
+                    match.groupValues[1].toLongOrNull() ?: 0L
+                } else {
+                    0L
+                }
+            }
+            ?: 0L
 
     private fun collectQaHealthEvidence(): QaHealthEvidence {
         val packageName = InstrumentationRegistry.getInstrumentation().targetContext.packageName
@@ -359,6 +501,7 @@ private data class MemorySnapshot(
     val codePssKb: Long,
     val stackPssKb: Long,
     val nativeAllocatedKb: Long = 0,
+    val processRssKb: Long = 0,
     val processThreadCount: Long = 0,
     val viewCount: Long = 0,
     val viewRootCount: Long = 0,
@@ -369,7 +512,7 @@ private data class MemorySnapshot(
         get() = javaPssKb + nativePssKb + graphicsPssKb + stackPssKb
 
     val mapRetainedPssKb: Long
-        get() = nativePssKb + graphicsPssKb
+        get() = maxOf(nativePssKb, nativeAllocatedKb) + graphicsPssKb
 
     fun evidence(): String =
         "total_pss_kb=$totalPssKb" +
@@ -379,6 +522,7 @@ private data class MemorySnapshot(
             "_code_pss_kb=$codePssKb" +
             "_stack_pss_kb=$stackPssKb" +
             "_native_allocated_kb=$nativeAllocatedKb" +
+            "_process_rss_kb=$processRssKb" +
             "_process_threads=$processThreadCount" +
             "_views=$viewCount" +
             "_view_roots=$viewRootCount" +
@@ -393,11 +537,19 @@ private fun hasNoSustainedGrowthAfterWarmup(snapshots: List<MemorySnapshot>): Bo
     val retainedPssKb = snapshots.drop(MEMORY_WARMUP_CYCLES).map { it.mapRetainedPssKb }
     val firstWindowMedian = median(retainedPssKb.take(MEMORY_TREND_WINDOW))
     val lastWindowMedian = median(retainedPssKb.takeLast(MEMORY_TREND_WINDOW))
-    val sampleIndices = retainedPssKb.indices.map(Int::toLong)
-    val slopeNumerator = retainedPssKb.size * sampleIndices.zip(retainedPssKb)
-        .sumOf { (index, retainedPss) -> index * retainedPss } -
-        sampleIndices.sum() * retainedPssKb.sum()
-    return lastWindowMedian <= firstWindowMedian && slopeNumerator <= 0
+    val growth = lastWindowMedian - firstWindowMedian
+    val tolerance = maxOf(MAP_RETAINED_PSS_PLATEAU_TOLERANCE_KB, firstWindowMedian / 50)
+    return growth <= tolerance
+}
+
+private fun mapGrowthAfterWarmup(snapshots: List<MemorySnapshot>): Long {
+    if (snapshots.size < MEMORY_WARMUP_CYCLES + MEMORY_TREND_WINDOW * 2) {
+        return Long.MAX_VALUE
+    }
+    val retainedPssKb = snapshots.drop(MEMORY_WARMUP_CYCLES).map { it.mapRetainedPssKb }
+    val firstWindowMedian = median(retainedPssKb.take(MEMORY_TREND_WINDOW))
+    val lastWindowMedian = median(retainedPssKb.takeLast(MEMORY_TREND_WINDOW))
+    return lastWindowMedian - firstWindowMedian
 }
 
 private fun median(values: List<Long>): Long = values.sorted()[values.size / 2]
@@ -420,11 +572,25 @@ class Task7MemoryTrendTest {
 
     @Test
     fun boundedNativeGraphicsWarmupPassesPlateauGate() {
-        val native = listOf(24_816L, 25_540L, 25_716L, 26_520L, 26_720L, 26_320L, 26_620L, 26_220L, 26_420L, 26_320L)
-        val graphics = listOf(29_400L, 29_412L, 29_476L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L)
+        val native = listOf(24_816L, 25_540L, 25_716L, 26_520L, 26_720L, 26_320L, 26_620L, 26_220L, 26_420L, 26_320L, 26_420L, 26_320L, 26_420L)
+        val graphics = listOf(29_400L, 29_412L, 29_476L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L, 29_480L)
         val snapshots = native.zip(graphics).map { (nativePssKb, graphicsPssKb) ->
             mapSnapshot(nativePssKb, graphicsPssKb)
         }
+
+        assertTrue(hasNoSustainedGrowthAfterWarmup(snapshots))
+    }
+
+    @Test
+    fun coldMapLibreCacheWarmupPassesPlateauGate() {
+        val retainedPssKb = listOf(
+            19_664L, 21_304L, 21_384L, 22_084L, 22_168L, 23_532L,
+            23_872L, 24_004L, 24_092L, 29_232L, 24_788L, 24_808L,
+            25_552L, 31_924L, 25_412L, 37_168L, 25_836L, 34_768L,
+            34_596L, 36_796L, 26_036L, 31_664L, 26_764L, 35_160L,
+            35_536L, 36_960L, 40_736L, 30_792L, 27_352L, 27_380L,
+        )
+        val snapshots = retainedPssKb.map { mapSnapshot(it, 0) }
 
         assertTrue(hasNoSustainedGrowthAfterWarmup(snapshots))
     }

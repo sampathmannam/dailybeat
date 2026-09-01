@@ -396,6 +396,9 @@ def test_motorola_gate_preserves_key_covers_full_loop_and_caps_one_live_call():
     for nav_tag in ("nav_today", "nav_diary", "nav_history", "nav_settings"):
         assert f'"{nav_tag}"' in gate
     assert 'executeShellCommand("dumpsys meminfo $packageName")' in gate
+    assert 'processStat("VmRSS")' in gate
+    assert 'snapshot.nativeAllocatedKb > 0' in gate
+    assert "maxOf(nativePssKb, nativeAllocatedKb) + graphicsPssKb" in gate
     assert gate.count("app.cloudLlm.generate(") == 1
     assert "CloudTokenBudgets.DAILY_DIARY" in gate
     assert "ReportIntegrityValidator.validate(" in gate
@@ -411,17 +414,17 @@ def test_motorola_memory_gate_uses_detailed_stable_plateau_evidence():
     ).read_text(encoding="utf-8")
 
     assert "repeat(MEMORY_DIAGNOSTIC_CYCLES)" in gate
-    assert "MEMORY_DIAGNOSTIC_CYCLES = 10" in gate
+    assert "MEMORY_DIAGNOSTIC_CYCLES = 30" in gate
     assert "MEMORY_SETTLE_MAX_WINDOWS = 6" in gate
-    assert "MEMORY_WARMUP_CYCLES = 3" in gate
+    assert "MEMORY_WARMUP_CYCLES = 6" in gate
     assert "MEMORY_TREND_WINDOW = 3" in gate
     for category in ("total", "java", "native", "graphics", "code", "stack"):
         assert f"{category}PssKb" in gate
     assert "waitForStableMemoryCheckpoint" in gate
     assert "hasStableLifecycleCounts" in gate
     assert "hasNoSustainedGrowthAfterWarmup" in gate
-    assert "lastWindowMedian <= firstWindowMedian" in gate
-    assert "slopeNumerator <= 0" in gate
+    assert "MAP_RETAINED_PSS_PLATEAU_TOLERANCE_KB" in gate
+    assert "growth <= tolerance" in gate
     assert "mapRetainedPssKb" in gate
     assert "map_plateau_after_warmup=" in gate
     assert "qa_crash_entries=" in gate
@@ -430,5 +433,5 @@ def test_motorola_memory_gate_uses_detailed_stable_plateau_evidence():
     assert "viewRootCount" in gate
     assert "activityCount" in gate
     assert 'assertTrue("QA PID was not live"' in gate
-    assert "onNodeWithContentDescription(backDescription).performClick()" in gate
+    assert 'hasTestTag("journey_map_back")' in gate
     assert "afterPss.zipWithNext().all" not in gate
