@@ -45,12 +45,14 @@ class EncryptedBackupSessionStore(context: Context) : BackupSessionStore {
             .putString(KEY_ACCESS_TOKEN, session.accessToken)
             .putString(KEY_REFRESH_TOKEN, session.refreshToken)
             .putLong(KEY_EXPIRES_AT, session.expiresAtMs)
+            // Synchronous commit so the boolean return value can gate the follow-up check.
+            // apply() is asynchronous and would let a failed write slip past the assertion below.
             .commit()
         check(stored) { "Unable to store cloud backup session securely." }
     }
 
     override fun clear() {
-        prefs.edit().clear().commit()
+        prefs.edit().clear().apply()
     }
 
     private companion object {

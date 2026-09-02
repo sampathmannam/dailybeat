@@ -229,7 +229,8 @@ class LocationService : Service() {
             }
 
         fun stop(context: Context) {
-            context.stopService(Intent(context, LocationService::class.java))
+            val intent = Intent(context, LocationService::class.java)
+            context.stopService(intent)
         }
     }
 }

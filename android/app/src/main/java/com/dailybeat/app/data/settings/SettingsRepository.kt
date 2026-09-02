@@ -281,6 +281,9 @@ class SettingsRepository(private val context: Context) {
     fun acknowledgedPatrolGridPrivacyNoticeVersion(): Int =
         prefs.getInt(KEY_PATROLGRID_PRIVACY_NOTICE_VERSION, 0)
 
+    // commit() (not apply()) so the boolean return value is honoured by the
+    // privacy gate in MainActivity and the dedicated regression test.
+    @Suppress("ApplySharedPref")
     fun acknowledgePatrolGridPrivacyNotice(version: Int): Boolean {
         require(version > 0) { "Privacy notice version must be positive." }
         return prefs.edit()
@@ -291,7 +294,7 @@ class SettingsRepository(private val context: Context) {
     fun isPatrolGridLocked(): Boolean = prefs.getBoolean(KEY_PATROLGRID_LOCKED, false)
 
     fun setPatrolGridLocked(locked: Boolean) {
-        prefs.edit().putBoolean(KEY_PATROLGRID_LOCKED, locked).commit()
+        prefs.edit().putBoolean(KEY_PATROLGRID_LOCKED, locked).apply()
     }
 
     fun patrolGridBackgroundedAtMs(): Long? =
@@ -301,7 +304,7 @@ class SettingsRepository(private val context: Context) {
         prefs.edit().apply {
             if (timestampMs == null) remove(KEY_PATROLGRID_BACKGROUNDED_AT)
             else putLong(KEY_PATROLGRID_BACKGROUNDED_AT, timestampMs)
-        }.commit()
+        }.apply()
     }
 
     private fun requirePatrolEndReason(reason: String) {

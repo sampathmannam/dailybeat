@@ -1,3 +1,10 @@
+// EncryptedSharedPreferences / MasterKey are deprecated in security-crypto:1.1.0
+// without a stable replacement; production code intentionally uses these APIs
+// (PatrolActionOutbox, PatrolGridSnapshotCache, BackupSessionStore, etc.) so
+// test fixtures must use the same store. Re-evaluate once androidx.security.crypto
+// ships a non-deprecated replacement.
+@file:Suppress("DEPRECATION")
+
 package com.dailybeat.app.patrolgrid
 
 import android.content.Context
@@ -20,7 +27,6 @@ import org.junit.runner.RunWith
 import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PatrolGridSnapshotCacheTest {
