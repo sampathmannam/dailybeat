@@ -2,10 +2,8 @@ package com.dailybeat.app
 
 import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -40,11 +38,13 @@ class OnboardingFlowTest {
 
     @Test
     fun onboardingThreeStepsReachMyPatrolScreen() {
-        composeRule.onNodeWithText("Continue").performClick()
-        composeRule.onNode(hasText("Officer name") and hasSetTextAction())
+        composeRule.onNodeWithTag("onboarding_welcome_continue").performClick()
+        composeRule.onNodeWithTag("onboarding_officer_name")
             .performTextInput("Inspector Rao")
-        composeRule.onNodeWithText("Continue").performClick()
-        composeRule.onNodeWithText("Get started").performClick()
+        composeRule.onNodeWithTag("onboarding_role_supervisor").performClick().assertIsSelected()
+        composeRule.onNodeWithTag("onboarding_role_patrol").performClick().assertIsSelected()
+        composeRule.onNodeWithTag("onboarding_identity_continue").performClick()
+        composeRule.onNodeWithTag("onboarding_get_started").performClick()
 
         composeRule.onNodeWithTag("my_patrol_list").assertIsDisplayed()
     }

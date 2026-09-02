@@ -38,9 +38,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.dailybeat.app.BuildConfig
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
-import org.maplibre.android.MapLibre
+import com.dailybeat.app.security.MapCachePrivacy
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -66,7 +67,8 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlin.math.roundToInt
 
-private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+private val mapStyleUrl: String
+    get() = BuildConfig.PATROLGRID_MAP_STYLE_URL
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
 private const val ROUTE_LAYER_ID = "dailybeat-route-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
@@ -92,7 +94,7 @@ fun JourneyMapPreview(
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
         mapRendered = false
-        readyMap.setStyle(MAP_STYLE_URL) { style ->
+        readyMap.setStyle(mapStyleUrl) { style ->
             loadedStyle = style
             mapError = false
         }
@@ -248,7 +250,7 @@ private fun rememberMapViewWithLifecycle(
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val mapView = remember {
-        MapLibre.getInstance(context)
+        MapCachePrivacy.configure(context)
         MapView(context).apply {
             contentDescription = context.getString(R.string.journey_map_content_description)
             onCreate(Bundle())

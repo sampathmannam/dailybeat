@@ -2,6 +2,7 @@ package com.dailybeat.app.ui.patrol
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.data.model.PatrolAssignmentDraft
@@ -46,13 +48,63 @@ fun PatrolAssignmentSheet(
     unitOptions: List<PatrolUnitOption>,
     onDismiss: () -> Unit,
     onAssign: (PatrolAssignmentDraft) -> Unit,
+    onRetry: () -> Unit = {},
     assigning: Boolean = false,
 ) {
-    if (routePlans.isEmpty() || unitOptions.isEmpty()) return
+    if (routePlans.isEmpty() || unitOptions.isEmpty()) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            modifier = Modifier.testTag("assignment_sheet"),
+        ) {
+            Column(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 28.dp)
+                    .testTag("assignment_empty_state"),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("Assignment unavailable", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    when {
+                        routePlans.isEmpty() && unitOptions.isEmpty() ->
+                            "No active routes or staffed patrol units are available for this subdivision."
+                        routePlans.isEmpty() -> "No active patrol routes are available for this subdivision."
+                        else -> "No staffed patrol units are available for assignment."
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Ask the authorized subdivision supervisor to activate a route and add personnel through the existing official Department process, or refresh after the roster is updated.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                ) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("close_assignment_options"),
+                    ) {
+                        Text("Close")
+                    }
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier.testTag("retry_assignment_options"),
+                    ) {
+                        Text("Refresh")
+                    }
+                }
+            }
+        }
+        return
+    }
     var selectedRouteId by rememberSaveable { mutableStateOf(routePlans.first().id) }
     var selectedUnitName by rememberSaveable { mutableStateOf(unitOptions.first().name) }
     var selectedGuidance by rememberSaveable { mutableStateOf(PatrolRouteGuidance.SUGGESTED_ROUTE) }
-    val selectedUnit = unitOptions.first { it.name == selectedUnitName }
+    val selectedRoute = routePlans.firstOrNull { it.id == selectedRouteId } ?: routePlans.first()
+    val selectedUnit = unitOptions.firstOrNull { it.name == selectedUnitName } ?: unitOptions.first()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -80,7 +132,7 @@ fun PatrolAssignmentSheet(
                 AssignmentOption(
                     title = route.title,
                     description = "${route.dutyWindow} · ${route.priorityLocations.joinToString()}",
-                    selected = route.id == selectedRouteId,
+                    selected = route.id == selectedRoute.id,
                     testTag = "route_${route.id.replace('-', '_')}",
                     onClick = { selectedRouteId = route.id },
                 )
@@ -132,7 +184,7 @@ fun PatrolAssignmentSheet(
                 onClick = {
                     onAssign(
                         PatrolAssignmentDraft(
-                            routePlanId = selectedRouteId,
+                            routePlanId = selectedRoute.id,
                             unitName = selectedUnit.name,
                             personnelCount = selectedUnit.personnelCount,
                             guidance = selectedGuidance,
@@ -171,9 +223,9 @@ private fun AssignmentOption(
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     Surface(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
             .testTag(testTag),
         shape = MaterialTheme.shapes.small,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
@@ -196,7 +248,7 @@ private fun AssignmentOption(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            RadioButton(selected = selected, onClick = onClick)
+            RadioButton(selected = selected, onClick = null)
         }
     }
 }

@@ -57,6 +57,9 @@ data class PriorityLocation(
     val state: PriorityLocationState,
     val detail: String,
     val required: Boolean = true,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val radiusM: Double? = null,
 )
 
 data class PatrolMission(
@@ -71,7 +74,25 @@ data class PatrolMission(
     val priorityLocations: List<PriorityLocation>,
     val lastUpdateLabel: String,
     val hasOperationalDeviation: Boolean = false,
+    val version: Int = 1,
+    val endsAtEpochMs: Long? = null,
+    /** Server-owned, mission-wide evidence deadline; never derived from event timestamps. */
+    val retentionUntilEpochMs: Long? = null,
 )
+
+enum class SupervisorReviewOutcome(val storageValue: String) {
+    APPROVED("approved"),
+    NEEDS_CONTEXT("needs_context"),
+    TECHNICALLY_INCONCLUSIVE("technically_inconclusive"),
+}
+
+enum class PatrolEndReason(val storageValue: String, val label: String) {
+    COMPLETED("completed", "Patrol completed"),
+    RELIEVED("relieved", "Relieved by another unit"),
+    DEVICE_ISSUE("device_issue", "Device issue"),
+    CANCELLED("cancelled", "Mission cancelled"),
+    DUTY_WINDOW_ENDED("duty_window_ended", "Duty window ended automatically"),
+}
 
 enum class PatrolReviewOutcome {
     IN_PROGRESS,

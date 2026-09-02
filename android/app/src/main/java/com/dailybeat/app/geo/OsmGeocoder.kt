@@ -49,7 +49,7 @@ class OsmGeocoder(
         )
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
+            .header("User-Agent", "PatrolGrid/1.0 (+https://github.com/sampathmannam/dailybeat)")
             .header("Accept-Language", "en")
             .build()
 

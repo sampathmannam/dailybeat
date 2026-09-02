@@ -50,6 +50,14 @@ android/app/release/
 *.aab
 *.keystore
 *.jks
+*.p12
+*.pfx
+*.pkcs12
+*.kbx
+*.gpg
+*.pgp
+*.rev
+private-keys-v1.d/
 google-services.json
 
 # Editor
@@ -84,4 +92,5 @@ supabase/.branches/
 .env.*.local
 secrets/
 *.pem
+!release/patrolgrid-release-cert.pem
 *.key

@@ -29,16 +29,37 @@ import com.dailybeat.app.ui.theme.Gold
 import com.dailybeat.app.ui.theme.Navy
 import com.dailybeat.app.ui.theme.SuccessGreen
 import com.dailybeat.app.patrolgrid.PatrolMapPoint
+import com.dailybeat.app.data.model.PriorityLocation
+import com.dailybeat.app.data.model.PriorityLocationState
 
 @Composable
 fun PatrolRouteMap(
     trackingActive: Boolean,
     visitedPriorityCount: Int,
     recordedPoints: List<PatrolMapPoint> = emptyList(),
+    plannedPoints: List<PatrolMapPoint> = emptyList(),
+    priorityLocations: List<PriorityLocation> = emptyList(),
     totalRecordedPoints: Int = recordedPoints.size,
     demoMode: Boolean = true,
+    useGeographicContext: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val hasGeographicEvidence = plannedPoints.isNotEmpty() ||
+        recordedPoints.isNotEmpty() ||
+        priorityLocations.any { it.latitude != null && it.longitude != null }
+    if (!demoMode && useGeographicContext && (hasGeographicEvidence || trackingActive)) {
+        PatrolGeographicRouteMap(
+            trackingActive = trackingActive,
+            visitedPriorityCount = visitedPriorityCount,
+            recordedPoints = recordedPoints,
+            plannedPoints = plannedPoints,
+            priorityLocations = priorityLocations,
+            totalRecordedPoints = totalRecordedPoints,
+            modifier = modifier,
+        )
+        return
+    }
+
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.3f
     val background = if (dark) Color(0xFF0A1E30) else Color(0xFFEFF3F6)
     val street = if (dark) Color(0xFF29445A) else Color(0xFFD3DCE4)
@@ -60,10 +81,14 @@ fun PatrolRouteMap(
                     .semantics {
                         contentDescription = if (demoMode) {
                             "Demonstration mission map with a suggested route and priority locations"
+                        } else if (recordedPoints.isEmpty() && plannedPoints.isEmpty() &&
+                            priorityLocations.none { it.latitude != null && it.longitude != null }
+                        ) {
+                            "Assigned patrol route has no geographic points yet"
                         } else if (recordedPoints.isEmpty()) {
-                            "Recorded patrol trail has no route points yet"
+                            "Assigned patrol route shown; no recorded patrol trail yet"
                         } else {
-                            "Recorded patrol trail showing ${recordedPoints.size} of $totalRecordedPoints route points"
+                            "Assigned route and recorded patrol trail showing ${recordedPoints.size} of $totalRecordedPoints route points"
                         }
                     },
             ) {
@@ -85,7 +110,12 @@ fun PatrolRouteMap(
                     }
                 }
 
-                if (!demoMode && recordedPoints.isEmpty()) {
+                val geographicPriorities = priorityLocations.mapNotNull { location ->
+                    val latitude = location.latitude ?: return@mapNotNull null
+                    val longitude = location.longitude ?: return@mapNotNull null
+                    location to PatrolMapPoint(latitude, longitude)
+                }
+                if (!demoMode && recordedPoints.isEmpty() && plannedPoints.isEmpty() && geographicPriorities.isEmpty()) {
                     drawCircle(
                         color = remaining,
                         radius = 7.dp.toPx(),
@@ -95,28 +125,54 @@ fun PatrolRouteMap(
                 }
 
                 if (!demoMode) {
-                    val minLatitude = recordedPoints.minOf { it.latitude }
-                    val maxLatitude = recordedPoints.maxOf { it.latitude }
-                    val minLongitude = recordedPoints.minOf { it.longitude }
-                    val maxLongitude = recordedPoints.maxOf { it.longitude }
+                    val geographicPoints = plannedPoints + recordedPoints + geographicPriorities.map { it.second }
+                    val minLatitude = geographicPoints.minOf { it.latitude }
+                    val maxLatitude = geographicPoints.maxOf { it.latitude }
+                    val minLongitude = geographicPoints.minOf { it.longitude }
+                    val maxLongitude = geographicPoints.maxOf { it.longitude }
                     val latitudeSpan = (maxLatitude - minLatitude).takeIf { it > 0.000001 } ?: 0.000001
                     val longitudeSpan = (maxLongitude - minLongitude).takeIf { it > 0.000001 } ?: 0.000001
                     val padding = 0.12f
-                    val actual = recordedPoints.map { point ->
+                    fun offsetFor(point: PatrolMapPoint) =
                         Offset(
                             x = (padding + ((point.longitude - minLongitude) / longitudeSpan).toFloat() * (1f - 2f * padding)) * w,
                             y = ((1f - padding) - ((point.latitude - minLatitude) / latitudeSpan).toFloat() * (1f - 2f * padding)) * h,
                         )
+
+                    val planned = plannedPoints.map(::offsetFor)
+                    planned.zipWithNext().forEach { (start, end) ->
+                        drawLine(
+                            color = Gold,
+                            start = start,
+                            end = end,
+                            strokeWidth = 3.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 9f)),
+                        )
                     }
+                    val actual = recordedPoints.map(::offsetFor)
                     actual.zipWithNext().forEach { (start, end) ->
                         drawLine(route, start, end, 4.dp.toPx(), cap = StrokeCap.Round)
                     }
-                    val start = actual.first()
-                    val end = actual.last()
-                    drawCircle(SuccessGreen, 7.dp.toPx(), start)
-                    drawCircle(Color.White, 7.dp.toPx(), start, style = Stroke(2.dp.toPx()))
-                    drawCircle(route, 8.dp.toPx(), end)
-                    drawCircle(Color.White, 8.dp.toPx(), end, style = Stroke(2.dp.toPx()))
+                    if (actual.isNotEmpty()) {
+                        val start = actual.first()
+                        val end = actual.last()
+                        drawCircle(SuccessGreen, 7.dp.toPx(), start)
+                        drawCircle(Color.White, 7.dp.toPx(), start, style = Stroke(2.dp.toPx()))
+                        drawCircle(route, 8.dp.toPx(), end)
+                        drawCircle(Color.White, 8.dp.toPx(), end, style = Stroke(2.dp.toPx()))
+                    }
+                    geographicPriorities.forEach { (priority, point) ->
+                        val color = when (priority.state) {
+                            PriorityLocationState.VISITED -> SuccessGreen
+                            PriorityLocationState.CURRENT -> route
+                            PriorityLocationState.REMAINING -> if (priority.required) Gold else remaining
+                        }
+                        val center = offsetFor(point)
+                        drawCircle(color.copy(alpha = 0.2f), 13.dp.toPx(), center)
+                        drawCircle(color, 7.dp.toPx(), center)
+                        drawCircle(Color.White, 7.dp.toPx(), center, style = Stroke(2.dp.toPx()))
+                    }
                     return@Canvas
                 }
 
@@ -176,17 +232,24 @@ fun PatrolRouteMap(
                     MapLegendItem(color = route, label = "Suggested route")
                     MapLegendItem(color = SuccessGreen, label = "Completed")
                     MapLegendItem(color = Gold, label = "Priority")
-                } else if (recordedPoints.isEmpty()) {
+                } else if (recordedPoints.isEmpty() && plannedPoints.isEmpty() &&
+                    priorityLocations.none { it.latitude != null && it.longitude != null }
+                ) {
                     Text(
-                        "No route points recorded yet",
+                        "No geographic route is available yet",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    MapLegendItem(color = SuccessGreen, label = "Start")
-                    MapLegendItem(color = route, label = "Latest point")
+                    if (plannedPoints.isNotEmpty()) MapLegendItem(color = Gold, label = "Assigned route")
+                    if (recordedPoints.isNotEmpty()) MapLegendItem(color = route, label = "Recorded trail")
+                    if (priorityLocations.any { it.latitude != null && it.longitude != null }) {
+                        MapLegendItem(color = Gold, label = "Priority")
+                    }
                     Text(
-                        if (totalRecordedPoints > recordedPoints.size) {
+                        if (recordedPoints.isEmpty()) {
+                            "Waiting to start"
+                        } else if (totalRecordedPoints > recordedPoints.size) {
                             "Latest ${recordedPoints.size} of $totalRecordedPoints"
                         } else {
                             "${recordedPoints.size} recorded"

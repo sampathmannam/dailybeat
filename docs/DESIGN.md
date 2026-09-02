@@ -36,7 +36,7 @@ The view never exposes employee rankings. Missing GPS, incomplete priorities, an
 4. Observation and deviation actions available during an active patrol.
 5. Start and end actions that control the bounded location session.
 
-Night patrol uses the dark theme by default. Suggested routes may change for safety or operational need; the interface explains this next to the route instead of hiding it in policy text.
+PatrolGrid follows the device's system appearance instead of coupling light or dark mode to a staff role. Staff can use the device's dark appearance for night duty without forcing every patrol-personnel session into night colors. Suggested routes may change for safety or operational need; the interface explains this next to the route instead of hiding it in policy text.
 
 ## Product boundaries
 

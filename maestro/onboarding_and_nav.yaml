@@ -17,6 +17,7 @@ appId: com.dailybeat.app.patrolgrid.qa
     text: "Allow"
     optional: true
 - assertVisible: "My Patrol"
+- assertNotVisible: "Messages"
 - swipe:
     direction: UP
     duration: 600
@@ -26,10 +27,24 @@ appId: com.dailybeat.app.patrolgrid.qa
 - tapOn: "Start patrol"
 - assertVisible: "Observation"
 - tapOn: "Observation"
+- assertVisible: "Add observation"
+- assertVisible: "What did you observe?"
+- tapOn: "What did you observe?"
+- inputText: "Bus stand clear and street lighting operational"
+- hideKeyboard
+- tapOn: "Save securely"
 - swipe:
     direction: UP
     duration: 500
 - tapOn: "End patrol"
-- assertVisible: "Start patrol"
+- assertVisible: "End this patrol?"
+- tapOn: "Continue patrol"
+- assertVisible: "Observation"
+- tapOn: "End patrol"
+- assertVisible: "End this patrol?"
+- tapOn: "End patrol"
+- assertVisible: "Patrol ended · waiting for supervisor review"
 - tapOn: "Missions"
 - assertVisible: "Missions"
+- tapOn: "Night patrol · Sector 4"
+- assertVisible: "Planned and recorded route"

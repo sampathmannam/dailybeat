@@ -4,6 +4,18 @@ set -euo pipefail
 
 # Set by mac_adb_pick_device — all mac_adb calls use adb -s explicitly.
 MAC_ADB_SERIAL=""
+# Release installation replaces this with the fixed SDK platform-tools path.
+# QA helpers retain their existing PATH-based adb behavior.
+MAC_ADB_BINARY="${MAC_ADB_BINARY:-adb}"
+MAC_ADB_SERVER_PORT="${MAC_ADB_SERVER_PORT:-}"
+
+mac_adb_client() {
+  if [ -n "$MAC_ADB_SERVER_PORT" ]; then
+    "$MAC_ADB_BINARY" -P "$MAC_ADB_SERVER_PORT" "$@"
+  else
+    "$MAC_ADB_BINARY" "$@"
+  fi
+}
 
 mac_ensure_java() {
   if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
@@ -21,10 +33,11 @@ mac_ensure_java() {
   fi
 
   for candidate in \
-    "/opt/homebrew/opt/openjdk@17" \
-    "/usr/local/opt/openjdk@17" \
-    "/opt/homebrew/opt/openjdk@21" \
-    "/usr/local/opt/openjdk@21"; do
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+    "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" \
+    "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" \
+    "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
+    "/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"; do
     if [ -d "$candidate/bin" ]; then
       export JAVA_HOME="$candidate"
       export PATH="$JAVA_HOME/bin:$PATH"
@@ -37,13 +50,13 @@ mac_ensure_java() {
   echo "  echo 'export PATH=\"/opt/homebrew/opt/openjdk@17/bin:\$PATH\"' >> ~/.zshrc"
   echo "  source ~/.zshrc"
   echo ""
-  echo "To install APK without building (no Java needed):"
+  echo "To install a verified release without a Gradle build (Java is still needed by apksigner):"
   echo "  ./scripts/mac_install_release_apk.sh emulator-5554"
   return 1
 }
 
 mac_adb_list_devices() {
-  adb devices | awk 'NR>1 && $2=="device" {print $1}'
+  mac_adb_client devices | awk 'NR>1 && $2=="device" {print $1}'
 }
 
 mac_adb_pick_device() {
@@ -56,10 +69,10 @@ mac_adb_pick_device() {
     return 0
   fi
 
-  if [ -n "${DAILYBEAT_ADB_SERIAL:-}" ]; then
-    MAC_ADB_SERIAL="$DAILYBEAT_ADB_SERIAL"
+  if [ -n "${PATROLGRID_ADB_SERIAL:-}" ]; then
+    MAC_ADB_SERIAL="$PATROLGRID_ADB_SERIAL"
     export ANDROID_SERIAL="$MAC_ADB_SERIAL"
-    echo "Using device: $MAC_ADB_SERIAL (DAILYBEAT_ADB_SERIAL)"
+    echo "Using device: $MAC_ADB_SERIAL (PATROLGRID_ADB_SERIAL)"
     return 0
   fi
 
@@ -80,38 +93,17 @@ mac_adb_pick_device() {
     return 0
   fi
 
-  local pick=""
-  case "${DAILYBEAT_DEVICE:-phone}" in
-    emulator)
-      pick="$(printf '%s\n' "$devices" | grep '^emulator-' | head -1)"
-      ;;
-    phone)
-      pick="$(printf '%s\n' "$devices" | grep -v '^emulator-' | head -1)"
-      ;;
-    *)
-      pick="$(printf '%s\n' "$devices" | head -1)"
-      ;;
-  esac
-
-  if [ -z "$pick" ]; then
-    echo "Multiple devices connected. Pass device id as argument:"
-    printf '%s\n' "$devices" | while read -r id; do
-      echo "  ./scripts/mac_install_release_apk.sh $id"
-    done
-    return 1
-  fi
-
-  MAC_ADB_SERIAL="$pick"
-  export ANDROID_SERIAL="$MAC_ADB_SERIAL"
-  echo "Multiple devices — using $MAC_ADB_SERIAL (DAILYBEAT_DEVICE=${DAILYBEAT_DEVICE:-phone})"
-  echo "Other devices:"
-  printf '%s\n' "$devices" | grep -v "^${pick}$" || true
+  echo "Multiple devices connected. Pass the intended device id explicitly:"
+  printf '%s\n' "$devices" | while read -r id; do
+    echo "  ./scripts/mac_install_release_apk.sh $id"
+  done
+  return 1
 }
 
 mac_adb() {
   if [ -n "$MAC_ADB_SERIAL" ]; then
-    adb -s "$MAC_ADB_SERIAL" "$@"
+    mac_adb_client -s "$MAC_ADB_SERIAL" "$@"
   else
-    adb "$@"
+    mac_adb_client "$@"
   fi
 }

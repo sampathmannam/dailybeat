@@ -3,6 +3,8 @@ package com.dailybeat.app.patrolgrid
 import com.dailybeat.app.backup.BackupConfiguration
 import com.dailybeat.app.backup.BackupRemote
 import com.dailybeat.app.backup.BackupSession
+import com.dailybeat.app.backup.BackupSessionExpiredException
+import com.dailybeat.app.backup.BackupTransientException
 import com.dailybeat.app.data.model.PatrolMission
 import com.dailybeat.app.data.model.PatrolMissionStatus
 import com.dailybeat.app.data.model.PatrolRole
@@ -12,6 +14,7 @@ import com.dailybeat.app.data.model.PatrolAssignmentDraft
 import com.dailybeat.app.data.model.PatrolRouteGuidance
 import com.dailybeat.app.data.model.PatrolRoutePlan
 import com.dailybeat.app.data.model.PatrolUnitOption
+import com.dailybeat.app.data.model.SupervisorReviewOutcome
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
@@ -54,17 +57,28 @@ class SupabasePatrolGridClient(
     override suspend fun loadSnapshot(activeMissionId: String?): Result<PatrolGridRemoteSnapshot> = ioResult {
         val session = authenticatedSession()
         val identity = loadIdentity(session)
+        post(
+            path = "/rest/v1/rpc/patrolgrid_close_expired_sessions",
+            body = "{}",
+            session = session,
+            returnRows = true,
+        )
         val missionRows = getRows(
             path = "/rest/v1/patrolgrid_missions" +
-                "?select=id,title,starts_at,ends_at,guidance,instructions,status,updated_at" +
+                "?select=id,title,starts_at,ends_at,guidance,instructions,status,version,route_geojson,updated_at,retention_until" +
                 "&order=starts_at.desc&limit=100",
             session = session,
         )
         val missionIds = (0 until missionRows.length()).map { missionRows.getJSONObject(it).getString("id") }
-        val routeMissionId = activeMissionId?.takeIf { it in missionIds } ?: missionIds.firstOrNull()
+        val evidenceMissionId = activeMissionId?.takeIf { it in missionIds }
+            ?: (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
+                .firstOrNull { it.getString("status") == "active" }?.getString("id")
+            ?: (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
+                .firstOrNull { it.getString("status") in setOf("needs_review", "assigned") }?.getString("id")
+            ?: missionIds.firstOrNull()
         val priorities = if (missionIds.isEmpty()) JSONArray() else getRows(
             path = "/rest/v1/patrolgrid_priority_locations" +
-                "?select=id,mission_id,name,required,sort_order" +
+                "?select=id,mission_id,name,latitude,longitude,radius_m,required,sort_order" +
                 "&mission_id=in.(${missionIds.joinToString(",")})&order=sort_order.asc",
             session = session,
         )
@@ -79,7 +93,22 @@ class SupabasePatrolGridClient(
                 "?select=mission_id,user_id&mission_id=in.(${missionIds.joinToString(",")})",
             session = session,
         )
-        val routePointRows = routeMissionId?.let { missionId ->
+        val fieldUpdates = if (missionIds.isEmpty()) JSONArray() else getRows(
+            path = "/rest/v1/patrolgrid_field_updates" +
+                "?select=id,mission_id,category,detail,occurred_at,created_at,review_id" +
+                "&mission_id=in.(${missionIds.joinToString(",")})" +
+                "&order=occurred_at.desc,created_at.desc,id.desc",
+            session = session,
+        )
+        val latestReview = evidenceMissionId?.let { missionId ->
+            getRows(
+                path = "/rest/v1/patrolgrid_reviews" +
+                    "?select=id,outcome,notes,reviewed_at,created_at&mission_id=eq.$missionId" +
+                    "&order=reviewed_at.desc,created_at.desc,id.desc&limit=1",
+                session = session,
+            )
+        } ?: JSONArray()
+        val routePointRows = evidenceMissionId?.let { missionId ->
             getRows(
                 "/rest/v1/patrolgrid_track_points" +
                     "?select=latitude,longitude&mission_id=eq.$missionId" +
@@ -98,11 +127,16 @@ class SupabasePatrolGridClient(
             .map { assignments.getJSONObject(it).getString("mission_id") }
             .groupingBy { it }
             .eachCount()
+        val deviationsByMission = (0 until fieldUpdates.length())
+            .map { fieldUpdates.getJSONObject(it) }
+            .filter { it.getString("category") == "operational_deviation" }
+            .map { it.getString("mission_id") }
+            .toSet()
 
         val missions = (0 until missionRows.length()).map { index ->
             val row = missionRows.getJSONObject(index)
             val missionId = row.getString("id")
-            val activeLocally = missionId == activeMissionId
+            val activeLocally = missionId == activeMissionId && identity.role == PatrolRole.PATROL
             val locations = prioritiesByMission[missionId].orEmpty().mapIndexed { locationIndex, location ->
                 val visited = location.getString("id") in visitedIds
                 val priorVisited = prioritiesByMission[missionId].orEmpty()
@@ -123,6 +157,9 @@ class SupabasePatrolGridClient(
                         PriorityLocationState.REMAINING -> "Remaining"
                     },
                     required = location.optBoolean("required", true),
+                    latitude = location.optDouble("latitude").takeUnless(Double::isNaN),
+                    longitude = location.optDouble("longitude").takeUnless(Double::isNaN),
+                    radiusM = location.optDouble("radius_m").takeUnless(Double::isNaN),
                 )
             }
             val sourceStatus = row.getString("status")
@@ -132,7 +169,7 @@ class SupabasePatrolGridClient(
                 title = row.getString("title"),
                 dutyWindow = dutyWindow(row.getString("starts_at"), row.getString("ends_at")),
                 unitName = if (identity.role == PatrolRole.SUPERVISOR) "Assigned personnel" else identity.displayName,
-                personnelCount = personnelByMission[missionId] ?: 1,
+                personnelCount = personnelByMission[missionId] ?: 0,
                 status = status,
                 statusLabel = status.label,
                 context = row.optString("instructions").ifBlank {
@@ -140,19 +177,34 @@ class SupabasePatrolGridClient(
                 },
                 priorityLocations = locations,
                 lastUpdateLabel = relativeUpdate(row.getString("updated_at")),
-                hasOperationalDeviation = sourceStatus == "needs_review",
+                hasOperationalDeviation = missionId in deviationsByMission,
+                version = row.optInt("version", 1),
+                endsAtEpochMs = runCatching {
+                    Instant.parse(row.getString("ends_at")).toEpochMilli()
+                }.getOrNull(),
+                retentionUntilEpochMs = row.optString("retention_until")
+                    .takeIf(String::isNotBlank)
+                    ?.let { value -> runCatching { Instant.parse(value).toEpochMilli() }.getOrNull() },
             )
         }
-        val primaryId = activeMissionId ?: missions.firstOrNull {
-            it.status == PatrolMissionStatus.ACTIVE || it.status == PatrolMissionStatus.ASSIGNED
-        }?.id
+        val evidenceRow = (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
+            .firstOrNull { it.getString("id") == evidenceMissionId }
+        val reviewRow = latestReview.optJSONObject(0)
+        val contextResponse = (0 until fieldUpdates.length())
+            .map { fieldUpdates.getJSONObject(it) }
+            .firstOrNull {
+                it.getString("mission_id") == evidenceMissionId &&
+                    it.getString("category") == "review_context" &&
+                    it.optString("review_id") == reviewRow?.optString("id")
+            }
         PatrolGridRemoteSnapshot(
             identity = identity,
-            missions = missions.sortedWith(compareByDescending<PatrolMission> { it.id == primaryId }),
-            recordedTrackPoints = primaryId?.let {
+            missions = missions.sortedWith(compareByDescending<PatrolMission> { it.id == evidenceMissionId }),
+            evidenceMissionId = evidenceMissionId,
+            recordedTrackPoints = evidenceMissionId?.let {
                 countRows("patrolgrid_track_points", "mission_id=eq.$it", session)
             } ?: 0,
-            observationCount = primaryId?.let {
+            observationCount = evidenceMissionId?.let {
                 countRows("patrolgrid_field_updates", "mission_id=eq.$it&category=eq.observation", session)
             } ?: 0,
             // The API selects the most recent bounded window; reverse it for chronological drawing.
@@ -160,6 +212,18 @@ class SupabasePatrolGridClient(
                 val point = routePointRows.getJSONObject(index)
                 PatrolMapPoint(point.getDouble("latitude"), point.getDouble("longitude"))
             },
+            plannedRoutePoints = PatrolRouteGeoJsonParser.parse(
+                evidenceRow?.optJSONObject("route_geojson"),
+            ),
+            reviewContextRequestId = reviewRow
+                ?.takeIf { it.getString("outcome") == "needs_context" }
+                ?.optString("id")
+                ?.takeIf(String::isNotBlank),
+            reviewContextRequest = reviewRow
+                ?.takeIf { it.getString("outcome") == "needs_context" }
+                ?.optString("notes")
+                ?.takeIf(String::isNotBlank),
+            reviewContextResponse = contextResponse?.optString("detail")?.takeIf(String::isNotBlank),
         )
     }
 
@@ -171,14 +235,18 @@ class SupabasePatrolGridClient(
         val session = authenticatedSession()
         val patrolSessionId = UUID.randomUUID().toString()
         val payload = JSONObject()
-            .put("id", patrolSessionId)
-            .put("mission_id", missionId)
-            .put("user_id", session.userId)
-            .put("installation_id", installationId)
-            .put("started_at", Instant.ofEpochMilli(clock()).toString())
-            .put("app_version", appVersion)
-        post("/rest/v1/patrolgrid_sessions", payload.toString(), session, returnRows = true)
-        patrolSessionId
+            .put("target_session", patrolSessionId)
+            .put("target_mission", missionId)
+            .put("target_installation", installationId)
+            .put("target_app_version", appVersion)
+        val response = post(
+            "/rest/v1/rpc/patrolgrid_start_session",
+            payload.toString(),
+            session,
+            returnRows = true,
+        )
+        response.trim().trim('[', ']', '"').takeIf(String::isNotBlank)
+            ?: error("PatrolGrid did not return the active session id.")
     }
 
     override suspend fun loadAssignmentOptions(): Result<PatrolAssignmentOptions> = ioResult {
@@ -251,16 +319,53 @@ class SupabasePatrolGridClient(
         Unit
     }
 
-    override suspend fun endSession(sessionId: String, reason: String): Result<Unit> = ioResult {
-        require(reason in setOf("completed", "relieved", "cancelled", "device_issue"))
+    override suspend fun submitReview(
+        missionId: String,
+        expectedVersion: Int,
+        outcome: SupervisorReviewOutcome,
+        notes: String,
+    ): Result<Int> = ioResult {
+        require(notes.length <= 4_000) { "Review notes are too long." }
         val session = authenticatedSession()
         val payload = JSONObject()
-            .put("ended_at", Instant.ofEpochMilli(clock()).toString())
-            .put("end_reason", reason)
-        patch(
-            "/rest/v1/patrolgrid_sessions?id=eq.${encoded(sessionId)}",
+            .put("target_mission", missionId)
+            .put("target_expected_version", expectedVersion)
+            .put("target_outcome", outcome.storageValue)
+            .put("target_notes", notes.trim())
+        val response = post(
+            "/rest/v1/rpc/patrolgrid_submit_review",
             payload.toString(),
             session,
+            returnRows = true,
+        )
+        response.trim().trim('[', ']', '"').toIntOrNull()
+            ?: error("PatrolGrid did not return the reviewed mission version.")
+    }
+
+    override suspend fun endSession(
+        sessionId: String,
+        reason: String,
+        endedAtMs: Long,
+    ): Result<Unit> = ioResult {
+        require(
+            reason in setOf(
+                "completed",
+                "relieved",
+                "cancelled",
+                "device_issue",
+                "duty_window_ended",
+            ),
+        )
+        val session = authenticatedSession()
+        val payload = JSONObject()
+            .put("target_session", sessionId)
+            .put("target_reason", reason)
+        post(
+            "/rest/v1/rpc/patrolgrid_end_session",
+            payload.toString(),
+            session,
+            returnRows = true,
+            evidenceWrite = true,
         )
         Unit
     }
@@ -271,15 +376,17 @@ class SupabasePatrolGridClient(
         points: List<RemoteTrackPoint>,
     ): Result<Unit> = ioResult {
         if (points.isEmpty()) return@ioResult Unit
+        require(points.size <= 250) { "A route upload cannot exceed 250 points." }
         val session = authenticatedSession()
         val payload = JSONArray()
         points.forEach { point ->
+            require(point.sequenceNumber >= 0)
+            require(point.latitude.isFinite() && point.latitude in -90.0..90.0)
+            require(point.longitude.isFinite() && point.longitude in -180.0..180.0)
+            require(point.accuracyM.isFinite() && point.accuracyM in 0f..5_000f)
             payload.put(
                 JSONObject()
                     .put("client_point_id", point.clientPointId)
-                    .put("session_id", sessionId)
-                    .put("mission_id", missionId)
-                    .put("user_id", session.userId)
                     .put("sequence_number", point.sequenceNumber)
                     .put("recorded_at", Instant.ofEpochMilli(point.recordedAtMs).toString())
                     .put("latitude", point.latitude)
@@ -287,69 +394,96 @@ class SupabasePatrolGridClient(
                     .put("accuracy_m", point.accuracyM),
             )
         }
+        val rpcPayload = JSONObject()
+            .put("target_session", sessionId)
+            .put("target_points", payload)
+            .toString()
+        require(rpcPayload.toByteArray(StandardCharsets.UTF_8).size <= 262_144) {
+            "The route upload payload is too large."
+        }
         post(
-            "/rest/v1/patrolgrid_track_points?on_conflict=user_id,client_point_id",
-            payload.toString(),
+            "/rest/v1/rpc/patrolgrid_ingest_track_points",
+            rpcPayload,
             session,
-            ignoreDuplicates = true,
+            returnRows = true,
+            evidenceWrite = true,
         )
         Unit
     }
 
     override suspend fun markPriorityVisited(
-        missionId: String,
+        sessionId: String,
         priorityLocationId: String,
         clientVisitId: String,
         visitedAtMs: Long,
     ): Result<Unit> = ioResult {
         val session = authenticatedSession()
         val payload = JSONObject()
-            .put("id", clientVisitId)
-            .put("priority_location_id", priorityLocationId)
-            .put("mission_id", missionId)
-            .put("user_id", session.userId)
-            .put("visited_at", Instant.ofEpochMilli(visitedAtMs).toString())
-            .put("method", "manual_with_context")
-            .put("note", "Marked visited by patrol personnel")
+            .put("target_session", sessionId)
+            .put("target_visit", clientVisitId)
+            .put("target_priority_location", priorityLocationId)
+            .put("target_visited_at", Instant.ofEpochMilli(visitedAtMs).toString())
+            .put("target_method", "manual_with_context")
+            .put("target_note", "Marked visited by patrol personnel")
         post(
-            "/rest/v1/patrolgrid_priority_visits?on_conflict=priority_location_id,user_id",
+            "/rest/v1/rpc/patrolgrid_record_priority_visit",
             payload.toString(),
             session,
-            ignoreDuplicates = true,
+            returnRows = true,
+            evidenceWrite = true,
         )
         Unit
     }
 
     override suspend fun addFieldUpdate(
-        missionId: String,
+        sessionId: String?,
         category: String,
         detail: String,
         clientUpdateId: String,
         occurredAtMs: Long,
+        reviewId: String?,
     ): Result<Unit> = ioResult {
-        require(category in setOf("observation", "operational_deviation", "safety_event"))
+        require(category in setOf("observation", "operational_deviation", "safety_event", "review_context"))
         require(detail.isNotBlank())
+        require(detail.length <= 4_000 && detail.toByteArray(StandardCharsets.UTF_8).size <= 16_000)
+        require((category == "review_context") == !reviewId.isNullOrBlank())
+        require((category == "review_context") == sessionId.isNullOrBlank())
         val session = authenticatedSession()
         val payload = JSONObject()
-            .put("id", UUID.randomUUID().toString())
-            .put("client_update_id", clientUpdateId)
-            .put("mission_id", missionId)
-            .put("user_id", session.userId)
-            .put("category", category)
-            .put("detail", detail.take(4_000))
-            .put("occurred_at", Instant.ofEpochMilli(occurredAtMs).toString())
+            .put("target_client_update", clientUpdateId)
+            .put("target_category", category)
+            .put("target_detail", detail)
+            .put("target_occurred_at", Instant.ofEpochMilli(occurredAtMs).toString())
+        if (sessionId != null) payload.put("target_session", sessionId)
+        if (reviewId != null) payload.put("target_review", reviewId)
         post(
-            "/rest/v1/patrolgrid_field_updates?on_conflict=user_id,client_update_id",
+            "/rest/v1/rpc/patrolgrid_record_field_update",
             payload.toString(),
             session,
-            ignoreDuplicates = true,
+            returnRows = true,
+            evidenceWrite = true,
         )
         Unit
     }
 
     override fun signOut() = sessionRemote.signOut()
 
-    private suspend fun authenticatedSession(): BackupSession = sessionRemote.authenticatedSession().getOrThrow()
+    override suspend fun revokeSession(): Result<Unit> = sessionRemote.revokeSession()
+
+    private suspend fun authenticatedSession(): BackupSession = sessionRemote.authenticatedSession().fold(
+        onSuccess = { it },
+        onFailure = { error ->
+            when {
+                error is BackupSessionExpiredException || sessionRemote.currentSession() == null ->
+                    throw PatrolGridSessionExpiredException()
+                error is BackupTransientException ->
+                    throw PatrolGridTransientException(
+                        "PatrolGrid could not renew the secure session while offline. Try again when connected.",
+                    )
+                else -> throw error
+            }
+        },
+    )
 
     private fun loadIdentity(session: BackupSession): PatrolGridIdentity {
         val memberships = getRows(
@@ -358,8 +492,10 @@ class SupabasePatrolGridClient(
                 "&user_id=eq.${encoded(session.userId)}&status=eq.active&limit=1",
             session,
         )
-        check(memberships.length() == 1) {
-            "Your PatrolGrid account is not assigned to an active subdivision. Contact your administrator."
+        if (memberships.length() != 1) {
+            throw PatrolGridAccessDeniedException(
+                "Your PatrolGrid account is not assigned to an active subdivision. Contact your subdivision supervisor through the existing official Department channel.",
+            )
         }
         val membership = memberships.getJSONObject(0)
         val subdivisionId = membership.getString("subdivision_id")
@@ -367,7 +503,9 @@ class SupabasePatrolGridClient(
             "/rest/v1/patrolgrid_subdivisions?select=name&id=eq.${encoded(subdivisionId)}&limit=1",
             session,
         )
-        check(subdivisions.length() == 1) { "Your assigned subdivision is unavailable." }
+        if (subdivisions.length() != 1) {
+            throw PatrolGridAccessDeniedException("Your assigned subdivision is unavailable.")
+        }
         return PatrolGridIdentity(
             userId = session.userId,
             subdivisionId = subdivisionId,
@@ -402,25 +540,14 @@ class SupabasePatrolGridClient(
         body: String,
         session: BackupSession,
         returnRows: Boolean = false,
-        ignoreDuplicates: Boolean = false,
+        evidenceWrite: Boolean = false,
     ): String {
-        val preferences = buildList {
-            add(if (returnRows) "return=representation" else "return=minimal")
-            if (ignoreDuplicates) add("resolution=ignore-duplicates")
-        }.joinToString(",")
+        val preferences = if (returnRows) "return=representation" else "return=minimal"
         val request = authorizedRequest(path, session)
             .header("Prefer", preferences)
             .post(body.toRequestBody(JSON))
             .build()
-        return execute(request)
-    }
-
-    private fun patch(path: String, body: String, session: BackupSession): String {
-        val request = authorizedRequest(path, session)
-            .header("Prefer", "return=minimal")
-            .patch(body.toRequestBody(JSON))
-            .build()
-        return execute(request)
+        return execute(request, evidenceWrite)
     }
 
     private fun authorizedRequest(path: String, session: BackupSession): Request.Builder = Request.Builder()
@@ -429,27 +556,38 @@ class SupabasePatrolGridClient(
         .header("Authorization", "Bearer ${session.accessToken}")
         .header("Content-Type", "application/json")
 
-    private fun execute(request: Request): String {
+    private fun execute(request: Request, evidenceWrite: Boolean = false): String {
         httpClient.newCall(request).execute().use { response ->
-            ensureSuccess(response.code)
-            return response.body?.string().orEmpty()
+            val body = response.body?.string().orEmpty()
+            ensureSuccess(response.code, evidenceWrite, body)
+            return body
         }
     }
 
-    private fun ensureSuccess(code: Int) {
+    private fun ensureSuccess(code: Int, evidenceWrite: Boolean = false, responseBody: String = "") {
         if (code in 200..299) return
-        val message = when (code) {
-            400 -> "PatrolGrid rejected invalid mission data. Refresh and try again."
-            401 -> "Your PatrolGrid session expired. Sign in again."
-            403 -> "Your account is not authorized for this PatrolGrid action."
-            404 -> "The requested patrol record is no longer available."
-            409 -> "This patrol update was already recorded. Refresh to continue."
-            429 -> "PatrolGrid is busy. Your local evidence is safe; retry shortly."
-            in 500..599 -> "PatrolGrid service is temporarily unavailable."
-            else -> "PatrolGrid request failed ($code)."
+        val postgresErrorCode = runCatching {
+            JSONObject(responseBody).optString("code").takeIf(String::isNotBlank)
+        }.getOrNull()
+        if (evidenceWrite && postgresErrorCode == "P0002") {
+            throw PatrolGridEvidenceUnavailableException()
+        }
+        val error = when (code) {
+            400 -> PatrolGridRemoteException("PatrolGrid rejected invalid mission data. Refresh and try again.")
+            401 -> PatrolGridSessionExpiredException()
+            403 -> PatrolGridAccessDeniedException()
+            404 -> PatrolGridRemoteException("The requested patrol record is no longer available.")
+            409 -> PatrolGridRemoteException(
+                "This patrol record changed on another device. Refresh before continuing.",
+            )
+            429 -> PatrolGridTransientException(
+                "PatrolGrid is busy. Your local evidence is safe; retry shortly.",
+            )
+            in 500..599 -> PatrolGridTransientException("PatrolGrid service is temporarily unavailable.")
+            else -> PatrolGridRemoteException("PatrolGrid request failed ($code).")
         }
         if (code == 401) sessionRemote.signOut()
-        throw IllegalStateException(message)
+        throw error
     }
 
     private suspend fun <T> ioResult(block: suspend () -> T): Result<T> = withContext(Dispatchers.IO) {
@@ -501,5 +639,59 @@ class SupabasePatrolGridClient(
                 PatrolMissionStatus.NEEDS_REVIEW -> "Needs context"
                 PatrolMissionStatus.ASSIGNED -> "Assigned"
             }
+    }
+}
+
+internal object PatrolRouteGeoJsonParser {
+    private const val MAX_BYTES = 262_144
+    private const val MAX_POINTS = 10_000
+    private const val MAX_ARRAYS = 12_000
+
+    fun parse(value: JSONObject?): List<PatrolMapPoint> {
+        value ?: return emptyList()
+        if (value.toString().toByteArray(StandardCharsets.UTF_8).size > MAX_BYTES) return emptyList()
+        val coordinates = value.optJSONArray("coordinates") ?: return emptyList()
+        val positionContainerDepth = when (value.optString("type")) {
+            "LineString" -> 0
+            "MultiLineString", "Polygon" -> 1
+            "MultiPolygon" -> 2
+            else -> return emptyList()
+        }
+
+        data class PendingArray(val value: JSONArray, val depth: Int)
+
+        val pending = ArrayDeque<PendingArray>().apply {
+            addLast(PendingArray(coordinates, 0))
+        }
+        val points = ArrayList<PatrolMapPoint>()
+        var arraysVisited = 0
+        while (pending.isNotEmpty()) {
+            val current = pending.removeFirst()
+            arraysVisited += 1
+            if (arraysVisited > MAX_ARRAYS || current.depth > positionContainerDepth) return emptyList()
+            if (current.depth == positionContainerDepth) {
+                for (index in 0 until current.value.length()) {
+                    val position = current.value.optJSONArray(index) ?: return emptyList()
+                    if (position.length() != 2 || position.opt(0) !is Number || position.opt(1) !is Number) {
+                        return emptyList()
+                    }
+                    val longitude = position.getDouble(0)
+                    val latitude = position.getDouble(1)
+                    if (!longitude.isFinite() || longitude !in -180.0..180.0 ||
+                        !latitude.isFinite() || latitude !in -90.0..90.0
+                    ) {
+                        return emptyList()
+                    }
+                    points += PatrolMapPoint(latitude = latitude, longitude = longitude)
+                    if (points.size > MAX_POINTS) return emptyList()
+                }
+            } else {
+                for (index in 0 until current.value.length()) {
+                    val child = current.value.optJSONArray(index) ?: return emptyList()
+                    pending.addLast(PendingArray(child, current.depth + 1))
+                }
+            }
+        }
+        return points
     }
 }

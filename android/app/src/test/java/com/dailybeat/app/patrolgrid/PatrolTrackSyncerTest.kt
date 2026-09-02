@@ -5,9 +5,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.backup.BackupSession
 import com.dailybeat.app.data.db.PatrolTrackDao
 import com.dailybeat.app.data.model.PatrolTrackPoint
+import com.dailybeat.app.data.model.SupervisorReviewOutcome
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.security.PatrolCoordinates
 import com.dailybeat.app.security.PatrolTrackCipher
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -36,7 +38,8 @@ class PatrolTrackSyncerTest {
     fun `pending encrypted points upload before session closes`() = runBlocking {
         dao.rows += point(1)
         dao.rows += point(2)
-        settings.setPendingPatrolClose("session-1", "mission-1")
+        settings.setPendingPatrolClose("session-1", "mission-1", endedAtMs = 5_000L)
+        settings.setPatrolEvidenceOwner("user-1")
         val syncer = syncer()
 
         val uploaded = syncer.syncAndClosePendingSession().getOrThrow()
@@ -44,14 +47,17 @@ class PatrolTrackSyncerTest {
         assertEquals(2, uploaded)
         assertEquals(listOf(1, 2), remote.uploaded.single().map { it.sequenceNumber })
         assertEquals(listOf("session-1"), remote.closedSessions)
-        assertTrue(dao.rows.all { it.syncedAtMs == 9_000L })
+        assertEquals(listOf(5_000L), remote.closedAtMs)
+        assertTrue(dao.rows.isEmpty())
         assertEquals(null, settings.get().pendingPatrolCloseSessionId)
+        assertEquals(null, settings.get().patrolEvidenceOwnerId)
     }
 
     @Test
     fun `failed upload keeps evidence pending and does not close session`() = runBlocking {
         dao.rows += point(1)
         settings.setPendingPatrolClose("session-1", "mission-1")
+        settings.setPatrolEvidenceOwner("user-1")
         remote.uploadFailure = IllegalStateException("offline")
 
         val result = syncer().syncAndClosePendingSession()
@@ -60,6 +66,19 @@ class PatrolTrackSyncerTest {
         assertEquals(null, dao.rows.single().syncedAtMs)
         assertTrue(remote.closedSessions.isEmpty())
         assertEquals("session-1", settings.get().pendingPatrolCloseSessionId)
+        assertEquals("user-1", settings.get().patrolEvidenceOwnerId)
+    }
+
+    @Test
+    fun `purged server destination is surfaced with mission id for one-time cleanup`() = runBlocking {
+        dao.rows += point(1)
+        remote.uploadFailure = PatrolGridEvidenceUnavailableException()
+
+        val error = syncer().syncPending().exceptionOrNull()
+
+        assertTrue(error is PatrolEvidenceDestinationUnavailableException)
+        assertEquals("mission-1", (error as PatrolEvidenceDestinationUnavailableException).missionId)
+        assertEquals(null, dao.rows.single().syncedAtMs)
     }
 
     private fun syncer() = PatrolTrackSyncer(
@@ -87,7 +106,16 @@ class PatrolTrackSyncerTest {
             return point.id
         }
         override suspend fun forMission(missionId: String) = rows.filter { it.missionId == missionId }
+        override suspend fun latestForMission(missionId: String, limit: Int) = rows
+            .filter { it.missionId == missionId }
+            .sortedWith(compareByDescending<PatrolTrackPoint> { it.timestampMs }.thenByDescending { it.id })
+            .take(limit)
+            .sortedWith(compareBy<PatrolTrackPoint> { it.timestampMs }.thenBy { it.id })
+        override fun observeLatestForMission(missionId: String, limit: Int) =
+            flowOf(runBlocking { latestForMission(missionId, limit) })
         override suspend fun countForMission(missionId: String) = rows.count { it.missionId == missionId }
+        override fun observeCountForMission(missionId: String) =
+            flowOf(rows.count { it.missionId == missionId })
         override suspend fun pending(missionId: String?, limit: Int) = rows
             .filter { it.syncedAtMs == null && it.sessionId != null && (missionId == null || it.missionId == missionId) }
             .take(limit)
@@ -98,6 +126,16 @@ class PatrolTrackSyncerTest {
             }
         }
         override suspend fun pendingCount() = rows.count { it.syncedAtMs == null && it.sessionId != null }
+        override suspend fun countForMissions(missionIds: List<String>) =
+            rows.count { it.missionId in missionIds }
+        override suspend fun accountOwnedMissionIds() =
+            rows.filter { it.sessionId != null }.map { it.missionId }.distinct()
+        override suspend fun deleteForMissionsRaw(missionIds: List<String>): Int {
+            val before = rows.size
+            rows.removeAll { it.missionId in missionIds }
+            return before - rows.size
+        }
+        override suspend fun accountOwnedEvidenceCount() = rows.count { it.sessionId != null }
         override suspend fun deleteForMission(missionId: String) {
             rows.removeAll { it.missionId == missionId }
         }
@@ -107,6 +145,7 @@ class PatrolTrackSyncerTest {
         var uploadFailure: Exception? = null
         val uploaded = mutableListOf<List<RemoteTrackPoint>>()
         val closedSessions = mutableListOf<String>()
+        val closedAtMs = mutableListOf<Long>()
         override val isConfigured = true
         override fun currentSession() = BackupSession("user-1", "test@example.com", "a", "r", Long.MAX_VALUE)
         override suspend fun signIn(email: String, password: String) = unsupported<PatrolGridIdentity>()
@@ -114,10 +153,21 @@ class PatrolTrackSyncerTest {
         override suspend fun loadSnapshot(activeMissionId: String?) = unsupported<PatrolGridRemoteSnapshot>()
         override suspend fun loadAssignmentOptions() = unsupported<PatrolAssignmentOptions>()
         override suspend fun createAssignment(draft: com.dailybeat.app.data.model.PatrolAssignmentDraft) = unsupported<Unit>()
+        override suspend fun submitReview(
+            missionId: String,
+            expectedVersion: Int,
+            outcome: SupervisorReviewOutcome,
+            notes: String,
+        ) = unsupported<Int>()
         override suspend fun startSession(missionId: String, installationId: String, appVersion: String) =
             unsupported<String>()
-        override suspend fun endSession(sessionId: String, reason: String): Result<Unit> {
+        override suspend fun endSession(
+            sessionId: String,
+            reason: String,
+            endedAtMs: Long,
+        ): Result<Unit> {
             closedSessions += sessionId
+            closedAtMs += endedAtMs
             return Result.success(Unit)
         }
         override suspend fun uploadTrackPoints(
@@ -130,17 +180,18 @@ class PatrolTrackSyncerTest {
             return Result.success(Unit)
         }
         override suspend fun markPriorityVisited(
-            missionId: String,
+            sessionId: String,
             priorityLocationId: String,
             clientVisitId: String,
             visitedAtMs: Long,
         ) = unsupported<Unit>()
         override suspend fun addFieldUpdate(
-            missionId: String,
+            sessionId: String?,
             category: String,
             detail: String,
             clientUpdateId: String,
             occurredAtMs: Long,
+            reviewId: String?,
         ) = unsupported<Unit>()
         override fun signOut() = Unit
 

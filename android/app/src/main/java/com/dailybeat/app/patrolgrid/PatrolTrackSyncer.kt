@@ -40,7 +40,11 @@ class PatrolTrackSyncer(
                         accuracyM = coordinates.accuracyM,
                     )
                 }
-                remote.uploadTrackPoints(missionId, sessionId, payload).getOrThrow()
+                try {
+                    remote.uploadTrackPoints(missionId, sessionId, payload).getOrThrow()
+                } catch (error: PatrolGridEvidenceUnavailableException) {
+                    throw PatrolEvidenceDestinationUnavailableException(missionId, error)
+                }
                 dao.markSynced(points.map { it.id }, clock())
                 uploaded += points.size
             }
@@ -57,8 +61,18 @@ class PatrolTrackSyncer(
         if (sessionId != null && missionId != null) {
             val remaining = dao.pending(missionId = missionId, limit = 1)
             check(remaining.isEmpty()) { "Route evidence is still waiting to synchronize." }
-            remote.endSession(sessionId).getOrThrow()
+            try {
+                remote.endSession(
+                    sessionId = sessionId,
+                    reason = pending.pendingPatrolCloseReason,
+                    endedAtMs = pending.pendingPatrolCloseEndedAtMs ?: clock(),
+                ).getOrThrow()
+            } catch (error: PatrolGridEvidenceUnavailableException) {
+                throw PatrolEvidenceDestinationUnavailableException(missionId, error)
+            }
+            dao.deleteForMission(missionId)
             settings.setPendingPatrolClose(null, null)
+            settings.setPatrolEvidenceOwner(null)
         }
         uploaded
     }

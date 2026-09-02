@@ -9,10 +9,12 @@ import com.dailybeat.app.data.model.PatrolMissionStatus
 import com.dailybeat.app.data.model.PatrolRole
 import com.dailybeat.app.data.model.PatrolAssignmentDraft
 import com.dailybeat.app.data.model.PatrolRouteGuidance
+import com.dailybeat.app.data.model.SupervisorReviewOutcome
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,8 +23,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SupabasePatrolGridClientTest {
     private lateinit var server: MockWebServer
     private lateinit var sessions: FakeBackupRemote
@@ -73,14 +77,25 @@ class SupabasePatrolGridClientTest {
     @Test
     fun `snapshot maps server mission priorities and counts`() = runBlocking {
         enqueueIdentity()
+        server.enqueue(json("0"))
         server.enqueue(
             json(
-                """[{"id":"mission-1","title":"Night sector","starts_at":"2026-09-01T16:30:00Z","ends_at":"2026-09-01T20:30:00Z","guidance":"suggested_route","instructions":"Check gates","status":"assigned","updated_at":"2026-09-01T17:00:00Z"}]""",
+                """[{"id":"mission-1","title":"Night sector","starts_at":"2026-09-01T16:30:00Z","ends_at":"2026-09-01T20:30:00Z","guidance":"suggested_route","instructions":"Check gates","status":"assigned","version":7,"route_geojson":{"type":"LineString","coordinates":[[77.4,12.9],[77.5,13.0]]},"updated_at":"2026-09-01T17:00:00Z","retention_until":"2027-09-01T20:30:00Z"}]""",
             ),
         )
-        server.enqueue(json("""[{"id":"priority-1","mission_id":"mission-1","name":"Bus stand","required":true,"sort_order":0}]"""))
+        server.enqueue(json("""[{"id":"priority-1","mission_id":"mission-1","name":"Bus stand","latitude":13.0,"longitude":77.5,"radius_m":35,"required":true,"sort_order":0}]"""))
         server.enqueue(json("[]"))
         server.enqueue(json("""[{"mission_id":"mission-1","user_id":"user-1"}]"""))
+        server.enqueue(
+            json(
+                """[{"id":"update-2","mission_id":"mission-1","category":"review_context","detail":"Festival crowd required a diversion.","occurred_at":"2026-09-01T18:05:00Z","created_at":"2026-09-01T18:05:01Z","review_id":"review-1"},{"id":"update-1","mission_id":"mission-1","category":"operational_deviation","detail":"Crowd diversion","occurred_at":"2026-09-01T18:00:00Z","created_at":"2026-09-01T18:00:01Z","review_id":null}]""",
+            ),
+        )
+        server.enqueue(
+            json(
+                """[{"id":"review-1","outcome":"needs_context","notes":"Explain the market diversion.","reviewed_at":"2026-09-01T18:02:00Z","created_at":"2026-09-01T18:02:00Z"}]""",
+            ),
+        )
         server.enqueue(json("""[{"latitude":13.01,"longitude":77.51},{"latitude":13.0,"longitude":77.5}]"""))
         server.enqueue(countResponse(24))
         server.enqueue(countResponse(3))
@@ -89,15 +104,42 @@ class SupabasePatrolGridClientTest {
 
         assertEquals("Night sector", snapshot.missions.single().title)
         assertEquals(PatrolMissionStatus.ACTIVE, snapshot.missions.single().status)
+        assertEquals(7, snapshot.missions.single().version)
+        assertEquals(1_788_294_600_000L, snapshot.missions.single().endsAtEpochMs)
+        assertEquals(1_819_830_600_000L, snapshot.missions.single().retentionUntilEpochMs)
+        assertTrue(snapshot.missions.single().hasOperationalDeviation)
         assertEquals("Bus stand", snapshot.missions.single().priorityLocations.single().name)
+        assertEquals(13.0, snapshot.missions.single().priorityLocations.single().latitude!!, 0.0)
+        assertEquals(77.5, snapshot.missions.single().priorityLocations.single().longitude!!, 0.0)
+        assertEquals(35.0, snapshot.missions.single().priorityLocations.single().radiusM!!, 0.0)
+        assertEquals("mission-1", snapshot.evidenceMissionId)
         assertEquals(24, snapshot.recordedTrackPoints)
         assertEquals(3, snapshot.observationCount)
         assertEquals(2, snapshot.routePoints.size)
         assertEquals(13.0, snapshot.routePoints.first().latitude, 0.0)
         assertEquals(13.01, snapshot.routePoints.last().latitude, 0.0)
-        repeat(9) {
+        assertEquals(2, snapshot.plannedRoutePoints.size)
+        assertEquals(12.9, snapshot.plannedRoutePoints.first().latitude, 0.0)
+        assertEquals(77.4, snapshot.plannedRoutePoints.first().longitude, 0.0)
+        assertEquals(13.0, snapshot.plannedRoutePoints.last().latitude, 0.0)
+        assertEquals(77.5, snapshot.plannedRoutePoints.last().longitude, 0.0)
+        assertEquals("review-1", snapshot.reviewContextRequestId)
+        assertEquals("Explain the market diversion.", snapshot.reviewContextRequest)
+        assertEquals("Festival crowd required a diversion.", snapshot.reviewContextResponse)
+        repeat(12) {
             val request = server.takeRequest()
             assertEquals("Bearer access-token", request.getHeader("Authorization"))
+            if (request.path == "/rest/v1/rpc/patrolgrid_close_expired_sessions") {
+                assertEquals("POST", request.method)
+            }
+            if (request.path.orEmpty().contains("patrolgrid_missions?select=")) {
+                assertTrue(request.path.orEmpty().contains("version"))
+                assertTrue(request.path.orEmpty().contains("route_geojson"))
+                assertTrue(request.path.orEmpty().contains("retention_until"))
+            }
+            if (request.path.orEmpty().contains("patrolgrid_field_updates?select=")) {
+                assertTrue(request.path.orEmpty().contains("category"))
+            }
             if (request.path.orEmpty().contains("patrolgrid_track_points?select=latitude")) {
                 assertTrue(request.path.orEmpty().contains("order=recorded_at.desc"))
             }
@@ -106,7 +148,7 @@ class SupabasePatrolGridClientTest {
 
     @Test
     fun `route upload is idempotent and never sends encrypted session tokens in body`() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(201))
+        server.enqueue(json("1"))
 
         val result = client.uploadTrackPoints(
             missionId = "mission-1",
@@ -118,12 +160,181 @@ class SupabasePatrolGridClientTest {
 
         assertTrue(result.isSuccess)
         val request = server.takeRequest()
-        assertTrue(request.path.orEmpty().contains("on_conflict=user_id,client_point_id"))
-        assertTrue(request.getHeader("Prefer").orEmpty().contains("resolution=ignore-duplicates"))
+        assertEquals("/rest/v1/rpc/patrolgrid_ingest_track_points", request.path)
         val body = request.body.readUtf8()
+        assertTrue(body.contains("\"target_session\":\"session-1\""))
         assertTrue(body.contains("\"client_point_id\":\"point-1\""))
+        assertFalse(body.contains("mission-1"))
+        assertFalse(body.contains("user_id"))
         assertFalse(body.contains("access-token"))
         assertFalse(body.contains("refresh-token"))
+    }
+
+    @Test
+    fun `priority and field evidence use server-derived ingestion workflows`() = runBlocking {
+        server.enqueue(json("\"visit-1\""))
+        server.enqueue(json("\"update-1\""))
+
+        assertTrue(
+            client.markPriorityVisited(
+                sessionId = "session-1",
+                priorityLocationId = "priority-1",
+                clientVisitId = "visit-1",
+                visitedAtMs = 1_788_200_000_000L,
+            ).isSuccess,
+        )
+        assertTrue(
+            client.addFieldUpdate(
+                sessionId = "session-1",
+                category = "observation",
+                detail = "Gate checked",
+                clientUpdateId = "update-1",
+                occurredAtMs = 1_788_200_000_000L,
+                reviewId = null,
+            ).isSuccess,
+        )
+
+        val visit = server.takeRequest()
+        assertEquals("/rest/v1/rpc/patrolgrid_record_priority_visit", visit.path)
+        val visitBody = visit.body.readUtf8()
+        assertTrue(visitBody.contains("\"target_session\":\"session-1\""))
+        assertTrue(visitBody.contains("\"target_priority_location\":\"priority-1\""))
+        assertFalse(visitBody.contains("mission_id"))
+        assertFalse(visitBody.contains("user_id"))
+
+        val update = server.takeRequest()
+        assertEquals("/rest/v1/rpc/patrolgrid_record_field_update", update.path)
+        val updateBody = update.body.readUtf8()
+        assertTrue(updateBody.contains("\"target_session\":\"session-1\""))
+        assertTrue(updateBody.contains("\"target_category\":\"observation\""))
+        assertFalse(updateBody.contains("mission_id"))
+        assertFalse(updateBody.contains("user_id"))
+    }
+
+    @Test
+    fun `route upload rejects oversized batches before network`() = runBlocking {
+        val points = (0..250).map { index ->
+            RemoteTrackPoint("point-$index", index, 1_788_200_000_000L, 13.0, 77.5, 8f)
+        }
+
+        val result = client.uploadTrackPoints("mission-1", "session-1", points)
+
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `ordinary evidence validation 400 is not treated as purged mission`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(400).setBody(
+                """{"code":"22023","message":"invalid recorded_at"}""",
+            ),
+        )
+
+        val result = client.uploadTrackPoints(
+            "mission-1",
+            "session-1",
+            listOf(RemoteTrackPoint("point-1", 1, 1_788_200_000_000L, 13.0, 77.5, 8f)),
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is PatrolGridRemoteException)
+        assertFalse(result.exceptionOrNull() is PatrolGridEvidenceUnavailableException)
+    }
+
+    @Test
+    fun `server no-data SQLSTATE marks evidence destination permanently unavailable`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(400).setBody(
+                """{"code":"P0002","message":"Mission is unavailable"}""",
+            ),
+        )
+
+        val result = client.uploadTrackPoints(
+            "mission-1",
+            "session-1",
+            listOf(RemoteTrackPoint("point-1", 1, 1_788_200_000_000L, 13.0, 77.5, 8f)),
+        )
+
+        assertTrue(result.exceptionOrNull() is PatrolGridEvidenceUnavailableException)
+    }
+
+    @Test
+    fun `generic evidence 404 is not authoritative enough to discard local mission`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(404).setBody(
+                """{"code":"PGRST202","message":"RPC not found in schema cache"}""",
+            ),
+        )
+
+        val result = client.uploadTrackPoints(
+            "mission-1",
+            "session-1",
+            listOf(RemoteTrackPoint("point-1", 1, 1_788_200_000_000L, 13.0, 77.5, 8f)),
+        )
+
+        assertTrue(result.isFailure)
+        assertFalse(result.exceptionOrNull() is PatrolGridEvidenceUnavailableException)
+    }
+
+    @Test
+    fun `bounded iterative route parser accepts supported geometry and rejects hostile nesting`() {
+        val supported = JSONObject(
+            """{"type":"MultiPolygon","coordinates":[[[[77.5,13.0],[77.6,13.0],[77.6,13.1],[77.5,13.0]]]]}""",
+        )
+        val hostile = JSONObject(
+            """{"type":"LineString","coordinates":[[[[[77.5,13.0]]]]]}""",
+        )
+        val outOfRange = JSONObject(
+            """{"type":"LineString","coordinates":[[181.0,13.0],[77.5,13.1]]}""",
+        )
+
+        assertEquals(4, PatrolRouteGeoJsonParser.parse(supported).size)
+        assertTrue(PatrolRouteGeoJsonParser.parse(hostile).isEmpty())
+        assertTrue(PatrolRouteGeoJsonParser.parse(outOfRange).isEmpty())
+    }
+
+    @Test
+    fun `session start uses narrow rpc without client identity or timestamp`() = runBlocking {
+        server.enqueue(json("\"session-server\""))
+
+        val result = client.startSession(
+            missionId = "mission-1",
+            installationId = "50000000-0000-0000-0000-000000000001",
+            appVersion = "1.0-test",
+        )
+
+        assertEquals("session-server", result.getOrThrow())
+        val request = server.takeRequest()
+        assertEquals("/rest/v1/rpc/patrolgrid_start_session", request.path)
+        assertEquals("POST", request.method)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"target_session\":"))
+        assertTrue(body.contains("\"target_mission\":\"mission-1\""))
+        assertTrue(body.contains("\"target_installation\":\"50000000-0000-0000-0000-000000000001\""))
+        assertTrue(body.contains("\"target_app_version\":\"1.0-test\""))
+        assertFalse(body.contains("started_at"))
+        assertFalse(body.contains("user_id"))
+    }
+
+    @Test
+    fun `session closure uses narrow rpc and never sends the offline client timestamp`() = runBlocking {
+        server.enqueue(json("\"2026-09-01T20:30:00Z\""))
+
+        val result = client.endSession(
+            sessionId = "session-1",
+            reason = "duty_window_ended",
+            endedAtMs = 1_788_294_600_000L,
+        )
+
+        assertTrue(result.isSuccess)
+        val request = server.takeRequest()
+        assertEquals("/rest/v1/rpc/patrolgrid_end_session", request.path)
+        assertEquals("POST", request.method)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"target_session\":\"session-1\""))
+        assertTrue(body.contains("\"target_reason\":\"duty_window_ended\""))
+        assertFalse(body.contains("ended_at"))
     }
 
     @Test
@@ -163,6 +374,28 @@ class SupabasePatrolGridClientTest {
         assertTrue(body.contains("\"target_route_template\":\"route-1\""))
         assertTrue(body.contains("\"target_unit\":\"unit-1\""))
         assertTrue(body.contains("\"target_guidance\":\"area_coverage\""))
+    }
+
+    @Test
+    fun `supervisor review uses version checked rpc and returns updated version`() = runBlocking {
+        server.enqueue(json("8"))
+
+        val result = client.submitReview(
+            missionId = "mission-1",
+            expectedVersion = 7,
+            outcome = SupervisorReviewOutcome.NEEDS_CONTEXT,
+            notes = "  Confirm the operational reason with the patrol unit.  ",
+        )
+
+        assertEquals(8, result.getOrThrow())
+        val request = server.takeRequest()
+        assertEquals("/rest/v1/rpc/patrolgrid_submit_review", request.path)
+        assertTrue(request.getHeader("Prefer").orEmpty().contains("return=representation"))
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"target_mission\":\"mission-1\""))
+        assertTrue(body.contains("\"target_expected_version\":7"))
+        assertTrue(body.contains("\"target_outcome\":\"needs_context\""))
+        assertTrue(body.contains("\"target_notes\":\"Confirm the operational reason with the patrol unit.\""))
     }
 
     @Test

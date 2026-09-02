@@ -22,6 +22,9 @@ import javax.crypto.spec.GCMParameterSpec
  */
 class PatrolTrackCipher(private val context: Context) {
 
+    @Volatile
+    private var cachedKey: SecretKey? = null
+
     fun encrypt(
         missionId: String,
         timestampMs: Long,
@@ -61,8 +64,14 @@ class PatrolTrackCipher(private val context: Context) {
         return PatrolPointCodec.decode(cipher.doFinal(ciphertext))
     }
 
-    @Synchronized
     private fun getOrCreateKey(): SecretKey {
+        cachedKey?.let { return it }
+        return synchronized(this) {
+            cachedKey ?: loadOrCreateKey().also { cachedKey = it }
+        }
+    }
+
+    private fun loadOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
 

@@ -8,7 +8,6 @@ import com.dailybeat.app.security.PatrolTrackCipher
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("CREATE INDEX IF NOT EXISTS index_events_timestamp ON events(timestamp)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_diaries_dateKey ON diaries(dateKey)")
     }
 }
 
@@ -117,6 +116,10 @@ fun migration5To6(cipher: PatrolTrackCipher) = object : Migration(5, 6) {
 
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        // A historical 2 -> 3 migration created this redundant index even
+        // though DiaryEntry never declared it. Remove it before Room validates
+        // the current schema so legacy databases can open without data loss.
+        db.execSQL("DROP INDEX IF EXISTS index_diaries_dateKey")
         db.execSQL("ALTER TABLE patrol_track_points ADD COLUMN sessionId TEXT")
         db.execSQL("ALTER TABLE patrol_track_points ADD COLUMN clientPointId TEXT")
         db.execSQL("ALTER TABLE patrol_track_points ADD COLUMN syncedAtMs INTEGER")

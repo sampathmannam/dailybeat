@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -52,7 +53,8 @@ import com.dailybeat.app.data.model.PatrolMission
 import com.dailybeat.app.data.model.PriorityLocation
 import com.dailybeat.app.data.model.PriorityLocationState
 import com.dailybeat.app.ui.theme.Gold
-import com.dailybeat.app.ui.theme.SuccessGreen
+import com.dailybeat.app.ui.theme.operationalSuccessColor
+import com.dailybeat.app.ui.theme.operationalWarningColor
 
 @Composable
 fun MyPatrolScreen(
@@ -61,6 +63,8 @@ fun MyPatrolScreen(
     onMarkVisited: () -> Unit,
     onAddObservation: () -> Unit,
     onRecordDeviation: () -> Unit,
+    onRecordSafetyEvent: () -> Unit,
+    onRecordReviewContext: () -> Unit,
     onEndPatrol: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -169,8 +173,19 @@ fun MyPatrolScreen(
                     trackingActive = state.trackingActive,
                     visitedPriorityCount = visitedCount,
                     recordedPoints = state.routePoints,
+                    plannedPoints = state.plannedRoutePoints,
+                    priorityLocations = mission.priorityLocations,
                     totalRecordedPoints = state.recordedTrackPoints,
-                    demoMode = !state.serverBacked,
+                    demoMode = !state.serverBacked &&
+                        !state.trackingActive &&
+                        state.recordedTrackPoints == 0 &&
+                        state.unreadableTrackPoints == 0 &&
+                        state.routePoints.isEmpty() &&
+                        state.plannedRoutePoints.isEmpty(),
+                )
+                PatrolEvidenceIntegrityNotice(
+                    unreadableTrackPoints = state.unreadableTrackPoints,
+                    captureError = state.captureError,
                 )
             }
         }
@@ -205,9 +220,10 @@ fun MyPatrolScreen(
                     enabled = !state.operationInProgress,
                     onAddObservation = onAddObservation,
                     onRecordDeviation = onRecordDeviation,
+                    onRecordSafetyEvent = onRecordSafetyEvent,
                     onEndPatrol = onEndPatrol,
                 )
-            } else {
+            } else if (mission.status == com.dailybeat.app.data.model.PatrolMissionStatus.ASSIGNED) {
                 Button(
                     onClick = onStartPatrol,
                     enabled = !state.operationInProgress,
@@ -225,6 +241,44 @@ fun MyPatrolScreen(
                     Spacer(Modifier.size(8.dp))
                     Text("Start patrol", fontWeight = FontWeight.SemiBold)
                 }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().testTag("patrol_closed_state"),
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                if (mission.status == com.dailybeat.app.data.model.PatrolMissionStatus.NEEDS_REVIEW) {
+                                    "Patrol ended · waiting for supervisor review"
+                                } else {
+                                    "This patrol is closed. Tracking remains off."
+                                },
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            state.reviewContextRequest?.let { request ->
+                                Text("Context requested: $request", style = MaterialTheme.typography.bodyMedium)
+                                state.reviewContextResponse?.let { response ->
+                                    Text(
+                                        "Response saved: $response",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (!state.reviewContextRequest.isNullOrBlank() && state.reviewContextResponse.isNullOrBlank()) {
+                        OutlinedButton(
+                            onClick = onRecordReviewContext,
+                            enabled = !state.operationInProgress,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("respond_review_context"),
+                        ) {
+                            Text("Respond with context")
+                        }
+                    }
+                }
             }
         }
     }
@@ -237,6 +291,8 @@ private fun MissionBriefingCard(
     locationPermissionGranted: Boolean,
 ) {
     val context = LocalContext.current
+    val successColor = operationalSuccessColor()
+    val warningColor = operationalWarningColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
@@ -265,7 +321,7 @@ private fun MissionBriefingCard(
                     Box(
                         Modifier
                             .size(9.dp)
-                            .background(if (trackingActive) SuccessGreen else Gold, CircleShape),
+                            .background(if (trackingActive) successColor else warningColor, CircleShape),
                     )
                     Text(
                         when {
@@ -275,7 +331,7 @@ private fun MissionBriefingCard(
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = if (trackingActive && locationPermissionGranted) {
-                            SuccessGreen
+                            successColor
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
@@ -316,8 +372,9 @@ private fun PriorityLocationRow(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val successColor = operationalSuccessColor()
     val statusColor = when (location.state) {
-        PriorityLocationState.VISITED -> SuccessGreen
+        PriorityLocationState.VISITED -> successColor
         PriorityLocationState.CURRENT -> Color(0xFF4EA5FF)
         PriorityLocationState.REMAINING -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -360,6 +417,7 @@ private fun ActivePatrolActions(
     enabled: Boolean,
     onAddObservation: () -> Unit,
     onRecordDeviation: () -> Unit,
+    onRecordSafetyEvent: () -> Unit,
     onEndPatrol: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -370,7 +428,7 @@ private fun ActivePatrolActions(
             OutlinedButton(
                 onClick = onAddObservation,
                 enabled = enabled,
-                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("add_observation"),
                 shape = MaterialTheme.shapes.small,
             ) {
                 Icon(Icons.Default.AddComment, contentDescription = null, modifier = Modifier.size(19.dp))
@@ -380,13 +438,23 @@ private fun ActivePatrolActions(
             OutlinedButton(
                 onClick = onRecordDeviation,
                 enabled = enabled,
-                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("record_deviation"),
                 shape = MaterialTheme.shapes.small,
             ) {
                 Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Deviation")
             }
+        }
+        OutlinedButton(
+            onClick = onRecordSafetyEvent,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("record_safety_event"),
+            shape = MaterialTheme.shapes.small,
+        ) {
+            Icon(Icons.Default.WarningAmber, contentDescription = null, modifier = Modifier.size(19.dp))
+            Spacer(Modifier.size(6.dp))
+            Text("Safety event")
         }
         Button(
             onClick = onEndPatrol,

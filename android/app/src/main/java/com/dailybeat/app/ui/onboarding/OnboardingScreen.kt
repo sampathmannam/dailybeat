@@ -1,11 +1,15 @@
 package com.dailybeat.app.ui.onboarding
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
@@ -48,6 +54,8 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,6 +86,7 @@ fun OnboardingScreen(
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_continue),
                         onClick = { step = 1 },
+                        modifier = Modifier.testTag("onboarding_welcome_continue"),
                     )
                 }
                 1 -> {
@@ -88,7 +97,7 @@ fun OnboardingScreen(
                     OutlinedTextField(
                         value = officerName,
                         onValueChange = { officerName = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("onboarding_officer_name"),
                         label = { Text(stringResource(R.string.officer_name_label)) },
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp),
@@ -106,18 +115,21 @@ fun OnboardingScreen(
                         title = stringResource(R.string.onboarding_role_patrol),
                         description = stringResource(R.string.onboarding_role_patrol_desc),
                         selected = role == PatrolRole.PATROL,
+                        testTag = "onboarding_role_patrol",
                         onClick = { role = PatrolRole.PATROL },
                     )
                     RoleChoice(
                         title = stringResource(R.string.onboarding_role_supervisor),
                         description = stringResource(R.string.onboarding_role_supervisor_desc),
                         selected = role == PatrolRole.SUPERVISOR,
+                        testTag = "onboarding_role_supervisor",
                         onClick = { role = PatrolRole.SUPERVISOR },
                     )
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_continue),
                         onClick = { step = 2 },
                         enabled = officerName.isNotBlank(),
+                        modifier = Modifier.testTag("onboarding_identity_continue"),
                     )
                 }
                 else -> {
@@ -134,6 +146,7 @@ fun OnboardingScreen(
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_get_started),
                         onClick = { onComplete(officerName.trim(), role) },
+                        modifier = Modifier.testTag("onboarding_get_started"),
                     )
                 }
             }
@@ -146,11 +159,14 @@ private fun RoleChoice(
     title: String,
     description: String,
     selected: Boolean,
+    testTag: String,
     onClick: () -> Unit,
 ) {
     Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .testTag(testTag),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
     ) {
@@ -158,7 +174,7 @@ private fun RoleChoice(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RadioButton(selected = selected, onClick = onClick)
+            RadioButton(selected = selected, onClick = null)
             Column(modifier = Modifier.padding(start = 8.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(

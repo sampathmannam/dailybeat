@@ -133,9 +133,56 @@ class SupabaseBackupClientTest {
 
         val message = client.download().exceptionOrNull()?.message.orEmpty()
 
-        assertEquals("Cloud backup authorization expired. Sign in again.", message)
+        assertEquals("Cloud authorization expired. Sign in again.", message)
         assertFalse(message.contains("access-one"))
         assertFalse(message.contains("refresh-one"))
+    }
+
+    @Test
+    fun `rejected token refresh clears the expired session`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 900_000L)
+        server.enqueue(MockResponse().setResponseCode(400).setBody("{}"))
+
+        val error = client.authenticatedSession().exceptionOrNull()
+
+        assertTrue(error is BackupSessionExpiredException)
+        assertEquals(null, sessions.current)
+    }
+
+    @Test
+    fun `transient token refresh failure preserves the encrypted session`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 900_000L)
+        server.enqueue(MockResponse().setResponseCode(503).setBody("{}"))
+
+        val error = client.authenticatedSession().exceptionOrNull()
+
+        assertTrue(error is BackupTransientException)
+        assertEquals("refresh-one", sessions.current?.refreshToken)
+    }
+
+    @Test
+    fun `sign out revokes the server session and clears local tokens`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val result = client.revokeSession()
+
+        assertTrue(result.isSuccess)
+        assertEquals(null, sessions.current)
+        val request = server.takeRequest()
+        assertEquals("/auth/v1/logout?scope=local", request.path)
+        assertEquals("Bearer access-one", request.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `sign out clears local tokens even when revocation is temporarily unavailable`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(MockResponse().setResponseCode(503))
+
+        val result = client.revokeSession()
+
+        assertTrue(result.isFailure)
+        assertEquals(null, sessions.current)
     }
 
     private fun activeSession(expiresAtMs: Long = 5_000_000L) = BackupSession(

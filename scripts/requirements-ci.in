@@ -1,0 +1,6 @@
+# Direct dependencies used by the required GitHub CI checks. The generated
+# requirements-ci.txt pins every transitive wheel and its SHA-256 digest for
+# CPython 3.12 on the Ubuntu x86_64 runner.
+httpx==0.28.1
+locust==2.46.4
+pytest==8.3.5

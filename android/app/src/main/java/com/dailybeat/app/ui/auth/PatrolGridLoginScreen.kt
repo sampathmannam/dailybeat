@@ -1,20 +1,27 @@
 package com.dailybeat.app.ui.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.ui.components.PrimaryButton
@@ -37,16 +45,20 @@ import com.dailybeat.app.ui.components.PrimaryButton
 fun PatrolGridLoginScreen(
     loading: Boolean,
     error: String?,
+    locked: Boolean = false,
     onSignIn: (email: String, password: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 28.dp, vertical = 40.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -64,9 +76,16 @@ fun PatrolGridLoginScreen(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
-            Text("Secure PatrolGrid access", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Sign in with the account issued by your subdivision. Your role and mission access are set by the server.",
+                if (locked) "Unlock PatrolGrid" else "Secure PatrolGrid access",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                if (locked) {
+                    "PatrolGrid locked to protect mission and location data. Re-enter your issued credentials to continue; secure synchronization and active patrol tracking are not interrupted."
+                } else {
+                    "Sign in with the account issued by your subdivision. Your role and mission access are set by the server."
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -87,8 +106,23 @@ fun PatrolGridLoginScreen(
                 label = { Text("Password") },
                 enabled = !loading,
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        modifier = Modifier.testTag("login_password_visibility"),
+                    ) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                        )
+                    }
+                },
             )
             if (error != null) {
                 Text(
@@ -105,7 +139,7 @@ fun PatrolGridLoginScreen(
                 modifier = Modifier.testTag("login_submit"),
             )
             Text(
-                "PatrolGrid never asks staff to choose their own role. Contact your supervisor if your access is incorrect.",
+                "PatrolGrid never asks staff to choose their own role. If access is incorrect, contact your subdivision supervisor through the existing official Department channel.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -123,6 +157,37 @@ fun PatrolGridLoadingScreen(modifier: Modifier = Modifier) {
         ) {
             CircularProgressIndicator()
             Text("Verifying secure access…", style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+fun PatrolGridConfigurationErrorScreen(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize().padding(28.dp).testTag("configuration_error"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AdminPanelSettings,
+                contentDescription = null,
+                modifier = Modifier.size(52.dp),
+                tint = MaterialTheme.colorScheme.error,
+            )
+            Text(
+                "PatrolGrid is not configured",
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "This release cannot open demo patrol data. Ask your subdivision supervisor through the existing official Department channel for a configured build.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

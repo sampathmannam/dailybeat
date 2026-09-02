@@ -7,16 +7,32 @@ import com.dailybeat.app.data.model.PatrolMission
 import com.dailybeat.app.data.model.PatrolMissionStatus
 import com.dailybeat.app.data.model.PatrolRouteGuidance
 import com.dailybeat.app.data.model.PatrolRoutePlan
+import com.dailybeat.app.data.model.PatrolTrackPoint
 import com.dailybeat.app.data.model.PatrolUnitOption
 import com.dailybeat.app.data.model.PriorityLocation
 import com.dailybeat.app.data.model.PriorityLocationState
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.patrolgrid.PatrolMapPoint
+import com.dailybeat.app.security.PatrolCoordinates
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+
+data class PatrolRouteEvidence(
+    val recordedTrackPoints: Int,
+    val routePoints: List<PatrolMapPoint>,
+    val unreadableTrackPoints: Int,
+)
 
 data class PatrolGridSnapshot(
     val primaryMission: PatrolMission,
     val activeMissions: List<PatrolMission>,
     val upcomingMission: PatrolMission,
     val recordedTrackPoints: Int,
+    val routePoints: List<PatrolMapPoint>,
+    val unreadableTrackPoints: Int,
     val trackingActive: Boolean,
     val observationCount: Int,
 )
@@ -25,35 +41,112 @@ class PatrolGridRepository(
     context: Context,
     private val trackDao: PatrolTrackDao,
     private val settings: SettingsRepository,
+    private val coordinateDecoder: (PatrolTrackPoint) -> PatrolCoordinates,
 ) {
     private val prefs = context.getSharedPreferences("patrolgrid_missions", Context.MODE_PRIVATE)
 
     suspend fun snapshot(): PatrolGridSnapshot {
-        val trackingActive = settings.get().activePatrolMissionId == PRIMARY_MISSION_ID
-        val primary = primaryMission(trackingActive)
+        val activeMissionId = settings.get().activePatrolMissionId
+        val upcoming = upcomingMission()
+        val lastMissionId = prefs.getString(KEY_LAST_MISSION_ID, null)
+        val displayMissionId = when (activeMissionId ?: lastMissionId) {
+            upcoming.id -> upcoming.id
+            else -> PRIMARY_MISSION_ID
+        }
+        val trackingActive = activeMissionId == displayMissionId
+        val primary = if (displayMissionId == upcoming.id) {
+            localUpcomingMission(upcoming, trackingActive)
+        } else {
+            primaryMission(trackingActive)
+        }
+        val routeEvidence = routeEvidence(displayMissionId)
         return PatrolGridSnapshot(
             primaryMission = primary,
             activeMissions = listOf(primary, marketMission()),
-            upcomingMission = upcomingMission(),
-            recordedTrackPoints = trackDao.countForMission(PRIMARY_MISSION_ID),
+            upcomingMission = upcoming,
+            recordedTrackPoints = routeEvidence.recordedTrackPoints,
+            routePoints = routeEvidence.routePoints,
+            unreadableTrackPoints = routeEvidence.unreadableTrackPoints,
             trackingActive = trackingActive,
             observationCount = prefs.getInt(KEY_OBSERVATIONS, 0),
         )
     }
 
+    suspend fun routeEvidence(missionId: String): PatrolRouteEvidence =
+        decodeRouteEvidence(
+            recordedTrackPoints = trackDao.countForMission(missionId),
+            encryptedPoints = trackDao.latestForMission(missionId, MAX_RENDERED_ROUTE_POINTS),
+        )
+
+    fun observeRouteEvidence(missionId: String): Flow<PatrolRouteEvidence> = flow {
+        // Keep decrypted coordinates only for this active collector. Room invalidates both
+        // queries for one insert, so caching by row id prevents re-running up to 1,000
+        // Android Keystore operations for every count/list emission.
+        val decodedById = mutableMapOf<Long, PatrolMapPoint?>()
+        combine(
+            trackDao.observeCountForMission(missionId),
+            trackDao.observeLatestForMission(missionId, MAX_RENDERED_ROUTE_POINTS),
+        ) { count, points -> count to points }
+            .collect { (count, encryptedPoints) ->
+                val visibleIds = encryptedPoints.mapTo(mutableSetOf()) { it.id }
+                decodedById.keys.retainAll(visibleIds)
+                val decodedPoints = encryptedPoints.mapNotNull { point ->
+                    if (!decodedById.containsKey(point.id)) {
+                        decodedById[point.id] = decodePoint(point)
+                    }
+                    decodedById[point.id]
+                }
+                emit(
+                    PatrolRouteEvidence(
+                        recordedTrackPoints = count,
+                        routePoints = decodedPoints,
+                        unreadableTrackPoints = encryptedPoints.size - decodedPoints.size,
+                    ),
+                )
+            }
+    }.flowOn(Dispatchers.IO)
+
+    private fun decodeRouteEvidence(
+        recordedTrackPoints: Int,
+        encryptedPoints: List<PatrolTrackPoint>,
+    ): PatrolRouteEvidence {
+        val decodedPoints = encryptedPoints.mapNotNull(::decodePoint)
+        return PatrolRouteEvidence(
+            recordedTrackPoints = recordedTrackPoints,
+            routePoints = decodedPoints,
+            unreadableTrackPoints = encryptedPoints.size - decodedPoints.size,
+        )
+    }
+
+    private fun decodePoint(point: PatrolTrackPoint): PatrolMapPoint? =
+        runCatching { coordinateDecoder(point) }.getOrNull()?.let { coordinates ->
+            PatrolMapPoint(coordinates.latitude, coordinates.longitude)
+        }
+
     fun startPatrol(missionId: String = PRIMARY_MISSION_ID) {
         prefs.edit()
             .putBoolean(KEY_ENDED, false)
             .putBoolean(KEY_DEVIATION, false)
+            .putInt(KEY_VISITED_PRIORITY, 0)
+            .putInt(KEY_OBSERVATIONS, 0)
+            .putString(KEY_LAST_MISSION_ID, missionId)
             .apply()
         settings.setActivePatrolMission(missionId)
         settings.setGpsEnabled(true)
     }
 
     fun markCurrentPriorityVisited(): String? {
+        val upcoming = upcomingMission()
+        val priorityNames = if (
+            (settings.get().activePatrolMissionId ?: prefs.getString(KEY_LAST_MISSION_ID, null)) == upcoming.id
+        ) {
+            upcoming.priorityLocations.map { it.name }
+        } else {
+            PRIORITY_NAMES
+        }
         val visited = prefs.getInt(KEY_VISITED_PRIORITY, 0)
-        if (visited >= PRIORITY_NAMES.size) return null
-        val visitedName = PRIORITY_NAMES[visited]
+        if (visited >= priorityNames.size) return null
+        val visitedName = priorityNames[visited]
         prefs.edit().putInt(KEY_VISITED_PRIORITY, visited + 1).apply()
         return visitedName
     }
@@ -72,6 +165,7 @@ class PatrolGridRepository(
         prefs.edit().putBoolean(KEY_ENDED, true).apply()
         settings.setActivePatrolMission(null)
         settings.setActivePatrolSession(null)
+        settings.setActivePatrolDeadline(null)
         settings.setGpsEnabled(false)
     }
 
@@ -155,6 +249,57 @@ class PatrolGridRepository(
         hasOperationalDeviation = true,
     )
 
+    private fun localUpcomingMission(
+        mission: PatrolMission,
+        trackingActive: Boolean,
+    ): PatrolMission {
+        val ended = prefs.getBoolean(KEY_ENDED, false)
+        val hasDeviation = prefs.getBoolean(KEY_DEVIATION, false)
+        val visited = prefs.getInt(KEY_VISITED_PRIORITY, 0)
+            .coerceIn(0, mission.priorityLocations.size)
+        val locations = mission.priorityLocations.mapIndexed { index, location ->
+            val state = when {
+                index < visited -> PriorityLocationState.VISITED
+                index == visited && !ended -> PriorityLocationState.CURRENT
+                else -> PriorityLocationState.REMAINING
+            }
+            location.copy(
+                state = state,
+                detail = when (state) {
+                    PriorityLocationState.VISITED -> "Visited"
+                    PriorityLocationState.CURRENT -> "Current"
+                    PriorityLocationState.REMAINING -> "Remaining"
+                },
+            )
+        }
+        val status = when {
+            trackingActive -> PatrolMissionStatus.ACTIVE
+            ended && (visited < locations.size || hasDeviation) -> PatrolMissionStatus.NEEDS_REVIEW
+            ended -> PatrolMissionStatus.COMPLETED
+            else -> PatrolMissionStatus.ASSIGNED
+        }
+        return mission.copy(
+            status = status,
+            statusLabel = when (status) {
+                PatrolMissionStatus.ACTIVE -> "On route"
+                PatrolMissionStatus.NEEDS_REVIEW -> "Needs context"
+                PatrolMissionStatus.COMPLETED -> "Ready for review"
+                else -> "Assigned"
+            },
+            context = when {
+                hasDeviation -> "Operational deviation recorded"
+                status == PatrolMissionStatus.ACTIVE -> "Covering priority locations as planned"
+                status == PatrolMissionStatus.COMPLETED -> "Patrol ended; evidence available"
+                status == PatrolMissionStatus.NEEDS_REVIEW ->
+                    "Patrol ended with an incomplete priority location"
+                else -> mission.context
+            },
+            priorityLocations = locations,
+            lastUpdateLabel = if (trackingActive) "Now" else mission.lastUpdateLabel,
+            hasOperationalDeviation = hasDeviation,
+        )
+    }
+
     private fun upcomingMission(): PatrolMission {
         val route = ROUTE_PLANS.firstOrNull {
             it.id == prefs.getString(KEY_PENDING_ROUTE, null)
@@ -192,6 +337,7 @@ class PatrolGridRepository(
 
     companion object {
         const val PRIMARY_MISSION_ID = "night-sector-4"
+        private const val MAX_RENDERED_ROUTE_POINTS = 1_000
         private const val KEY_VISITED_PRIORITY = "visited_priority"
         private const val KEY_OBSERVATIONS = "observation_count"
         private const val KEY_DEVIATION = "operational_deviation"
@@ -200,6 +346,7 @@ class PatrolGridRepository(
         private const val KEY_PENDING_UNIT = "pending_unit"
         private const val KEY_PENDING_PERSONNEL = "pending_personnel"
         private const val KEY_PENDING_GUIDANCE = "pending_guidance"
+        private const val KEY_LAST_MISSION_ID = "last_mission_id"
         private val PRIORITY_NAMES = listOf("Bus stand", "Market junction", "Canal road")
 
         val ROUTE_PLANS = listOf(

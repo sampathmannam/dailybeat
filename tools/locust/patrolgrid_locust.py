@@ -11,7 +11,6 @@ from pathlib import Path
 
 from locust import HttpUser, between, events, task
 
-
 CONTEXT_PATH = Path(
     os.getenv("PATROLGRID_LOAD_CONTEXT", "supabase/.temp/patrolgrid-load-context.json")
 )
@@ -43,7 +42,9 @@ class PatrolGridApiUser(HttpUser):
             catch_response=True,
         ) as response:
             if response.status_code != 200 or len(response.json()) != 1:
-                response.failure(f"Expected one assigned mission, got HTTP {response.status_code}")
+                response.failure(
+                    f"Expected one assigned mission, got HTTP {response.status_code}"
+                )
 
     @task(4)
     def read_own_recent_route(self) -> None:
@@ -62,43 +63,48 @@ class PatrolGridApiUser(HttpUser):
         sequence = next(SEQUENCES)
         offset = (sequence % 100) / 100_000
         with self.client.post(
-            "/rest/v1/patrolgrid_track_points",
-            headers={**self.headers, "Prefer": "return=minimal"},
+            "/rest/v1/rpc/patrolgrid_ingest_track_points",
+            headers={**self.headers, "Prefer": "return=representation"},
             json={
-                "client_point_id": str(uuid.uuid4()),
-                "session_id": CONTEXT["session_id"],
-                "mission_id": CONTEXT["mission_id"],
-                "user_id": CONTEXT["user_id"],
-                "sequence_number": sequence,
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
-                "latitude": 13.0 + offset,
-                "longitude": 77.5 + offset,
-                "accuracy_m": 8.0,
+                "target_session": CONTEXT["session_id"],
+                "target_points": [
+                    {
+                        "client_point_id": str(uuid.uuid4()),
+                        "sequence_number": sequence,
+                        "recorded_at": datetime.now(timezone.utc).isoformat(),
+                        "latitude": 13.0 + offset,
+                        "longitude": 77.5 + offset,
+                        "accuracy_m": 8.0,
+                    }
+                ],
             },
-            name="POST route point",
+            name="RPC ingest route batch",
             catch_response=True,
         ) as response:
-            if response.status_code != 201:
-                response.failure(f"Unexpected HTTP {response.status_code}: {response.text[:160]}")
+            if response.status_code != 200:
+                response.failure(
+                    f"Unexpected HTTP {response.status_code}: {response.text[:160]}"
+                )
 
     @task(1)
     def submit_field_update(self) -> None:
         with self.client.post(
-            "/rest/v1/patrolgrid_field_updates",
-            headers={**self.headers, "Prefer": "return=minimal"},
+            "/rest/v1/rpc/patrolgrid_record_field_update",
+            headers={**self.headers, "Prefer": "return=representation"},
             json={
-                "client_update_id": str(uuid.uuid4()),
-                "mission_id": CONTEXT["mission_id"],
-                "user_id": CONTEXT["user_id"],
-                "category": "observation",
-                "detail": "Synthetic load-test observation; contains no operational data.",
-                "occurred_at": datetime.now(timezone.utc).isoformat(),
+                "target_client_update": str(uuid.uuid4()),
+                "target_session": CONTEXT["session_id"],
+                "target_category": "observation",
+                "target_detail": "Synthetic load-test observation; contains no operational data.",
+                "target_occurred_at": datetime.now(timezone.utc).isoformat(),
             },
-            name="POST field update",
+            name="RPC ingest field update",
             catch_response=True,
         ) as response:
-            if response.status_code != 201:
-                response.failure(f"Unexpected HTTP {response.status_code}: {response.text[:160]}")
+            if response.status_code != 200:
+                response.failure(
+                    f"Unexpected HTTP {response.status_code}: {response.text[:160]}"
+                )
 
 
 @events.quitting.add_listener

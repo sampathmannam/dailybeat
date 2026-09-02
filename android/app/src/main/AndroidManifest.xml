@@ -23,6 +23,19 @@
         android:theme="@style/Theme.DailyBeat"
         android:usesCleartextTraffic="false">
 
+        <meta-data
+            android:name="com.dailybeat.app.patrolgrid.RELEASE_COMMIT"
+            android:value="${patrolGridReleaseCommit}" />
+        <meta-data
+            android:name="com.dailybeat.app.patrolgrid.BACKEND_IDENTITY"
+            android:value="${patrolGridBackendIdentity}" />
+        <meta-data
+            android:name="com.dailybeat.app.patrolgrid.PRIVACY_POLICY_STATUS"
+            android:value="${patrolGridPrivacyPolicyStatus}" />
+        <meta-data
+            android:name="com.dailybeat.app.patrolgrid.PRIVACY_NOTICE_VERSION"
+            android:value="${patrolGridPrivacyNoticeVersion}" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

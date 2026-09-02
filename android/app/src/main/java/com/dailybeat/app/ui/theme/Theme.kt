@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -16,8 +17,8 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = SurfaceElevated,
     onPrimaryContainer = Navy,
-    secondary = Gold,
-    onSecondary = Ink,
+    secondary = WarningAccessibleLight,
+    onSecondary = Color.White,
     secondaryContainer = GoldSoft,
     onSecondaryContainer = Ink,
     background = Canvas,
@@ -25,8 +26,8 @@ private val LightColorScheme = lightColorScheme(
     surface = SurfaceCard,
     onSurface = Ink,
     surfaceVariant = SurfaceElevated,
-    onSurfaceVariant = InkMuted,
-    outline = OutlineSoft,
+    onSurfaceVariant = Color(0xFF56667A),
+    outline = Color(0xFF77889C),
     error = ErrorRed,
 )
 
@@ -51,7 +52,7 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun DailyBeatTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

@@ -8,13 +8,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -46,19 +43,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.data.model.PatrolMission
 import com.dailybeat.app.data.model.PatrolMissionStatus
-import com.dailybeat.app.ui.theme.Gold
-import com.dailybeat.app.ui.theme.SuccessGreen
+import com.dailybeat.app.ui.theme.operationalSuccessColor
+import com.dailybeat.app.ui.theme.operationalWarningColor
 
 @Composable
 fun PatrolControlScreen(
     state: PatrolGridUiState,
     onSelectTab: (SupervisorMissionTab) -> Unit,
     onAssignPatrol: () -> Unit,
+    onOpenMission: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val needsAttention = state.activeMissions.filter {
+    val needsAttention = state.allMissions.filter {
         it.status == PatrolMissionStatus.NEEDS_REVIEW || it.status == PatrolMissionStatus.PAUSED_WITH_REASON
     }
+    val reviewMissions = state.allMissions.filter { it.status == PatrolMissionStatus.NEEDS_REVIEW }
+    val upcomingMissions = state.allMissions.filter { it.status == PatrolMissionStatus.ASSIGNED }
     LazyColumn(
         modifier = modifier.testTag("patrol_control_list"),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -125,6 +125,7 @@ fun PatrolControlScreen(
                                         detail = mission.context,
                                         unit = mission.unitName,
                                         updated = mission.lastUpdateLabel,
+                                        onClick = { onOpenMission(mission.id) },
                                     )
                                     if (index != needsAttention.lastIndex) {
                                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -137,24 +138,46 @@ fun PatrolControlScreen(
 
                 item { SectionHeading("Active patrols", "Live mission view") }
                 items(state.activeMissions, key = { it.id }) { mission ->
-                    ActiveMissionCard(mission)
+                    ActiveMissionCard(mission, onClick = { onOpenMission(mission.id) })
                 }
 
                 state.primaryMission?.let { mission ->
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SectionHeading("Mission map", mission.title)
-                            PatrolRouteMap(
-                                trackingActive = state.trackingActive,
-                                visitedPriorityCount = mission.priorityLocations.count {
-                                    it.state == com.dailybeat.app.data.model.PriorityLocationState.VISITED
-                                },
-                                recordedPoints = state.routePoints,
-                                totalRecordedPoints = state.recordedTrackPoints,
-                                demoMode = !state.serverBacked,
-                            )
+                            val evidenceMatches = state.evidenceMissionId == mission.id
+                            if (evidenceMatches || !state.serverBacked) {
+                                PatrolRouteMap(
+                                    trackingActive = state.trackingActive,
+                                    visitedPriorityCount = mission.priorityLocations.count {
+                                        it.state == com.dailybeat.app.data.model.PriorityLocationState.VISITED
+                                    },
+                                    recordedPoints = state.routePoints,
+                                    plannedPoints = state.plannedRoutePoints,
+                                    priorityLocations = mission.priorityLocations,
+                                    totalRecordedPoints = state.recordedTrackPoints,
+                                    demoMode = !state.serverBacked &&
+                                        !state.trackingActive &&
+                                        state.recordedTrackPoints == 0 &&
+                                        state.unreadableTrackPoints == 0 &&
+                                        state.routePoints.isEmpty() &&
+                                        state.plannedRoutePoints.isEmpty(),
+                                )
+                                PatrolEvidenceIntegrityNotice(
+                                    unreadableTrackPoints = state.unreadableTrackPoints,
+                                    captureError = state.captureError,
+                                )
+                            } else {
+                                Text(
+                                    "Loading route evidence for this mission…",
+                                    modifier = Modifier.testTag("control_evidence_loading"),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Text(
-                                text = if (state.recordedTrackPoints > 0) {
+                                text = if (!evidenceMatches && state.serverBacked) {
+                                    "Evidence remains hidden until the selected mission is verified"
+                                } else if (state.recordedTrackPoints > 0) {
                                     "${state.recordedTrackPoints} encrypted route points recorded for this mission"
                                 } else {
                                     "Route evidence appears after the assigned patrol starts"
@@ -169,12 +192,25 @@ fun PatrolControlScreen(
             }
 
             SupervisorMissionTab.NEEDS_REVIEW -> {
-                item {
-                    state.primaryMission?.let { mission ->
-                        ReviewPanel(
-                            title = mission.title,
-                            summary = state.review?.summary ?: "Evidence is being prepared",
+                if (reviewMissions.isEmpty()) {
+                    item {
+                        Text(
+                            "No completed missions are waiting for review.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                } else {
+                    items(reviewMissions, key = { it.id }) { mission ->
+                        ActiveMissionCard(mission, onClick = { onOpenMission(mission.id) })
+                    }
+                    state.primaryMission?.takeIf { selected -> reviewMissions.any { it.id == selected.id } }?.let { mission ->
+                        item {
+                            ReviewPanel(
+                                title = mission.title,
+                                summary = state.review?.summary ?: "Evidence is being prepared",
+                            )
+                        }
                     }
                 }
                 item {
@@ -183,8 +219,7 @@ fun PatrolControlScreen(
             }
 
             SupervisorMissionTab.UPCOMING -> {
-                state.upcomingMission?.let { mission ->
-                    item {
+                items(upcomingMissions, key = { it.id }) { mission ->
                         UpcomingMissionRow(
                             title = mission.title,
                             dutyWindow = mission.dutyWindow,
@@ -193,10 +228,10 @@ fun PatrolControlScreen(
                             } else {
                                 "Unassigned · briefing pending"
                             },
+                            onClick = { onOpenMission(mission.id) },
                         )
-                    }
                 }
-                if (state.upcomingMission == null) {
+                if (upcomingMissions.isEmpty()) {
                     item {
                         Text(
                             "No additional upcoming mission is scheduled.",
@@ -209,7 +244,10 @@ fun PatrolControlScreen(
                     Button(
                         onClick = onAssignPatrol,
                         enabled = !state.operationInProgress,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .testTag("assign_patrol_upcoming"),
                         shape = MaterialTheme.shapes.small,
                     ) {
                         Text("Assign patrol")
@@ -269,57 +307,60 @@ private fun AttentionRow(
     detail: String,
     unit: String,
     updated: String,
+    onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = if (warning) Icons.Default.WarningAmber else Icons.Default.Info,
-            contentDescription = null,
-            tint = if (warning) Gold else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (warning) Color(0xFFB66F00) else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    val warningColor = operationalWarningColor()
+    Surface(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (warning) Icons.Default.WarningAmber else Icons.Default.Info,
+                contentDescription = null,
+                tint = if (warning) warningColor else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(unit, style = MaterialTheme.typography.labelMedium)
-            Text(updated, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (warning) warningColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(unit, style = MaterialTheme.typography.labelMedium)
+                Text(updated, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
 
 @Composable
-private fun ActiveMissionCard(mission: PatrolMission) {
+private fun ActiveMissionCard(mission: PatrolMission, onClick: () -> Unit) {
+    val successColor = operationalSuccessColor()
+    val warningColor = operationalWarningColor()
     val accent = when (mission.status) {
-        PatrolMissionStatus.ACTIVE -> SuccessGreen
+        PatrolMissionStatus.ACTIVE -> successColor
         PatrolMissionStatus.PAUSED_WITH_REASON -> MaterialTheme.colorScheme.primary
-        PatrolMissionStatus.NEEDS_REVIEW -> Gold
-        PatrolMissionStatus.COMPLETED -> SuccessGreen
+        PatrolMissionStatus.NEEDS_REVIEW -> warningColor
+        PatrolMissionStatus.COMPLETED -> successColor
         else -> MaterialTheme.colorScheme.primary
     }
     Surface(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.background(accent).fillMaxHeight().width(4.dp))
-            Column(
-                modifier = Modifier.padding(14.dp).weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = if (mission.title.startsWith("Foot")) {
@@ -349,20 +390,18 @@ private fun ActiveMissionCard(mission: PatrolMission) {
                     Text("${mission.unitName} · ${mission.personnelCount} personnel", style = MaterialTheme.typography.bodySmall)
                 }
                 Text(mission.context, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Box(
-                    Modifier
-                        .fillMaxWidth(if (mission.status == PatrolMissionStatus.ACTIVE) 0.68f else 0.48f)
-                        .height(3.dp)
-                        .clip(MaterialTheme.shapes.extraSmall)
-                        .background(accent),
+                Text(
+                    "${mission.priorityLocations.count { it.state == com.dailybeat.app.data.model.PriorityLocationState.VISITED }} of ${mission.priorityLocations.size} priorities recorded",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
     }
 }
 
 @Composable
 private fun ReviewPanel(title: String, summary: String) {
+    val warningColor = operationalWarningColor()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
@@ -372,7 +411,7 @@ private fun ReviewPanel(title: String, summary: String) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             Text(summary, style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Schedule, contentDescription = null, tint = Gold)
+                Icon(Icons.Default.Schedule, contentDescription = null, tint = warningColor)
                 Text("No automatic staff score is created", style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -401,8 +440,14 @@ private fun FairReviewNote() {
 }
 
 @Composable
-private fun UpcomingMissionRow(title: String, dutyWindow: String, assignment: String) {
+private fun UpcomingMissionRow(
+    title: String,
+    dutyWindow: String,
+    assignment: String,
+    onClick: () -> Unit,
+) {
     Surface(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),

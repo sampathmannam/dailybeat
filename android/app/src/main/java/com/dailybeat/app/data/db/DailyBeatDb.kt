@@ -19,7 +19,7 @@ import com.dailybeat.app.data.model.PatrolTrackPoint
         PatrolTrackPoint::class,
     ],
     version = 7,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class DailyBeatDb : RoomDatabase() {
     abstract fun events(): EventDao

@@ -1,67 +1,935 @@
-name: Release APK
+name: Release PatrolGrid APK
+
+run-name: Seal PatrolGrid ${{ github.ref_name }} unsigned candidate
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'patrolgrid-v*'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: patrolgrid-production-release
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  policy-tests:
+    name: Release policy tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Restore permanent signing key
-        env:
-          DAILYBEAT_KEYSTORE_BASE64: ${{ secrets.DAILYBEAT_KEYSTORE_BASE64 }}
+      - name: Install pinned Android fixture tools
         run: |
-          test -n "$DAILYBEAT_KEYSTORE_BASE64"
-          printf '%s' "$DAILYBEAT_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
+          set -euo pipefail
+          sdkmanager 'cmdline-tools;20.0' 'platforms;android-36' 'build-tools;36.0.0'
 
-      - name: Build stable APK and unit tests
-        env:
-          DAILYBEAT_STORE_PASSWORD: ${{ secrets.DAILYBEAT_STORE_PASSWORD }}
-          DAILYBEAT_KEY_PASSWORD: ${{ secrets.DAILYBEAT_KEY_PASSWORD }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      - name: Run hash-locked release policy tests outside the artifact job
         run: |
-          test -n "$DAILYBEAT_STORE_PASSWORD"
-          test -n "$DAILYBEAT_KEY_PASSWORD"
+          set -euo pipefail
+          umask 077
+          test_venv="$RUNNER_TEMP/patrolgrid-release-test-venv"
+          python3 -m venv "$test_venv"
+          "$test_venv/bin/python" -m pip install --disable-pip-version-check \
+            --no-cache-dir --no-deps --only-binary=:all: --require-hashes \
+            -r scripts/requirements-release-tests.txt
+          "$test_venv/bin/python" -m pytest \
+            scripts/tests/test_android_release_inputs.py \
+            scripts/tests/test_gradle_supply_chain.py \
+            scripts/tests/test_mac_patrolgrid_helpers.py \
+            scripts/tests/test_mac_release_decrypt.py \
+            scripts/tests/test_patrolgrid_publish_release.py \
+            scripts/tests/test_release_pipeline.py \
+            scripts/tests/test_release_workflow.py \
+            -q
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  build-candidate:
+    name: Build and seal unsigned candidate
+    needs: policy-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: patrolgrid-production
+    permissions:
+      contents: read
+    outputs:
+      version_name: ${{ steps.identity.outputs.version_name }}
+      version_code: ${{ steps.identity.outputs.version_code }}
+      candidate_name: ${{ steps.identity.outputs.candidate_name }}
+      artifact_name: ${{ steps.identity.outputs.artifact_name }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      ciphertext_digest: ${{ steps.seal.outputs.ciphertext_digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive exact release identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if [[ ! "$tag" =~ ^patrolgrid-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be patrolgrid-vMAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          (( minor <= 99 && patch <= 99 )) || {
+            echo "MINOR and PATCH must be between 0 and 99." >&2
+            exit 1
+          }
+          version="$major.$minor.$patch"
+          version_code=$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))
+          (( version_code >= 1 && version_code <= 2100000000 )) || {
+            echo "The tag produces an invalid Android version code." >&2
+            exit 1
+          }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          {
+            printf 'version_name=%s\n' "$version"
+            printf 'version_code=%s\n' "$version_code"
+            printf 'candidate_name=PatrolGrid-%s-%s-unsigned-candidate.tar.gpg\n' "$version" "$GITHUB_SHA"
+            printf 'artifact_name=PatrolGrid-%s-%s-candidate-ciphertext\n' "$version" "$GITHUB_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify signed tag, protected main, and exact rulesets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CURRENT_VERSION_CODE: ${{ steps.identity.outputs.version_code }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_root="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY"
+          github_get() {
+            curl --silent --show-error --fail-with-body --location \
+              --header 'Accept: application/vnd.github+json' \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header 'X-GitHub-Api-Version: 2022-11-28' "$1"
+          }
+          verify_monotonic_version() {
+            local page=1
+            local seen_current=0
+            local page_json=''
+            local prior_tag=''
+            local prior_major=''
+            local prior_minor=''
+            local prior_patch=''
+            local prior_code=''
+            while (( page <= 1000 )); do
+              page_json="$(github_get "$api_root/tags?per_page=100&page=$page")"
+              jq -e 'type == "array"' <<<"$page_json" >/dev/null
+              [[ "$(jq 'length' <<<"$page_json")" != '0' ]] || break
+              while IFS= read -r prior_tag; do
+                case "$prior_tag" in patrolgrid-v*) ;; *) continue ;; esac
+                [[ "$prior_tag" =~ ^patrolgrid-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+                  echo "Malformed historical PatrolGrid version tag: $prior_tag" >&2
+                  exit 1
+                }
+                if [[ "$prior_tag" == "$GITHUB_REF_NAME" ]]; then
+                  seen_current=$((seen_current + 1))
+                  continue
+                fi
+                prior_major="${BASH_REMATCH[1]}"
+                prior_minor="${BASH_REMATCH[2]}"
+                prior_patch="${BASH_REMATCH[3]}"
+                (( prior_minor <= 99 && prior_patch <= 99 )) || exit 1
+                prior_code=$((10#$prior_major * 10000 + 10#$prior_minor * 100 + 10#$prior_patch))
+                (( prior_code >= 1 && CURRENT_VERSION_CODE > prior_code )) || {
+                  echo "Release versionCode is not greater than every prior immutable tag." >&2
+                  exit 1
+                }
+              done < <(jq -r '.[].name' <<<"$page_json")
+              page=$((page + 1))
+            done
+            (( page <= 1000 && seen_current == 1 ))
+          }
+          jq -e '.private == false and .default_branch == "main" and
+            .allow_squash_merge == true and .allow_merge_commit == false and
+            .allow_rebase_merge == false' \
+            <<<"$(github_get "$api_root")" >/dev/null
+          jq -e '.name == "main" and .protected == true' \
+            <<<"$(github_get "$api_root/branches/main")" >/dev/null
+
+          main_ruleset="$(github_get "$api_root/rulesets/22066728")"
+          jq -e '
+            .id == 22066728 and .name == "PatrolGrid protected main" and
+            .target == "branch" and .enforcement == "active" and
+            .conditions.ref_name.include == ["refs/heads/main"] and
+            .conditions.ref_name.exclude == [] and
+            ([.rules[].type] | sort) ==
+              (["deletion","non_fast_forward","pull_request",
+                "required_linear_history","required_signatures","required_status_checks"] | sort) and
+            ([.rules[] | select(.type == "pull_request") | .parameters] == [{
+              allowed_merge_methods:["squash"],dismiss_stale_reviews_on_push:false,
+              require_code_owner_review:false,
+              require_extra_approval_for_unattributed_changes:true,
+              require_last_push_approval:false,required_approving_review_count:0,
+              required_review_thread_resolution:true,required_reviewers:[]}]) and
+            ([.rules[] | select(.type == "required_status_checks") | .parameters] == [{
+              do_not_enforce_on_create:false,
+              required_status_checks:[
+                {context:"build",integration_id:15368},
+                {context:"patrolgrid-backend",integration_id:15368},
+                {context:"dependency-review",integration_id:15368},
+                {context:"codeql",integration_id:15368}],
+              strict_required_status_checks_policy:true}])' \
+            <<<"$main_ruleset" >/dev/null
+          jq -e '
+            .id == 22066729 and .name == "PatrolGrid release tag creator" and
+            .target == "tag" and .enforcement == "active" and
+            .conditions.ref_name.include == ["refs/tags/patrolgrid-v*"] and
+            .conditions.ref_name.exclude == [] and
+            [.rules[].type] == ["creation"]' \
+            <<<"$(github_get "$api_root/rulesets/22066729")" >/dev/null
+          jq -e '
+            .id == 22066730 and .name == "PatrolGrid immutable release tags" and
+            .target == "tag" and .enforcement == "active" and
+            .conditions.ref_name.include == ["refs/tags/patrolgrid-v*"] and
+            .conditions.ref_name.exclude == [] and
+            ([.rules[].type] | sort) == (["update","deletion","non_fast_forward"] | sort)' \
+            <<<"$(github_get "$api_root/rulesets/22066730")" >/dev/null
+
+          ref_json="$(github_get "$api_root/git/ref/tags/$GITHUB_REF_NAME")"
+          tag_object_sha="$(jq -r '.object.sha' <<<"$ref_json")"
+          jq -e --arg ref "refs/tags/$GITHUB_REF_NAME" \
+            '.ref == $ref and .object.type == "tag"' <<<"$ref_json" >/dev/null
+          [[ "$tag_object_sha" =~ ^[0-9a-f]{40}$ ]]
+          tag_json="$(github_get "$api_root/git/tags/$tag_object_sha")"
+          jq -e --arg tag "$GITHUB_REF_NAME" --arg commit "$GITHUB_SHA" \
+            '.tag == $tag and .object.type == "commit" and .object.sha == $commit and
+             .verification.verified == true and .verification.reason == "valid"' \
+            <<<"$tag_json" >/dev/null
+          [[ "$(git rev-parse "$GITHUB_REF_NAME^{tag}")" == "$tag_object_sha" ]]
+          tag_verify_home="$(mktemp -d)"
+          chmod 0700 "$tag_verify_home"
+          gpg --homedir "$tag_verify_home" --batch --no-auto-key-retrieve \
+            --import release/patrolgrid-release-public-key.asc >/dev/null
+          mapfile -t tag_key_fingerprints < <(gpg --homedir "$tag_verify_home" --batch \
+            --with-colons --fingerprint --fingerprint \
+            --list-keys AA2B9126F5750A6690CEA90410B087D428F60413 |
+            awk -F: '$1 == "fpr" {print $10}')
+          [[ "${tag_key_fingerprints[*]}" == \
+            'AA2B9126F5750A6690CEA90410B087D428F60413 84AD08D70EC95222457C16CEFEFD926C2C74FB9E' ]]
+          if ! GNUPGHOME="$tag_verify_home" git -c gpg.program=/usr/bin/gpg \
+            verify-tag --raw "$GITHUB_REF_NAME" 2>"$tag_verify_home/status"; then
+            echo "Release tag signature is not valid under the committed PatrolGrid key." >&2
+            exit 1
+          fi
+          [[ "$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" {print $3}' \
+            "$tag_verify_home/status")" == 'AA2B9126F5750A6690CEA90410B087D428F60413' ]] || {
+            echo "Release tag was not signed by the exact PatrolGrid primary key." >&2
+            exit 1
+          }
+          rm -rf -- "$tag_verify_home"
+          verify_monotonic_version
+          main_sha="$(github_get "$api_root/git/ref/heads/main" | jq -r '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$main_sha" == "$GITHUB_SHA" ]] || {
+            echo "A release tag must target the current protected main HEAD." >&2
+            exit 1
+          }
+          jq -e --arg commit "$GITHUB_SHA" --arg main "$main_sha" \
+            '.base_commit.sha == $commit and .merge_base_commit.sha == $commit and
+             .head_commit.sha == $main and .status == "identical"' \
+            <<<"$(github_get "$api_root/compare/$GITHUB_SHA...$main_sha")" >/dev/null
+
+          git fetch --force --no-tags origin 'refs/heads/main:refs/remotes/origin/main'
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse "${GITHUB_REF}^{commit}")" == "$GITHUB_SHA" ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+
+      - uses: gradle/actions/wrapper-validation@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - name: Install pinned Android inspection tools
+        run: |
+          set -euo pipefail
+          sdkmanager 'cmdline-tools;20.0' 'build-tools;36.0.0'
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$ANDROID_HOME/cmdline-tools/20.0/bin/apkanalyzer"
+
+      - name: Build, test, lint, and verify unsigned minified candidate
+        env:
+          SUPABASE_URL: ${{ secrets.PATROLGRID_PRODUCTION_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.PATROLGRID_PRODUCTION_SUPABASE_ANON_KEY }}
+          PATROLGRID_RELEASE_COMMIT: ${{ github.sha }}
+          PATROLGRID_PRIVACY_POLICY_URL: https://github.com/sampathmannam/dailybeat/blob/${{ github.sha }}/docs/PATROLGRID_PRIVACY_POLICY.md
+          EXPECTED_PRIVACY_POLICY_URL: https://github.com/sampathmannam/dailybeat/blob/${{ github.sha }}/docs/PATROLGRID_PRIVACY_POLICY.md
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_ANON_KEY"
+          [[ "$PATROLGRID_RELEASE_COMMIT" == "$GITHUB_SHA" ]]
+          [[ "$PATROLGRID_PRIVACY_POLICY_URL" =~ /blob/[0-9a-f]{40}/docs/PATROLGRID_PRIVACY_POLICY\.md$ ]]
           cd android
-          ./gradlew assembleRelease testReleaseUnitTest --no-daemon --stacktrace
+          ./gradlew :app:verifyReleaseBuildConfigValues testReleaseUnitTest lintRelease \
+            assembleRelease :app:verifyUnsignedReleaseCandidate \
+            --no-daemon --no-build-cache --dependency-verification strict --stacktrace
 
-      - name: Verify permanent signing certificate
+      - name: Verify APK identity and embedded release metadata
+        env:
+          EXPECTED_VERSION_NAME: ${{ steps.identity.outputs.version_name }}
+          EXPECTED_VERSION_CODE: ${{ steps.identity.outputs.version_code }}
         run: |
-          apksigner="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
-          $apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk \
-            | tee certificate.txt
-          grep -qi '44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f' certificate.txt
+          set -euo pipefail
+          umask 077
+          install -d -m 0700 private
+          unsigned_apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          apkanalyzer="$ANDROID_HOME/cmdline-tools/20.0/bin/apkanalyzer"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          test -s "$unsigned_apk"
+          [[ "$("$apkanalyzer" manifest application-id "$unsigned_apk" | tr -d '\r\n')" == 'com.dailybeat.app.patrolgrid' ]]
+          [[ "$("$apkanalyzer" manifest version-name "$unsigned_apk" | tr -d '\r\n')" == "$EXPECTED_VERSION_NAME" ]]
+          [[ "$("$apkanalyzer" manifest version-code "$unsigned_apk" | tr -d '\r\n')" == "$EXPECTED_VERSION_CODE" ]]
+          [[ "$("$apkanalyzer" manifest debuggable "$unsigned_apk" | tr -d '\r\n')" == 'false' ]]
+          if "$apksigner" verify "$unsigned_apk" >/dev/null 2>&1; then
+            echo "The candidate is unexpectedly signed." >&2
+            exit 1
+          fi
+          "$apkanalyzer" manifest print "$unsigned_apk" > private/AndroidManifest.xml
+          python3 - private/AndroidManifest.xml private/apk-metadata.json "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+          import urllib.parse
+          import xml.etree.ElementTree as ET
 
-      - name: Generate SHA-256 checksums
+          source, output, expected_commit = sys.argv[1:]
+          android = "{http://schemas.android.com/apk/res/android}"
+          application = ET.parse(source).getroot().find("application")
+          if application is None:
+              raise SystemExit("release manifest has no application element")
+          values = {
+              element.get(android + "name"): element.get(android + "value")
+              for element in application.findall("meta-data")
+          }
+          commit = values.get("com.dailybeat.app.patrolgrid.RELEASE_COMMIT", "")
+          backend = values.get("com.dailybeat.app.patrolgrid.BACKEND_IDENTITY", "")
+          privacy_status = values.get(
+              "com.dailybeat.app.patrolgrid.PRIVACY_POLICY_STATUS", ""
+          )
+          privacy_notice_version = values.get(
+              "com.dailybeat.app.patrolgrid.PRIVACY_NOTICE_VERSION", ""
+          )
+          parsed = urllib.parse.urlsplit(backend)
+          if commit != expected_commit:
+              raise SystemExit("APK release commit metadata does not match GITHUB_SHA")
+          if (backend == "UNCONFIGURED" or parsed.scheme != "https" or not parsed.hostname
+                  or parsed.username or parsed.password or parsed.query or parsed.fragment
+                  or parsed.path not in ("", "/")):
+              raise SystemExit("APK backend identity is not an exact HTTPS origin")
+          if privacy_status != "APPROVED" or privacy_notice_version != "3":
+              raise SystemExit("APK privacy approval/version metadata is not release-approved")
+          with open(output, "x", encoding="utf-8") as destination:
+              json.dump(
+                  {
+                      "backendIdentity": backend,
+                      "privacyNoticeVersion": int(privacy_notice_version),
+                      "privacyPolicyStatus": privacy_status,
+                      "releaseCommit": commit,
+                  },
+                  destination,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+              destination.write("\n")
+          PY
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/network_security_config.xml \
+            > private/network-security-config.txt
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/data_extraction_rules.xml \
+            > private/data-extraction-rules.txt
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/file_paths.xml \
+            > private/file-paths.txt
+          "$aapt" dump --values resources "$unsigned_apk" > private/resources.txt
+          backend_identity="$(jq -r '.backendIdentity' private/apk-metadata.json)"
+          privacy_status="$(jq -r '.privacyPolicyStatus' private/apk-metadata.json)"
+          privacy_notice_version="$(jq -r '.privacyNoticeVersion' private/apk-metadata.json)"
+          python3 -I scripts/verify_patrolgrid_release_manifest.py \
+            private/AndroidManifest.xml private/resources.txt \
+            private/network-security-config.txt private/data-extraction-rules.txt \
+            private/file-paths.txt com.dailybeat.app.patrolgrid \
+            "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" "$GITHUB_SHA" \
+            "$backend_identity" "$privacy_status" "$privacy_notice_version" \
+            > private/android-manifest-sha256.txt
+
+      - name: Snapshot candidate before isolated SBOM scan
         run: |
-          sha256sum android/app/build/outputs/apk/release/app-release.apk > SHA256SUMS.txt
+          set -euo pipefail
+          umask 077
+          unsigned_apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          mapping='android/app/build/outputs/mapping/release/mapping.txt'
+          sha256sum "$unsigned_apk" "$mapping" > private/pre-sbom-SHA256SUMS.txt
+          install -m 0600 "$unsigned_apk" private/sbom-input.apk
+          cmp -s "$unsigned_apk" private/sbom-input.apk
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Generate release SBOM without publishing plaintext
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
-          files: |
-            android/app/build/outputs/apk/release/app-release.apk
-            SHA256SUMS.txt
+          file: private/sbom-input.apk
+          format: spdx-json
+          syft-version: v1.51.1
+          output-file: private/candidate.spdx.json
+          dependency-snapshot: false
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Reverify untouched candidate after final third-party step
+        env:
+          EXPECTED_VERSION_NAME: ${{ steps.identity.outputs.version_name }}
+          EXPECTED_VERSION_CODE: ${{ steps.identity.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          unsigned_apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          apkanalyzer="$ANDROID_HOME/cmdline-tools/20.0/bin/apkanalyzer"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          sha256sum --check private/pre-sbom-SHA256SUMS.txt
+          cmp -s "$unsigned_apk" private/sbom-input.apk
+          rm -f -- private/sbom-input.apk
+          [[ "$("$apkanalyzer" manifest application-id "$unsigned_apk" | tr -d '\r\n')" == \
+            'com.dailybeat.app.patrolgrid' ]]
+          [[ "$("$apkanalyzer" manifest version-name "$unsigned_apk" | tr -d '\r\n')" == \
+            "$EXPECTED_VERSION_NAME" ]]
+          [[ "$("$apkanalyzer" manifest version-code "$unsigned_apk" | tr -d '\r\n')" == \
+            "$EXPECTED_VERSION_CODE" ]]
+          [[ "$("$apkanalyzer" manifest debuggable "$unsigned_apk" | tr -d '\r\n')" == 'false' ]]
+          if "$apksigner" verify "$unsigned_apk" >/dev/null 2>&1; then
+            echo "The candidate became signed after the isolated SBOM step." >&2
+            exit 1
+          fi
+          "$apkanalyzer" manifest print "$unsigned_apk" > private/post-sbom-AndroidManifest.xml
+          cmp -s private/AndroidManifest.xml private/post-sbom-AndroidManifest.xml
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/network_security_config.xml \
+            > private/post-sbom-network-security-config.txt
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/data_extraction_rules.xml \
+            > private/post-sbom-data-extraction-rules.txt
+          "$aapt" dump xmltree "$unsigned_apk" res/xml/file_paths.xml \
+            > private/post-sbom-file-paths.txt
+          "$aapt" dump --values resources "$unsigned_apk" > private/post-sbom-resources.txt
+          cmp -s private/network-security-config.txt private/post-sbom-network-security-config.txt
+          cmp -s private/data-extraction-rules.txt private/post-sbom-data-extraction-rules.txt
+          cmp -s private/file-paths.txt private/post-sbom-file-paths.txt
+          cmp -s private/resources.txt private/post-sbom-resources.txt
+          post_manifest_hash="$(python3 -I scripts/verify_patrolgrid_release_manifest.py \
+            private/post-sbom-AndroidManifest.xml private/post-sbom-resources.txt \
+            private/post-sbom-network-security-config.txt \
+            private/post-sbom-data-extraction-rules.txt private/post-sbom-file-paths.txt \
+            com.dailybeat.app.patrolgrid \
+            "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION_CODE" "$GITHUB_SHA" \
+            "$(jq -r '.backendIdentity' private/apk-metadata.json)" \
+            "$(jq -r '.privacyPolicyStatus' private/apk-metadata.json)" \
+            "$(jq -r '.privacyNoticeVersion' private/apk-metadata.json)")"
+          [[ "$post_manifest_hash" == "$(tr -d '\r\n' < private/android-manifest-sha256.txt)" ]]
+          git diff --exit-code -- .
+          test -z "$(git ls-files --others --exclude-standard | /usr/bin/grep -v '^private/' || true)"
+
+      - name: Create exact candidate manifest and archive
+        env:
+          SUPABASE_URL: ${{ secrets.PATROLGRID_PRODUCTION_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.PATROLGRID_PRODUCTION_SUPABASE_ANON_KEY }}
+          VERSION_NAME: ${{ steps.identity.outputs.version_name }}
+          VERSION_CODE: ${{ steps.identity.outputs.version_code }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          unsigned_source='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          mapping_source='android/app/build/outputs/mapping/release/mapping.txt'
+          sbom_source='private/candidate.spdx.json'
+          test -s "$unsigned_source" && test -s "$mapping_source" && test -s "$sbom_source"
+          install -d -m 0700 private/archive
+          unsigned_name="PatrolGrid-$VERSION_NAME-$GITHUB_SHA-unsigned.apk"
+          mapping_name="PatrolGrid-$VERSION_NAME-$GITHUB_SHA-mapping.txt"
+          sbom_name="PatrolGrid-$VERSION_NAME-$GITHUB_SHA.spdx.json"
+          manifest_name="PatrolGrid-$VERSION_NAME-$GITHUB_SHA-candidate.json"
+          install -m 0600 "$unsigned_source" "private/archive/$unsigned_name"
+          install -m 0600 "$mapping_source" "private/archive/$mapping_name"
+          install -m 0600 "$sbom_source" "private/archive/$sbom_name"
+          backend_identity="$(jq -r '.backendIdentity' private/apk-metadata.json)"
+          release_commit="$(jq -r '.releaseCommit' private/apk-metadata.json)"
+          apk_privacy_status="$(jq -r '.privacyPolicyStatus' private/apk-metadata.json)"
+          apk_privacy_notice_version="$(jq -r '.privacyNoticeVersion' private/apk-metadata.json)"
+          [[ "$release_commit" == "$GITHUB_SHA" ]]
+          [[ "$backend_identity" != 'UNCONFIGURED' && -n "$backend_identity" ]]
+          sha_file() { sha256sum "$1" | awk '{print $1}'; }
+          size_file() { stat --format='%s' "$1"; }
+          supabase_url_sha256="$(printf '%s' "$SUPABASE_URL" | sha256sum | awk '{print $1}')"
+          anon_key_sha256="$(printf '%s' "$SUPABASE_ANON_KEY" | sha256sum | awk '{print $1}')"
+          privacy_sha256="$(sha_file docs/PATROLGRID_PRIVACY_POLICY.md)"
+          privacy_status="$(sed -n 's/^PRIVACY_POLICY_STATUS=//p' android/patrolgrid-production.properties)"
+          privacy_notice_version="$(sed -n 's/^PRIVACY_NOTICE_VERSION=//p' android/patrolgrid-production.properties)"
+          [[ "$privacy_status" == 'APPROVED' && "$privacy_notice_version" == '3' ]] || {
+            echo "Release privacy policy must be source-marked APPROVED at notice version 3." >&2
+            exit 1
+          }
+          [[ "$apk_privacy_status" == "$privacy_status" &&
+              "$apk_privacy_notice_version" == "$privacy_notice_version" ]] || {
+            echo "APK privacy approval/version metadata disagrees with source policy." >&2
+            exit 1
+          }
+          jq -nS \
+            --arg applicationId 'com.dailybeat.app.patrolgrid' \
+            --arg androidManifestSha256 "$(tr -d '\r\n' < private/android-manifest-sha256.txt)" \
+            --arg backendIdentity "$backend_identity" \
+            --arg supabaseUrlSha256 "$supabase_url_sha256" \
+            --arg supabaseAnonKeySha256 "$anon_key_sha256" \
+            --arg commit "$GITHUB_SHA" \
+            --arg privacyPolicyUrl "https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/docs/PATROLGRID_PRIVACY_POLICY.md" \
+            --arg privacyPolicySha256 "$privacy_sha256" \
+            --arg privacyPolicyStatus "$privacy_status" \
+            --argjson privacyNoticeVersion "$privacy_notice_version" \
+            --arg repository "$GITHUB_REPOSITORY" --arg tag "$GITHUB_REF_NAME" \
+            --arg versionName "$VERSION_NAME" --argjson versionCode "$VERSION_CODE" \
+            --arg workflowRef "$GITHUB_WORKFLOW_REF" \
+            --argjson runId "$GITHUB_RUN_ID" --argjson runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg unsignedName "$unsigned_name" \
+            --arg unsignedSha256 "$(sha_file "private/archive/$unsigned_name")" \
+            --argjson unsignedSize "$(size_file "private/archive/$unsigned_name")" \
+            --arg mappingName "$mapping_name" \
+            --arg mappingSha256 "$(sha_file "private/archive/$mapping_name")" \
+            --argjson mappingSize "$(size_file "private/archive/$mapping_name")" \
+            --arg sbomName "$sbom_name" \
+            --arg sbomSha256 "$(sha_file "private/archive/$sbom_name")" \
+            --argjson sbomSize "$(size_file "private/archive/$sbom_name")" \
+            '{schemaVersion:1,
+              android:{applicationId:$applicationId,manifestSha256:$androidManifestSha256,
+                       versionCode:$versionCode,versionName:$versionName},
+              backend:{identity:$backendIdentity,supabaseAnonKeySha256:$supabaseAnonKeySha256,
+                       supabaseUrlSha256:$supabaseUrlSha256},
+              commit:$commit,
+              privacyPolicy:{noticeVersion:$privacyNoticeVersion,sha256:$privacyPolicySha256,
+                             status:$privacyPolicyStatus,url:$privacyPolicyUrl},
+              releaseTag:$tag,repository:$repository,
+              workflow:{ref:$workflowRef,runAttempt:$runAttempt,runId:$runId},
+              artifacts:{mapping:{name:$mappingName,sha256:$mappingSha256,size:$mappingSize},
+                         sbom:{name:$sbomName,sha256:$sbomSha256,size:$sbomSize},
+                         unsignedApk:{name:$unsignedName,sha256:$unsignedSha256,size:$unsignedSize}}}' \
+            > "private/archive/$manifest_name"
+          jq -e --arg commit "$GITHUB_SHA" --arg tag "$GITHUB_REF_NAME" \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --argjson runId "$GITHUB_RUN_ID" \
+            'keys == ["android","artifacts","backend","commit","privacyPolicy","releaseTag","repository","schemaVersion","workflow"] and
+             .schemaVersion == 1 and .commit == $commit and .releaseTag == $tag and
+             .repository == $repo and .workflow.runId == $runId and
+             .workflow.ref == ($repo+"/.github/workflows/release.yml@refs/tags/"+$tag) and
+             (.privacyPolicy|keys) == ["noticeVersion","sha256","status","url"] and
+             (.android|keys) == ["applicationId","manifestSha256","versionCode","versionName"] and
+             (.android.manifestSha256|test("^[0-9a-f]{64}$")) and
+             (.artifacts|keys) == ["mapping","sbom","unsignedApk"] and
+             .privacyPolicy.status == "APPROVED" and .privacyPolicy.noticeVersion == 3 and
+             all(.artifacts[]; (.sha256|test("^[0-9a-f]{64}$")) and .size > 0)' \
+            "private/archive/$manifest_name" >/dev/null
+          archive="private/${{ steps.identity.outputs.candidate_name }}.plaintext"
+          tar --create --format=ustar --owner=0 --group=0 --numeric-owner \
+            --mtime='UTC 1970-01-01' --file "$archive" --directory private/archive \
+            "$unsigned_name" "$mapping_name" "$sbom_name" "$manifest_name"
+          test -s "$archive"
+
+      - name: Validate committed release encryption key and seal candidate
+        id: seal
+        env:
+          CANDIDATE_NAME: ${{ steps.identity.outputs.candidate_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly PRIMARY_FINGERPRINT='AA2B9126F5750A6690CEA90410B087D428F60413'
+          readonly ENCRYPTION_FINGERPRINT='84AD08D70EC95222457C16CEFEFD926C2C74FB9E'
+          readonly ENCRYPTION_RECIPIENT='84AD08D70EC95222457C16CEFEFD926C2C74FB9E!'
+          public_key='release/patrolgrid-release-public-key.asc'
+          test -s "$public_key" && test ! -L "$public_key"
+          umask 077
+          install -d -m 0700 private/gpg sealed
+          gpg --homedir private/gpg --batch --no-auto-key-retrieve --import "$public_key" >/dev/null
+          mapfile -t fingerprints < <(gpg --homedir private/gpg --batch --with-colons \
+            --fingerprint --fingerprint --list-keys "$PRIMARY_FINGERPRINT" |
+            awk -F: '$1 == "fpr" {print $10}')
+          [[ "${#fingerprints[@]}" == '2' ]]
+          [[ "${fingerprints[0]}" == "$PRIMARY_FINGERPRINT" ]]
+          [[ "${fingerprints[1]}" == "$ENCRYPTION_FINGERPRINT" ]]
+          plaintext="private/$CANDIDATE_NAME.plaintext"
+          ciphertext="sealed/$CANDIDATE_NAME"
+          gpg --homedir private/gpg --batch --yes --trust-model always \
+            --recipient "$ENCRYPTION_RECIPIENT" --encrypt --output "$ciphertext" "$plaintext"
+          test -s "$ciphertext"
+          python3 -I scripts/verify_patrolgrid_openpgp_packets.py \
+            "$ciphertext" FEFD926C2C74FB9E >/dev/null
+          printf 'ciphertext_digest=sha256:%s\n' \
+            "$(sha256sum "$ciphertext" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Remove every plaintext candidate before upload
+        env:
+          CANDIDATE_NAME: ${{ steps.identity.outputs.candidate_name }}
+        run: |
+          set -euo pipefail
+          wipe_tree() {
+            if [[ -d "$1" ]]; then
+              find "$1" -type f -exec chmod u+rw {} +
+              find "$1" -type f -exec shred --remove {} + || find "$1" -type f -delete
+              rm -rf -- "$1"
+            fi
+          }
+          wipe_tree android/app/build
+          wipe_tree private
+          test -s "sealed/$CANDIDATE_NAME"
+          [[ "$(find sealed -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" == '1' ]]
+          [[ -z "$(find sealed -mindepth 1 -maxdepth 1 \( ! -type f -o ! -name '*.gpg' \) -print)" ]]
+
+      - name: Upload one ciphertext candidate
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.identity.outputs.artifact_name }}
+          path: sealed/${{ steps.identity.outputs.candidate_name }}
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: false
+
+      - name: Remove local release material
+        if: always()
+        run: |
+          set -euo pipefail
+          for target in "$GITHUB_WORKSPACE/private" "$GITHUB_WORKSPACE/sealed" \
+            "$GITHUB_WORKSPACE/android/app/build"; do
+            if [[ -d "$target" ]]; then
+              find "$target" -type f -exec chmod u+rw {} +
+              find "$target" -type f -exec shred --remove {} + || find "$target" -type f -delete
+              rm -rf -- "$target"
+            fi
+          done
+
+  publish-draft:
+    name: Publish ciphertext-only draft
+    needs: build-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: patrolgrid-production
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Fetch exact artifact by id and publish exact encrypted draft
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.build-candidate.outputs.version_name }}
+          CURRENT_VERSION_CODE: ${{ needs.build-candidate.outputs.version_code }}
+          CANDIDATE_NAME: ${{ needs.build-candidate.outputs.candidate_name }}
+          ARTIFACT_NAME: ${{ needs.build-candidate.outputs.artifact_name }}
+          ARTIFACT_ID: ${{ needs.build-candidate.outputs.artifact_id }}
+          ARTIFACT_DIGEST: ${{ needs.build-candidate.outputs.artifact_digest }}
+          CIPHERTEXT_DIGEST: ${{ needs.build-candidate.outputs.ciphertext_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          normalize_upload_artifact_digest() {
+            local upload_digest="$1"
+            local api_digest="${2:-}"
+            [[ "$upload_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+            local canonical="sha256:$upload_digest"
+            [[ -z "$api_digest" || "$api_digest" == "$canonical" ]] || return 1
+            printf '%s\n' "$canonical"
+          }
+          [[ "$CANDIDATE_NAME" == "PatrolGrid-$VERSION_NAME-$GITHUB_SHA-unsigned-candidate.tar.gpg" ]]
+          [[ "$ARTIFACT_NAME" == "PatrolGrid-$VERSION_NAME-$GITHUB_SHA-candidate-ciphertext" ]]
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CURRENT_VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
+          # upload-artifact outputs plain hex; REST prefixes the same digest.
+          ARTIFACT_API_DIGEST="$(normalize_upload_artifact_digest "$ARTIFACT_DIGEST")"
+          [[ "$CIPHERTEXT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          api_root="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY"
+          auth_headers=(--header 'Accept: application/vnd.github+json'
+            --header "Authorization: Bearer $GITHUB_TOKEN"
+            --header 'X-GitHub-Api-Version: 2022-11-28')
+          github_get() {
+            curl -sS --fail-with-body -L "${auth_headers[@]}" "$1"
+          }
+          verify_monotonic_version() {
+            local page=1 seen_current=0 page_json='' prior_tag=''
+            local prior_major='' prior_minor='' prior_patch='' prior_code=''
+            while (( page <= 1000 )); do
+              page_json="$(github_get "$api_root/tags?per_page=100&page=$page")"
+              jq -e 'type == "array"' <<<"$page_json" >/dev/null
+              [[ "$(jq 'length' <<<"$page_json")" != '0' ]] || break
+              while IFS= read -r prior_tag; do
+                case "$prior_tag" in patrolgrid-v*) ;; *) continue ;; esac
+                [[ "$prior_tag" =~ ^patrolgrid-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+                if [[ "$prior_tag" == "$GITHUB_REF_NAME" ]]; then
+                  seen_current=$((seen_current + 1))
+                  continue
+                fi
+                prior_major="${BASH_REMATCH[1]}"
+                prior_minor="${BASH_REMATCH[2]}"
+                prior_patch="${BASH_REMATCH[3]}"
+                (( prior_minor <= 99 && prior_patch <= 99 )) || exit 1
+                prior_code=$((10#$prior_major * 10000 + 10#$prior_minor * 100 + 10#$prior_patch))
+                (( prior_code >= 1 && CURRENT_VERSION_CODE > prior_code )) || {
+                  echo "Release versionCode is not greater than every prior immutable tag." >&2
+                  exit 1
+                }
+              done < <(jq -r '.[].name' <<<"$page_json")
+              page=$((page + 1))
+            done
+            (( page <= 1000 && seen_current == 1 ))
+          }
+          umask 077
+          work="$(mktemp -d)"
+          trap 'rm -rf -- "$work"' EXIT
+          run_json="$(github_get "$api_root/actions/runs/$GITHUB_RUN_ID")"
+          jq -e --argjson id "$GITHUB_RUN_ID" --arg sha "$GITHUB_SHA" \
+            --arg tag "$GITHUB_REF_NAME" --arg repo "$GITHUB_REPOSITORY" \
+            '.id == $id and .event == "push" and .head_sha == $sha and
+             .head_branch == $tag and .path == ".github/workflows/release.yml" and
+             .head_repository.full_name == $repo and .status == "in_progress"' \
+            <<<"$run_json" >/dev/null
+          verify_monotonic_version
+          jq -e '.name == "main" and .protected == true' \
+            <<<"$(github_get "$api_root/branches/main")" >/dev/null
+          jq -e '
+            .id == 22066728 and .name == "PatrolGrid protected main" and
+            .target == "branch" and .enforcement == "active" and
+            .conditions.ref_name == {include:["refs/heads/main"],exclude:[]} and
+            ([.rules[].type]|sort) ==
+              (["deletion","non_fast_forward","pull_request","required_linear_history",
+                "required_signatures","required_status_checks"]|sort) and
+            ([.rules[]|select(.type=="pull_request")|.parameters] == [{
+              allowed_merge_methods:["squash"],dismiss_stale_reviews_on_push:false,
+              require_code_owner_review:false,
+              require_extra_approval_for_unattributed_changes:true,
+              require_last_push_approval:false,required_approving_review_count:0,
+              required_review_thread_resolution:true,required_reviewers:[]}]) and
+            ([.rules[]|select(.type=="required_status_checks")|.parameters] == [{
+              do_not_enforce_on_create:false,
+              required_status_checks:[{context:"build",integration_id:15368},
+                {context:"patrolgrid-backend",integration_id:15368},
+                {context:"dependency-review",integration_id:15368},
+                {context:"codeql",integration_id:15368}],
+              strict_required_status_checks_policy:true}])' \
+            <<<"$(github_get "$api_root/rulesets/22066728")" >/dev/null
+          jq -e '.id == 22066729 and .name == "PatrolGrid release tag creator" and
+            .target == "tag" and .enforcement == "active" and
+            .conditions.ref_name == {include:["refs/tags/patrolgrid-v*"],exclude:[]} and
+            [.rules[].type] == ["creation"]' \
+            <<<"$(github_get "$api_root/rulesets/22066729")" >/dev/null
+          jq -e '.id == 22066730 and .name == "PatrolGrid immutable release tags" and
+            .target == "tag" and .enforcement == "active" and
+            .conditions.ref_name == {include:["refs/tags/patrolgrid-v*"],exclude:[]} and
+            ([.rules[].type]|sort) == (["update","deletion","non_fast_forward"]|sort)' \
+            <<<"$(github_get "$api_root/rulesets/22066730")" >/dev/null
+          ref_json="$(github_get "$api_root/git/ref/tags/$GITHUB_REF_NAME")"
+          tag_object_sha="$(jq -r '.object.sha' <<<"$ref_json")"
+          jq -e '.object.type == "tag"' <<<"$ref_json" >/dev/null
+          tag_json="$(github_get "$api_root/git/tags/$tag_object_sha")"
+          jq -e --arg tag "$GITHUB_REF_NAME" --arg commit "$GITHUB_SHA" \
+            '.tag == $tag and .object.type == "commit" and .object.sha == $commit and
+             .verification.verified == true and .verification.reason == "valid"' \
+            <<<"$tag_json" >/dev/null
+          public_key_json="$(github_get \
+            "$api_root/contents/release/patrolgrid-release-public-key.asc?ref=$GITHUB_SHA")"
+          jq -e '.type == "file" and .encoding == "base64"' \
+            <<<"$public_key_json" >/dev/null
+          jq -r '.content' <<<"$public_key_json" | tr -d '\n' | base64 --decode \
+            > "$work/release-public-key.asc"
+          install -d -m 0700 "$work/tag-gpg"
+          gpg --homedir "$work/tag-gpg" --batch --no-auto-key-retrieve \
+            --import "$work/release-public-key.asc" >/dev/null
+          mapfile -t tag_key_fingerprints < <(gpg --homedir "$work/tag-gpg" --batch \
+            --with-colons --fingerprint --fingerprint \
+            --list-keys AA2B9126F5750A6690CEA90410B087D428F60413 |
+            awk -F: '$1 == "fpr" {print $10}')
+          [[ "${tag_key_fingerprints[*]}" == \
+            'AA2B9126F5750A6690CEA90410B087D428F60413 84AD08D70EC95222457C16CEFEFD926C2C74FB9E' ]]
+          jq -j '.verification.payload' <<<"$tag_json" > "$work/tag-payload"
+          jq -j '.verification.signature' <<<"$tag_json" > "$work/tag-signature.asc"
+          if ! gpg --homedir "$work/tag-gpg" --batch --no-auto-key-retrieve \
+            --status-fd 1 --verify "$work/tag-signature.asc" "$work/tag-payload" \
+            > "$work/tag-status" 2>/dev/null; then
+            echo "Release tag signature is not valid under the committed PatrolGrid key." >&2
+            exit 1
+          fi
+          [[ "$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" {print $3}' \
+            "$work/tag-status")" == 'AA2B9126F5750A6690CEA90410B087D428F60413' ]] || {
+            echo "Release tag was not signed by the exact PatrolGrid primary key." >&2
+            exit 1
+          }
+          main_sha="$(github_get "$api_root/git/ref/heads/main" | jq -r '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$main_sha" == "$GITHUB_SHA" ]] || {
+            echo "The tagged commit is no longer current protected main HEAD." >&2
+            exit 1
+          }
+          jq -e --arg commit "$GITHUB_SHA" --arg main "$main_sha" \
+            '.base_commit.sha == $commit and .merge_base_commit.sha == $commit and
+             .head_commit.sha == $main and .status == "identical"' \
+            <<<"$(github_get "$api_root/compare/$GITHUB_SHA...$main_sha")" >/dev/null
+
+          artifact_json="$(github_get "$api_root/actions/artifacts/$ARTIFACT_ID")"
+          api_artifact_digest="$(jq -r '.digest' <<<"$artifact_json")"
+          [[ "$(normalize_upload_artifact_digest \
+            "$ARTIFACT_DIGEST" "$api_artifact_digest")" == "$ARTIFACT_API_DIGEST" ]]
+          jq -e --argjson id "$ARTIFACT_ID" --argjson run "$GITHUB_RUN_ID" \
+            --arg name "$ARTIFACT_NAME" --arg digest "$ARTIFACT_API_DIGEST" --arg sha "$GITHUB_SHA" \
+            '.id == $id and .name == $name and .expired == false and .digest == $digest and
+             .workflow_run.id == $run and .workflow_run.head_sha == $sha and .size_in_bytes > 64' \
+            <<<"$artifact_json" >/dev/null
+          curl -sS --fail-with-body -L "${auth_headers[@]}" \
+            -o "$work/artifact.zip" "$api_root/actions/artifacts/$ARTIFACT_ID/zip"
+          artifact_zip_size="$(stat --format='%s' "$work/artifact.zip")"
+          (( artifact_zip_size > 64 && artifact_zip_size <= 1090519040 )) || {
+            echo "Downloaded artifact ZIP exceeds the fixed release size bound." >&2
+            exit 1
+          }
+          [[ "$(sha256sum "$work/artifact.zip" | awk '{print $1}')" == "$ARTIFACT_DIGEST" ]] || {
+            echo "Downloaded artifact digest does not match upload output/API metadata." >&2
+            exit 1
+          }
+          install -d -m 0700 "$work/extracted"
+          EXPECTED_MEMBER="$CANDIDATE_NAME" ARCHIVE="$work/artifact.zip" MAXIMUM=1073741824 \
+            DESTINATION="$work/extracted/$CANDIDATE_NAME" python3 - <<'PY'
+          import os, pathlib, stat, struct, zipfile
+          archive = pathlib.Path(os.environ["ARCHIVE"])
+          expected = os.environ["EXPECTED_MEMBER"]
+          destination = pathlib.Path(os.environ["DESTINATION"])
+          maximum = int(os.environ["MAXIMUM"])
+          archive_size = archive.stat().st_size
+          with archive.open("rb") as source:
+              source.seek(max(0, archive_size - 65557))
+              tail = source.read()
+          offset = tail.rfind(b"PK\x05\x06")
+          if offset < 0 or len(tail) - offset < 22:
+              raise SystemExit("artifact ZIP has no bounded end record")
+          (_, disk, directory_disk, disk_entries, total_entries, directory_size,
+           directory_offset, comment_size) = struct.unpack_from("<4s4H2LH", tail, offset)
+          if (disk != 0 or directory_disk != 0 or disk_entries != 1 or total_entries != 1
+                  or comment_size != len(tail) - offset - 22
+                  or directory_size > 1048576
+                  or directory_offset + directory_size > archive_size):
+              raise SystemExit("artifact ZIP central-directory allowlist is invalid")
+          with zipfile.ZipFile(archive) as bundle:
+              members = bundle.infolist()
+              if len(members) != 1 or members[0].filename != expected:
+                  raise SystemExit("artifact ZIP does not have the exact one-entry allowlist")
+              member = members[0]
+              path = pathlib.PurePosixPath(member.filename)
+              mode = member.external_attr >> 16
+              if (path.is_absolute() or len(path.parts) != 1 or ".." in path.parts
+                      or member.is_dir() or (mode and not stat.S_ISREG(mode))
+                      or not 64 < member.file_size <= maximum
+                      or member.compress_size <= 0
+                      or member.file_size > member.compress_size * 2 + 1024):
+                  raise SystemExit("artifact ZIP member is unsafe")
+              flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+              descriptor = os.open(destination, flags, 0o600)
+              written = 0
+              try:
+                  with os.fdopen(descriptor, "wb") as output, bundle.open(member) as source:
+                      while True:
+                          chunk = source.read(1024 * 1024)
+                          if not chunk:
+                              break
+                          written += len(chunk)
+                          if written > member.file_size or written > maximum:
+                              raise SystemExit("artifact ZIP expanded past its bounded size")
+                          output.write(chunk)
+                      output.flush()
+                      os.fsync(output.fileno())
+              except BaseException:
+                  try:
+                      destination.unlink()
+                  except FileNotFoundError:
+                      pass
+                  raise
+              if written != member.file_size:
+                  destination.unlink()
+                  raise SystemExit("artifact ZIP entry was truncated")
+          PY
+          test -s "$work/extracted/$CANDIDATE_NAME"
+          [[ "$(find "$work/extracted" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" == '1' ]]
+          [[ "sha256:$(sha256sum "$work/extracted/$CANDIDATE_NAME" | awk '{print $1}')" == \
+            "$CIPHERTEXT_DIGEST" ]] || {
+            echo "Extracted ciphertext digest does not match the sealed candidate." >&2
+            exit 1
+          }
+
+          release_file="$work/release.json"
+          release_status="$(curl -sS -L "${auth_headers[@]}" -o "$release_file" \
+            -w '%{http_code}' "$api_root/releases/tags/$GITHUB_REF_NAME")"
+          body="Encrypted unsigned PatrolGrid candidate. Workflow run $GITHUB_RUN_ID; source commit $GITHUB_SHA; Actions artifact $ARTIFACT_ID; artifact digest $ARTIFACT_API_DIGEST; ciphertext digest $CIPHERTEXT_DIGEST. Decrypt and sign only with the repository's Mac release ceremony. Never publish this draft."
+          payload="$(jq -n --arg tag "$GITHUB_REF_NAME" --arg target "$GITHUB_SHA" \
+            --arg name "PatrolGrid $VERSION_NAME encrypted unsigned candidate" --arg body "$body" \
+            '{tag_name:$tag,target_commitish:$target,name:$name,body:$body,
+              draft:true,prerelease:false,make_latest:"false"}')"
+          if [[ "$release_status" == '404' ]]; then
+            curl -sS --fail-with-body "${auth_headers[@]}" -X POST \
+              -H 'Content-Type: application/json' --data "$payload" \
+              "$api_root/releases" > "$release_file"
+          elif [[ "$release_status" == '200' ]]; then
+            jq -e --arg tag "$GITHUB_REF_NAME" --arg name "$CANDIDATE_NAME" \
+              '.tag_name == $tag and .draft == true and .published_at == null and
+               .prerelease == false and ((.assets|length) == 0 or
+                ((.assets|length) == 1 and .assets[0].name == $name))' \
+              "$release_file" >/dev/null || {
+              echo "Existing release is published or contains an unexpected asset." >&2
+              exit 1
+            }
+            release_id="$(jq -r '.id' "$release_file")"
+            old_asset_id="$(jq -r '.assets[0].id // empty' "$release_file")"
+            if [[ -n "$old_asset_id" ]]; then
+              curl -sS --fail-with-body "${auth_headers[@]}" -X DELETE \
+                "$api_root/releases/assets/$old_asset_id" >/dev/null
+            fi
+            curl -sS --fail-with-body "${auth_headers[@]}" -X PATCH \
+              -H 'Content-Type: application/json' --data "$payload" \
+              "$api_root/releases/$release_id" > "$release_file"
+          else
+            echo "Cannot establish safe draft state (HTTP $release_status)." >&2
+            exit 1
+          fi
+          release_id="$(jq -r '.id' "$release_file")"
+          upload_url="$(jq -r '.upload_url | sub("\\{.*$"; "")' "$release_file")"
+          [[ "$release_id" =~ ^[1-9][0-9]*$ ]]
+          [[ "$upload_url" == "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets" ]]
+          curl -sS --fail-with-body "${auth_headers[@]}" -X POST \
+            -H 'Content-Type: application/octet-stream' \
+            --data-binary "@$work/extracted/$CANDIDATE_NAME" \
+            -o "$work/upload.json" "$upload_url?name=$CANDIDATE_NAME"
+          jq -e --arg name "$CANDIDATE_NAME" --arg digest "$CIPHERTEXT_DIGEST" \
+            '.name == $name and .state == "uploaded" and .digest == $digest and
+             .uploader.login == "github-actions[bot]" and .size > 64' \
+            "$work/upload.json" >/dev/null
+          final_release="$(github_get "$api_root/releases/$release_id")"
+          # target_commitish is not authoritative when the annotated tag already exists;
+          # the independently verified tag object and exact current-main equality are.
+          jq -e --arg tag "$GITHUB_REF_NAME" \
+            --arg name "$CANDIDATE_NAME" --arg digest "$CIPHERTEXT_DIGEST" --arg body "$body" \
+            '.tag_name == $tag and .draft == true and
+             .prerelease == false and .published_at == null and .body == $body and
+             (.assets|length) == 1 and .assets[0].name == $name and
+             .assets[0].digest == $digest and .assets[0].state == "uploaded" and
+             .assets[0].uploader.login == "github-actions[bot]"' \
+            <<<"$final_release" >/dev/null
+          echo "Encrypted unsigned candidate is in the exact authenticated draft."

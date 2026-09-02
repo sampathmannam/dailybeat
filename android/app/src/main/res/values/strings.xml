@@ -76,6 +76,8 @@
     <string name="delete_place">Delete place</string>
     <string name="location_service_title">PatrolGrid · patrol active</string>
     <string name="location_service_passive">Recording this mission’s route. End patrol to stop tracking.</string>
+    <string name="location_service_duty_window_ended_title">PatrolGrid tracking stopped</string>
+    <string name="location_service_duty_window_ended_body">The assigned duty window ended. Tracking is off; saved evidence will finish syncing securely.</string>
     <string name="reminder_title">DailyBeat</string>
     <string name="reminder_body_report">Your daily AI report is ready — open DailyBeat to review.</string>
     <string name="settings_cloud_group">Cloud AI</string>
@@ -117,4 +119,25 @@
     <string name="onboarding_privacy_body">Location tracking starts only when patrol personnel start an assigned mission and stops when they end it. GPS gaps and route changes always require human review.</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_get_started">Get started</string>
+    <string name="patrolgrid_privacy_title">Before you use PatrolGrid</string>
+    <string name="patrolgrid_privacy_version">Privacy notice · version %1$d</string>
+    <string name="patrolgrid_privacy_synthetic_qa_only">Privacy policy configuration is incomplete. This build is restricted to synthetic QA data. Do not sign in with staff accounts, record real locations, or enter operational details.</string>
+    <string name="patrolgrid_privacy_tracking_title">When location is collected</string>
+    <string name="patrolgrid_privacy_tracking_body">PatrolGrid collects precise route points only after patrol personnel tap Start patrol for an assigned mission. Collection stops when the patrol is ended or its configured duty deadline is reached. Evidence already recorded may upload after tracking stops; that upload does not continue location collection.</string>
+    <string name="patrolgrid_privacy_visibility_title">What supervisors can see</string>
+    <string name="patrolgrid_privacy_visibility_body">Authorized supervisors in your subdivision can see your identity, assigned and recorded routes, priority-location visits, field updates, and review context. Access is limited by role and subdivision.</string>
+    <string name="patrolgrid_privacy_human_review_title">Human review is required</string>
+    <string name="patrolgrid_privacy_human_review_body">Coverage indicators and GPS gaps are evidence for human review, not automatic proof of misconduct. PatrolGrid does not automatically discipline staff or decide misconduct. Staff can add context, and supervisors must review it.</string>
+    <string name="patrolgrid_privacy_map_provider_title">Open-source map and network exposure</string>
+    <string name="patrolgrid_privacy_map_provider_body">PatrolGrid uses the open-source MapLibre renderer with OpenFreeMap\'s public service and OpenStreetMap data. Map requests reveal the requested map area and ordinary network metadata to OpenFreeMap and its content-delivery provider. OpenFreeMap says regular logs omit IP addresses, but it may temporarily log them during a security incident and Cloudflare may process requests. Assigned and recorded route overlays, staff identity, and observations are drawn on the device and are not intentionally sent to the map service.</string>
+    <string name="patrolgrid_privacy_retention_title">Retention</string>
+    <string name="patrolgrid_privacy_retention_body">Configured patrol-evidence retention: %1$d days from the mission\'s first post-patrol review or closure. Later review outcomes do not restart the clock. A documented legal hold may defer deletion without restarting the clock. This app value does not prove server deletion; the Department must operate and verify the purge and hold process.</string>
+    <string name="patrolgrid_privacy_retention_unconfigured">No operational retention period is configured. This build must not be used with staff or operational data.</string>
+    <string name="patrolgrid_privacy_context_support_title">Context and privacy requests</string>
+    <string name="patrolgrid_privacy_context_support_body">Use mission review to explain a route change or GPS gap. For access, correction, export, deletion, or a privacy grievance, contact your subdivision supervisor through the existing official Department channel. PatrolGrid has no separate technical-support desk. For emergencies or operational issues, use the normal command, radio, or phone chain; do not rely on this privacy route.</string>
+    <string name="patrolgrid_privacy_open_policy">Open privacy policy</string>
+    <string name="patrolgrid_privacy_policy_open_error">The privacy policy could not be opened. Check the device connection or contact your subdivision supervisor through the existing official Department channel before continuing.</string>
+    <string name="patrolgrid_privacy_acknowledgement_body">Continuing confirms that this notice was shown. It does not waive legal or employment rights.</string>
+    <string name="patrolgrid_privacy_acknowledge">Acknowledge and continue</string>
+    <string name="patrolgrid_privacy_continue_synthetic_qa">Continue with synthetic QA only</string>
 </resources>
