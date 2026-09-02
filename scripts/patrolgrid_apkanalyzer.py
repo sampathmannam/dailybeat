@@ -21,11 +21,18 @@ def stop(message: str) -> None:
 
 
 def no_acl(path: Path) -> None:
+    # "-e" is a macOS extension that lists ACL entries on extra lines. GNU and
+    # BusyBox coreutils reject it outright and instead mark an extended ACL with a
+    # trailing "+" on the mode field, so ask each platform the way it answers.
+    darwin = sys.platform == "darwin"
     listing = subprocess.run(
-        ["/bin/ls", "-lde", str(path)], text=True, capture_output=True,
+        ["/bin/ls", "-lde" if darwin else "-ld", str(path)], text=True, capture_output=True,
         check=False, env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C"},
     )
-    if listing.returncode or len(listing.stdout.splitlines()) != 1:
+    lines = listing.stdout.splitlines()
+    if listing.returncode or len(lines) != 1:
+        stop(f"classpath path has an extended ACL or cannot be inspected: {path}")
+    if not darwin and lines[0].split(" ", 1)[0].endswith("+"):
         stop(f"classpath path has an extended ACL or cannot be inspected: {path}")
 
 
