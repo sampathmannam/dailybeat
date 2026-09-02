@@ -246,12 +246,27 @@ def test_ci_enables_kvm_before_starting_the_android_emulator():
     kvm_step = "      - name: Enable KVM acceleration\n"
     emulator_step = "      - name: Instrumentation tests (emulator)\n"
     assert build_job.index(kvm_step) < build_job.index(emulator_step)
-    assert "test -c /dev/kvm" in build_job
-    assert 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' in build_job
-    assert "sudo udevadm control --reload-rules" in build_job
-    assert "sudo udevadm trigger --name-match=kvm" in build_job
-    assert "test -r /dev/kvm" in build_job
-    assert "test -w /dev/kvm" in build_job
+    kvm_preflight = build_job.split(kvm_step, maxsplit=1)[1].split(
+        emulator_step, maxsplit=1
+    )[0]
+    assert "set -euxo pipefail" in kvm_preflight
+    assert "if [[ ! -c /dev/kvm ]]; then" in kvm_preflight
+    assert "grep -qw vmx /proc/cpuinfo" in kvm_preflight
+    assert "kvm_vendor_module=kvm_intel" in kvm_preflight
+    assert "grep -qw svm /proc/cpuinfo" in kvm_preflight
+    assert "kvm_vendor_module=kvm_amd" in kvm_preflight
+    assert "::error::Runner CPU exposes neither Intel VMX nor AMD SVM" in kvm_preflight
+    assert "sudo modprobe kvm" in kvm_preflight
+    assert 'sudo modprobe "$kvm_vendor_module"' in kvm_preflight
+    assert "refusing software-emulated Android tests" in kvm_preflight
+    assert 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' in kvm_preflight
+    assert "sudo udevadm control --reload-rules" in kvm_preflight
+    assert "sudo udevadm trigger --name-match=kvm" in kvm_preflight
+    assert "sudo chmod 0666 /dev/kvm" in kvm_preflight
+    assert "stat -c 'KVM device:" in kvm_preflight
+    assert "test -c /dev/kvm" in kvm_preflight
+    assert "test -r /dev/kvm" in kvm_preflight
+    assert "test -w /dev/kvm" in kvm_preflight
     assert "disable-linux-hw-accel: false" in build_job
     assert "-accel off" not in build_job
 

@@ -106,11 +106,31 @@ jobs:
 
       - name: Enable KVM acceleration
         run: |
-          set -euo pipefail
-          test -c /dev/kvm
+          set -euxo pipefail
+          if [[ ! -c /dev/kvm ]]; then
+            if grep -qw vmx /proc/cpuinfo; then
+              kvm_vendor_module=kvm_intel
+            elif grep -qw svm /proc/cpuinfo; then
+              kvm_vendor_module=kvm_amd
+            else
+              echo "::error::Runner CPU exposes neither Intel VMX nor AMD SVM; hardware-accelerated Android tests cannot run."
+              exit 1
+            fi
+            sudo modprobe kvm
+            sudo modprobe "$kvm_vendor_module"
+          fi
+          if [[ ! -c /dev/kvm ]]; then
+            echo "::error::KVM modules loaded but /dev/kvm is still unavailable; refusing software-emulated Android tests."
+            exit 1
+          fi
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+          stat -c 'KVM device: %A %U:%G %t:%T %n' /dev/kvm
+          grep -E '^kvm(_intel|_amd)? ' /proc/modules || true
+          id
+          test -c /dev/kvm
           test -r /dev/kvm
           test -w /dev/kvm
 
