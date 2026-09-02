@@ -36,13 +36,13 @@ import com.dailybeat.app.data.model.PriorityLocationState
 fun PatrolRouteMap(
     trackingActive: Boolean,
     visitedPriorityCount: Int,
+    modifier: Modifier = Modifier,
     recordedPoints: List<PatrolMapPoint> = emptyList(),
     plannedPoints: List<PatrolMapPoint> = emptyList(),
     priorityLocations: List<PriorityLocation> = emptyList(),
     totalRecordedPoints: Int = recordedPoints.size,
     demoMode: Boolean = true,
     useGeographicContext: Boolean = true,
-    modifier: Modifier = Modifier,
 ) {
     val hasGeographicEvidence = plannedPoints.isNotEmpty() ||
         recordedPoints.isNotEmpty() ||

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -94,7 +95,12 @@ fun PatrolGridPrivacyNoticeScreen(
             testTag = "privacy_retention",
             title = stringResource(R.string.patrolgrid_privacy_retention_title),
             body = if (privacyConfigured) {
-                stringResource(R.string.patrolgrid_privacy_retention_body, retentionDays)
+                val daysText = pluralStringResource(
+                    R.plurals.patrolgrid_privacy_retention_days,
+                    retentionDays,
+                    retentionDays,
+                )
+                stringResource(R.string.patrolgrid_privacy_retention_body, daysText)
             } else {
                 stringResource(R.string.patrolgrid_privacy_retention_unconfigured)
             },

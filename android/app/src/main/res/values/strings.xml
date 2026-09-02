@@ -131,7 +131,11 @@
     <string name="patrolgrid_privacy_map_provider_title">Open-source map and network exposure</string>
     <string name="patrolgrid_privacy_map_provider_body">PatrolGrid uses the open-source MapLibre renderer with OpenFreeMap\'s public service and OpenStreetMap data. Map requests reveal the requested map area and ordinary network metadata to OpenFreeMap and its content-delivery provider. OpenFreeMap says regular logs omit IP addresses, but it may temporarily log them during a security incident and Cloudflare may process requests. Assigned and recorded route overlays, staff identity, and observations are drawn on the device and are not intentionally sent to the map service.</string>
     <string name="patrolgrid_privacy_retention_title">Retention</string>
-    <string name="patrolgrid_privacy_retention_body">Configured patrol-evidence retention: %1$d days from the mission\'s first post-patrol review or closure. Later review outcomes do not restart the clock. A documented legal hold may defer deletion without restarting the clock. This app value does not prove server deletion; the Department must operate and verify the purge and hold process.</string>
+    <string name="patrolgrid_privacy_retention_body">Configured patrol-evidence retention: %1$s from the mission\'s first post-patrol review or closure. Later review outcomes do not restart the clock. A documented legal hold may defer deletion without restarting the clock. This app value does not prove server deletion; the Department must operate and verify the purge and hold process.</string>
+    <plurals name="patrolgrid_privacy_retention_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
     <string name="patrolgrid_privacy_retention_unconfigured">No operational retention period is configured. This build must not be used with staff or operational data.</string>
     <string name="patrolgrid_privacy_context_support_title">Context and privacy requests</string>
     <string name="patrolgrid_privacy_context_support_body">Use mission review to explain a route change or GPS gap. For a privacy request involving access, correction, export, deletion, or a grievance, contact your subdivision supervisor through the existing official Department channel. PatrolGrid has no separate technical-support desk. For emergencies or operational issues, use the normal command, radio, or phone chain; do not rely on this privacy route.</string>

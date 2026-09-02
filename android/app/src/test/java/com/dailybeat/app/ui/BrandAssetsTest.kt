@@ -57,8 +57,8 @@ class BrandAssetsTest {
 
     @Test
     fun adaptiveLaunchersSupportAndroidThemedIcons() {
-        val launcher = resource("mipmap-anydpi-v26/ic_launcher.xml")
-        val roundLauncher = resource("mipmap-anydpi-v26/ic_launcher_round.xml")
+        val launcher = resource("mipmap-anydpi/ic_launcher.xml")
+        val roundLauncher = resource("mipmap-anydpi/ic_launcher_round.xml")
         val monochrome = resource("drawable/ic_launcher_monochrome.xml")
 
         assertTrue("<monochrome android:drawable=\"@drawable/ic_launcher_monochrome\"" in launcher)

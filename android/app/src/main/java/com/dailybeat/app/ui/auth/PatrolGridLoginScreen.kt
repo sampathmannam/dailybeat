@@ -45,9 +45,9 @@ import com.dailybeat.app.ui.components.PrimaryButton
 fun PatrolGridLoginScreen(
     loading: Boolean,
     error: String?,
+    modifier: Modifier = Modifier,
     locked: Boolean = false,
     onSignIn: (email: String, password: String) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
