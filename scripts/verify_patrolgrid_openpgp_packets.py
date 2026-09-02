@@ -4,11 +4,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import stat
 import sys
+from pathlib import Path
 from typing import BinaryIO, NoReturn
-
 
 MAX_RECIPIENT_PACKET = 1024 * 1024
 DISCARD_CHUNK_SIZE = 1024 * 1024

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 THEME = (
     ROOT / "android/app/src/main/java/com/dailybeat/app/ui/theme/Theme.kt"

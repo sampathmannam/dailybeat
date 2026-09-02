@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "tools" / "qa" / "run_overnight_phone.ps1"
 

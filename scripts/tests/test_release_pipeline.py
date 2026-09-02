@@ -1,7 +1,6 @@
-from pathlib import Path
 import re
+from pathlib import Path
 from urllib.parse import urlsplit
-
 
 ROOT = Path(__file__).resolve().parents[2]
 GRADLE = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")

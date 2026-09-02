@@ -1,9 +1,8 @@
-from pathlib import Path
 import re
 import subprocess
+from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")

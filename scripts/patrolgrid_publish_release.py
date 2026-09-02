@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 import ctypes
-from dataclasses import dataclass
 import hashlib
 import os
-from pathlib import Path
 import stat
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import NoReturn
-
 
 RENAME_EXCL = 0x00000004
 DURABILITY_UNCONFIRMED = 21
@@ -42,7 +41,7 @@ class Identity:
     digest: str | None
 
     @classmethod
-    def read(cls, path: Path) -> "Identity":
+    def read(cls, path: Path) -> Identity:
         metadata = path.lstat()
         value = None
         if stat.S_ISREG(metadata.st_mode):
@@ -97,8 +96,7 @@ def require_no_acl(path: Path) -> None:
         ["/bin/ls", "-lde", str(path)],
         env=STERILE_ENV,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if result.returncode or len(result.stdout.splitlines()) != 1:

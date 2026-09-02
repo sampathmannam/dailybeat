@@ -1,18 +1,17 @@
 from __future__ import annotations
 
+import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import zipfile
-import importlib.util
-import re
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "scripts/mac_decrypt_patrolgrid_release.sh"
@@ -169,7 +168,8 @@ def test_openpgp_packet_policy_streams_a_declared_gigabyte_packet(tmp_path: Path
     specification.loader.exec_module(policy)
 
     class TruncatedSource:
-        requests: list[int] = []
+        def __init__(self) -> None:
+            self.requests: list[int] = []
 
         def read(self, length: int) -> bytes:
             self.requests.append(length)
@@ -499,8 +499,8 @@ def _manifest_policy_fixture(tmp_path: Path, mutation: str = "") -> tuple[list[s
         "file-qualified-alias": "root_paths",
     }
     resource_lines = [
-        "      spec resource 0x7f100000 "
-        f"{policy.PACKAGE}:xml/data_extraction_rules: flags=0x00000000",
+        ("      spec resource 0x7f100000 "
+        f"{policy.PACKAGE}:xml/data_extraction_rules: flags=0x00000000"),
         f"      spec resource 0x7f100001 {policy.PACKAGE}:xml/{file_paths_name}: flags=0x00000000",
         f"      spec resource 0x7f100002 {policy.PACKAGE}:xml/{network_name}: flags=0x00000000",
     ]
@@ -714,12 +714,12 @@ def test_apkanalyzer_transitive_classpath_tamper_is_rejected_before_java_exec(tm
     fixture_executor = tmp_path / "executor.py"
     fixture_executor.write_text(source, encoding="utf-8")
     fixture_executor.chmod(0o700)
-    accepted = subprocess.run([sys.executable, "-I", str(fixture_executor), *command[1:]], text=True, capture_output=True)
+    accepted = subprocess.run([sys.executable, "-I", str(fixture_executor), *command[1:]], text=True, capture_output=True, check=False)
     assert accepted.returncode == 0, accepted.stderr
     dependency.write_bytes(b"tampered dependency")
     tampered_command = [str(lib), str(classpath), str(manifest), str(java), str(build_tools),
                         str(tmp_path / "stage-tampered"), "--", "manifest", "print", "x.apk"]
-    rejected = subprocess.run([sys.executable, "-I", str(fixture_executor), *tampered_command], text=True, capture_output=True)
+    rejected = subprocess.run([sys.executable, "-I", str(fixture_executor), *tampered_command], text=True, capture_output=True, check=False)
     assert rejected.returncode != 0
     assert "digest changed" in rejected.stderr
 

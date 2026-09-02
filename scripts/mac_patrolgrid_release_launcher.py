@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path
 import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
-
+from pathlib import Path
 
 TRUST_ROOT = Path("/Library/Application Support/PatrolGrid/release-tools/current")
 SELF = TRUST_ROOT / "bin/patrolgrid-release"
@@ -49,7 +48,7 @@ PINNED_RUNTIME = {
 }
 
 
-def stop(message: str) -> "None":
+def stop(message: str) -> None:
     raise SystemExit(f"PatrolGrid trusted launcher stopped: {message}")
 
 
@@ -80,8 +79,7 @@ def require_no_extended_acl(path: Path) -> None:
             ["/bin/ls", "-lde", str(path)],
             env=clean_environment(),
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=True,
         ).stdout.splitlines()
     except (OSError, subprocess.CalledProcessError):
@@ -144,8 +142,7 @@ def run_bytes(command: list[str], *, env: dict[str, str]) -> bytes:
     return subprocess.run(
         command,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=True,
     ).stdout
 

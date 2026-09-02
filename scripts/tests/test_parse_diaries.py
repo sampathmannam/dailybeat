@@ -11,7 +11,7 @@ SAMPLE_RAW = ROOT / "data" / "samples" / "example_raw_day.txt"
 SAMPLE_JSONL = ROOT / "data" / "samples" / "diary_train.sample.jsonl"
 
 
-def run_parse(input_dir: Path, output: Path, merge: list[Path] = None) -> subprocess.CompletedProcess:
+def run_parse(input_dir: Path, output: Path, merge: list[Path] | None = None) -> subprocess.CompletedProcess:
     cmd = [
         sys.executable,
         str(PARSE_SCRIPT),
@@ -24,7 +24,7 @@ def run_parse(input_dir: Path, output: Path, merge: list[Path] = None) -> subpro
     ]
     for path in merge or []:
         cmd.extend(["--merge", str(path)])
-    return subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    return subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, check=False)
 
 
 def test_parse_text_day_blocks(tmp_path: Path):

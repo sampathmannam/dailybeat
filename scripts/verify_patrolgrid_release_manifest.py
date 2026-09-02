@@ -6,12 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import sys
 import urllib.parse
 import xml.etree.ElementTree as ET
-
+from pathlib import Path
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 PACKAGE = "com.dailybeat.app.patrolgrid"

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import os
 import hashlib
+import importlib.util
+import os
+import shlex
 import stat
 import subprocess
 import sys
-import importlib.util
-import shlex
 from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "scripts/mac_install_release_apk.sh"

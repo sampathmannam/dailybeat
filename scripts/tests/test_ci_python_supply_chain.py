@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 CI = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 SECURITY = (ROOT / ".github/workflows/security.yml").read_text(encoding="utf-8")

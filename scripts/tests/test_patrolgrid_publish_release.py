@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
-import os
-from pathlib import Path
 import stat
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 PUBLISHER = ROOT / "scripts/patrolgrid_publish_release.py"
@@ -33,8 +31,8 @@ def _private_directory(path: Path) -> Path:
 def _bundle_stage(tmp_path: Path) -> tuple[Path, Path, dict[str, bytes]]:
     parent = _private_directory(tmp_path / "private-output-parent")
     stage = _private_directory(parent / ".patrolgrid-bundle.fixture")
-    staff = _private_directory(stage / "staff")
-    owner = _private_directory(stage / "owner")
+    _private_directory(stage / "staff")
+    _private_directory(stage / "owner")
     expected = {
         "staff/PatrolGrid-1.0.0.apk": b"signed-apk",
         "staff/PatrolGrid-1.0.0-SHA256SUMS.txt": b"checksums",

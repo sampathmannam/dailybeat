@@ -5,27 +5,25 @@ from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path, PurePosixPath
 import re
-import shutil
 import stat
 import subprocess
 import sys
 import zipfile
-
+from pathlib import Path, PurePosixPath
 
 ENTRY = "com.android.tools.apk.analyzer.ApkAnalyzerCli"
 LINE = re.compile(r"([0-9a-f]{64})  ([A-Za-z0-9._/+@=-]+\.jar)\Z")
 
 
-def stop(message: str) -> "None":
+def stop(message: str) -> None:
     raise SystemExit(f"PatrolGrid apkanalyzer trust check stopped: {message}")
 
 
 def no_acl(path: Path) -> None:
     listing = subprocess.run(
-        ["/bin/ls", "-lde", str(path)], text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, check=False, env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C"},
+        ["/bin/ls", "-lde", str(path)], text=True, capture_output=True,
+        check=False, env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C", "LC_ALL": "C"},
     )
     if listing.returncode or len(listing.stdout.splitlines()) != 1:
         stop(f"classpath path has an extended ACL or cannot be inspected: {path}")
