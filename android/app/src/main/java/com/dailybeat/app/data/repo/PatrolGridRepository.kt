@@ -1,5 +1,11 @@
+// Patrol state writes use synchronous commit() to surface the boolean return
+// for atomic acknowledgement of the patrol advance; KTX edit returns Unit,
+// so the non-KTX form is intentional.
+@file:Suppress("UseKtx")
+
 package com.dailybeat.app.data.repo
 
+import androidx.core.content.edit
 import android.content.Context
 import com.dailybeat.app.data.db.PatrolTrackDao
 import com.dailybeat.app.data.model.PatrolAssignmentDraft
@@ -169,18 +175,18 @@ class PatrolGridRepository(
         val visited = prefs.getInt(KEY_VISITED_PRIORITY, 0)
         if (visited >= priorityNames.size) return null
         val visitedName = priorityNames[visited]
-        prefs.edit().putInt(KEY_VISITED_PRIORITY, visited + 1).apply()
+        prefs.edit { putInt(KEY_VISITED_PRIORITY, visited + 1) }
         return visitedName
     }
 
     fun addObservation(): Int {
         val next = prefs.getInt(KEY_OBSERVATIONS, 0) + 1
-        prefs.edit().putInt(KEY_OBSERVATIONS, next).apply()
+        prefs.edit { putInt(KEY_OBSERVATIONS, next) }
         return next
     }
 
     fun recordDeviation() {
-        prefs.edit().putBoolean(KEY_DEVIATION, true).apply()
+        prefs.edit { putBoolean(KEY_DEVIATION, true) }
     }
 
     fun endPatrol(

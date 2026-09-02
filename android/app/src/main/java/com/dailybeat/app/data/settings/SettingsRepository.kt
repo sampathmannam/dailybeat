@@ -1,3 +1,8 @@
+// This file's prefs.edit()...commit() sites rely on the boolean commit return value
+// (e.g. check(editor.commit()), return prefs.edit()...commit()). The KTX edit
+// extension returns Unit, so the non-KTX form is intentional.
+@file:Suppress("UseKtx")
+
 package com.dailybeat.app.data.settings
 
 import androidx.core.content.edit
@@ -63,15 +68,15 @@ class SettingsRepository(private val context: Context) {
     )
 
     fun setOfficerName(name: String) {
-        prefs.edit().putString(KEY_OFFICER, name.trim()).apply()
+        prefs.edit { putString(KEY_OFFICER, name.trim()) }
     }
 
     fun setGpsEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_GPS, enabled).apply()
+        prefs.edit { putBoolean(KEY_GPS, enabled) }
     }
 
     fun setPatrolRole(role: PatrolRole) {
-        prefs.edit().putString(KEY_PATROL_ROLE, role.storageValue).apply()
+        prefs.edit { putString(KEY_PATROL_ROLE, role.storageValue) }
     }
 
     fun setActivePatrolMission(missionId: String?) {
@@ -240,35 +245,35 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun setCallLogEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CALL_LOG, enabled).apply()
+        prefs.edit { putBoolean(KEY_CALL_LOG, enabled) }
     }
 
     fun setCloudLlmEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CLOUD_ENABLED, enabled).apply()
+        prefs.edit { putBoolean(KEY_CLOUD_ENABLED, enabled) }
     }
 
     fun setCloudProvider(providerId: String) {
-        prefs.edit().putString(KEY_CLOUD_PROVIDER, providerId).apply()
+        prefs.edit { putString(KEY_CLOUD_PROVIDER, providerId) }
     }
 
     fun setCloudModel(model: String) {
-        prefs.edit().putString(KEY_CLOUD_MODEL, model.trim()).apply()
+        prefs.edit { putString(KEY_CLOUD_MODEL, model.trim()) }
     }
 
     fun setCloudBaseUrl(url: String) {
-        prefs.edit().putString(KEY_CLOUD_BASE_URL, url.trim()).apply()
+        prefs.edit { putString(KEY_CLOUD_BASE_URL, url.trim()) }
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled).apply()
+        prefs.edit { putBoolean(KEY_AUTO_REPORT, enabled) }
     }
 
     fun setSupervisorName(name: String) {
-        prefs.edit().putString(KEY_SUPERVISOR, name.trim()).apply()
+        prefs.edit { putString(KEY_SUPERVISOR, name.trim()) }
     }
 
     fun setAutoMiddayPulse(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_MIDDAY_PULSE, enabled).apply()
+        prefs.edit { putBoolean(KEY_MIDDAY_PULSE, enabled) }
     }
 
     fun isCloudBrainReady(): Boolean = get().cloudLlmEnabled && secureApiKey.hasApiKey()
@@ -276,7 +281,7 @@ class SettingsRepository(private val context: Context) {
     fun isOnboardingComplete(): Boolean = prefs.getBoolean(KEY_ONBOARDING, false)
 
     fun setOnboardingComplete(complete: Boolean) {
-        prefs.edit().putBoolean(KEY_ONBOARDING, complete).apply()
+        prefs.edit { putBoolean(KEY_ONBOARDING, complete) }
     }
 
     fun acknowledgedPatrolGridPrivacyNoticeVersion(): Int =
@@ -295,7 +300,7 @@ class SettingsRepository(private val context: Context) {
     fun isPatrolGridLocked(): Boolean = prefs.getBoolean(KEY_PATROLGRID_LOCKED, false)
 
     fun setPatrolGridLocked(locked: Boolean) {
-        prefs.edit().putBoolean(KEY_PATROLGRID_LOCKED, locked).apply()
+        prefs.edit { putBoolean(KEY_PATROLGRID_LOCKED, locked) }
     }
 
     fun patrolGridBackgroundedAtMs(): Long? =

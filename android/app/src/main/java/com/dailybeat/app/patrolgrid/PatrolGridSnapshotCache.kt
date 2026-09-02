@@ -1,3 +1,8 @@
+// Snapshot persistence uses synchronous commit() to surface the boolean return
+// for atomic acknowledgement. KTX edit returns Unit, so the non-KTX form is
+// intentional.
+@file:Suppress("UseKtx")
+
 package com.dailybeat.app.patrolgrid
 
 import android.content.Context

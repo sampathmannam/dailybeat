@@ -3,7 +3,14 @@
 // BackupSessionStore, and SecureApiKeyStore classes use the same APIs; once
 // androidx.security.crypto ships a non-deprecated replacement, all five stores must
 // migrate together so production and test fixtures continue to share the same schema.
-@file:Suppress("DEPRECATION")
+
+
+// Retention clock writes use synchronous commit() so callers can detect a
+// failed persist and retry; KTX edit returns Unit, so the non-KTX form is
+// intentional.
+
+
+@file:Suppress("DEPRECATION", "UseKtx")
 
 package com.dailybeat.app.patrolgrid
 

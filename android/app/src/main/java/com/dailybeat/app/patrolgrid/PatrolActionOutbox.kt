@@ -1,3 +1,8 @@
+// Outbox queue writes need synchronous commit() to surface the boolean return
+// to the caller for atomic acknowledgement of the enqueue. KTX edit returns
+// Unit, so the non-KTX form is intentional.
+@file:Suppress("UseKtx")
+
 package com.dailybeat.app.patrolgrid
 
 import android.content.Context
