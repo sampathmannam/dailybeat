@@ -13,6 +13,17 @@
 - Rejected cleartext network traffic, protected release screens and Android 12+ overlays, and removed the legacy plaintext visit logger from patrol tracking.
 - Limited the local role switch to debug builds, added Keystore/schema security tests, and documented the backend controls required before operational deployment.
 
+- Enforced explicit PatrolGrid database grants across migrations and pgTAP coverage.
+- Kept invite-only email authentication testable behind a configuration flag.
+- Pinned GitHub Actions workflows to action commit SHAs to harden the supply chain.
+- Covered clean Gradle metadata variants and verified the Linux Android build tools.
+- Enforced the 365-day post-closure evidence retention policy end to end (server purge, local cleanup, finite reviewed holds, bounded purge operations).
+- Required KVM and hardened the Android KVM preflight for instrumentation CI.
+- Rejected qualified release-policy resources that could leak production secrets.
+- Isolated and bounded patrol evidence: per-session source selection, evidence provenance, and abuse quotas.
+- Refreshed the PatrolGrid rollout readiness ledger with current verification evidence.
+- Grew Android JVM coverage to 168/168 and the Supabase pgTAP suite to 280/280.
+
 ## 3.4.0 — 2026-08-30
 
 - Replaced the decorative journey sketch with an interactive OpenStreetMap-based map using MapLibre and OpenFreeMap.
