@@ -163,6 +163,8 @@ def test_release_policy_contract_binds_notice_retention_contact_and_emergency_ro
         "**Retention period:** 365 days",
         "There is no separate PatrolGrid technical-support desk.",
         "subdivision supervisor through the existing official Department",
+        "## 8. Access, correction, export, deletion, and grievances",
+        "To make a privacy request for access",
         "normal chain of command",
         "radio",
         "official telephone",

@@ -71,6 +71,19 @@ internal fun selectRouteDisplayEvidence(
     }
 }
 
+/** A matching terminal row is authoritative; omission is not, because snapshots are bounded. */
+internal fun terminalMissionForActivePatrol(
+    activeMissionId: String?,
+    missions: List<PatrolMission>,
+): PatrolMission? = activeMissionId?.let { missionId ->
+    missions.firstOrNull { mission ->
+        mission.id == missionId && (
+            mission.status == PatrolMissionStatus.COMPLETED ||
+                mission.status == PatrolMissionStatus.NEEDS_REVIEW
+            )
+    }
+}
+
 enum class PatrolSection { PRIMARY, MISSIONS, UNITS, MORE }
 enum class SupervisorMissionTab { ACTIVE, NEEDS_REVIEW, UPCOMING }
 
@@ -470,12 +483,14 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             endLocalPatrol()
             return
         }
-        val sessionId = app.settingsRepository.get().activePatrolSessionId
-            ?: return announce("No active patrol session was found")
-        val missionId = app.settingsRepository.get().activePatrolMissionId
-            ?: return announce("No active patrol mission was found")
-        repository.endPatrol()
-        app.settingsRepository.setPendingPatrolClose(sessionId, missionId, reason.storageValue)
+        val activePatrol = app.settingsRepository.get()
+        if (activePatrol.activePatrolSessionId == null) {
+            return announce("No active patrol session was found")
+        }
+        if (activePatrol.activePatrolMissionId == null) {
+            return announce("No active patrol mission was found")
+        }
+        repository.endPatrol(pendingCloseReason = reason.storageValue)
         CaptureController.applyFromSettings(app)
         PatrolTrackSyncWorker.enqueue(app)
         refreshSyncStatus()
@@ -779,16 +794,8 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
     ) {
         app.settingsRepository.setOfficerName(snapshot.identity.displayName)
         app.settingsRepository.setPatrolRole(snapshot.identity.role)
-        val primaryId = activeMissionId
-            ?: requestedMissionId?.takeIf { snapshot.identity.role == PatrolRole.SUPERVISOR }
-            ?: snapshot.evidenceMissionId
-        val primary = primaryId?.let { id -> snapshot.missions.firstOrNull { it.id == id } }
-            ?: snapshot.missions.firstOrNull()
         val active = snapshot.missions.filter {
             it.status == PatrolMissionStatus.ACTIVE || it.status == PatrolMissionStatus.PAUSED_WITH_REASON
-        }
-        val upcoming = snapshot.missions.firstOrNull {
-            it.status == PatrolMissionStatus.ASSIGNED && it.id != primary?.id
         }
         val assignmentOptionsResult = if (!cached && snapshot.identity.role == PatrolRole.SUPERVISOR) {
             app.patrolGridRemote.loadAssignmentOptions()
@@ -798,6 +805,26 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
         val assignmentOptions = assignmentOptionsResult?.getOrNull()
         val assignmentError = assignmentOptionsResult?.exceptionOrNull()?.message
         if (requestGeneration != refreshGeneration) return
+        val currentActiveMissionId = app.settingsRepository.get().activePatrolMissionId
+        if (currentActiveMissionId != null && currentActiveMissionId != activeMissionId) return
+        val terminalActiveMission = terminalMissionForActivePatrol(
+            activeMissionId = currentActiveMissionId,
+            missions = snapshot.missions,
+        )
+        val effectiveActiveMissionId = if (terminalActiveMission != null) {
+            stopTrackingForServerTerminalMission()
+            null
+        } else {
+            currentActiveMissionId
+        }
+        val primaryId = effectiveActiveMissionId
+            ?: requestedMissionId?.takeIf { snapshot.identity.role == PatrolRole.SUPERVISOR }
+            ?: snapshot.evidenceMissionId
+        val primary = primaryId?.let { id -> snapshot.missions.firstOrNull { it.id == id } }
+            ?: snapshot.missions.firstOrNull()
+        val upcoming = snapshot.missions.firstOrNull {
+            it.status == PatrolMissionStatus.ASSIGNED && it.id != primary?.id
+        }
         val routeEvidence = resolveRouteDisplayEvidence(
             missionId = snapshot.evidenceMissionId,
             snapshot = PatrolRouteDisplayEvidence(
@@ -827,7 +854,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                     routeEvidence.unreadableTrackPoints,
                     localUnreadableTrackPoints,
                 ),
-                trackingActive = activeMissionId != null,
+                trackingActive = effectiveActiveMissionId != null,
                 locationPermissionGranted = PermissionHelper.canCaptureLocation(app),
                 observationCount = snapshot.observationCount,
                 review = primary?.let { mission ->
@@ -846,9 +873,15 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 refreshError = error ?: assignmentError,
                 showingCachedData = cached,
                 sessionExpired = false,
+                message = if (terminalActiveMission != null) {
+                    "Patrol closed by the server. Tracking is off; secure sync will finish when online"
+                } else {
+                    it.message
+                },
+                messageId = if (terminalActiveMission != null) it.messageId + 1 else it.messageId,
             )
         }
-        observeActiveRoute(activeMissionId)
+        observeActiveRoute(effectiveActiveMissionId)
     }
 
     private fun resolveRouteDisplayEvidence(
@@ -1009,20 +1042,29 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun stopTrackingForLostSession() {
         val settings = app.settingsRepository.get()
-        val sessionId = settings.activePatrolSessionId
-        val missionId = settings.activePatrolMissionId
-        if (sessionId != null && missionId != null) {
-            app.settingsRepository.setPendingPatrolClose(
-                sessionId,
-                missionId,
-                PatrolEndReason.DEVICE_ISSUE.storageValue,
+        if (settings.activePatrolMissionId != null ||
+            settings.activePatrolSessionId != null ||
+            settings.gpsCaptureEnabled
+        ) {
+            val stopped = repository.endPatrol(
+                pendingCloseReason = PatrolEndReason.DEVICE_ISSUE.storageValue,
             )
-        }
-        if (missionId != null || settings.gpsCaptureEnabled) {
-            repository.endPatrol()
             CaptureController.applyFromSettings(app)
+            if (stopped.sessionId != null && stopped.missionId != null) {
+                PatrolTrackSyncWorker.enqueue(app)
+            }
         }
-        if (sessionId != null && missionId != null) PatrolTrackSyncWorker.enqueue(app)
+    }
+
+    private fun stopTrackingForServerTerminalMission() {
+        val stopped = repository.endPatrol(
+            pendingCloseReason = PatrolEndReason.DEVICE_ISSUE.storageValue,
+        )
+        observeActiveRoute(null)
+        CaptureController.applyFromSettings(app)
+        if (stopped.sessionId != null && stopped.missionId != null) {
+            PatrolTrackSyncWorker.enqueue(app)
+        }
     }
 
     private fun clearSensitiveUiState(sessionExpired: Boolean = false) {

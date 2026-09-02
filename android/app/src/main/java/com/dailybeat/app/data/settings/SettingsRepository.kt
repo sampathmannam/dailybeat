@@ -4,6 +4,11 @@ import android.content.Context
 import com.dailybeat.app.data.model.PatrolRole
 import java.util.UUID
 
+data class PatrolStopResult(
+    val missionId: String?,
+    val sessionId: String?,
+)
+
 class SettingsRepository(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("dailybeat_settings", Context.MODE_PRIVATE)
@@ -89,21 +94,44 @@ class SettingsRepository(private val context: Context) {
         }.commit()) { "Unable to persist the active patrol deadline." }
     }
 
+    /**
+     * Durably disables capture and, when possible, moves the active session to the
+     * pending-close queue in one preference commit. This prevents a process death
+     * between stopping GPS and preserving the session/evidence synchronization state.
+     */
+    @Synchronized
+    fun stopActivePatrol(
+        pendingCloseReason: String? = null,
+        endedAtMs: Long = System.currentTimeMillis(),
+    ): PatrolStopResult {
+        pendingCloseReason?.let(::requirePatrolEndReason)
+        if (pendingCloseReason != null) require(endedAtMs > 0L)
+
+        val missionId = prefs.getString(KEY_ACTIVE_PATROL_MISSION, null)
+        val sessionId = prefs.getString(KEY_ACTIVE_PATROL_SESSION, null)
+        val editor = prefs.edit()
+            .remove(KEY_ACTIVE_PATROL_MISSION)
+            .remove(KEY_ACTIVE_PATROL_SESSION)
+            .remove(KEY_ACTIVE_PATROL_DEADLINE)
+            .putBoolean(KEY_GPS, false)
+        if (pendingCloseReason != null && missionId != null && sessionId != null) {
+            editor
+                .putString(KEY_PENDING_PATROL_CLOSE_SESSION, sessionId)
+                .putString(KEY_PENDING_PATROL_CLOSE_MISSION, missionId)
+                .putString(KEY_PENDING_PATROL_CLOSE_REASON, pendingCloseReason)
+                .putLong(KEY_PENDING_PATROL_CLOSE_ENDED_AT, endedAtMs)
+        }
+        check(editor.commit()) { "Unable to stop patrol capture securely." }
+        return PatrolStopResult(missionId = missionId, sessionId = sessionId)
+    }
+
     fun setPendingPatrolClose(
         sessionId: String?,
         missionId: String?,
         reason: String = "completed",
         endedAtMs: Long = System.currentTimeMillis(),
     ) {
-        require(
-            reason in setOf(
-                "completed",
-                "relieved",
-                "cancelled",
-                "device_issue",
-                "duty_window_ended",
-            ),
-        )
+        requirePatrolEndReason(reason)
         check(prefs.edit().apply {
             if (sessionId == null || missionId == null) {
                 remove(KEY_PENDING_PATROL_CLOSE_SESSION)
@@ -276,7 +304,18 @@ class SettingsRepository(private val context: Context) {
         }.commit()
     }
 
+    private fun requirePatrolEndReason(reason: String) {
+        require(reason in PATROL_END_REASONS) { "Unsupported patrol end reason." }
+    }
+
     companion object {
+        private val PATROL_END_REASONS = setOf(
+            "completed",
+            "relieved",
+            "cancelled",
+            "device_issue",
+            "duty_window_ended",
+        )
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_GPS = "gps_enabled"
         private const val KEY_CALL_LOG = "call_log_enabled"

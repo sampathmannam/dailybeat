@@ -80,7 +80,7 @@ class SupabasePatrolGridClientTest {
         server.enqueue(json("0"))
         server.enqueue(
             json(
-                """[{"id":"mission-1","title":"Night sector","starts_at":"2026-09-01T16:30:00Z","ends_at":"2026-09-01T20:30:00Z","guidance":"suggested_route","instructions":"Check gates","status":"assigned","version":7,"route_geojson":{"type":"LineString","coordinates":[[77.4,12.9],[77.5,13.0]]},"updated_at":"2026-09-01T17:00:00Z","retention_until":"2027-09-01T20:30:00Z"}]""",
+                """[{"id":"mission-1","title":"Night sector","starts_at":"2026-09-01T16:30:00Z","ends_at":"2026-09-01T20:30:00Z","guidance":"suggested_route","instructions":"Check gates","status":"active","version":7,"route_geojson":{"type":"LineString","coordinates":[[77.4,12.9],[77.5,13.0]]},"updated_at":"2026-09-01T17:00:00Z","retention_until":null}]""",
             ),
         )
         server.enqueue(json("""[{"id":"priority-1","mission_id":"mission-1","name":"Bus stand","latitude":13.0,"longitude":77.5,"radius_m":35,"required":true,"sort_order":0}]"""))
@@ -106,7 +106,7 @@ class SupabasePatrolGridClientTest {
         assertEquals(PatrolMissionStatus.ACTIVE, snapshot.missions.single().status)
         assertEquals(7, snapshot.missions.single().version)
         assertEquals(1_788_294_600_000L, snapshot.missions.single().endsAtEpochMs)
-        assertEquals(1_819_830_600_000L, snapshot.missions.single().retentionUntilEpochMs)
+        assertEquals(null, snapshot.missions.single().retentionUntilEpochMs)
         assertTrue(snapshot.missions.single().hasOperationalDeviation)
         assertEquals("Bus stand", snapshot.missions.single().priorityLocations.single().name)
         assertEquals(13.0, snapshot.missions.single().priorityLocations.single().latitude!!, 0.0)
@@ -144,6 +144,50 @@ class SupabasePatrolGridClientTest {
                 assertTrue(request.path.orEmpty().contains("order=recorded_at.desc"))
             }
         }
+    }
+
+    @Test
+    fun `mission retention clock is accepted only for terminal states`() {
+        val deadline = "2027-09-01T20:30:00Z"
+
+        assertEquals(null, parsePatrolMissionRetentionDeadline("assigned", ""))
+        assertEquals(
+            1_819_830_600_000L,
+            parsePatrolMissionRetentionDeadline("completed", deadline),
+        )
+        assertTrue(
+            runCatching { parsePatrolMissionRetentionDeadline("assigned", deadline) }
+                .exceptionOrNull()?.message.orEmpty().contains("inconsistent"),
+        )
+        assertTrue(
+            runCatching { parsePatrolMissionRetentionDeadline("needs_review", "") }
+                .exceptionOrNull()?.message.orEmpty().contains("inconsistent"),
+        )
+        assertTrue(
+            runCatching { parsePatrolMissionRetentionDeadline("completed", "not-a-clock") }
+                .exceptionOrNull()?.message.orEmpty().contains("invalid"),
+        )
+    }
+
+    @Test
+    fun `authoritative terminal mission is never reactivated by local active id`() = runBlocking {
+        enqueueIdentity()
+        server.enqueue(json("0"))
+        server.enqueue(
+            json(
+                """[{"id":"mission-1","title":"Night sector","starts_at":"2026-09-01T16:30:00Z","ends_at":"2026-09-01T20:30:00Z","guidance":"suggested_route","instructions":"Check gates","status":"needs_review","version":8,"route_geojson":{"type":"LineString","coordinates":[[77.4,12.9],[77.5,13.0]]},"updated_at":"2026-09-01T20:31:00Z","retention_until":"2027-09-01T20:30:00Z"}]""",
+            ),
+        )
+        repeat(4) { server.enqueue(json("[]")) }
+        server.enqueue(json("[]"))
+        server.enqueue(json("[]"))
+        server.enqueue(countResponse(0))
+        server.enqueue(countResponse(0))
+
+        val mission = client.loadSnapshot("mission-1").getOrThrow().missions.single()
+
+        assertEquals(PatrolMissionStatus.NEEDS_REVIEW, mission.status)
+        assertEquals(1_819_830_600_000L, mission.retentionUntilEpochMs)
     }
 
     @Test

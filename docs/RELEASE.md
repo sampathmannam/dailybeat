@@ -190,6 +190,7 @@ provenance-bound hosted-runner binary. Hosted-runner source-to-binary fidelity r
 a production rollout blocker until an independently clean reproducible build is
 compared or the risk is formally accepted after security review.
 
-Operational emergencies remain on the normal command/radio/phone chain. Privacy,
-correction, deletion, and grievance requests use the subdivision supervisor's official
-Department channel; this project does not create a technical support desk.
+Operational emergencies and device/evidence incidents remain on the normal
+command/radio/phone chain. Privacy, access, correction, export, deletion, and
+grievance requests use the subdivision supervisor's official Department channel;
+this project does not create a technical support desk.

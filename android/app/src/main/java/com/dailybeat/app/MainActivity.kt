@@ -196,7 +196,7 @@ private fun PatrolRetentionStartupBlockedScreen(onRetry: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                "PatrolGrid cannot show mission evidence or start GPS capture until the required local evidence cleanup succeeds. Report repeated failures to your subdivision supervisor through the official Department channel.",
+                "PatrolGrid cannot show mission evidence or start GPS capture until the required local evidence cleanup succeeds. Report repeated failures immediately through your normal command, radio, or phone chain.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
             )

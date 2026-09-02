@@ -12,6 +12,7 @@ import com.dailybeat.app.data.model.PatrolUnitOption
 import com.dailybeat.app.data.model.PriorityLocation
 import com.dailybeat.app.data.model.PriorityLocationState
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.data.settings.PatrolStopResult
 import com.dailybeat.app.patrolgrid.PatrolMapPoint
 import com.dailybeat.app.security.PatrolCoordinates
 import kotlinx.coroutines.Dispatchers
@@ -161,12 +162,15 @@ class PatrolGridRepository(
         prefs.edit().putBoolean(KEY_DEVIATION, true).apply()
     }
 
-    fun endPatrol() {
-        prefs.edit().putBoolean(KEY_ENDED, true).apply()
-        settings.setActivePatrolMission(null)
-        settings.setActivePatrolSession(null)
-        settings.setActivePatrolDeadline(null)
-        settings.setGpsEnabled(false)
+    fun endPatrol(
+        pendingCloseReason: String? = null,
+        endedAtMs: Long = System.currentTimeMillis(),
+    ): PatrolStopResult {
+        val stopped = settings.stopActivePatrol(pendingCloseReason, endedAtMs)
+        check(prefs.edit().putBoolean(KEY_ENDED, true).commit()) {
+            "Unable to persist the ended patrol state."
+        }
+        return stopped
     }
 
     fun assignPatrol(draft: PatrolAssignmentDraft) {

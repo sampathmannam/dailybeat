@@ -9,17 +9,12 @@ object PatrolCaptureFailureHandler {
     @Synchronized
     fun fail(app: DailyBeatApp, message: String): Boolean {
         val settings = app.settingsRepository.get()
-        val missionId = settings.activePatrolMissionId ?: return false
-        val sessionId = settings.activePatrolSessionId
-
+        if (settings.activePatrolMissionId == null) return false
         app.settingsRepository.setPatrolCaptureError(message)
-        app.patrolGridRepository.endPatrol()
-        if (app.isPatrolGridConfigured && sessionId != null) {
-            app.settingsRepository.setPendingPatrolClose(
-                sessionId = sessionId,
-                missionId = missionId,
-                reason = PatrolEndReason.DEVICE_ISSUE.storageValue,
-            )
+        val stopped = app.patrolGridRepository.endPatrol(
+            pendingCloseReason = PatrolEndReason.DEVICE_ISSUE.storageValue,
+        )
+        if (app.isPatrolGridConfigured && stopped.missionId != null && stopped.sessionId != null) {
             PatrolTrackSyncWorker.enqueue(app)
         }
         // Notify visible UI only after tracking state and any pending close are coherent.

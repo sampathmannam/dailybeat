@@ -1,7 +1,10 @@
 package com.dailybeat.app.ui.patrol
 
+import com.dailybeat.app.data.model.PatrolMission
+import com.dailybeat.app.data.model.PatrolMissionStatus
 import com.dailybeat.app.patrolgrid.PatrolMapPoint
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PatrolGridRouteStateTest {
@@ -73,6 +76,34 @@ class PatrolGridRouteStateTest {
         assertEquals(1, selected.unreadableTrackPoints)
     }
 
+    @Test
+    fun `matching terminal snapshot row stops stale active patrol state`() {
+        val completed = mission("completed", PatrolMissionStatus.COMPLETED)
+        val needsReview = mission("review", PatrolMissionStatus.NEEDS_REVIEW)
+
+        assertEquals(
+            completed,
+            terminalMissionForActivePatrol("completed", listOf(completed, needsReview)),
+        )
+        assertEquals(
+            needsReview,
+            terminalMissionForActivePatrol("review", listOf(completed, needsReview)),
+        )
+    }
+
+    @Test
+    fun `nonterminal different or omitted snapshot row cannot stop active patrol`() {
+        val assigned = mission("assigned", PatrolMissionStatus.ASSIGNED)
+        val active = mission("active", PatrolMissionStatus.ACTIVE)
+        val otherTerminal = mission("other", PatrolMissionStatus.COMPLETED)
+
+        assertNull(terminalMissionForActivePatrol("assigned", listOf(assigned)))
+        assertNull(terminalMissionForActivePatrol("active", listOf(active)))
+        assertNull(terminalMissionForActivePatrol("active", listOf(otherTerminal)))
+        assertNull(terminalMissionForActivePatrol("omitted", emptyList()))
+        assertNull(terminalMissionForActivePatrol(null, listOf(otherTerminal)))
+    }
+
     private fun evidence(
         total: Int,
         pointCount: Int,
@@ -87,5 +118,18 @@ class PatrolGridRouteStateTest {
             )
         },
         unreadableTrackPoints = unreadable,
+    )
+
+    private fun mission(id: String, status: PatrolMissionStatus) = PatrolMission(
+        id = id,
+        title = "Mission $id",
+        dutyWindow = "22:00–23:00",
+        unitName = "Unit 1",
+        personnelCount = 2,
+        status = status,
+        statusLabel = status.name,
+        context = "Test mission",
+        priorityLocations = emptyList(),
+        lastUpdateLabel = "Now",
     )
 }

@@ -92,14 +92,22 @@ jobs:
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
+        with:
+          cache-disabled: true
 
       - name: Build and test
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
         run: |
           cd android
-          ./gradlew assembleDebug testDebugUnitTest lintDebug --dependency-verification strict --no-daemon --stacktrace
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --refresh-dependencies --dependency-verification strict --no-daemon --stacktrace
 
       - name: Instrumentation tests (emulator)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
         with:
           api-level: 36
           # MapLibre ships x86_64, so the cloud-only app can run on this emulator.

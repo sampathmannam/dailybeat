@@ -372,11 +372,13 @@ val validateReleaseConfiguration by tasks.registering {
             "**Retention period:** 365 days" in privacyPolicyText &&
             "There is no separate PatrolGrid technical-support desk." in privacyPolicyText &&
             "subdivision supervisor through the existing official Department" in privacyPolicyText &&
+            "## 8. Access, correction, export, deletion, and grievances" in privacyPolicyText &&
+            "To make a privacy request for access" in privacyPolicyText &&
             "normal chain of command" in privacyPolicyText &&
             "radio" in privacyPolicyText &&
             "official telephone" in privacyPolicyText
         ) {
-            "The approved PatrolGrid policy is missing a required retention, request-route, no-desk, or emergency clause."
+            "The approved PatrolGrid policy is missing a required retention, privacy-rights route, no-desk, or operational-escalation clause."
         }
         check("Deployment draft" !in privacyPolicyText) {
             "The PatrolGrid privacy policy is still marked as a deployment draft."

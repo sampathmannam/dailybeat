@@ -28,12 +28,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
+import com.dailybeat.app.patrolgrid.PATROLGRID_LOCAL_RETENTION_DAYS
 import java.net.URI
 
 const val PATROLGRID_PRIVACY_NOTICE_VERSION = 3
 
 fun isPatrolGridPrivacyPolicyConfigured(policyUrl: String, retentionDays: Int): Boolean =
-    retentionDays > 0 && runCatching {
+    retentionDays == PATROLGRID_LOCAL_RETENTION_DAYS && runCatching {
         URI(policyUrl.trim()).let { uri ->
             uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank()
         }

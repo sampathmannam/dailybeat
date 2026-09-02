@@ -195,6 +195,12 @@ def test_verification_metadata_covers_clean_cache_metadata_variants():
             "junit-bom-5.10.2.pom":
                 "169dd904a4b0f6520cffe658cc62292bfe9f3c14a989fa92120724cde43a9968",
         },
+        ("org.junit", "junit-bom", "5.9.2"): {
+            "junit-bom-5.9.2.module":
+                "ab137ba5a8e32c9b066bf9126a1c76dd5614b724ba5c0b02549772b5e9f4cf1f",
+            "junit-bom-5.9.2.pom":
+                "2ed07d65845131f5336a86476c9a4056b59d0b58b9815ab3679bb0f36f35f705",
+        },
         ("com.android.tools.build", "aapt2", "8.10.1-12782657"): {
             "aapt2-8.10.1-12782657-linux.jar":
                 "52f864b7fd20a9ff09fc3db96162537a63c5b38ecc1c2549db4b491c6a517ff0",
@@ -220,6 +226,17 @@ def test_ci_and_security_gradle_commands_enforce_strict_verification():
         assert "--dependency-verification lenient" not in workflow
         assert "--write-verification-metadata" not in workflow
         assert "--write-locks" not in workflow
+
+
+def test_ci_android_graph_is_always_resolved_from_a_cold_cache():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    build_job = workflow.split("  build:\n", maxsplit=1)[1]
+
+    assert build_job.count(
+        "GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold"
+    ) == 3
+    assert "cache-disabled: true" in build_job
+    assert "--refresh-dependencies --dependency-verification strict" in build_job
 
 
 def test_gradle_wrapper_distribution_is_pinned_and_validated():

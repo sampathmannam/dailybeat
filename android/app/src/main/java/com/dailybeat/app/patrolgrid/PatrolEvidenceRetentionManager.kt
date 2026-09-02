@@ -10,12 +10,12 @@ import kotlinx.coroutines.sync.withLock
 internal const val PATROLGRID_LOCAL_RETENTION_DAYS = 365
 internal const val PATROLGRID_RETENTION_INCIDENT_MESSAGE =
     "Patrol evidence reached the 365-day device retention limit before synchronization. " +
-        "The expired local copy was deleted. Report this evidence-integrity incident to " +
-        "your subdivision supervisor through the official Department channel."
+        "The expired local copy was deleted. Report this evidence-integrity incident " +
+        "immediately through your normal command, radio, or phone chain."
 internal const val PATROLGRID_RETENTION_ENFORCEMENT_ERROR =
-    "PatrolGrid could not verify the one-year local evidence cleanup. Do not treat " +
-        "synchronization as complete; report this device issue to your subdivision " +
-        "supervisor through the official Department channel."
+    "PatrolGrid could not verify the exact 365-day local evidence cleanup. Do not treat " +
+        "synchronization as complete; report this device issue immediately through your " +
+        "normal command, radio, or phone chain."
 
 internal class PatrolMissionClockUnavailableException : IllegalStateException(
     "Local patrol evidence is waiting for its authoritative server retention clock.",

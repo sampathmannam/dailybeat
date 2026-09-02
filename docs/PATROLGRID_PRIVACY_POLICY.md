@@ -223,14 +223,15 @@ timestamp cannot be safely synchronized or retained indefinitely. Before
 cross-store deletion, PatrolGrid commits an aggregate deletion-intent journal;
 successful cleanup atomically resolves that journal and records only the
 aggregate discarded-item count and incident time. A persistent
-evidence-integrity warning directs the staff member to the subdivision supervisor
-through the official Department channel. The warning can be acknowledged after
-reporting, but its aggregate time/count remains on the device. A cleanup failure
-continues to block capture until a later cleanup succeeds. Neither record contains
-a mission, staff, route, coordinate, or note identifier. An expired or malformed
-encrypted mission snapshot is swept by the same retention process; the snapshot
-is refused at 24 hours. Uninstalling the app or deleting a local copy does not
-delete the Department's server record.
+evidence-integrity warning directs the staff member to report immediately through
+the normal chain of command, radio, or official telephone procedure because it is
+an operational device/evidence incident, not a privacy request. The warning can be
+acknowledged after reporting, but its aggregate time/count remains on the device.
+A cleanup failure continues to block capture until a later cleanup succeeds.
+Neither record contains a mission, staff, route, coordinate, or note identifier.
+An expired or malformed encrypted mission snapshot is swept by the same retention
+process; the snapshot is refused at 24 hours. Uninstalling the app or deleting a
+local copy does not delete the Department's server record.
 
 Database backups, point-in-time-recovery logs, snapshots, exports, and replicas
 must not become an indefinite second evidence store. Before rollout, the
@@ -252,8 +253,9 @@ live deletion test, capacity/SLO alert test, and quarantined restore test pass.
 
 ## 8. Access, correction, export, deletion, and grievances
 
-To ask for a summary or copy of your PatrolGrid data, correction or completion of
-inaccurate data, export, deletion, or review of a privacy concern:
+To make a privacy request for access to a summary or copy of your PatrolGrid data,
+correction or completion of inaccurate data, export, deletion, or review of a
+grievance:
 
 1. Contact your subdivision supervisor through the existing official Department
    channel for administrative requests.

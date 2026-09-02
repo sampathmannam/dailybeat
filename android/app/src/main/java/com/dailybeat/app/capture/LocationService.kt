@@ -148,16 +148,11 @@ class LocationService : Service() {
     private fun closeAtDutyWindow(app: DailyBeatApp) {
         if (!dutyWindowClosed.compareAndSet(false, true)) return
         val settings = app.settingsRepository.get()
-        val missionId = settings.activePatrolMissionId
-        val sessionId = settings.activePatrolSessionId
-        app.patrolGridRepository.endPatrol()
-        if (app.isPatrolGridConfigured && missionId != null && sessionId != null) {
-            app.settingsRepository.setPendingPatrolClose(
-                sessionId = sessionId,
-                missionId = missionId,
-                reason = PatrolEndReason.DUTY_WINDOW_ENDED.storageValue,
-                endedAtMs = settings.activePatrolDeadlineMs ?: System.currentTimeMillis(),
-            )
+        val stopped = app.patrolGridRepository.endPatrol(
+            pendingCloseReason = PatrolEndReason.DUTY_WINDOW_ENDED.storageValue,
+            endedAtMs = settings.activePatrolDeadlineMs ?: System.currentTimeMillis(),
+        )
+        if (app.isPatrolGridConfigured && stopped.missionId != null && stopped.sessionId != null) {
             PatrolTrackSyncWorker.enqueue(app)
         }
         if (PermissionHelper.hasNotifications(this)) {

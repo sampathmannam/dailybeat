@@ -373,7 +373,7 @@ internal fun PatrolRetentionIncidentAcknowledgement(onAcknowledge: () -> Unit) {
         title = { Text("Evidence cleanup recorded") },
         text = {
             Text(
-                "Expired local evidence was securely removed. Report the evidence-integrity incident to your subdivision supervisor through the official Department channel, then acknowledge it here. Only an aggregate count and time remain on this device.",
+                "Expired local evidence was securely removed. Report the evidence-integrity incident immediately through your normal command, radio, or phone chain, then acknowledge it here. Only an aggregate count and time remain on this device.",
             )
         },
         confirmButton = {

@@ -20,8 +20,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailybeat.app.ui.auth.PATROLGRID_PRIVACY_NOTICE_VERSION
 import com.dailybeat.app.ui.auth.PatrolGridPrivacyGate
 import com.dailybeat.app.ui.auth.PatrolGridPrivacyNoticeScreen
+import com.dailybeat.app.ui.auth.isPatrolGridPrivacyPolicyConfigured
 import com.dailybeat.app.ui.theme.DailyBeatTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +37,15 @@ class PatrolGridPrivacyNoticeScreenTest {
     @Test
     fun materialPolicyUpdateUsesNoticeVersionThree() {
         assertEquals(3, PATROLGRID_PRIVACY_NOTICE_VERSION)
+    }
+
+    @Test
+    fun operationalPrivacyPolicyRequiresExact365DayRetention() {
+        val policyUrl = "https://privacy.example.test/patrolgrid"
+
+        assertTrue(isPatrolGridPrivacyPolicyConfigured(policyUrl, 365))
+        assertFalse(isPatrolGridPrivacyPolicyConfigured(policyUrl, 364))
+        assertFalse(isPatrolGridPrivacyPolicyConfigured(policyUrl, 366))
     }
 
     @Test
@@ -78,7 +89,7 @@ class PatrolGridPrivacyNoticeScreenTest {
         composeRule.onNodeWithText("no separate technical-support desk", substring = true)
             .assertIsDisplayed()
         composeRule.onNodeWithText(
-            "access, correction, export, deletion, or a privacy grievance",
+            "privacy request involving access, correction, export, deletion, or a grievance",
             substring = true,
         ).assertIsDisplayed()
         composeRule.onNodeWithText(
@@ -105,7 +116,7 @@ class PatrolGridPrivacyNoticeScreenTest {
             DailyBeatTheme {
                 PatrolGridPrivacyNoticeScreen(
                     policyUrl = "https://privacy.example.test/patrolgrid",
-                    retentionDays = 30,
+                    retentionDays = 365,
                     onAcknowledge = {},
                     onOpenPrivacyPolicy = { openedUrl = it },
                 )

@@ -136,7 +136,17 @@ class SupabasePatrolGridClient(
         val missions = (0 until missionRows.length()).map { index ->
             val row = missionRows.getJSONObject(index)
             val missionId = row.getString("id")
-            val activeLocally = missionId == activeMissionId && identity.role == PatrolRole.PATROL
+            val sourceStatus = row.getString("status")
+            val retentionUntilEpochMs = parsePatrolMissionRetentionDeadline(
+                sourceStatus = sourceStatus,
+                rawValue = row.opt("retention_until")
+                    ?.takeUnless { it == JSONObject.NULL }
+                    ?.toString()
+                    .orEmpty(),
+            )
+            val activeLocally = missionId == activeMissionId &&
+                identity.role == PatrolRole.PATROL &&
+                sourceStatus !in PATROLGRID_TERMINAL_SOURCE_STATUSES
             val locations = prioritiesByMission[missionId].orEmpty().mapIndexed { locationIndex, location ->
                 val visited = location.getString("id") in visitedIds
                 val priorVisited = prioritiesByMission[missionId].orEmpty()
@@ -162,7 +172,6 @@ class SupabasePatrolGridClient(
                     radiusM = location.optDouble("radius_m").takeUnless(Double::isNaN),
                 )
             }
-            val sourceStatus = row.getString("status")
             val status = if (activeLocally) PatrolMissionStatus.ACTIVE else sourceStatus.toMissionStatus()
             PatrolMission(
                 id = missionId,
@@ -182,9 +191,7 @@ class SupabasePatrolGridClient(
                 endsAtEpochMs = runCatching {
                     Instant.parse(row.getString("ends_at")).toEpochMilli()
                 }.getOrNull(),
-                retentionUntilEpochMs = row.optString("retention_until")
-                    .takeIf(String::isNotBlank)
-                    ?.let { value -> runCatching { Instant.parse(value).toEpochMilli() }.getOrNull() },
+                retentionUntilEpochMs = retentionUntilEpochMs,
             )
         }
         val evidenceRow = (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
@@ -640,6 +647,36 @@ class SupabasePatrolGridClient(
                 PatrolMissionStatus.ASSIGNED -> "Assigned"
             }
     }
+}
+
+private val PATROLGRID_SOURCE_MISSION_STATUSES = setOf(
+    "planned",
+    "assigned",
+    "active",
+    "needs_review",
+    "completed",
+    "cancelled",
+)
+
+internal val PATROLGRID_TERMINAL_SOURCE_STATUSES = setOf(
+    "needs_review",
+    "completed",
+    "cancelled",
+)
+
+internal fun parsePatrolMissionRetentionDeadline(sourceStatus: String, rawValue: String): Long? {
+    check(sourceStatus in PATROLGRID_SOURCE_MISSION_STATUSES) {
+        "PatrolGrid returned an unsupported mission state."
+    }
+    val deadline = rawValue.trim().takeIf(String::isNotEmpty)?.let { value ->
+        runCatching { Instant.parse(value).toEpochMilli() }.getOrElse {
+            throw IllegalStateException("PatrolGrid returned an invalid mission retention clock.")
+        }
+    }
+    check((deadline != null) == (sourceStatus in PATROLGRID_TERMINAL_SOURCE_STATUSES)) {
+        "PatrolGrid returned an inconsistent mission retention clock."
+    }
+    return deadline
 }
 
 internal object PatrolRouteGeoJsonParser {
