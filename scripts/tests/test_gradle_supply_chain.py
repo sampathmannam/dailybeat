@@ -178,20 +178,32 @@ def test_verification_metadata_covers_clean_cache_metadata_variants():
     root = ET.parse(VERIFICATION_FILE).getroot()
     components = {
         (component.attrib["group"], component.attrib["name"], component.attrib["version"]): {
-            artifact.attrib["name"]
+            artifact.attrib["name"]: artifact.find("v:sha256", NAMESPACE).attrib["value"]
             for artifact in component.findall("v:artifact", NAMESPACE)
         }
         for component in root.findall("./v:components/v:component", NAMESPACE)
     }
 
-    assert (
-        "guava-parent-33.3.1-jre.pom"
-        in components[("com.google.guava", "guava-parent", "33.3.1-jre")]
-    )
-    assert {
-        "junit-bom-5.10.2.module",
-        "junit-bom-5.10.2.pom",
-    } <= components[("org.junit", "junit-bom", "5.10.2")]
+    expected = {
+        ("com.google.guava", "guava-parent", "33.3.1-jre"): {
+            "guava-parent-33.3.1-jre.pom":
+                "55441db27e8869dfefe053059bdf478bdc7e95585642bf391f0023345fd56287",
+        },
+        ("org.junit", "junit-bom", "5.10.2"): {
+            "junit-bom-5.10.2.module":
+                "de23b114b3e4119a8fe6eb17bed5a3852816698bace67071579d6d927ebb080a",
+            "junit-bom-5.10.2.pom":
+                "169dd904a4b0f6520cffe658cc62292bfe9f3c14a989fa92120724cde43a9968",
+        },
+        ("com.android.tools.build", "aapt2", "8.10.1-12782657"): {
+            "aapt2-8.10.1-12782657-linux.jar":
+                "52f864b7fd20a9ff09fc3db96162537a63c5b38ecc1c2549db4b491c6a517ff0",
+            "aapt2-8.10.1-12782657-osx.jar":
+                "91fb66f4999d114c38713bb4429451e4f2bbe6cfd7c1931e43ee13f52234d426",
+        },
+    }
+    for component, artifacts in expected.items():
+        assert artifacts.items() <= components[component].items()
 
 
 def test_ci_and_security_gradle_commands_enforce_strict_verification():
