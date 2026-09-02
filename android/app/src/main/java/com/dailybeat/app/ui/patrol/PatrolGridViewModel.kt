@@ -23,6 +23,8 @@ import com.dailybeat.app.data.repo.PatrolRouteEvidence
 import com.dailybeat.app.util.PermissionHelper
 import com.dailybeat.app.patrolgrid.PatrolTrackSyncWorker
 import com.dailybeat.app.patrolgrid.PatrolMapPoint
+import com.dailybeat.app.patrolgrid.PatrolEvidenceSource
+import com.dailybeat.app.patrolgrid.PatrolPriorityVisitEvidence
 import com.dailybeat.app.patrolgrid.PatrolGridAccessDeniedException
 import com.dailybeat.app.patrolgrid.PatrolGridSessionExpiredException
 import com.dailybeat.app.patrolgrid.isTransientPatrolGridFailure
@@ -102,6 +104,7 @@ data class PatrolGridUiState(
     val unitOptions: List<PatrolUnitOption> = emptyList(),
     val assignmentEditorOpen: Boolean = false,
     val recordedTrackPoints: Int = 0,
+    val selectedEvidenceTrackPointCount: Int = 0,
     val unreadableTrackPoints: Int = 0,
     val captureError: String? = null,
     val trackingActive: Boolean = false,
@@ -119,6 +122,11 @@ data class PatrolGridUiState(
     val reviewContextRequestId: String? = null,
     val reviewContextRequest: String? = null,
     val reviewContextResponse: String? = null,
+    val evidenceSources: List<PatrolEvidenceSource> = emptyList(),
+    val selectedEvidenceSessionId: String? = null,
+    val priorityVisitEvidence: List<PatrolPriorityVisitEvidence> = emptyList(),
+    val evidenceTrailLoading: Boolean = false,
+    val evidenceTrailError: String? = null,
     val refreshError: String? = null,
     val showingCachedData: Boolean = false,
     val pendingActionCount: Int = 0,
@@ -130,6 +138,7 @@ data class PatrolGridUiState(
 class PatrolGridViewModel(application: Application) : AndroidViewModel(application) {
     private data class ObservedRouteEvidence(
         val missionId: String,
+        val sessionId: String?,
         val evidence: PatrolRouteEvidence,
         val revision: Long,
     )
@@ -138,8 +147,10 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
     private val repository: PatrolGridRepository = app.patrolGridRepository
     private var refreshGeneration = 0
     private var routeEvidenceRevision = 0L
+    private var evidenceSelectionGeneration = 0L
     private var latestObservedRouteEvidence: ObservedRouteEvidence? = null
     private var observedRouteMissionId: String? = null
+    private var observedRouteSessionId: String? = null
     private var routeObservationJob: Job? = null
     private val initialSettings = app.settingsRepository.get()
     private val _uiState = MutableStateFlow(
@@ -195,6 +206,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
 
     fun openMission(missionId: String) {
         val mission = _uiState.value.allMissions.firstOrNull { it.id == missionId } ?: return
+        ++evidenceSelectionGeneration
         _uiState.update {
             val switchingEvidence = it.evidenceMissionId != missionId
             val nextEvidenceMissionId = when {
@@ -214,10 +226,20 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 routePoints = if (switchingEvidence) emptyList() else it.routePoints,
                 plannedRoutePoints = if (switchingEvidence) emptyList() else it.plannedRoutePoints,
                 recordedTrackPoints = if (switchingEvidence) 0 else it.recordedTrackPoints,
+                selectedEvidenceTrackPointCount = if (switchingEvidence) {
+                    0
+                } else {
+                    it.selectedEvidenceTrackPointCount
+                },
                 observationCount = if (switchingEvidence) 0 else it.observationCount,
                 reviewContextRequestId = if (switchingEvidence) null else it.reviewContextRequestId,
                 reviewContextRequest = if (switchingEvidence) null else it.reviewContextRequest,
                 reviewContextResponse = if (switchingEvidence) null else it.reviewContextResponse,
+                evidenceSources = if (switchingEvidence) emptyList() else it.evidenceSources,
+                selectedEvidenceSessionId = if (switchingEvidence) null else it.selectedEvidenceSessionId,
+                priorityVisitEvidence = if (switchingEvidence) emptyList() else it.priorityVisitEvidence,
+                evidenceTrailLoading = switchingEvidence && app.isPatrolGridConfigured,
+                evidenceTrailError = null,
             )
         }
         if (app.isPatrolGridConfigured) refresh(showLoading = false, requestedMissionId = missionId)
@@ -225,6 +247,77 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissMissionDetails() {
         _uiState.update { it.copy(missionDetailsOpen = false) }
+    }
+
+    fun selectEvidenceSource(sessionId: String) {
+        val current = _uiState.value
+        if (!current.serverBacked || current.evidenceMissionId == null) return
+        if (current.evidenceSources.none { it.sessionId == sessionId }) return
+        if (current.selectedEvidenceSessionId == sessionId &&
+            current.evidenceTrailError == null &&
+            !current.evidenceTrailLoading
+        ) {
+            return
+        }
+        val selectionGeneration = ++evidenceSelectionGeneration
+        val selectedSourceCount = current.evidenceSources
+            .first { it.sessionId == sessionId }
+            .trackPointCount
+        _uiState.update {
+            it.copy(
+                selectedEvidenceSessionId = sessionId,
+                selectedEvidenceTrackPointCount = selectedSourceCount,
+                routePoints = emptyList(),
+                evidenceTrailLoading = true,
+                evidenceTrailError = null,
+            )
+        }
+        viewModelScope.launch {
+            app.patrolGridRemote.loadEvidenceTrail(sessionId).fold(
+                onSuccess = success@{ trail ->
+                    if (selectionGeneration != evidenceSelectionGeneration ||
+                        _uiState.value.selectedEvidenceSessionId != sessionId
+                    ) {
+                        return@success
+                    }
+                    if (trail.sessionId != sessionId) {
+                        _uiState.update {
+                            it.copy(
+                                evidenceTrailLoading = false,
+                                evidenceTrailError = "The server returned mismatched route evidence. Try again.",
+                            )
+                        }
+                        return@success
+                    }
+                    _uiState.update {
+                        it.copy(
+                            routePoints = trail.routePoints,
+                            evidenceTrailLoading = false,
+                            evidenceTrailError = null,
+                        )
+                    }
+                },
+                onFailure = failure@{ error ->
+                    if (selectionGeneration != evidenceSelectionGeneration ||
+                        _uiState.value.selectedEvidenceSessionId != sessionId
+                    ) {
+                        return@failure
+                    }
+                    if (error is PatrolGridSessionExpiredException ||
+                        error is PatrolGridAccessDeniedException
+                    ) {
+                        handleRemoteFailure(error, "Route evidence could not be loaded securely")
+                        return@failure
+                    }
+                    _uiState.update {
+                        it.copy(
+                            evidenceTrailLoading = false,
+                            evidenceTrailError = "This route trail could not be loaded securely. Select it to retry.",
+                        )
+                    }
+                },
+            )
+        }
     }
 
     fun refreshPermissionState() {
@@ -657,6 +750,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             val settings = app.settingsRepository.get()
             val routeEvidence = resolveRouteDisplayEvidence(
                 missionId = snapshot.primaryMission.id,
+                evidenceSessionId = null,
                 snapshot = PatrolRouteDisplayEvidence(
                     recordedTrackPoints = snapshot.recordedTrackPoints,
                     routePoints = snapshot.routePoints,
@@ -682,6 +776,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                     selectedMissionId = it.selectedMissionId ?: snapshot.primaryMission.id,
                     evidenceMissionId = snapshot.primaryMission.id,
                     recordedTrackPoints = routeEvidence.recordedTrackPoints,
+                    selectedEvidenceTrackPointCount = routeEvidence.recordedTrackPoints,
                     unreadableTrackPoints = routeEvidence.unreadableTrackPoints,
                     captureError = patrolEvidenceWarning(settings),
                     trackingActive = snapshot.trackingActive,
@@ -825,10 +920,15 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
         val upcoming = snapshot.missions.firstOrNull {
             it.status == PatrolMissionStatus.ASSIGNED && it.id != primary?.id
         }
+        val selectedServerTrackPointCount = snapshot.evidenceSources
+            .firstOrNull { it.sessionId == snapshot.selectedEvidenceSessionId }
+            ?.trackPointCount
+            ?: snapshot.routePoints.size
         val routeEvidence = resolveRouteDisplayEvidence(
             missionId = snapshot.evidenceMissionId,
+            evidenceSessionId = snapshot.selectedEvidenceSessionId,
             snapshot = PatrolRouteDisplayEvidence(
-                recordedTrackPoints = snapshot.recordedTrackPoints,
+                recordedTrackPoints = selectedServerTrackPointCount,
                 routePoints = snapshot.routePoints,
                 unreadableTrackPoints = 0,
             ),
@@ -840,6 +940,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             ?.evidence
             ?.unreadableTrackPoints
             ?: 0
+        ++evidenceSelectionGeneration
         _uiState.update {
             it.copy(
                 role = snapshot.identity.role,
@@ -849,7 +950,8 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 upcomingMission = upcoming,
                 selectedMissionId = primary?.id,
                 evidenceMissionId = snapshot.evidenceMissionId,
-                recordedTrackPoints = routeEvidence.recordedTrackPoints,
+                recordedTrackPoints = snapshot.recordedTrackPoints,
+                selectedEvidenceTrackPointCount = routeEvidence.recordedTrackPoints,
                 unreadableTrackPoints = maxOf(
                     routeEvidence.unreadableTrackPoints,
                     localUnreadableTrackPoints,
@@ -858,7 +960,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 locationPermissionGranted = PermissionHelper.canCaptureLocation(app),
                 observationCount = snapshot.observationCount,
                 review = primary?.let { mission ->
-                    PatrolVerification.evaluate(mission, routeEvidence.recordedTrackPoints)
+                    PatrolVerification.evaluate(mission, snapshot.recordedTrackPoints)
                 },
                 loading = false,
                 serverBacked = true,
@@ -870,6 +972,11 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 reviewContextRequestId = snapshot.reviewContextRequestId,
                 reviewContextRequest = snapshot.reviewContextRequest,
                 reviewContextResponse = snapshot.reviewContextResponse,
+                evidenceSources = snapshot.evidenceSources,
+                selectedEvidenceSessionId = snapshot.selectedEvidenceSessionId,
+                priorityVisitEvidence = snapshot.priorityVisitEvidence,
+                evidenceTrailLoading = false,
+                evidenceTrailError = null,
                 refreshError = error ?: assignmentError,
                 showingCachedData = cached,
                 sessionExpired = false,
@@ -886,12 +993,17 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun resolveRouteDisplayEvidence(
         missionId: String?,
+        evidenceSessionId: String?,
         snapshot: PatrolRouteDisplayEvidence,
         routeRevisionAtStart: Long,
         protectFullerSnapshot: Boolean,
     ): PatrolRouteDisplayEvidence {
         val observed = latestObservedRouteEvidence
-            ?.takeIf { missionId != null && it.missionId == missionId }
+            ?.takeIf {
+                missionId != null &&
+                    it.missionId == missionId &&
+                    it.sessionId == evidenceSessionId
+            }
         return selectRouteDisplayEvidence(
             snapshot = snapshot,
             observed = observed?.evidence?.toDisplayEvidence(),
@@ -901,20 +1013,37 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun observeActiveRoute(missionId: String?) {
-        if (missionId == observedRouteMissionId && routeObservationJob?.isActive == true) return
+        val sessionId = missionId?.let {
+            app.settingsRepository.get().activePatrolSessionId
+        }
+        if (missionId == observedRouteMissionId &&
+            sessionId == observedRouteSessionId &&
+            routeObservationJob?.isActive == true
+        ) {
+            return
+        }
         routeObservationJob?.cancel()
         routeObservationJob = null
-        if (latestObservedRouteEvidence?.missionId != missionId) {
+        if (latestObservedRouteEvidence?.missionId != missionId ||
+            latestObservedRouteEvidence?.sessionId != sessionId
+        ) {
             latestObservedRouteEvidence = null
         }
         observedRouteMissionId = missionId
+        observedRouteSessionId = sessionId
         if (missionId == null) return
 
         routeObservationJob = viewModelScope.launch {
-            repository.observeRouteEvidence(missionId).collect { evidence ->
-                if (app.settingsRepository.get().activePatrolMissionId != missionId) return@collect
+            repository.observeRouteEvidence(missionId, sessionId).collect { evidence ->
+                val activeSettings = app.settingsRepository.get()
+                if (activeSettings.activePatrolMissionId != missionId ||
+                    activeSettings.activePatrolSessionId != sessionId
+                ) {
+                    return@collect
+                }
                 val observed = ObservedRouteEvidence(
                     missionId = missionId,
+                    sessionId = sessionId,
                     evidence = evidence,
                     revision = ++routeEvidenceRevision,
                 )
@@ -922,13 +1051,15 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.update { state ->
                     if (!state.trackingActive ||
                         state.primaryMission?.id != missionId ||
-                        state.evidenceMissionId != missionId
+                        state.evidenceMissionId != missionId ||
+                        (state.selectedEvidenceSessionId != null &&
+                            state.selectedEvidenceSessionId != sessionId)
                     ) {
                         state
                     } else {
                         val routeEvidence = selectRouteDisplayEvidence(
                             snapshot = PatrolRouteDisplayEvidence(
-                                recordedTrackPoints = state.recordedTrackPoints,
+                                recordedTrackPoints = state.selectedEvidenceTrackPointCount,
                                 routePoints = state.routePoints,
                                 unreadableTrackPoints = state.unreadableTrackPoints,
                             ),
@@ -936,12 +1067,18 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                             observedIsNewer = true,
                             protectFullerSnapshot = state.serverBacked,
                         )
+                        val reviewTrackPointCount = if (state.serverBacked) {
+                            state.recordedTrackPoints
+                        } else {
+                            routeEvidence.recordedTrackPoints
+                        }
                         state.copy(
-                            recordedTrackPoints = routeEvidence.recordedTrackPoints,
+                            recordedTrackPoints = reviewTrackPointCount,
+                            selectedEvidenceTrackPointCount = routeEvidence.recordedTrackPoints,
                             unreadableTrackPoints = evidence.unreadableTrackPoints,
                             routePoints = routeEvidence.routePoints,
                             review = state.primaryMission.let { mission ->
-                                PatrolVerification.evaluate(mission, routeEvidence.recordedTrackPoints)
+                                PatrolVerification.evaluate(mission, reviewTrackPointCount)
                             },
                         )
                     }
@@ -953,6 +1090,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
     /** Stops a detached keyed ViewModel from retaining or continuing to decrypt route evidence. */
     fun deactivateRouteObservation() {
         ++refreshGeneration // Ignore any network/database refresh that was already in flight.
+        ++evidenceSelectionGeneration
         observeActiveRoute(null)
         latestObservedRouteEvidence = null
         _uiState.update {
@@ -960,7 +1098,13 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                 routePoints = emptyList(),
                 plannedRoutePoints = emptyList(),
                 recordedTrackPoints = 0,
+                selectedEvidenceTrackPointCount = 0,
                 unreadableTrackPoints = 0,
+                evidenceSources = emptyList(),
+                selectedEvidenceSessionId = null,
+                priorityVisitEvidence = emptyList(),
+                evidenceTrailLoading = false,
+                evidenceTrailError = null,
             )
         }
     }

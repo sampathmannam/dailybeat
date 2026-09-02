@@ -155,7 +155,7 @@ fun PatrolControlScreen(
                                     recordedPoints = state.routePoints,
                                     plannedPoints = state.plannedRoutePoints,
                                     priorityLocations = mission.priorityLocations,
-                                    totalRecordedPoints = state.recordedTrackPoints,
+                                    totalRecordedPoints = state.selectedEvidenceTrackPointCount,
                                     demoMode = !state.serverBacked &&
                                         !state.trackingActive &&
                                         state.recordedTrackPoints == 0 &&

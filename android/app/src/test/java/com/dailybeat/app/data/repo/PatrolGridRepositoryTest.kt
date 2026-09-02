@@ -170,12 +170,30 @@ class PatrolGridRepositoryTest {
         assertEquals(listOf(3L, 4L), latest.map { it.timestampMs })
     }
 
-    private suspend fun insert(missionId: String, timestampMs: Long) {
+    @Test
+    fun `session route evidence never merges another session from the same mission`() = runBlocking {
+        val missionId = PatrolGridRepository.PRIMARY_MISSION_ID
+        insert(missionId, timestampMs = 100, sessionId = "session-one")
+        insert(missionId, timestampMs = 200, sessionId = "session-two")
+        insert(missionId, timestampMs = 300, sessionId = "session-one")
+
+        val evidence = repository.routeEvidence(missionId, sessionId = "session-one")
+
+        assertEquals(2, evidence.recordedTrackPoints)
+        assertEquals(listOf(12.01, 12.03), evidence.routePoints.map { it.latitude })
+    }
+
+    private suspend fun insert(
+        missionId: String,
+        timestampMs: Long,
+        sessionId: String? = null,
+    ) {
         db.patrolTracks().insert(
             PatrolTrackPoint(
                 missionId = missionId,
                 timestampMs = timestampMs,
                 encryptedPayload = byteArrayOf(1, 2, 3),
+                sessionId = sessionId,
             ),
         )
     }

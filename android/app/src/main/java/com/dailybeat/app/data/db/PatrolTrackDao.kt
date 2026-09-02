@@ -26,17 +26,53 @@ interface PatrolTrackDao {
 
     @Query(
         "SELECT * FROM (" +
+            "SELECT * FROM patrol_track_points WHERE missionId = :missionId AND sessionId = :sessionId " +
+            "ORDER BY timestampMs DESC, id DESC LIMIT :limit" +
+            ") ORDER BY timestampMs ASC, id ASC",
+    )
+    suspend fun latestForSession(
+        missionId: String,
+        sessionId: String,
+        limit: Int,
+    ): List<PatrolTrackPoint>
+
+    @Query(
+        "SELECT * FROM (" +
             "SELECT * FROM patrol_track_points WHERE missionId = :missionId " +
             "ORDER BY timestampMs DESC, id DESC LIMIT :limit" +
             ") ORDER BY timestampMs ASC, id ASC",
     )
     fun observeLatestForMission(missionId: String, limit: Int): Flow<List<PatrolTrackPoint>>
 
+    @Query(
+        "SELECT * FROM (" +
+            "SELECT * FROM patrol_track_points WHERE missionId = :missionId AND sessionId = :sessionId " +
+            "ORDER BY timestampMs DESC, id DESC LIMIT :limit" +
+            ") ORDER BY timestampMs ASC, id ASC",
+    )
+    fun observeLatestForSession(
+        missionId: String,
+        sessionId: String,
+        limit: Int,
+    ): Flow<List<PatrolTrackPoint>>
+
     @Query("SELECT COUNT(*) FROM patrol_track_points WHERE missionId = :missionId")
     suspend fun countForMission(missionId: String): Int
 
+    @Query(
+        "SELECT COUNT(*) FROM patrol_track_points " +
+            "WHERE missionId = :missionId AND sessionId = :sessionId",
+    )
+    suspend fun countForSession(missionId: String, sessionId: String): Int
+
     @Query("SELECT COUNT(*) FROM patrol_track_points WHERE missionId = :missionId")
     fun observeCountForMission(missionId: String): Flow<Int>
+
+    @Query(
+        "SELECT COUNT(*) FROM patrol_track_points " +
+            "WHERE missionId = :missionId AND sessionId = :sessionId",
+    )
+    fun observeCountForSession(missionId: String, sessionId: String): Flow<Int>
 
     @Query(
         "SELECT * FROM patrol_track_points " +

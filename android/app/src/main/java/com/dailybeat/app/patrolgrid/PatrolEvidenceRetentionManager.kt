@@ -169,7 +169,10 @@ internal class PatrolEvidenceRetentionManager(
         val trackPlanCount = if (dueMissionIds.isEmpty()) 0 else {
             trackDao.countForMissions(dueMissionIds.toList())
         }
-        val snapshotPlanCount = snapshotCache.retentionDiscardCount(nowMs)
+        val snapshotPlanCount = snapshotCache.retentionDiscardCount(
+            nowMs = nowMs,
+            dueMissionIds = dueMissionIds,
+        )
 
         val hasAnyPendingCloseState = pending.pendingPatrolCloseSessionId != null ||
             pendingMissionId != null || pending.pendingPatrolCloseEndedAtMs != null
@@ -197,7 +200,10 @@ internal class PatrolEvidenceRetentionManager(
 
         val actionResult = actionOutbox.purgeForMissionDeadlines(dueMissionIds)
         val discardedTrackPoints = trackDao.deleteForMissions(dueMissionIds.toList())
-        val discardedSnapshots = snapshotCache.purgeForRetentionIfNeeded(nowMs)
+        val discardedSnapshots = snapshotCache.purgeForRetentionIfNeeded(
+            nowMs = nowMs,
+            dueMissionIds = dueMissionIds,
+        )
         if (pendingCloseCleared) settings.setPendingPatrolClose(null, null)
         retentionStore.removeMissionIds(dueMissionIds)
 

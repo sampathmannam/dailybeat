@@ -29,9 +29,49 @@ data class PatrolGridRemoteSnapshot(
     val reviewContextRequestId: String? = null,
     val reviewContextRequest: String? = null,
     val reviewContextResponse: String? = null,
+    val evidenceSources: List<PatrolEvidenceSource> = emptyList(),
+    val selectedEvidenceSessionId: String? = null,
+    val priorityVisitEvidence: List<PatrolPriorityVisitEvidence> = emptyList(),
 )
 
 data class PatrolMapPoint(val latitude: Double, val longitude: Double)
+
+/** Server-derived provenance for one person's one patrol session. */
+data class PatrolEvidenceSource(
+    val sessionId: String,
+    val userId: String,
+    val displayName: String,
+    val badgeNumber: String?,
+    val startedAtMs: Long,
+    val endedAtMs: Long?,
+    val endReason: String?,
+    val appVersion: String,
+    val trackPointCount: Int,
+    val firstRecordedAtMs: Long?,
+    val lastRecordedAtMs: Long?,
+    val firstReceivedAtMs: Long?,
+    val lastReceivedAtMs: Long?,
+    val bestAccuracyM: Float?,
+    val worstAccuracyM: Float?,
+)
+
+data class PatrolEvidenceTrail(
+    val sessionId: String,
+    val routePoints: List<PatrolMapPoint>,
+)
+
+data class PatrolPriorityVisitEvidence(
+    val sessionId: String,
+    val priorityLocationId: String,
+    val priorityName: String,
+    val userId: String,
+    val displayName: String,
+    val visitedAtMs: Long,
+    val receivedAtMs: Long,
+    val method: String,
+    val accuracyM: Float?,
+    val note: String?,
+)
 
 data class PatrolAssignmentOptions(
     val routes: List<PatrolRoutePlan>,
@@ -53,6 +93,7 @@ interface PatrolGridRemote {
     suspend fun signIn(email: String, password: String): Result<PatrolGridIdentity>
     suspend fun loadIdentity(): Result<PatrolGridIdentity>
     suspend fun loadSnapshot(activeMissionId: String?): Result<PatrolGridRemoteSnapshot>
+    suspend fun loadEvidenceTrail(sessionId: String): Result<PatrolEvidenceTrail>
     suspend fun loadAssignmentOptions(): Result<PatrolAssignmentOptions>
     suspend fun createAssignment(draft: PatrolAssignmentDraft): Result<Unit>
     suspend fun submitReview(

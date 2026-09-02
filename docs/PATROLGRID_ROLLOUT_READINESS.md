@@ -33,7 +33,7 @@ state; **OPEN** not yet complete.
 | Field updates | Observation, Deviation, Safety event; required detail; 4,000-char bound; Cancel and Save | PASS | All three inputs, validation, Cancel and Save pass; RPC/outbox/E2E coverage also passes |
 | End patrol | Cancel; Completed, Relieved, Device issue, Mission cancelled; automatic duty-window end | PASS | Every reason, confirmation/cancel and automatic deadline path pass |
 | Missions | Every mission row opens detail; alternate assigned mission selection; Back | PASS | Connected instrumentation and both-device Maestro |
-| Mission evidence | Planned/recorded route, priorities, bounded count, geographic map plus tile-free fallback | PASS | Final emulator renders the real basemap and live encrypted trail; connected map, timeout/fallback, integrity-warning and client contract tests pass; pan/zoom gesture remains OPEN |
+| Mission evidence | Planned/recorded route, one-person/one-session source selection, provenance, priorities, bounded count, geographic map plus tile-free fallback | BUILT | Exact-session client/RLS/E2E tests and the dedicated source-selector Compose test pass; configured staging screen journey remains CONDITIONAL; pan/zoom gesture remains OPEN |
 | Review context | Exact review linkage, field response, offline outbox | BUILT | pgTAP/E2E/client tests PASS; configured field-response button journey remains CONDITIONAL |
 | Supervisor control | Active, Needs review, Upcoming; attention/active/upcoming drill-down; both Assign entry points | PASS | Tabs, attention/active/review/upcoming cards and both Assign entries pass on both devices |
 | Assignment sheet | All three routes, all three units, both guidance modes, validation, Assign, Back dismissal, empty Close/Refresh | PASS | Full native interaction suite passes on emulator and Motorola; cross-device Maestro covers entry/Back due a Maestro sheet-gesture limitation |
@@ -45,27 +45,28 @@ state; **OPEN** not yet complete.
 
 ## Verified backend and reliability evidence
 
-- Clean local Supabase reset through migrations `001`–`008`: PASS.
-- Full pgTAP database suite: **234/234 PASS** across the **228-test PatrolGrid
+- Clean local Supabase reset through migrations `001`–`010`: PASS.
+- Full pgTAP database suite: **280/280 PASS** across the **274-test PatrolGrid
   authorization/workflow/retention suite** and the **6-test DailyBeat backup RLS
   suite**. The legacy backup table now has exact CRUD privileges instead of
   inheriting Supabase default `TRUNCATE`, `REFERENCES`, or `TRIGGER` grants.
 - Full synthetic Auth/PostgREST lifecycle: **1/1 PASS**, including direct-write
-  denial, cross-user/subdivision denial, review versioning, duty closure, and bounded
-  delayed evidence.
+  denial, cross-user/subdivision denial, exact-session route/priority provenance,
+  review versioning, duty closure, and bounded delayed evidence.
 - Database lint: PASS with no public-schema errors.
 - Locust final evidence-ingestion run: **1,053 requests, 0 failures, aggregate p95
-  10 ms** at 10 users for 15 seconds.
-- Final API 36 Android gate: **155/155 JVM tests PASS**, lint PASS, QA APK and
-  instrumentation APK assembled with AGP 8.10.1 / Gradle 8.11.1.
-- Latest connected native suite: emulator **38 executable tests PASS** with the
-  credential-dependent `CloudBackupLiveTest` explicitly skipped (**39 discovered,
+  10 ms** at 10 users for 15 seconds. A later run executed concurrently with the
+  local emulator completed **796 requests, 0 failures, aggregate p95 88 ms**.
+- Current Android gate: **168/168 JVM tests PASS**, Android-test compilation and lint
+  PASS, and QA/instrumentation APKs assembled with AGP 8.10.1 / Gradle 8.11.1.
+- Latest connected native suite on the current working set: API 34 emulator **41 executable tests PASS** with the
+  credential-dependent `CloudBackupLiveTest` explicitly skipped (**42 discovered,
   0 failures**). The most recent Motorola full run remains **37 executable PASS** with
   the same single skip (**38 discovered, 0 failures**); the phone was no longer visible
   over ADB for this final notice-only rerun. This includes six Room migration tests
-  covering every stored-schema upgrade from v2 through v7. The final isolated QA APK
-  had been reinstalled on both devices; no PatrolGrid location service was active when
-  the phone was handed back.
+  covering every stored-schema upgrade from v2 through v7. The current working-set QA
+  APK and instrumentation APK were exercised on the API 34 emulator; the Motorola phone
+  is presently disconnected.
 - Final live emulator patrol smoke: real MapLibre basemap loaded, an encrypted fix
   changed the already-open screen from 2 to 3 route points without refresh, the
   foreground location service remained active only during patrol, and End patrol
@@ -99,6 +100,9 @@ state; **OPEN** not yet complete.
   with current admin authority before it reads vulnerability alerts, Dependabot security
   updates, secret-scanning, or push-protection state; unavailable or disabled controls
   stop the ceremony.
+  The centralized verifier also rejects qualified `xml-vNN` files and `values-vNN`
+  aliases for network security, data extraction, and FileProvider paths; all three
+  protected resources must resolve to one exact unqualified compiled value.
   Live `main` ruleset `22066728` now has no bypass, squash-only PRs, required signed
   commits, and required `build`, `patrolgrid-backend`, `dependency-review`, and `codeql`;
   tag rulesets `22066729`/`22066730`, selected full-SHA Actions policy, and the exact
@@ -134,7 +138,10 @@ state; **OPEN** not yet complete.
   transactional, malformed/expired encrypted snapshots are swept, and process recreation
   completes an interrupted aggregate record. Expected expiry shows an acknowledgeable,
   persistent aggregate-only integrity incident; genuine enforcement failure blocks capture
-  until cleanup succeeds. Android may defer work while powered off, so the next successful
+  until cleanup succeeds. The encrypted snapshot format rejects legacy mission-merged
+  trails after upgrade, and a recently refreshed snapshot is discarded with its mission
+  exactly when the authoritative deadline becomes due rather than receiving another
+  24-hour cache window. Android may defer work while powered off, so the next successful
   startup check removes overdue evidence before showing it.
 
 ## Implemented since the baseline audit
@@ -151,15 +158,23 @@ state; **OPEN** not yet complete.
   close, and surface a persistent field warning instead of silently stopping.
 - Human supervisor review with three outcomes, required notes, optimistic versioning,
   exact context response linkage, and direct-review bypass removal.
+- Per-person, per-session evidence-source selection with RLS-preserving server
+  aggregates, exact-session route queries, local Room session isolation, receive-time
+  and app-version provenance, reported accuracy ranges, and GPS/manual priority-visit
+  context. Mission totals and the selected trail are kept as separate UI values;
+  paged reads fail closed instead of silently accepting a PostgREST row cap.
 - Meaningful observation/deviation/safety input, accurate end reasons, confirmation,
   and encrypted offline mutation outbox.
 - Duty-window enforcement on device and server, five-minute autonomous close, sealed
   offline evidence window, correct local close timestamp, and post-sync local route
   deletion.
 - Server-owned idempotent session start/end; direct authenticated session writes
-  removed.
+  removed. One person/assignment is limited to 16 total evidence sessions and four
+  newly created sessions per rolling 15 minutes; exact retries and recovery of the
+  existing open session remain available at the cap.
 - Server-owned bounded track/visit/update ingestion; direct authenticated evidence
-  inserts removed; strict route-geometry and mobile-parser bounds.
+  inserts removed; the 20,000 GPS-point ceiling spans every session for one
+  mission/person; strict route-geometry and mobile-parser bounds.
 - Least-privilege route/unit/mission control-plane permissions and atomic assignment.
 - Encrypted token, snapshot, action, and route storage; account-owner binding; remote
   logout; map-cache cap/clear; release screenshot/overlay protection.
@@ -184,12 +199,12 @@ state; **OPEN** not yet complete.
 
 ### Code/product gates
 
-1. **Evidence provenance and abuse resistance.** Validated evidence-ingestion RPCs,
-   strict GeoJSON bounds and payload/session quotas are complete. Add review-visible
-   user/session/method/accuracy/receive-time provenance, backend minimum-build
-   enforcement, and server-verified hardware-backed device-key/request binding suitable
-   for private sideload distribution. Integrity is a risk signal, never proof of
-   physical presence.
+1. **Abuse resistance.** Validated evidence-ingestion RPCs, strict GeoJSON bounds,
+   batch/assignment/session and rolling-restart quotas, fail-closed mobile pagination,
+   and review-visible user/session/method/accuracy/receive-time provenance are complete.
+   Add backend minimum-build enforcement and server-verified
+   hardware-backed device-key/request binding suitable for private sideload distribution.
+   Integrity is a risk signal, never proof of physical presence.
 2. **Supervisor MFA and managed reauthentication.** Password re-entry lock is built;
    AAL2/SSO or TOTP step-up for assignment/review and hosted session policy are still
    required.
@@ -200,9 +215,7 @@ state; **OPEN** not yet complete.
 4. **Route and unit administration.** Assignment uses existing routes/units. A complete
    supervisor route library, geometry/priority editor, archive/history workflow, and
    approved managed unit/membership administration surface remain OPEN.
-5. **Evidence presentation.** Do not merge multiple personnel/session trails. Show
-   provenance, uncertainty/accuracy, receive time, and visit method/context in review.
-6. **Native matrix.** Finish tablet/foldable/landscape/split-screen, 200% font across
+5. **Native matrix.** Finish tablet/foldable/landscape/split-screen, 200% font across
    every screen, TalkBack, RTL/long locale, denied/approximate/revoked permission,
    process-death, map gestures, and lower-end frame/startup benchmarks.
 

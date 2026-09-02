@@ -285,6 +285,7 @@ class PatrolEvidenceRetentionManagerTest {
         override suspend fun signIn(email: String, password: String) = unsupported<PatrolGridIdentity>()
         override suspend fun loadIdentity() = unsupported<PatrolGridIdentity>()
         override suspend fun loadSnapshot(activeMissionId: String?) = unsupported<PatrolGridRemoteSnapshot>()
+        override suspend fun loadEvidenceTrail(sessionId: String) = unsupported<PatrolEvidenceTrail>()
         override suspend fun loadAssignmentOptions() = unsupported<PatrolAssignmentOptions>()
         override suspend fun createAssignment(draft: PatrolAssignmentDraft) = unsupported<Unit>()
         override suspend fun submitReview(

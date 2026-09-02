@@ -76,24 +76,25 @@ class SupabasePatrolGridClient(
             ?: (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
                 .firstOrNull { it.getString("status") in setOf("needs_review", "assigned") }?.getString("id")
             ?: missionIds.firstOrNull()
-        val priorities = if (missionIds.isEmpty()) JSONArray() else getRows(
+        val priorities = if (missionIds.isEmpty()) JSONArray() else getAllRows(
             path = "/rest/v1/patrolgrid_priority_locations" +
                 "?select=id,mission_id,name,latitude,longitude,radius_m,required,sort_order" +
                 "&mission_id=in.(${missionIds.joinToString(",")})&order=sort_order.asc",
             session = session,
         )
-        val visits = if (missionIds.isEmpty()) JSONArray() else getRows(
+        val visits = if (missionIds.isEmpty()) JSONArray() else getAllRows(
             path = "/rest/v1/patrolgrid_priority_visits" +
-                "?select=mission_id,priority_location_id,visited_at" +
-                "&mission_id=in.(${missionIds.joinToString(",")})",
+                "?select=id,session_id,mission_id,priority_location_id,user_id,visited_at,created_at,method,accuracy_m,note" +
+                "&mission_id=in.(${missionIds.joinToString(",")})" +
+                "&order=visited_at.desc,created_at.desc,id.desc",
             session = session,
         )
-        val assignments = if (missionIds.isEmpty()) JSONArray() else getRows(
+        val assignments = if (missionIds.isEmpty()) JSONArray() else getAllRows(
             path = "/rest/v1/patrolgrid_assignments" +
                 "?select=mission_id,user_id&mission_id=in.(${missionIds.joinToString(",")})",
             session = session,
         )
-        val fieldUpdates = if (missionIds.isEmpty()) JSONArray() else getRows(
+        val fieldUpdates = if (missionIds.isEmpty()) JSONArray() else getAllRows(
             path = "/rest/v1/patrolgrid_field_updates" +
                 "?select=id,mission_id,category,detail,occurred_at,created_at,review_id" +
                 "&mission_id=in.(${missionIds.joinToString(",")})" +
@@ -108,14 +109,34 @@ class SupabasePatrolGridClient(
                 session = session,
             )
         } ?: JSONArray()
-        val routePointRows = evidenceMissionId?.let { missionId ->
-            getRows(
-                "/rest/v1/patrolgrid_track_points" +
-                    "?select=latitude,longitude&mission_id=eq.$missionId" +
-                    "&order=recorded_at.desc&limit=1000",
-                session,
+        val evidenceSources = evidenceMissionId?.let { missionId ->
+            val rows = getAllRows(
+                path = "/rest/v1/patrolgrid_evidence_session_summaries" +
+                    "?select=session_id,mission_id,user_id,display_name,badge_number,started_at,ended_at,end_reason," +
+                    "app_version,track_point_count,first_recorded_at,last_recorded_at,first_received_at," +
+                    "last_received_at,best_accuracy_m,worst_accuracy_m" +
+                    "&mission_id=eq.${encoded(missionId)}" +
+                    "&order=started_at.desc,session_id.desc",
+                session = session,
+                maxRows = MAX_EVIDENCE_SOURCES,
             )
-        } ?: JSONArray()
+            parseEvidenceSources(rows, missionId)
+                .let { sources ->
+                    if (identity.role == PatrolRole.PATROL) {
+                        sources.filter { it.userId == identity.userId }
+                    } else {
+                        sources
+                    }
+                }
+        }.orEmpty()
+        val selectedEvidenceSource = when (identity.role) {
+            PatrolRole.PATROL -> evidenceSources.firstOrNull { it.endedAtMs == null }
+                ?: evidenceSources.firstOrNull()
+            PatrolRole.SUPERVISOR -> evidenceSources.firstOrNull()
+        }
+        val evidenceTrail = selectedEvidenceSource?.let { source ->
+            loadEvidenceTrail(source.sessionId, session)
+        }
 
         val visitedIds = (0 until visits.length())
             .map { visits.getJSONObject(it).getString("priority_location_id") }
@@ -214,11 +235,7 @@ class SupabasePatrolGridClient(
             observationCount = evidenceMissionId?.let {
                 countRows("patrolgrid_field_updates", "mission_id=eq.$it&category=eq.observation", session)
             } ?: 0,
-            // The API selects the most recent bounded window; reverse it for chronological drawing.
-            routePoints = (routePointRows.length() - 1 downTo 0).map { index ->
-                val point = routePointRows.getJSONObject(index)
-                PatrolMapPoint(point.getDouble("latitude"), point.getDouble("longitude"))
-            },
+            routePoints = evidenceTrail?.routePoints.orEmpty(),
             plannedRoutePoints = PatrolRouteGeoJsonParser.parse(
                 evidenceRow?.optJSONObject("route_geojson"),
             ),
@@ -231,7 +248,171 @@ class SupabasePatrolGridClient(
                 ?.optString("notes")
                 ?.takeIf(String::isNotBlank),
             reviewContextResponse = contextResponse?.optString("detail")?.takeIf(String::isNotBlank),
+            evidenceSources = evidenceSources,
+            selectedEvidenceSessionId = selectedEvidenceSource?.sessionId,
+            priorityVisitEvidence = mapPriorityVisitEvidence(
+                visits = visits,
+                evidenceMissionId = evidenceMissionId,
+                prioritiesByMission = prioritiesByMission,
+                evidenceSources = evidenceSources,
+                identity = identity,
+            ),
         )
+    }
+
+    override suspend fun loadEvidenceTrail(sessionId: String): Result<PatrolEvidenceTrail> = ioResult {
+        require(sessionId.isNotBlank() && sessionId.length <= 128) {
+            "Choose a valid PatrolGrid evidence source."
+        }
+        loadEvidenceTrail(sessionId, authenticatedSession())
+    }
+
+    private fun loadEvidenceTrail(
+        sessionId: String,
+        session: BackupSession,
+    ): PatrolEvidenceTrail {
+        require(sessionId.isNotBlank() && sessionId.length <= 128) {
+            "Choose a valid PatrolGrid evidence source."
+        }
+        val rows = getRows(
+            path = "/rest/v1/patrolgrid_track_points" +
+                "?select=session_id,latitude,longitude&session_id=eq.${encoded(sessionId)}" +
+                "&order=recorded_at.desc,sequence_number.desc&limit=1000",
+            session = session,
+        )
+        // PostgREST returns the newest bounded window. Validate its provenance before
+        // reversing it into chronological drawing order; never combine session rows.
+        val routePoints = (rows.length() - 1 downTo 0).map { index ->
+            val point = rows.getJSONObject(index)
+            check(point.getString("session_id") == sessionId) {
+                "PatrolGrid returned a route point from a different evidence source."
+            }
+            val latitude = point.requiredFiniteNumber("latitude")
+            val longitude = point.requiredFiniteNumber("longitude")
+            check(latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+                "PatrolGrid returned an invalid recorded location."
+            }
+            PatrolMapPoint(latitude = latitude, longitude = longitude)
+        }
+        return PatrolEvidenceTrail(sessionId = sessionId, routePoints = routePoints)
+    }
+
+    private fun parseEvidenceSources(
+        rows: JSONArray,
+        evidenceMissionId: String,
+    ): List<PatrolEvidenceSource> = (0 until rows.length()).map { index ->
+        val row = rows.getJSONObject(index)
+        check(row.getString("mission_id") == evidenceMissionId) {
+            "PatrolGrid returned an evidence source from a different mission."
+        }
+        val startedAtMs = row.requiredInstantMs("started_at")
+        val endedAtMs = row.optionalInstantMs("ended_at")
+        check(endedAtMs == null || endedAtMs >= startedAtMs) {
+            "PatrolGrid returned an invalid evidence session clock."
+        }
+        val trackPointCount = row.getInt("track_point_count")
+        check(trackPointCount >= 0) { "PatrolGrid returned an invalid route point count." }
+        val firstRecordedAtMs = row.optionalInstantMs("first_recorded_at")
+        val lastRecordedAtMs = row.optionalInstantMs("last_recorded_at")
+        val firstReceivedAtMs = row.optionalInstantMs("first_received_at")
+        val lastReceivedAtMs = row.optionalInstantMs("last_received_at")
+        val bestAccuracyM = row.optionalBoundedFloat("best_accuracy_m", 0f..5_000f)
+        val worstAccuracyM = row.optionalBoundedFloat("worst_accuracy_m", 0f..5_000f)
+        val pointMetadata = listOf(
+            firstRecordedAtMs,
+            lastRecordedAtMs,
+            firstReceivedAtMs,
+            lastReceivedAtMs,
+            bestAccuracyM,
+            worstAccuracyM,
+        )
+        check(
+            if (trackPointCount == 0) {
+                pointMetadata.all { it == null }
+            } else {
+                pointMetadata.all { it != null }
+            },
+        ) {
+            "PatrolGrid returned inconsistent evidence summary metadata."
+        }
+        check(
+            firstRecordedAtMs == null ||
+                lastRecordedAtMs == null ||
+                firstRecordedAtMs <= lastRecordedAtMs,
+        ) { "PatrolGrid returned an invalid recorded evidence clock." }
+        check(
+            firstReceivedAtMs == null ||
+                lastReceivedAtMs == null ||
+                firstReceivedAtMs <= lastReceivedAtMs,
+        ) { "PatrolGrid returned an invalid received evidence clock." }
+        check(bestAccuracyM == null || worstAccuracyM == null || bestAccuracyM <= worstAccuracyM) {
+            "PatrolGrid returned an invalid evidence accuracy range."
+        }
+        PatrolEvidenceSource(
+            sessionId = row.getString("session_id"),
+            userId = row.getString("user_id"),
+            displayName = row.getString("display_name"),
+            badgeNumber = row.optionalString("badge_number")?.takeIf(String::isNotBlank),
+            startedAtMs = startedAtMs,
+            endedAtMs = endedAtMs,
+            endReason = row.optionalString("end_reason"),
+            appVersion = row.getString("app_version").also {
+                check(it.isNotBlank()) { "PatrolGrid returned an invalid app version." }
+            },
+            trackPointCount = trackPointCount,
+            firstRecordedAtMs = firstRecordedAtMs,
+            lastRecordedAtMs = lastRecordedAtMs,
+            firstReceivedAtMs = firstReceivedAtMs,
+            lastReceivedAtMs = lastReceivedAtMs,
+            bestAccuracyM = bestAccuracyM,
+            worstAccuracyM = worstAccuracyM,
+        )
+    }.sortedWith(compareByDescending<PatrolEvidenceSource> { it.startedAtMs }.thenByDescending { it.sessionId })
+
+    private fun mapPriorityVisitEvidence(
+        visits: JSONArray,
+        evidenceMissionId: String?,
+        prioritiesByMission: Map<String, List<JSONObject>>,
+        evidenceSources: List<PatrolEvidenceSource>,
+        identity: PatrolGridIdentity,
+    ): List<PatrolPriorityVisitEvidence> {
+        evidenceMissionId ?: return emptyList()
+        val priorityNames = prioritiesByMission[evidenceMissionId].orEmpty()
+            .associate { it.getString("id") to it.getString("name") }
+        val sourcesBySessionId = evidenceSources.associateBy(PatrolEvidenceSource::sessionId)
+        return (0 until visits.length()).map { visits.getJSONObject(it) }
+            .filter { it.getString("mission_id") == evidenceMissionId }
+            .map { visit ->
+                val sessionId = visit.getString("session_id")
+                val source = checkNotNull(sourcesBySessionId[sessionId]) {
+                    "PatrolGrid returned priority evidence without its session source."
+                }
+                val priorityLocationId = visit.getString("priority_location_id")
+                val userId = visit.getString("user_id")
+                check(userId == source.userId) {
+                    "PatrolGrid returned priority evidence from a different person."
+                }
+                val method = visit.getString("method")
+                check(method in setOf("gps", "manual_with_context")) {
+                    "PatrolGrid returned an invalid priority visit method."
+                }
+                PatrolPriorityVisitEvidence(
+                    sessionId = sessionId,
+                    priorityLocationId = priorityLocationId,
+                    priorityName = checkNotNull(priorityNames[priorityLocationId]) {
+                        "PatrolGrid returned priority evidence without its location."
+                    },
+                    userId = userId,
+                    displayName = source.displayName.ifBlank {
+                        identity.takeIf { it.userId == userId }?.displayName ?: "Patrol personnel"
+                    },
+                    visitedAtMs = visit.requiredInstantMs("visited_at"),
+                    receivedAtMs = visit.requiredInstantMs("created_at"),
+                    method = method,
+                    accuracyM = visit.optionalBoundedFloat("accuracy_m", 0f..5_000f),
+                    note = visit.optionalString("note")?.takeIf(String::isNotBlank),
+                )
+            }
     }
 
     override suspend fun startSession(
@@ -528,6 +709,35 @@ class SupabasePatrolGridClient(
         return JSONArray(execute(request))
     }
 
+    /**
+     * PostgREST deployments commonly cap one response at 1,000 rows. Evidence must
+     * never look complete merely because that server cap silently truncated it.
+     */
+    private fun getAllRows(
+        path: String,
+        session: BackupSession,
+        maxRows: Int = MAX_SNAPSHOT_ROWS,
+    ): JSONArray {
+        require("limit=" !in path && "offset=" !in path)
+        require(maxRows >= PAGE_SIZE && maxRows % PAGE_SIZE == 0)
+        val combined = JSONArray()
+        var offset = 0
+        while (true) {
+            val separator = if ('?' in path) '&' else '?'
+            val page = getRows(
+                "$path${separator}limit=$PAGE_SIZE&offset=$offset",
+                session,
+            )
+            for (index in 0 until page.length()) combined.put(page.get(index))
+            if (page.length() < PAGE_SIZE) return combined
+            offset += page.length()
+            check(offset < maxRows) {
+                "PatrolGrid evidence exceeds the safe mobile review limit. " +
+                    "Use the official supervisor channel to narrow the mission review."
+            }
+        }
+    }
+
     private fun countRows(table: String, filters: String, session: BackupSession): Int {
         val request = authorizedRequest("/rest/v1/$table?select=id&$filters&limit=1", session)
             .header("Prefer", "count=exact")
@@ -576,8 +786,27 @@ class SupabasePatrolGridClient(
         val postgresErrorCode = runCatching {
             JSONObject(responseBody).optString("code").takeIf(String::isNotBlank)
         }.getOrNull()
+        val postgresMessage = runCatching {
+            JSONObject(responseBody).optString("message").takeIf(String::isNotBlank)
+        }.getOrNull()
         if (evidenceWrite && postgresErrorCode == "P0002") {
             throw PatrolGridEvidenceUnavailableException()
+        }
+        if (postgresErrorCode == "54000") {
+            when (postgresMessage) {
+                "Patrol assignment session limit exceeded" -> throw PatrolGridRemoteException(
+                    "This assignment reached its secure session limit. Do not keep retrying; " +
+                        "contact your supervisor through the normal command, radio, or phone chain.",
+                )
+                "Patrol session restart rate limit exceeded" -> throw PatrolGridRemoteException(
+                    "Too many patrol session restarts were requested. Wait 15 minutes; if patrol " +
+                        "must continue, contact your supervisor through the normal command, radio, or phone chain.",
+                )
+                "Track assignment point limit exceeded" -> throw PatrolGridRemoteException(
+                    "This assignment reached its secure GPS evidence limit. Do not treat the route " +
+                        "as synchronized; report the device issue through the normal command, radio, or phone chain.",
+                )
+            }
         }
         val error = when (code) {
             400 -> PatrolGridRemoteException("PatrolGrid rejected invalid mission data. Refresh and try again.")
@@ -624,7 +853,56 @@ class SupabasePatrolGridClient(
         }
     }
 
+    private fun JSONObject.requiredFiniteNumber(name: String): Double {
+        val raw = opt(name)
+        check(raw is Number) { "PatrolGrid returned an invalid numeric value." }
+        return raw.toDouble().also { value ->
+            check(value.isFinite()) { "PatrolGrid returned an invalid numeric value." }
+        }
+    }
+
+    private fun JSONObject.requiredInstantMs(name: String): Long {
+        val raw = opt(name)
+        check(raw is String && raw.isNotBlank()) {
+            "PatrolGrid returned an invalid evidence clock."
+        }
+        return runCatching { Instant.parse(raw).toEpochMilli() }.getOrElse {
+            throw IllegalStateException("PatrolGrid returned an invalid evidence clock.")
+        }
+    }
+
+    private fun JSONObject.optionalInstantMs(name: String): Long? =
+        optionalString(name)?.let { raw ->
+            runCatching { Instant.parse(raw).toEpochMilli() }.getOrElse {
+                throw IllegalStateException("PatrolGrid returned an invalid evidence clock.")
+            }
+        }
+
+    private fun JSONObject.optionalString(name: String): String? {
+        val raw = opt(name) ?: return null
+        if (raw == JSONObject.NULL) return null
+        check(raw is String) { "PatrolGrid returned an invalid text value." }
+        return raw
+    }
+
+    private fun JSONObject.optionalBoundedFloat(
+        name: String,
+        range: ClosedFloatingPointRange<Float>,
+    ): Float? {
+        val raw = opt(name) ?: return null
+        if (raw == JSONObject.NULL) return null
+        check(raw is Number) { "PatrolGrid returned an invalid accuracy value." }
+        val value = raw.toDouble()
+        check(value.isFinite() && value >= range.start && value <= range.endInclusive) {
+            "PatrolGrid returned an invalid accuracy value."
+        }
+        return value.toFloat()
+    }
+
     private companion object {
+        const val PAGE_SIZE = 500
+        const val MAX_SNAPSHOT_ROWS = 5_000
+        const val MAX_EVIDENCE_SOURCES = 1_000
         val JSON = "application/json; charset=utf-8".toMediaType()
         val DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM · HH:mm")
         val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

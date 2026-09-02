@@ -73,21 +73,42 @@ class PatrolGridRepository(
         )
     }
 
-    suspend fun routeEvidence(missionId: String): PatrolRouteEvidence =
+    suspend fun routeEvidence(
+        missionId: String,
+        sessionId: String? = null,
+    ): PatrolRouteEvidence =
         decodeRouteEvidence(
-            recordedTrackPoints = trackDao.countForMission(missionId),
-            encryptedPoints = trackDao.latestForMission(missionId, MAX_RENDERED_ROUTE_POINTS),
+            recordedTrackPoints = if (sessionId == null) {
+                trackDao.countForMission(missionId)
+            } else {
+                trackDao.countForSession(missionId, sessionId)
+            },
+            encryptedPoints = if (sessionId == null) {
+                trackDao.latestForMission(missionId, MAX_RENDERED_ROUTE_POINTS)
+            } else {
+                trackDao.latestForSession(missionId, sessionId, MAX_RENDERED_ROUTE_POINTS)
+            },
         )
 
-    fun observeRouteEvidence(missionId: String): Flow<PatrolRouteEvidence> = flow {
+    fun observeRouteEvidence(
+        missionId: String,
+        sessionId: String? = null,
+    ): Flow<PatrolRouteEvidence> = flow {
         // Keep decrypted coordinates only for this active collector. Room invalidates both
         // queries for one insert, so caching by row id prevents re-running up to 1,000
         // Android Keystore operations for every count/list emission.
         val decodedById = mutableMapOf<Long, PatrolMapPoint?>()
-        combine(
-            trackDao.observeCountForMission(missionId),
-            trackDao.observeLatestForMission(missionId, MAX_RENDERED_ROUTE_POINTS),
-        ) { count, points -> count to points }
+        val countFlow = if (sessionId == null) {
+            trackDao.observeCountForMission(missionId)
+        } else {
+            trackDao.observeCountForSession(missionId, sessionId)
+        }
+        val pointsFlow = if (sessionId == null) {
+            trackDao.observeLatestForMission(missionId, MAX_RENDERED_ROUTE_POINTS)
+        } else {
+            trackDao.observeLatestForSession(missionId, sessionId, MAX_RENDERED_ROUTE_POINTS)
+        }
+        combine(countFlow, pointsFlow) { count, points -> count to points }
             .collect { (count, encryptedPoints) ->
                 val visibleIds = encryptedPoints.mapTo(mutableSetOf()) { it.id }
                 decodedById.keys.retainAll(visibleIds)

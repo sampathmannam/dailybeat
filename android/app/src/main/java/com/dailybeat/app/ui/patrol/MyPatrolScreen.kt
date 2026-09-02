@@ -161,7 +161,8 @@ fun MyPatrolScreen(
                     Text("Route context", style = MaterialTheme.typography.titleLarge)
                     Text(
                         when {
-                            state.recordedTrackPoints > 0 -> "${state.recordedTrackPoints} points"
+                            state.selectedEvidenceTrackPointCount > 0 ->
+                                "${state.selectedEvidenceTrackPointCount} points"
                             state.trackingActive -> "Tracking active"
                             else -> "Waiting to start"
                         },
@@ -175,7 +176,7 @@ fun MyPatrolScreen(
                     recordedPoints = state.routePoints,
                     plannedPoints = state.plannedRoutePoints,
                     priorityLocations = mission.priorityLocations,
-                    totalRecordedPoints = state.recordedTrackPoints,
+                    totalRecordedPoints = state.selectedEvidenceTrackPointCount,
                     demoMode = !state.serverBacked &&
                         !state.trackingActive &&
                         state.recordedTrackPoints == 0 &&

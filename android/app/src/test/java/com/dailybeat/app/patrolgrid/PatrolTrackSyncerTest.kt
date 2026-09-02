@@ -111,11 +111,22 @@ class PatrolTrackSyncerTest {
             .sortedWith(compareByDescending<PatrolTrackPoint> { it.timestampMs }.thenByDescending { it.id })
             .take(limit)
             .sortedWith(compareBy<PatrolTrackPoint> { it.timestampMs }.thenBy { it.id })
+        override suspend fun latestForSession(missionId: String, sessionId: String, limit: Int) = rows
+            .filter { it.missionId == missionId && it.sessionId == sessionId }
+            .sortedWith(compareByDescending<PatrolTrackPoint> { it.timestampMs }.thenByDescending { it.id })
+            .take(limit)
+            .sortedWith(compareBy<PatrolTrackPoint> { it.timestampMs }.thenBy { it.id })
         override fun observeLatestForMission(missionId: String, limit: Int) =
             flowOf(runBlocking { latestForMission(missionId, limit) })
+        override fun observeLatestForSession(missionId: String, sessionId: String, limit: Int) =
+            flowOf(runBlocking { latestForSession(missionId, sessionId, limit) })
         override suspend fun countForMission(missionId: String) = rows.count { it.missionId == missionId }
+        override suspend fun countForSession(missionId: String, sessionId: String) =
+            rows.count { it.missionId == missionId && it.sessionId == sessionId }
         override fun observeCountForMission(missionId: String) =
             flowOf(rows.count { it.missionId == missionId })
+        override fun observeCountForSession(missionId: String, sessionId: String) =
+            flowOf(rows.count { it.missionId == missionId && it.sessionId == sessionId })
         override suspend fun pending(missionId: String?, limit: Int) = rows
             .filter { it.syncedAtMs == null && it.sessionId != null && (missionId == null || it.missionId == missionId) }
             .take(limit)
@@ -151,6 +162,7 @@ class PatrolTrackSyncerTest {
         override suspend fun signIn(email: String, password: String) = unsupported<PatrolGridIdentity>()
         override suspend fun loadIdentity() = unsupported<PatrolGridIdentity>()
         override suspend fun loadSnapshot(activeMissionId: String?) = unsupported<PatrolGridRemoteSnapshot>()
+        override suspend fun loadEvidenceTrail(sessionId: String) = unsupported<PatrolEvidenceTrail>()
         override suspend fun loadAssignmentOptions() = unsupported<PatrolAssignmentOptions>()
         override suspend fun createAssignment(draft: com.dailybeat.app.data.model.PatrolAssignmentDraft) = unsupported<Unit>()
         override suspend fun submitReview(

@@ -144,6 +144,7 @@ fun PatrolGridAppScaffold(
             onRetry = viewModel::retryRefresh,
             onOpenMission = viewModel::openMission,
             onDismissMission = viewModel::dismissMissionDetails,
+            onSelectEvidenceSource = viewModel::selectEvidenceSource,
             onSubmitReview = viewModel::submitReview,
             onAcknowledgeRetentionIncident = viewModel::acknowledgeRetentionIncident,
         )
@@ -172,6 +173,7 @@ private fun PatrolGridScaffoldContent(
     onRetry: () -> Unit,
     onOpenMission: (String) -> Unit,
     onDismissMission: () -> Unit,
+    onSelectEvidenceSource: (String) -> Unit,
     onSubmitReview: (SupervisorReviewOutcome, String) -> Unit,
     onAcknowledgeRetentionIncident: () -> Unit,
 ) {
@@ -344,6 +346,7 @@ private fun PatrolGridScaffoldContent(
             mission = selectedMission,
             state = state,
             onDismiss = onDismissMission,
+            onSelectEvidenceSource = onSelectEvidenceSource,
             onReview = { reviewEditorOpen = true },
         )
     }

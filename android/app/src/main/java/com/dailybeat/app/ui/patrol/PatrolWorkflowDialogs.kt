@@ -37,6 +37,12 @@ import com.dailybeat.app.data.model.PatrolEndReason
 import com.dailybeat.app.data.model.PatrolMissionStatus
 import com.dailybeat.app.data.model.PriorityLocationState
 import com.dailybeat.app.data.model.SupervisorReviewOutcome
+import com.dailybeat.app.patrolgrid.PatrolEvidenceSource
+import com.dailybeat.app.patrolgrid.PatrolPriorityVisitEvidence
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 enum class PatrolFieldUpdateKind(
     val title: String,
@@ -152,15 +158,171 @@ fun EndPatrolConfirmationDialog(
     )
 }
 
+@Composable
+fun PatrolEvidenceSourceSelector(
+    sources: List<PatrolEvidenceSource>,
+    selectedSessionId: String?,
+    loading: Boolean,
+    error: String?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selected = sources.firstOrNull { it.sessionId == selectedSessionId }
+    Column(
+        modifier = modifier.fillMaxWidth().testTag("evidence_source_selector"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Evidence source", style = MaterialTheme.typography.titleLarge)
+        Text(
+            "Each route below belongs to one person and one patrol session. Trails are never combined.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (sources.isEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().testTag("evidence_source_empty"),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Text(
+                    "No separately attributable GPS session is available for this mission.",
+                    modifier = Modifier.padding(14.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        } else {
+            sources.forEach { source ->
+                val isSelected = source.sessionId == selectedSessionId
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .selectable(
+                            selected = isSelected,
+                            onClick = { onSelect(source.sessionId) },
+                            role = Role.RadioButton,
+                        )
+                        .testTag("evidence_source_${source.sessionId}"),
+                    shape = MaterialTheme.shapes.small,
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (isSelected) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant
+                        },
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = isSelected, onClick = null)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                buildString {
+                                    append(source.displayName)
+                                    source.badgeNumber?.let { append(" · ").append(it) }
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                "${source.trackPointCount} server-received GPS points · " +
+                                    formatEvidenceTime(source.startedAtMs),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (loading) {
+            Text(
+                "Loading the selected session…",
+                modifier = Modifier.testTag("evidence_source_loading"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        error?.let {
+            Text(
+                it,
+                modifier = Modifier.testTag("evidence_source_error"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        selected?.let { source ->
+            Surface(
+                modifier = Modifier.fillMaxWidth().testTag("selected_evidence_provenance"),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text("Session provenance", style = MaterialTheme.typography.titleMedium)
+                    Text("Started ${formatEvidenceTime(source.startedAtMs)}")
+                    Text(
+                        source.endedAtMs?.let {
+                            "Ended ${formatEvidenceTime(it)} · ${formatEvidenceValue(source.endReason ?: "closed")}"
+                        } ?: "Session is still in progress",
+                    )
+                    Text("PatrolGrid app ${source.appVersion}")
+                    if (source.firstRecordedAtMs != null && source.lastRecordedAtMs != null) {
+                        Text(
+                            "Device-recorded span ${formatEvidenceTime(source.firstRecordedAtMs)} – " +
+                                formatEvidenceTime(source.lastRecordedAtMs),
+                        )
+                    }
+                    source.lastReceivedAtMs?.let {
+                        Text("Last received by server ${formatEvidenceTime(it)}")
+                    }
+                    if (source.bestAccuracyM != null && source.worstAccuracyM != null) {
+                        Text(
+                            "Reported horizontal accuracy ${source.bestAccuracyM.roundToInt()}–" +
+                                "${source.worstAccuracyM.roundToInt()} m",
+                        )
+                    }
+                    Text(
+                        "Accuracy is the phone's reported estimate, not proof by itself. " +
+                            "A supervisor makes the final operational assessment.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatrolMissionDetailSheet(
     mission: PatrolMission,
     state: PatrolGridUiState,
     onDismiss: () -> Unit,
+    onSelectEvidenceSource: (String) -> Unit,
     onReview: () -> Unit,
 ) {
     val selectedEvidenceAvailable = state.evidenceMissionId == mission.id
+    val selectedEvidenceSource = state.evidenceSources.firstOrNull {
+        it.sessionId == state.selectedEvidenceSessionId
+    }
+    val selectedTrackPointCount = state.selectedEvidenceTrackPointCount
+    val selectedPriorityVisitEvidence = state.priorityVisitEvidence.filter {
+        it.sessionId == state.selectedEvidenceSessionId
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("mission_detail_sheet"),
@@ -211,32 +373,57 @@ fun PatrolMissionDetailSheet(
                     }
                 }
             }
+            if (selectedEvidenceAvailable && state.serverBacked) {
+                item {
+                    PatrolEvidenceSourceSelector(
+                        sources = state.evidenceSources,
+                        selectedSessionId = state.selectedEvidenceSessionId,
+                        loading = state.evidenceTrailLoading,
+                        error = state.evidenceTrailError,
+                        onSelect = onSelectEvidenceSource,
+                    )
+                }
+            }
             if (selectedEvidenceAvailable) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Planned and recorded route", style = MaterialTheme.typography.titleLarge)
-                        PatrolRouteMap(
-                            trackingActive = state.trackingActive,
-                            visitedPriorityCount = mission.priorityLocations.count {
-                                it.state == PriorityLocationState.VISITED
-                            },
-                            recordedPoints = state.routePoints,
-                            plannedPoints = state.plannedRoutePoints,
-                            priorityLocations = mission.priorityLocations,
-                            totalRecordedPoints = state.recordedTrackPoints,
-                            demoMode = !state.serverBacked &&
-                                !state.trackingActive &&
-                                state.recordedTrackPoints == 0 &&
-                                state.unreadableTrackPoints == 0 &&
-                                state.routePoints.isEmpty() &&
-                                state.plannedRoutePoints.isEmpty(),
-                        )
+                        if (state.evidenceTrailLoading) {
+                            Text(
+                                "Loading this session's route trail…",
+                                modifier = Modifier.testTag("evidence_trail_loading"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            PatrolRouteMap(
+                                trackingActive = state.trackingActive,
+                                visitedPriorityCount = mission.priorityLocations.count {
+                                    it.state == PriorityLocationState.VISITED
+                                },
+                                recordedPoints = state.routePoints,
+                                plannedPoints = state.plannedRoutePoints,
+                                priorityLocations = mission.priorityLocations,
+                                totalRecordedPoints = selectedTrackPointCount,
+                                demoMode = !state.serverBacked &&
+                                    !state.trackingActive &&
+                                    state.recordedTrackPoints == 0 &&
+                                    state.unreadableTrackPoints == 0 &&
+                                    state.routePoints.isEmpty() &&
+                                    state.plannedRoutePoints.isEmpty(),
+                            )
+                        }
                         PatrolEvidenceIntegrityNotice(
                             unreadableTrackPoints = state.unreadableTrackPoints,
                             captureError = state.captureError,
                         )
                         Text(
-                            "${state.recordedTrackPoints} route points · ${state.observationCount} observations",
+                            if (selectedEvidenceSource == null) {
+                                "${state.recordedTrackPoints} route points · ${state.observationCount} observations"
+                            } else {
+                                "${state.selectedEvidenceTrackPointCount} points from this session · " +
+                                    "${state.recordedTrackPoints} across the mission · " +
+                                    "${state.observationCount} observations"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -279,6 +466,11 @@ fun PatrolMissionDetailSheet(
                     }
                 }
             }
+            if (state.serverBacked && selectedEvidenceSource != null) {
+                item {
+                    PatrolPriorityVisitEvidenceList(selectedPriorityVisitEvidence)
+                }
+            }
             if (state.role == com.dailybeat.app.data.model.PatrolRole.SUPERVISOR &&
                 mission.status == PatrolMissionStatus.NEEDS_REVIEW
             ) {
@@ -289,6 +481,66 @@ fun PatrolMissionDetailSheet(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("review_mission"),
                     ) {
                         Text("Record supervisor review")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatrolPriorityVisitEvidenceList(
+    visits: List<PatrolPriorityVisitEvidence>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().testTag("priority_visit_evidence"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Visits in this session", style = MaterialTheme.typography.titleLarge)
+        if (visits.isEmpty()) {
+            Text(
+                "No priority visit evidence was recorded in this session.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
+        visits.forEach { visit ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("priority_visit_${visit.priorityLocationId}"),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(visit.priorityName, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "${formatVisitMethod(visit.method)} · ${visit.displayName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        "Occurred ${formatEvidenceTime(visit.visitedAtMs)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "Received by server ${formatEvidenceTime(visit.receivedAtMs)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    visit.accuracyM?.let {
+                        Text(
+                            "Phone-reported accuracy ${it.roundToInt()} m",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    visit.note?.let {
+                        Text("Context: $it", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -384,4 +636,24 @@ private fun ReviewOutcomeOption(
             }
         }
     }
+}
+
+private val EVIDENCE_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd MMM yyyy · HH:mm")
+
+private fun formatEvidenceTime(epochMs: Long): String =
+    Instant.ofEpochMilli(epochMs)
+        .atZone(ZoneId.systemDefault())
+        .format(EVIDENCE_TIME_FORMATTER)
+
+private fun formatEvidenceValue(value: String): String = value
+    .trim()
+    .lowercase()
+    .replace('_', ' ')
+    .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+private fun formatVisitMethod(method: String): String = when (method) {
+    "gps" -> "GPS visit"
+    "manual_with_context" -> "Manual visit with context"
+    else -> "Recorded visit"
 }

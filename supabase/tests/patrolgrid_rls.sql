@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(228);
+select plan(274);
 
 insert into auth.users (
     id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -18,12 +18,14 @@ insert into public.patrolgrid_subdivisions (id, code, name, created_by) values
     ('10000000-0000-0000-0000-000000000001', 'SUB_A', 'Subdivision A', '00000000-0000-0000-0000-000000000001'),
     ('10000000-0000-0000-0000-000000000002', 'SUB_B', 'Subdivision B', '00000000-0000-0000-0000-000000000004');
 
-insert into public.patrolgrid_memberships (subdivision_id, user_id, role, display_name) values
-    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'supervisor', 'Supervisor A'),
-    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'patrol', 'Patrol A1'),
-    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 'patrol', 'Patrol A2'),
-    ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000004', 'supervisor', 'Supervisor B'),
-    ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000005', 'patrol', 'Patrol B');
+insert into public.patrolgrid_memberships (
+    subdivision_id, user_id, role, display_name, badge_number
+) values
+    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'supervisor', 'Supervisor A', 'SUP-A'),
+    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'patrol', 'Patrol A1', 'A-101'),
+    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 'patrol', 'Patrol A2', 'A-102'),
+    ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000004', 'supervisor', 'Supervisor B', 'SUP-B'),
+    ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000005', 'patrol', 'Patrol B', 'B-201');
 
 insert into public.patrolgrid_route_templates (
     id, subdivision_id, name, default_guidance, route_geojson, created_by
@@ -70,6 +72,186 @@ insert into public.patrolgrid_track_points (
 ) values
     ('60000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 0, now() - interval '20 minutes', 13.0, 77.5, 10),
     ('60000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000005', 0, now() - interval '20 minutes', 14.0, 78.5, 10);
+
+select is(
+    (
+        select relation.relkind
+        from pg_catalog.pg_class relation
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_evidence_session_summaries'
+    ),
+    'v'::"char",
+    'per-session evidence provenance is exposed through a view'
+);
+select ok(
+    (
+        select 'security_invoker=true' = any(coalesce(relation.reloptions, '{}'::text[]))
+        from pg_catalog.pg_class relation
+        join pg_catalog.pg_namespace namespace
+          on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_evidence_session_summaries'
+    ),
+    'evidence provenance view executes with the caller RLS identity'
+);
+select is(
+    (
+        select array_agg(attribute.attname::text order by attribute.attnum)
+        from pg_catalog.pg_attribute attribute
+        join pg_catalog.pg_class relation on relation.oid = attribute.attrelid
+        join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_evidence_session_summaries'
+          and attribute.attnum > 0
+          and not attribute.attisdropped
+    ),
+    array[
+        'session_id', 'mission_id', 'user_id', 'display_name', 'badge_number',
+        'started_at', 'ended_at', 'end_reason', 'app_version', 'track_point_count',
+        'first_recorded_at', 'last_recorded_at', 'first_received_at',
+        'last_received_at', 'best_accuracy_m', 'worst_accuracy_m'
+    ]::text[],
+    'evidence provenance view has the exact reviewed source and aggregate columns'
+);
+select is(
+    has_table_privilege('anon', 'public.patrolgrid_evidence_session_summaries', 'SELECT'),
+    false,
+    'anonymous clients cannot read evidence provenance'
+);
+select is(
+    has_table_privilege('authenticated', 'public.patrolgrid_evidence_session_summaries', 'SELECT'),
+    true,
+    'authenticated users can read only RLS-scoped evidence provenance'
+);
+select is(
+    has_table_privilege('authenticated', 'public.patrolgrid_evidence_session_summaries', 'INSERT')
+    or has_table_privilege('authenticated', 'public.patrolgrid_evidence_session_summaries', 'UPDATE')
+    or has_table_privilege('authenticated', 'public.patrolgrid_evidence_session_summaries', 'DELETE'),
+    false,
+    'authenticated users have no evidence-provenance write grant'
+);
+select is(
+    has_table_privilege('service_role', 'public.patrolgrid_evidence_session_summaries', 'SELECT'),
+    true,
+    'service role can read the evidence-provenance view'
+);
+select is(
+    has_table_privilege('service_role', 'public.patrolgrid_evidence_session_summaries', 'INSERT')
+    or has_table_privilege('service_role', 'public.patrolgrid_evidence_session_summaries', 'UPDATE')
+    or has_table_privilege('service_role', 'public.patrolgrid_evidence_session_summaries', 'DELETE'),
+    false,
+    'service role has no evidence-provenance write grant'
+);
+select is(
+    (
+        select coalesce(
+            array_agg(
+                coalesce(grantee.rolname, 'PUBLIC') || ':' || lower(acl.privilege_type)
+                order by coalesce(grantee.rolname, 'PUBLIC'), acl.privilege_type
+            ),
+            '{}'::text[]
+        )
+        from pg_catalog.pg_class relation
+        join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+        cross join lateral pg_catalog.aclexplode(relation.relacl) acl
+        left join pg_catalog.pg_roles grantee on grantee.oid = acl.grantee
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_evidence_session_summaries'
+          and acl.grantee <> relation.relowner
+    ),
+    array['authenticated:select', 'service_role:select']::text[],
+    'only authenticated and service_role receive an explicit client grant on provenance'
+);
+select ok(
+    (
+        select attribute.attnotnull
+        from pg_catalog.pg_attribute attribute
+        join pg_catalog.pg_class relation on relation.oid = attribute.attrelid
+        join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_priority_visits'
+          and attribute.attname = 'session_id'
+    ),
+    'priority-visit provenance requires an exact session id'
+);
+select is(
+    (
+        select count(*)
+        from pg_catalog.pg_constraint constraint_record
+        join pg_catalog.pg_class relation on relation.oid = constraint_record.conrelid
+        join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_priority_visits'
+          and constraint_record.contype = 'f'
+          and constraint_record.conname in (
+              'patrolgrid_priority_visits_session_source_fkey',
+              'patrolgrid_priority_visits_location_mission_fkey'
+          )
+    ),
+    2::bigint,
+    'priority visits bind session/user/mission and priority/mission with database FKs'
+);
+select ok(
+    exists (
+        select 1
+        from pg_catalog.pg_constraint constraint_record
+        join pg_catalog.pg_class relation on relation.oid = constraint_record.conrelid
+        join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'public'
+          and relation.relname = 'patrolgrid_track_points'
+          and constraint_record.contype = 'f'
+          and constraint_record.conname = 'patrolgrid_track_points_session_source_fkey'
+    ),
+    'track points bind their mission and person to the exact referenced session'
+);
+select ok(
+    exists (
+        select 1
+        from pg_catalog.pg_indexes
+        where schemaname = 'public'
+          and indexname = 'patrolgrid_sessions_assignment_created'
+          and indexdef like '%(mission_id, user_id, created_at DESC)%'
+    )
+    and exists (
+        select 1
+        from pg_catalog.pg_indexes
+        where schemaname = 'public'
+          and indexname = 'patrolgrid_track_points_assignment_count'
+          and indexdef like '%(mission_id, user_id)%'
+    ),
+    'session and cumulative point quota checks use bounded assignment indexes'
+);
+select ok(
+    exists (
+        select 1
+        from pg_catalog.pg_constraint
+        where conname = 'patrolgrid_priority_visits_session_location_key'
+          and contype = 'u'
+    )
+    and not exists (
+        select 1
+        from pg_catalog.pg_constraint
+        where conname = 'patrolgrid_priority_visits_priority_location_id_user_id_key'
+    ),
+    'priority visits deduplicate per exact session instead of merging patrol sources'
+);
+select throws_ok(
+    $$insert into public.patrolgrid_track_points (
+        client_point_id, session_id, mission_id, user_id, sequence_number,
+        recorded_at, latitude, longitude, accuracy_m
+    ) values (
+        '60000000-0000-0000-0000-000000000090',
+        '40000000-0000-0000-0000-000000000002',
+        '30000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000002',
+        90, now(), 13.0, 77.5, 8
+    )$$,
+    '23503',
+    'insert or update on table "patrolgrid_track_points" violates foreign key constraint "patrolgrid_track_points_session_source_fkey"',
+    'database constraints reject a point attributed to a different person than its session'
+);
 
 select is(has_table_privilege('anon', 'public.patrolgrid_missions', 'SELECT'), false, 'anonymous users cannot read missions');
 select is(has_table_privilege('anon', 'public.patrolgrid_track_points', 'SELECT'), false, 'anonymous users cannot read route points');
@@ -313,6 +495,11 @@ select is((select count(*) from public.patrolgrid_missions), 1::bigint, 'patrol 
 select is((select count(*) from public.patrolgrid_assignments), 1::bigint, 'patrol cannot inspect peer assignments');
 select is((select count(*) from public.patrolgrid_sessions), 0::bigint, 'patrol cannot inspect a peer session');
 select is((select count(*) from public.patrolgrid_track_points), 0::bigint, 'patrol cannot inspect peer route points');
+select is(
+    (select count(*) from public.patrolgrid_evidence_session_summaries),
+    0::bigint,
+    'patrol provenance view does not reveal peer or cross-subdivision sources'
+);
 select is((select count(*) from public.patrolgrid_audit_events), 0::bigint, 'patrol cannot read audit events');
 select is((select count(*) from public.patrolgrid_units), 1::bigint, 'patrol sees only its own active unit');
 select is((select count(*) from public.patrolgrid_route_templates), 0::bigint, 'patrol cannot enumerate supervisor route templates');
@@ -400,6 +587,59 @@ select is(
     ),
     1,
     'patrol can append a point to its open session'
+);
+select is(
+    (select count(*) from public.patrolgrid_evidence_session_summaries),
+    1::bigint,
+    'patrol provenance exposes exactly its own session source'
+);
+select is(
+    (
+        select jsonb_build_object(
+            'session_id', source.session_id,
+            'mission_id', source.mission_id,
+            'user_id', source.user_id,
+            'display_name', source.display_name,
+            'badge_number', source.badge_number,
+            'app_version', source.app_version
+        )
+        from public.patrolgrid_evidence_session_summaries source
+    ),
+    jsonb_build_object(
+        'session_id', '40000000-0000-0000-0000-000000000001'::uuid,
+        'mission_id', '30000000-0000-0000-0000-000000000001'::uuid,
+        'user_id', '00000000-0000-0000-0000-000000000002'::uuid,
+        'display_name', 'Patrol A1',
+        'badge_number', 'A-101',
+        'app_version', '1.0-test'
+    ),
+    'patrol provenance identifies only its own exact person/session/mission source'
+);
+select ok(
+    (
+        select source.track_point_count = 1
+           and source.first_recorded_at = now()
+           and source.last_recorded_at = now()
+           and source.first_received_at = now()
+           and source.last_received_at = now()
+           and source.best_accuracy_m = 8::real
+           and source.worst_accuracy_m = 8::real
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id = '40000000-0000-0000-0000-000000000001'
+    ),
+    'patrol source exposes exact point count/time/accuracy aggregates'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id in (
+            '40000000-0000-0000-0000-000000000002',
+            '40000000-0000-0000-0000-000000000003'
+        )
+    ),
+    0::bigint,
+    'patrol cannot infer same-mission peer or other-subdivision source rows'
 );
 select ok(
     public.patrolgrid_record_field_update(
@@ -533,6 +773,20 @@ select is(
     1,
     'recently closed sessions accept queued route evidence recorded inside the sealing grace'
 );
+select ok(
+    (
+        select source.track_point_count = 2
+           and source.first_recorded_at = now()
+           and source.last_recorded_at = now()
+           and source.first_received_at = now()
+           and source.last_received_at = now()
+           and source.best_accuracy_m = 8::real
+           and source.worst_accuracy_m = 8::real
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id = '40000000-0000-0000-0000-000000000001'
+    ),
+    'patrol provenance aggregates queued evidence into the same exact session source'
+);
 
 reset role;
 set local role authenticated;
@@ -544,6 +798,87 @@ select is((select count(distinct subdivision_id) from public.patrolgrid_audit_ev
 select is((select count(*) from public.patrolgrid_units), 1::bigint, 'supervisor sees units only in its subdivision');
 select is((select count(*) from public.patrolgrid_route_templates), 1::bigint, 'supervisor sees route templates in its subdivision');
 select is((select count(*) from public.patrolgrid_route_template_priorities), 1::bigint, 'supervisor sees route-template priorities for assignment planning');
+select is(
+    (select count(*) from public.patrolgrid_evidence_session_summaries),
+    2::bigint,
+    'supervisor sees each same-subdivision patrol session as a distinct source'
+);
+select is(
+    (
+        select jsonb_agg(
+            jsonb_build_object(
+                'session_id', source.session_id,
+                'user_id', source.user_id,
+                'display_name', source.display_name,
+                'badge_number', source.badge_number,
+                'track_point_count', source.track_point_count
+            )
+            order by source.session_id
+        )
+        from public.patrolgrid_evidence_session_summaries source
+    ),
+    jsonb_build_array(
+        jsonb_build_object(
+            'session_id', '40000000-0000-0000-0000-000000000001'::uuid,
+            'user_id', '00000000-0000-0000-0000-000000000002'::uuid,
+            'display_name', 'Patrol A1',
+            'badge_number', 'A-101',
+            'track_point_count', 2
+        ),
+        jsonb_build_object(
+            'session_id', '40000000-0000-0000-0000-000000000002'::uuid,
+            'user_id', '00000000-0000-0000-0000-000000000003'::uuid,
+            'display_name', 'Patrol A2',
+            'badge_number', 'A-102',
+            'track_point_count', 1
+        )
+    ),
+    'supervisor provenance never merges two patrol people or session ids into one trail'
+);
+select ok(
+    (
+        select source.track_point_count = 2
+           and source.first_recorded_at = now()
+           and source.last_recorded_at = now()
+           and source.first_received_at = now()
+           and source.last_received_at = now()
+           and source.best_accuracy_m = 8::real
+           and source.worst_accuracy_m = 8::real
+           and source.started_at = session.started_at
+           and source.ended_at = session.ended_at
+           and source.end_reason = session.end_reason
+        from public.patrolgrid_evidence_session_summaries source
+        join public.patrolgrid_sessions session on session.id = source.session_id
+        where source.session_id = '40000000-0000-0000-0000-000000000001'
+    ),
+    'supervisor sees exact aggregates and lifecycle provenance for patrol A1'
+);
+select ok(
+    (
+        select source.track_point_count = 1
+           and source.first_recorded_at = now() - interval '20 minutes'
+           and source.last_recorded_at = now() - interval '20 minutes'
+           and source.first_received_at = now()
+           and source.last_received_at = now()
+           and source.best_accuracy_m = 10::real
+           and source.worst_accuracy_m = 10::real
+           and source.started_at = now() - interval '30 minutes'
+           and source.ended_at is null
+           and source.end_reason is null
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id = '40000000-0000-0000-0000-000000000002'
+    ),
+    'supervisor sees exact received/recorded/accuracy aggregates for patrol A2'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id = '40000000-0000-0000-0000-000000000003'
+    ),
+    0::bigint,
+    'subdivision A supervisor cannot see subdivision B evidence sources'
+);
 select throws_ok(
     $$insert into public.patrolgrid_missions (id, subdivision_id, title, starts_at, ends_at, guidance, created_by) values ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Supervisor-created mission', now(), now() + interval '2 hours', 'area_coverage', '00000000-0000-0000-0000-000000000001')$$,
     '42501', 'permission denied for table patrolgrid_missions',
@@ -623,6 +958,53 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select is((select count(*) from public.patrolgrid_missions), 1::bigint, 'another supervisor cannot see subdivision A missions');
+select is(
+    (
+        select jsonb_agg(
+            jsonb_build_object(
+                'session_id', source.session_id,
+                'user_id', source.user_id,
+                'display_name', source.display_name,
+                'badge_number', source.badge_number,
+                'track_point_count', source.track_point_count,
+                'first_recorded_at', source.first_recorded_at,
+                'last_recorded_at', source.last_recorded_at,
+                'first_received_at', source.first_received_at,
+                'last_received_at', source.last_received_at,
+                'best_accuracy_m', source.best_accuracy_m,
+                'worst_accuracy_m', source.worst_accuracy_m
+            )
+            order by source.session_id
+        )
+        from public.patrolgrid_evidence_session_summaries source
+    ),
+    jsonb_build_array(jsonb_build_object(
+        'session_id', '40000000-0000-0000-0000-000000000003'::uuid,
+        'user_id', '00000000-0000-0000-0000-000000000005'::uuid,
+        'display_name', 'Patrol B',
+        'badge_number', 'B-201',
+        'track_point_count', 1,
+        'first_recorded_at', now() - interval '20 minutes',
+        'last_recorded_at', now() - interval '20 minutes',
+        'first_received_at', now(),
+        'last_received_at', now(),
+        'best_accuracy_m', 10::real,
+        'worst_accuracy_m', 10::real
+    )),
+    'subdivision B supervisor sees only its exact source and aggregates'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_evidence_session_summaries source
+        where source.session_id in (
+            '40000000-0000-0000-0000-000000000001',
+            '40000000-0000-0000-0000-000000000002'
+        )
+    ),
+    0::bigint,
+    'subdivision B supervisor cannot see subdivision A evidence sources'
+);
 
 reset role;
 update public.patrolgrid_memberships
@@ -631,6 +1013,11 @@ where user_id = '00000000-0000-0000-0000-000000000002';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select is((select count(*) from public.patrolgrid_missions), 0::bigint, 'disabled membership immediately revokes mission access');
+select is(
+    (select count(*) from public.patrolgrid_evidence_session_summaries),
+    0::bigint,
+    'disabled membership immediately revokes evidence-source provenance access'
+);
 select throws_ok(
     $$select public.patrolgrid_record_field_update('70000000-0000-0000-0000-000000000002', 'observation', 'Disabled account update', now(), '40000000-0000-0000-0000-000000000001')$$,
     '42501', 'Field update is not authorized for this session',
@@ -1086,6 +1473,15 @@ select is(
     '61000000-0000-0000-0000-000000000012'::uuid,
     'recently sealed priority evidence can finish uploading after auto-close'
 );
+select is(
+    (
+        select visit.session_id
+        from public.patrolgrid_priority_visits visit
+        where visit.id = '61000000-0000-0000-0000-000000000012'
+    ),
+    '40000000-0000-0000-0000-000000000007'::uuid,
+    'priority-visit RPC persists the exact selected patrol session provenance'
+);
 select ok(
     public.patrolgrid_record_field_update(
         '70000000-0000-0000-0000-000000000014',
@@ -1132,6 +1528,79 @@ select throws_ok(
     '22023', 'Visit idempotency key was reused with different evidence',
     'priority-visit retries cannot alter evidence'
 );
+select throws_ok(
+    $$select public.patrolgrid_record_priority_visit('40000000-0000-0000-0000-000000000012', '61000000-0000-0000-0000-000000000012', '21000000-0000-0000-0000-000000000011', (select ends_at - interval '1 minute' from public.patrolgrid_missions where id = '30000000-0000-0000-0000-000000000011'), 'manual_with_context')$$,
+    '22023', 'Visit idempotency key was reused with different evidence',
+    'a priority-visit UUID cannot be replayed as evidence from another patrol session'
+);
+
+reset role;
+select throws_ok(
+    $$insert into public.patrolgrid_priority_visits (
+        id, session_id, priority_location_id, mission_id, user_id,
+        visited_at, method
+    ) values (
+        '61000000-0000-0000-0000-000000000090',
+        '40000000-0000-0000-0000-000000000008',
+        '21000000-0000-0000-0000-000000000008',
+        '30000000-0000-0000-0000-000000000008',
+        '00000000-0000-0000-0000-000000000003',
+        (select ends_at + interval '4 minutes' from public.patrolgrid_missions
+         where id = '30000000-0000-0000-0000-000000000008'),
+        'manual_with_context'
+    )$$,
+    '23503',
+    'insert or update on table "patrolgrid_priority_visits" violates foreign key constraint "patrolgrid_priority_visits_session_source_fkey"',
+    'database constraints reject a priority visit attributed to another session person'
+);
+select lives_ok(
+    $$insert into public.patrolgrid_priority_visits (
+        id, session_id, priority_location_id, mission_id, user_id, visited_at,
+        method, latitude, longitude, accuracy_m, note
+    ) values (
+        '61000000-0000-0000-0000-000000000013',
+        '40000000-0000-0000-0000-000000000008',
+        '21000000-0000-0000-0000-000000000008',
+        '30000000-0000-0000-0000-000000000008',
+        '00000000-0000-0000-0000-000000000002',
+        (select ends_at + interval '4 minutes' from public.patrolgrid_missions
+         where id = '30000000-0000-0000-0000-000000000008'),
+        'manual_with_context', null, null, null, 'Independent session visit'
+    )$$,
+    'the same priority remains distinct evidence when visited by another exact session source'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_priority_visits visit
+        where visit.priority_location_id = '21000000-0000-0000-0000-000000000008'
+    ),
+    1::bigint,
+    'patrol RLS reveals only its own priority-visit session source'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(
+    (
+        select array_agg(visit.session_id order by visit.session_id)
+        from public.patrolgrid_priority_visits visit
+        where visit.priority_location_id = '21000000-0000-0000-0000-000000000008'
+    ),
+    array[
+        '40000000-0000-0000-0000-000000000007'::uuid,
+        '40000000-0000-0000-0000-000000000008'::uuid
+    ],
+    'supervisor sees same-subdivision priority visits as two distinct session sources'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(
     public.patrolgrid_record_field_update(
         '70000000-0000-0000-0000-000000000014',
@@ -1324,8 +1793,62 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok(
     $$select public.patrolgrid_ingest_track_points('40000000-0000-0000-0000-000000000007', jsonb_build_array(jsonb_build_object('client_point_id', '60000000-0000-0000-0000-000000000096', 'sequence_number', 20000, 'recorded_at', (select ends_at from public.patrolgrid_missions where id = '30000000-0000-0000-0000-000000000008'), 'latitude', 13.1, 'longitude', 77.6, 'accuracy_m', 8)))$$,
-    '54000', 'Track session point limit exceeded',
-    'track ingestion enforces the twenty-thousand-point per-session ceiling'
+    '54000', 'Track assignment point limit exceeded',
+    'track ingestion enforces the twenty-thousand-point assignment/person ceiling'
+);
+select is(
+    public.patrolgrid_ingest_track_points(
+        '40000000-0000-0000-0000-000000000007',
+        jsonb_build_array(jsonb_build_object(
+            'client_point_id', '60000000-0000-0000-0000-000000000012',
+            'sequence_number', 0,
+            'recorded_at', (select ends_at + interval '4 minutes'
+                            from public.patrolgrid_missions
+                            where id = '30000000-0000-0000-0000-000000000008'),
+            'latitude', 13.1,
+            'longitude', 77.6,
+            'accuracy_m', 8
+        ))
+    ),
+    0,
+    'an exact track retry remains idempotent after the assignment reaches its cap'
+);
+reset role;
+
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, ended_at,
+    end_reason, app_version, created_at
+) values (
+    '40000000-0000-0000-0000-000000000014',
+    '30000000-0000-0000-0000-000000000008',
+    '00000000-0000-0000-0000-000000000003',
+    '50000000-0000-0000-0000-000000000014',
+    (select ends_at - interval '30 minutes' from public.patrolgrid_missions
+     where id = '30000000-0000-0000-0000-000000000008'),
+    (select ends_at from public.patrolgrid_missions
+     where id = '30000000-0000-0000-0000-000000000008'),
+    'completed',
+    '1.0-test',
+    now() - interval '2 hours'
+);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok(
+    $$select public.patrolgrid_ingest_track_points(
+        '40000000-0000-0000-0000-000000000014',
+        jsonb_build_array(jsonb_build_object(
+            'client_point_id', '60000000-0000-0000-0000-000000000097',
+            'sequence_number', 0,
+            'recorded_at', (select ends_at - interval '1 minute'
+                            from public.patrolgrid_missions
+                            where id = '30000000-0000-0000-0000-000000000008'),
+            'latitude', 13.1,
+            'longitude', 77.6,
+            'accuracy_m', 8
+        ))
+    )$$,
+    '54000', 'Track assignment point limit exceeded',
+    'a second session cannot reset the assignment/person point ceiling'
 );
 reset role;
 
@@ -1906,10 +2429,11 @@ insert into public.patrolgrid_track_points (
     0, now() - interval '90 minutes', 13.0, 77.5, 8
 );
 insert into public.patrolgrid_priority_visits (
-    id, priority_location_id, mission_id, user_id, visited_at, method,
+    id, session_id, priority_location_id, mission_id, user_id, visited_at, method,
     latitude, longitude, accuracy_m, note
 ) values (
     '61000000-0000-0000-0000-000000000201',
+    '40000000-0000-0000-0000-000000000201',
     '21000000-0000-0000-0000-000000000201',
     '30000000-0000-0000-0000-000000000201',
     '00000000-0000-0000-0000-000000000003',
@@ -2743,6 +3267,214 @@ select is(
     'assigned'::text,
     'unstarted mission remains assigned until the full five-minute closure grace elapses'
 );
+
+-- A modified client must not multiply evidence containers or reset the point
+-- allowance by repeatedly closing and restarting while a teammate keeps a
+-- multi-person mission active.
+update public.patrolgrid_memberships
+set status = 'active'
+where subdivision_id = '10000000-0000-0000-0000-000000000001'
+  and user_id = '00000000-0000-0000-0000-000000000002';
+insert into public.patrolgrid_missions (
+    id, subdivision_id, title, starts_at, ends_at, guidance, status, created_by
+) values
+    (
+        '30000000-0000-0000-0000-000000000040',
+        '10000000-0000-0000-0000-000000000001',
+        'Session lifetime quota', now() - interval '1 hour', now() + interval '2 hours',
+        'area_coverage', 'active', '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000041',
+        '10000000-0000-0000-0000-000000000001',
+        'Session rolling quota', now() - interval '1 hour', now() + interval '2 hours',
+        'area_coverage', 'active', '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000042',
+        '10000000-0000-0000-0000-000000000001',
+        'Open session recovery at quota', now() - interval '1 hour', now() + interval '2 hours',
+        'area_coverage', 'active', '00000000-0000-0000-0000-000000000001'
+    );
+
+insert into public.patrolgrid_assignments (mission_id, user_id, assigned_by) values
+    ('30000000-0000-0000-0000-000000000040', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
+    ('30000000-0000-0000-0000-000000000040', '00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001'),
+    ('30000000-0000-0000-0000-000000000041', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
+    ('30000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001');
+
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, ended_at,
+    end_reason, app_version, created_at
+) values (
+    '40000000-0000-0000-0000-000000000040',
+    '30000000-0000-0000-0000-000000000040',
+    '00000000-0000-0000-0000-000000000002',
+    '50000000-0000-0000-0000-000000000040',
+    now() - interval '50 minutes', now() - interval '49 minutes',
+    'device_issue', '1.0-test', now() - interval '1 day'
+);
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, ended_at,
+    end_reason, app_version, created_at
+)
+select
+    md5('patrolgrid-session-cap-' || series.value::text)::uuid,
+    '30000000-0000-0000-0000-000000000040',
+    '00000000-0000-0000-0000-000000000002',
+    md5('patrolgrid-session-cap-install-' || series.value::text)::uuid,
+    now() - interval '45 minutes' + make_interval(secs => series.value),
+    now() - interval '44 minutes' + make_interval(secs => series.value),
+    'device_issue', '1.0-test', now() - interval '1 day'
+from generate_series(2, 16) as series(value);
+
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, ended_at,
+    end_reason, app_version, created_at
+)
+select
+    md5('patrolgrid-open-recovery-closed-' || series.value::text)::uuid,
+    '30000000-0000-0000-0000-000000000042',
+    '00000000-0000-0000-0000-000000000002',
+    md5('patrolgrid-open-recovery-install-' || series.value::text)::uuid,
+    now() - interval '50 minutes' + make_interval(secs => series.value),
+    now() - interval '49 minutes' + make_interval(secs => series.value),
+    'device_issue', '1.0-test', now() - interval '1 day'
+from generate_series(1, 15) as series(value);
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, app_version, created_at
+) values (
+    '40000000-0000-0000-0000-000000000042',
+    '30000000-0000-0000-0000-000000000042',
+    '00000000-0000-0000-0000-000000000002',
+    '50000000-0000-0000-0000-000000000042',
+    now() - interval '5 minutes', '1.0-test', now() - interval '5 minutes'
+);
+
+insert into public.patrolgrid_sessions (
+    id, mission_id, user_id, installation_id, started_at, ended_at,
+    end_reason, app_version, created_at
+)
+select
+    md5('patrolgrid-session-burst-' || series.value::text)::uuid,
+    '30000000-0000-0000-0000-000000000041',
+    '00000000-0000-0000-0000-000000000002',
+    md5('patrolgrid-session-burst-install-' || series.value::text)::uuid,
+    now() - interval '10 minutes' + make_interval(secs => series.value),
+    now() - interval '9 minutes' + make_interval(secs => series.value),
+    'device_issue', '1.0-test', now() - make_interval(mins => series.value)
+from generate_series(1, 4) as series(value);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok(
+    $$select public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000043',
+        '30000000-0000-0000-0000-000000000040',
+        '50000000-0000-0000-0000-000000000043',
+        '1.0-test'
+    )$$,
+    '54000', 'Patrol assignment session limit exceeded',
+    'a seventeenth evidence session is rejected for one mission/person'
+);
+select is(
+    public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000040',
+        '30000000-0000-0000-0000-000000000040',
+        '50000000-0000-0000-0000-000000000040',
+        '1.0-test'
+    ),
+    '40000000-0000-0000-0000-000000000040'::uuid,
+    'an exact closed-session retry remains idempotent at the lifetime cap'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_sessions
+        where mission_id = '30000000-0000-0000-0000-000000000040'
+          and user_id = '00000000-0000-0000-0000-000000000002'
+    ),
+    16::bigint,
+    'lifetime-cap denial and retry create no extra session row'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select is(
+    public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000044',
+        '30000000-0000-0000-0000-000000000040',
+        '50000000-0000-0000-0000-000000000044',
+        '1.0-test'
+    ),
+    '40000000-0000-0000-0000-000000000044'::uuid,
+    'one patrol person cannot consume a teammate session quota'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select is(
+    public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000045',
+        '30000000-0000-0000-0000-000000000042',
+        '50000000-0000-0000-0000-000000000042',
+        '1.0-test'
+    ),
+    '40000000-0000-0000-0000-000000000042'::uuid,
+    'recovering the existing open session remains available at the lifetime cap'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_sessions
+        where mission_id = '30000000-0000-0000-0000-000000000042'
+          and user_id = '00000000-0000-0000-0000-000000000002'
+    ),
+    16::bigint,
+    'open-session recovery at the cap creates no new evidence source'
+);
+select throws_ok(
+    $$select public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000041',
+        '30000000-0000-0000-0000-000000000041',
+        '50000000-0000-0000-0000-000000000041',
+        '1.0-test'
+    )$$,
+    '54000', 'Patrol session restart rate limit exceeded',
+    'a fifth newly created session inside fifteen minutes is rejected'
+);
+select is(
+    (
+        select count(*)
+        from public.patrolgrid_sessions
+        where mission_id = '30000000-0000-0000-0000-000000000041'
+          and user_id = '00000000-0000-0000-0000-000000000002'
+    ),
+    4::bigint,
+    'rolling-rate denial creates no session row'
+);
+
+reset role;
+update public.patrolgrid_sessions
+set created_at = now() - interval '16 minutes'
+where mission_id = '30000000-0000-0000-0000-000000000041'
+  and user_id = '00000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select is(
+    public.patrolgrid_start_session(
+        '40000000-0000-0000-0000-000000000041',
+        '30000000-0000-0000-0000-000000000041',
+        '50000000-0000-0000-0000-000000000041',
+        '1.0-test'
+    ),
+    '40000000-0000-0000-0000-000000000041'::uuid,
+    'a new session is allowed after the rolling fifteen-minute window expires'
+);
+reset role;
+
 select ok(
     (
         select rowsecurity

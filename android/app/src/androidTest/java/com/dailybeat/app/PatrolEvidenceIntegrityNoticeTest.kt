@@ -48,7 +48,8 @@ class PatrolEvidenceIntegrityNoticeTest {
         }
 
         composeRule.onNodeWithTag("retention_incident_acknowledgement").assertIsDisplayed()
-        composeRule.onNodeWithText("subdivision supervisor", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("command, radio, or phone chain", substring = true)
+            .assertIsDisplayed()
         composeRule.onNodeWithText("aggregate count and time", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("acknowledge_retention_incident").performClick()
         composeRule.runOnIdle { assertEquals(1, acknowledgements) }

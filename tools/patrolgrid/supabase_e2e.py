@@ -473,6 +473,70 @@ def main() -> int:
     assert_status(priority_retry, 200, "retry priority visit workflow")
     assert priority_retry.json() == visit_id
 
+    own_visit = harness.get(
+        "patrolgrid_priority_visits",
+        tokens["patrol_1"],
+        f"select=id,session_id,user_id&id=eq.{visit_id}",
+    )
+    assert_status(own_visit, 200, "read exact priority-visit session provenance")
+    assert own_visit.json() == [
+        {
+            "id": visit_id,
+            "session_id": session_ids["patrol_1"],
+            "user_id": users["patrol_1"],
+        }
+    ]
+
+    own_sources = harness.get(
+        "patrolgrid_evidence_session_summaries",
+        tokens["patrol_1"],
+        f"select=session_id,user_id,track_point_count&mission_id=eq.{mission_id}",
+    )
+    assert_status(own_sources, 200, "read own exact-session evidence source")
+    assert own_sources.json() == [
+        {
+            "session_id": session_ids["patrol_1"],
+            "user_id": users["patrol_1"],
+            "track_point_count": 1,
+        }
+    ]
+
+    supervisor_sources = harness.get(
+        "patrolgrid_evidence_session_summaries",
+        tokens["supervisor"],
+        f"select=session_id,user_id,track_point_count&mission_id=eq.{mission_id}",
+    )
+    assert_status(supervisor_sources, 200, "read distinct supervised evidence sources")
+    assert {
+        (row["session_id"], row["user_id"], row["track_point_count"])
+        for row in supervisor_sources.json()
+    } == {
+        (session_ids["patrol_1"], users["patrol_1"], 1),
+        (session_ids["patrol_2"], users["patrol_2"], 1),
+    }
+
+    outsider_sources = harness.get(
+        "patrolgrid_evidence_session_summaries",
+        tokens["outsider"],
+        f"select=session_id&mission_id=eq.{mission_id}",
+    )
+    assert_status(outsider_sources, 200, "read cross-subdivision evidence isolation")
+    assert outsider_sources.json() == []
+
+    exact_session_points = harness.get(
+        "patrolgrid_track_points",
+        tokens["supervisor"],
+        "select=session_id,user_id"
+        f"&session_id=eq.{session_ids['patrol_1']}",
+    )
+    assert_status(exact_session_points, 200, "read one exact supervised route trail")
+    assert exact_session_points.json() == [
+        {
+            "session_id": session_ids["patrol_1"],
+            "user_id": users["patrol_1"],
+        }
+    ]
+
     own_points = harness.get(
         "patrolgrid_track_points", tokens["patrol_1"], "select=user_id"
     )
@@ -1115,7 +1179,8 @@ def main() -> int:
 
     print(
         "PatrolGrid Supabase E2E passed: auth, RLS isolation, immutable route snapshots, "
-        "atomic assignment, linked needs-context review, duty-window enforcement, patrol "
+        "exact-session route and priority-visit provenance, atomic assignment, linked "
+        "needs-context review, duty-window enforcement, patrol "
         "writes, server-owned session lifecycle and 365-day retention clock, prohibited "
         "terminal reopen, bounded offline closure, and audit trail."
     )
