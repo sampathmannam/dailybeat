@@ -25,6 +25,6 @@ object MapCachePrivacy {
 
     private object IgnoreResult : OfflineManager.FileSourceCallback {
         override fun onSuccess() = Unit
-        override fun onError(error: String) = Unit
+        override fun onError(message: String) = Unit
     }
 }

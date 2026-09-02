@@ -60,8 +60,9 @@ fun DailyBeatTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.surface.toArgb()
-            window.navigationBarColor = colorScheme.background.toArgb()
+            // statusBarColor / navigationBarColor were deprecated in API 35 (Android 15).
+            // PatrolGrid already runs edge-to-edge; rely on the WindowCompat controller
+            // for light/dark icons and the system bar background drawn by the theme.
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

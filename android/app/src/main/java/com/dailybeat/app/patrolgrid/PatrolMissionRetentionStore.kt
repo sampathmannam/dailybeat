@@ -1,3 +1,10 @@
+// EncryptedSharedPreferences / MasterKey are deprecated in security-crypto:1.1.0
+// without a stable replacement. The production PatrolActionOutbox, PatrolGridSnapshotCache,
+// BackupSessionStore, and SecureApiKeyStore classes use the same APIs; once
+// androidx.security.crypto ships a non-deprecated replacement, all five stores must
+// migrate together so production and test fixtures continue to share the same schema.
+@file:Suppress("DEPRECATION")
+
 package com.dailybeat.app.patrolgrid
 
 import android.content.Context
