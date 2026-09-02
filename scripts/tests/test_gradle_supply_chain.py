@@ -239,6 +239,23 @@ def test_ci_android_graph_is_always_resolved_from_a_cold_cache():
     assert "--refresh-dependencies --dependency-verification strict" in build_job
 
 
+def test_ci_enables_kvm_before_starting_the_android_emulator():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    build_job = workflow.split("  build:\n", maxsplit=1)[1]
+
+    kvm_step = "      - name: Enable KVM acceleration\n"
+    emulator_step = "      - name: Instrumentation tests (emulator)\n"
+    assert build_job.index(kvm_step) < build_job.index(emulator_step)
+    assert "test -c /dev/kvm" in build_job
+    assert 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' in build_job
+    assert "sudo udevadm control --reload-rules" in build_job
+    assert "sudo udevadm trigger --name-match=kvm" in build_job
+    assert "test -r /dev/kvm" in build_job
+    assert "test -w /dev/kvm" in build_job
+    assert "disable-linux-hw-accel: false" in build_job
+    assert "-accel off" not in build_job
+
+
 def test_gradle_wrapper_distribution_is_pinned_and_validated():
     wrapper_properties = (
         ANDROID / "gradle/wrapper/gradle-wrapper.properties"

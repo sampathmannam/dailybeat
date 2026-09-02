@@ -104,6 +104,16 @@ jobs:
           cd android
           ./gradlew assembleDebug testDebugUnitTest lintDebug --refresh-dependencies --dependency-verification strict --no-daemon --stacktrace
 
+      - name: Enable KVM acceleration
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+
       - name: Instrumentation tests (emulator)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
@@ -115,6 +125,7 @@ jobs:
           profile: Nexus 6
           force-avd-creation: true
           disable-animations: true
+          disable-linux-hw-accel: false
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: |
             adb shell getprop sys.boot_completed | grep -q 1
