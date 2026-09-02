@@ -144,6 +144,43 @@ state; **OPEN** not yet complete.
   24-hour cache window. Android may defer work while powered off, so the next successful
   startup check removes overdue evidence before showing it.
 
+
+## Local re-verification on macOS, 2026-09-02
+
+Branch `feature/patrol-grid` HEAD `a341f43` (CHANGELOG refresh) → `bcdfb26` (Python
+ruff cleanup) → `10ec557` (Android lint + deprecation cleanup). All three commits
+pushed to `origin/feature/patrol-grid` and picked up by PR #7.
+
+- **Ruff** (`python3 -m ruff check .`): **0 errors** (was 53 before this pass).
+- **Python release and supply-chain tests** (`pytest scripts/tests/`):
+  **129/129 PASS** in ~11 s on Python 3.12.
+- **Android JVM suite** (`./gradlew testDebugUnitTest --rerun-tasks`):
+  **168/168 PASS** in ~2 m 29 s across 40 test classes. 0 failures, 0 errors, 0 skipped.
+- **Android lintDebug** (`./gradlew lintDebug --rerun-tasks`):
+  **0 errors / 76 warnings** in ~1 m 48 s.
+  - Lint warnings reduced from 80 → 76 by silencing three `ApplySharedPref`
+    sites (`BackupSessionStore.clear`, `SettingsRepository.setPatrolGridLocked`,
+    `SettingsRepository.setPatrolGridBackgroundedAtMs`) and one
+    `ImplicitSamInstance` site (`LocationService.stop`).
+  - The remaining `acknowledgePatrolGridPrivacyNotice` keeps synchronous
+    `commit()` because `MainActivity` and `SettingsRepositoryPrivacyTest`
+    depend on the boolean return; the per-function lint warning is suppressed
+    with rationale.
+- **Test compile deprecations** (`compileDebugUnitTestKotlin`):
+  **0 warnings** (was 23, all `EncryptedSharedPreferences`/`MasterKey`
+  deprecations in `PatrolActionOutboxTest` and `PatrolGridSnapshotCacheTest`,
+  now suppressed at file scope with a documented rationale — production uses the
+  same `security-crypto:1.1.0` APIs without a stable replacement).
+- **76 remaining lint warnings** are all "consider upgrading" suggestions, not
+  regressions: `AndroidGradlePluginVersion`, `GradleDependency`,
+  `KaptUsageInsteadOfKsp`, `ModifierParameter`, `ObsoleteSdkInt`,
+  `PluralsCandidate`, `UseKtx`. They are tracked as future cleanup, not as
+  release blockers.
+
+This local re-verification does not replace the hosted CI / Motorola on-device
+runs that gate PR #7. It confirms that the current working set still meets the
+release-evidence thresholds on a developer Mac after today's hardening commits.
+
 ## Implemented since the baseline audit
 
 - Explicit mission selection and complete mission detail for both roles.
