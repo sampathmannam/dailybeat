@@ -485,6 +485,19 @@ def _manifest_policy_fixture(tmp_path: Path, mutation: str = "") -> tuple[list[s
     )
     network_value_name = "permissive_network_config" if mutation == "network-concrete-path" else network_name
     file_paths_name = "root_paths" if mutation == "file-resource-confusion" else "file_paths"
+    qualified_resources = {
+        "network-qualified-resource": ("0x7f100002", "network_security_config"),
+        "extraction-qualified-resource": ("0x7f100000", "data_extraction_rules"),
+        "file-qualified-resource": ("0x7f100001", "file_paths"),
+        "network-qualified-alias": ("0x7f100002", "network_security_config"),
+        "extraction-qualified-alias": ("0x7f100000", "data_extraction_rules"),
+        "file-qualified-alias": ("0x7f100001", "file_paths"),
+    }
+    qualified_alias_targets = {
+        "network-qualified-alias": "permissive_network_config",
+        "extraction-qualified-alias": "permissive_data_extraction",
+        "file-qualified-alias": "root_paths",
+    }
     resource_lines = [
         "      spec resource 0x7f100000 "
         f"{policy.PACKAGE}:xml/data_extraction_rules: flags=0x00000000",
@@ -500,6 +513,11 @@ def _manifest_policy_fixture(tmp_path: Path, mutation: str = "") -> tuple[list[s
         resource_lines.append(
             f"      spec resource 0x7f100004 {policy.PACKAGE}:xml/file_paths: flags=0x00000000"
         )
+    if mutation in qualified_alias_targets:
+        resource_lines.append(
+            f"      spec resource 0x7f100005 {policy.PACKAGE}:xml/"
+            f"{qualified_alias_targets[mutation]}: flags=0x00000000"
+        )
     resource_lines.extend([
         "    config (default):",
         f"      resource 0x7f100000 {policy.PACKAGE}:xml/data_extraction_rules: t=0x03 d=0x00000000",
@@ -509,22 +527,22 @@ def _manifest_policy_fixture(tmp_path: Path, mutation: str = "") -> tuple[list[s
         f"      resource 0x7f100002 {policy.PACKAGE}:xml/{network_name}: t=0x03 d=0x00000000",
         f'        (string8) "res/xml/{network_value_name}.xml"',
     ])
-    if mutation in {"network-qualified-resource", "extraction-qualified-resource", "file-qualified-resource"}:
-        resource_id = {
-            "network-qualified-resource": "0x7f100002",
-            "extraction-qualified-resource": "0x7f100000",
-            "file-qualified-resource": "0x7f100001",
-        }[mutation]
-        resource_name = {
-            "network-qualified-resource": "network_security_config",
-            "extraction-qualified-resource": "data_extraction_rules",
-            "file-qualified-resource": "file_paths",
-        }[mutation]
+    if mutation in qualified_alias_targets:
+        alias_name = qualified_alias_targets[mutation]
+        resource_lines.extend([
+            f"      resource 0x7f100005 {policy.PACKAGE}:xml/{alias_name}: t=0x03 d=0x00000000",
+            f'        (string8) "res/xml/{alias_name}.xml"',
+        ])
+    if mutation in qualified_resources:
+        resource_id, resource_name = qualified_resources[mutation]
         resource_lines.extend([
             "    config (v31):",
             f"      resource {resource_id} {policy.PACKAGE}:xml/{resource_name}: t=0x03 d=0x00000000",
-            f'        (string8) "res/xml/{resource_name}.xml"',
         ])
+        if mutation in qualified_alias_targets:
+            resource_lines.append("        (reference) 0x7f100005")
+        else:
+            resource_lines.append(f'        (string8) "res/xml-v31/{resource_name}.xml"')
     resources.write_text("\n".join(resource_lines) + "\n", encoding="utf-8")
     command = [
         str(MANIFEST_VERIFIER), str(manifest), str(resources), str(network), str(extraction),
@@ -547,8 +565,7 @@ def test_release_merged_manifest_policy_accepts_exact_current_contract(tmp_path:
         "sdk", "backup", "cleartext", "permission", "exported", "network", "deeplink",
         "duplicate-metadata", "resource-confusion", "file-resource-confusion", "root-path",
         "provider-authority", "grant-uri", "foreground-service", "intent-attribute",
-        "component-metadata", "network-qualified-resource", "extraction-qualified-resource",
-        "file-qualified-resource", "network-concrete-path",
+        "component-metadata", "network-concrete-path",
     ],
 )
 def test_release_merged_manifest_policy_rejects_security_drift(tmp_path: Path, mutation: str):
@@ -556,6 +573,28 @@ def test_release_merged_manifest_policy_rejects_security_drift(tmp_path: Path, m
     result = subprocess.run(command, text=True, capture_output=True, check=False)
     assert result.returncode != 0
     assert "manifest rejected" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "network-qualified-resource",
+        "extraction-qualified-resource",
+        "file-qualified-resource",
+        "network-qualified-alias",
+        "extraction-qualified-alias",
+        "file-qualified-alias",
+    ],
+)
+def test_release_policy_rejects_every_config_specific_xml_value(
+    tmp_path: Path,
+    mutation: str,
+):
+    command, _ = _manifest_policy_fixture(tmp_path, mutation)
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    assert result.returncode != 0
+    assert "manifest rejected" in result.stderr
+    assert "must have exactly one default compiled resource value" in result.stderr
 
 
 def test_gpg_secret_operations_ignore_persistent_configuration_and_agent():

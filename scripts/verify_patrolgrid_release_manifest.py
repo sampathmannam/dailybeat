@@ -328,7 +328,9 @@ def verify_attributes(
             stop(f"{context} {name} changed")
 
 
-def resource_table(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[str, str]]]]:
+def resource_table(
+    path: Path,
+) -> tuple[dict[str, str], dict[str, list[tuple[str, str | None]]]]:
     """Parse the resource specs and every concrete configuration value.
 
     A manifest reference is not safe merely because its *default* XML is safe:
@@ -337,8 +339,9 @@ def resource_table(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[str
     unqualified value for each release-policy XML resource below.
     """
     result: dict[str, str] = {}
-    configurations: dict[str, list[tuple[str, str]]] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    configurations: dict[str, list[tuple[str, str | None]]] = {}
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for line in lines:
         match = re.fullmatch(
             r"\s*spec resource (0x[0-9a-fA-F]+) ([^\s:]+:[^\s]+): flags=0x[0-9a-fA-F]+",
             line,
@@ -350,15 +353,15 @@ def resource_table(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[str
         if resource_id in result:
             stop(f"compiled resource id is duplicated: {resource_id}")
         result[resource_id] = name
-    # A concrete resource line inherits its immediately preceding config; the
-    # following string8 path is emitted by ``aapt dump --values resources``.
-    active_resource = None
+    # Record every concrete value as soon as its resource line is seen. XML
+    # files normally carry a following string8 path, but a qualified value can
+    # instead be a reference alias. Ignoring non-string values would let a
+    # values-vNN alias override an inspected default XML at runtime.
     active_configuration = None
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for index, line in enumerate(lines):
         config_match = re.fullmatch(r"\s*config \(([^)]*)\):\s*", line)
         if config_match:
             active_configuration = config_match.group(1)
-            active_resource = None
             continue
         value_match = re.fullmatch(r"\s*resource (0x[0-9a-fA-F]+) ([^\s:]+:[^\s]+):.*", line)
         if value_match:
@@ -366,13 +369,14 @@ def resource_table(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[str
             resource_id = resource_id.lower()
             if active_configuration is None or result.get(resource_id) != full_name:
                 stop("compiled resource value does not match its specification")
-            active_resource = (resource_id, active_configuration)
-            continue
-        string_match = re.fullmatch(r'\s*\(string8\) "([^"]+)"', line)
-        if string_match and active_resource is not None:
-            resource_id, configuration = active_resource
-            configurations.setdefault(resource_id, []).append((configuration, string_match.group(1)))
-            active_resource = None
+            value_path = None
+            if index + 1 < len(lines):
+                string_match = re.fullmatch(r'\s*\(string8\) "([^"]+)"', lines[index + 1])
+                if string_match:
+                    value_path = string_match.group(1)
+            configurations.setdefault(resource_id, []).append(
+                (active_configuration, value_path)
+            )
     if not result:
         stop("compiled resource table could not be parsed")
     return result, configurations
@@ -382,7 +386,7 @@ def require_xml_resource(
     reference: str,
     expected_name: str,
     resources: dict[str, str],
-    configurations: dict[str, list[tuple[str, str]]],
+    configurations: dict[str, list[tuple[str, str | None]]],
     context: str,
 ) -> str:
     match = re.fullmatch(r"@ref/(0x[0-9a-f]+)", reference)
