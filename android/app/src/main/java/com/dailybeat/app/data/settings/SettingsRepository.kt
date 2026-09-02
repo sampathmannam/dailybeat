@@ -284,6 +284,13 @@ class SettingsRepository(private val context: Context) {
         prefs.edit { putBoolean(KEY_ONBOARDING, complete) }
     }
 
+    fun hasRequestedLocationPermission(): Boolean =
+        prefs.getBoolean(KEY_LOCATION_PERMISSION_REQUESTED, false)
+
+    fun setRequestedLocationPermission(requested: Boolean) {
+        prefs.edit { putBoolean(KEY_LOCATION_PERMISSION_REQUESTED, requested) }
+    }
+
     fun acknowledgedPatrolGridPrivacyNoticeVersion(): Int =
         prefs.getInt(KEY_PATROLGRID_PRIVACY_NOTICE_VERSION, 0)
 
@@ -329,6 +336,7 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_GPS = "gps_enabled"
         private const val KEY_CALL_LOG = "call_log_enabled"
         private const val KEY_ONBOARDING = "onboarding_complete"
+        private const val KEY_LOCATION_PERMISSION_REQUESTED = "location_permission_requested"
         private const val KEY_CLOUD_ENABLED = "cloud_llm_enabled"
         private const val KEY_CLOUD_PROVIDER = "cloud_provider"
         private const val KEY_CLOUD_MODEL = "cloud_model"

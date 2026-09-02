@@ -122,6 +122,7 @@
     <string name="patrolgrid_privacy_title">Before you use PatrolGrid</string>
     <string name="patrolgrid_privacy_version">Privacy notice · version %1$d</string>
     <string name="patrolgrid_privacy_synthetic_qa_only">Privacy policy configuration is incomplete. This build is restricted to synthetic QA data. Do not sign in with staff accounts, record real locations, or enter operational details.</string>
+    <string name="patrolgrid_location_permission_blocked">Location access is turned off for PatrolGrid. Enable it in Settings to start a patrol.</string>
     <string name="patrolgrid_privacy_tracking_title">When location is collected</string>
     <string name="patrolgrid_privacy_tracking_body">PatrolGrid collects precise route points only after patrol personnel tap Start patrol for an assigned mission. Collection stops when the patrol is ended or its configured duty deadline is reached. Evidence already recorded may upload after tracking stops; that upload does not continue location collection.</string>
     <string name="patrolgrid_privacy_visibility_title">What supervisors can see</string>

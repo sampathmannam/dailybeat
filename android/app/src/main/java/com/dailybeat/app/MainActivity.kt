@@ -1,9 +1,13 @@
 package com.dailybeat.app
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
+import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,6 +51,7 @@ import com.dailybeat.app.ui.auth.PatrolGridPrivacyGate
 import com.dailybeat.app.ui.auth.isPatrolGridPrivacyPolicyConfigured
 import com.dailybeat.app.ui.patrol.PatrolGridAppScaffold
 import com.dailybeat.app.ui.theme.DailyBeatTheme
+import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.launch
 import com.dailybeat.app.patrolgrid.isTransientPatrolGridFailure
 import com.dailybeat.app.security.shouldLockPatrolGrid
@@ -115,6 +120,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestRuntimePermissions() {
+        // Android silently drops the request once location is permanently denied, which
+        // would leave "Start patrol" looking inert. Send the officer to the one screen
+        // that can still restore tracking instead.
+        if (isLocationPermissionPermanentlyDenied()) {
+            openAppLocationSettings()
+            return
+        }
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -122,7 +134,34 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+        (application as DailyBeatApp).settingsRepository.setRequestedLocationPermission(true)
         permissionLauncher.launch(permissions.toTypedArray())
+    }
+
+    private fun isLocationPermissionPermanentlyDenied(): Boolean {
+        if (PermissionHelper.hasLocation(this)) return false
+        // shouldShowRequestPermissionRationale() is also false before the very first ask, so
+        // only treat it as a permanent denial once this install has actually asked.
+        if (!(application as DailyBeatApp).settingsRepository.hasRequestedLocationPermission()) {
+            return false
+        }
+        return !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) &&
+            !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
+    private fun openAppLocationSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = "package:$packageName".toUri()
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { startActivity(intent) }
+            .onFailure {
+                Toast.makeText(
+                    this,
+                    R.string.patrolgrid_location_permission_blocked,
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
     }
 
 }
