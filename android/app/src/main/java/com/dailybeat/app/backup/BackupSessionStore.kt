@@ -1,6 +1,7 @@
 package com.dailybeat.app.backup
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -52,7 +53,7 @@ class EncryptedBackupSessionStore(context: Context) : BackupSessionStore {
     }
 
     override fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     private companion object {

@@ -3,6 +3,7 @@ package com.dailybeat.app.ui.components
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -217,7 +218,7 @@ fun JourneyMapPreview(
                     onClick = {
                         model.openStreetMapUrlOrNull?.let { url ->
                             externalMapError = runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                             }.isFailure
                         }
                     },

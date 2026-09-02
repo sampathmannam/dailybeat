@@ -1,5 +1,6 @@
 package com.dailybeat.app.data.settings
 
+import androidx.core.content.edit
 import android.content.Context
 import com.dailybeat.app.data.model.PatrolRole
 import java.util.UUID
@@ -74,17 +75,17 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun setActivePatrolMission(missionId: String?) {
-        prefs.edit().apply {
+        prefs.edit {
             if (missionId == null) remove(KEY_ACTIVE_PATROL_MISSION)
             else putString(KEY_ACTIVE_PATROL_MISSION, missionId)
-        }.apply()
+        }
     }
 
     fun setActivePatrolSession(sessionId: String?) {
-        prefs.edit().apply {
+        prefs.edit {
             if (sessionId == null) remove(KEY_ACTIVE_PATROL_SESSION)
             else putString(KEY_ACTIVE_PATROL_SESSION, sessionId)
-        }.apply()
+        }
     }
 
     fun setActivePatrolDeadline(deadlineMs: Long?) {

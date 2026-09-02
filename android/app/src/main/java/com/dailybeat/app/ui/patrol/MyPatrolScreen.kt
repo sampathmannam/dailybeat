@@ -1,5 +1,6 @@
 package com.dailybeat.app.ui.patrol
 
+import androidx.core.net.toUri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -353,7 +354,7 @@ private fun MissionBriefingCard(
                         context.startActivity(
                             Intent(
                                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:${context.packageName}"),
+                                "package:${context.packageName}".toUri(),
                             ),
                         )
                     },
