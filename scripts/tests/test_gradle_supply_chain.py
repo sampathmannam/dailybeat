@@ -174,6 +174,26 @@ def test_verification_metadata_has_sha256_for_every_artifact_and_no_bypasses():
     assert netty == {"4.1.136.Final"}
 
 
+def test_verification_metadata_covers_clean_cache_metadata_variants():
+    root = ET.parse(VERIFICATION_FILE).getroot()
+    components = {
+        (component.attrib["group"], component.attrib["name"], component.attrib["version"]): {
+            artifact.attrib["name"]
+            for artifact in component.findall("v:artifact", NAMESPACE)
+        }
+        for component in root.findall("./v:components/v:component", NAMESPACE)
+    }
+
+    assert (
+        "guava-parent-33.3.1-jre.pom"
+        in components[("com.google.guava", "guava-parent", "33.3.1-jre")]
+    )
+    assert {
+        "junit-bom-5.10.2.module",
+        "junit-bom-5.10.2.pom",
+    } <= components[("org.junit", "junit-bom", "5.10.2")]
+
+
 def test_ci_and_security_gradle_commands_enforce_strict_verification():
     for workflow_path in WORKFLOWS:
         workflow = workflow_path.read_text(encoding="utf-8")
