@@ -181,6 +181,30 @@ This local re-verification does not replace the hosted CI / Motorola on-device
 runs that gate PR #7. It confirms that the current working set still meets the
 release-evidence thresholds on a developer Mac after today's hardening commits.
 
+
+## CI verification on macOS, 2026-09-02 → 2026-09-03
+
+With branch `feature/patrol-grid` at HEAD `f2439af`, the developer-Mac
+CI surface was exercised end to end:
+
+- **`./gradlew assembleDebug`** succeeds; debug APK is written to
+  `android/app/build/outputs/apk/debug/app-debug.apk`. All 41 lint-debug
+  tasks executed and completed in ~3 minutes on this Mac.
+- **`./gradlew assembleRelease`** is **intentionally fail-closed**: the
+  `validateReleaseConfiguration` task requires a source-pinned production
+  Supabase origin (`SUPABASE_URL`), an exact SHA-256 of the production
+  anon key (`SUPABASE_ANON_KEY_SHA256`), an `APPROVED` privacy-policy
+  status, and `PATROLGRID_RELEASE_COMMIT` to be the current HEAD. The
+  committed `android/patrolgrid-production.properties` keeps both values
+  at `UNCONFIGURED` until the hosted Supabase project has passed the
+  staging restore, Auth/RLS, backup, and security verifications listed
+  in 'Deployment/operations gates'. No release APK may be produced
+  until that change is reviewed and merged.
+- **`actionlint .github/workflows/*.yml`** reports **0 issues** across
+  `ci.yml`, `release.yml`, and `security.yml`.
+- **`shellcheck -S warning scripts/*.sh`** reports **0 issues** at warning
+  severity across the seven macOS helper scripts.
+
 ## Implemented since the baseline audit
 
 - Explicit mission selection and complete mission detail for both roles.
