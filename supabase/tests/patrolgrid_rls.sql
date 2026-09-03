@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(278);
+select plan(279);
 
 insert into auth.users (
     id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -366,6 +366,40 @@ select is(
                         where oid = 'public.patrolgrid_track_points'::regclass)),
     true,
     'schema owner still holds BYPASSRLS, so FORCE row level security is inert'
+);
+-- The real defence against cross-tenant access is the ownership check inside each
+-- SECURITY DEFINER function, because those run as a BYPASSRLS owner and policies do
+-- not constrain them. FORCE does not provide a second line; this does. Any
+-- SECURITY DEFINER function that `authenticated` can call and that is not a trigger
+-- must derive the caller from auth.uid(), directly or through a helper that does.
+with recursive definer_fns as (
+    select p.oid, p.proname, pg_get_functiondef(p.oid) as body
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef
+      and p.prorettype <> 'trigger'::regtype
+      and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+),
+all_fns as (
+    select p.oid, p.proname, pg_get_functiondef(p.oid) as body
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+),
+identity_safe as (
+    select oid, proname from all_fns where body like '%auth.uid()%'
+    union
+    select f.oid, f.proname
+    from all_fns f
+    join identity_safe s on f.body like '%' || s.proname || '%' and f.oid <> s.oid
+)
+select is(
+    (select coalesce(string_agg(d.proname, ', ' order by d.proname), '')
+       from definer_fns d
+      where d.oid not in (select oid from identity_safe)),
+    '',
+    'every authenticated-callable SECURITY DEFINER function derives the caller from auth.uid()'
 );
 select is(
     has_function_privilege('authenticated', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE')
