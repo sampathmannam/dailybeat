@@ -141,6 +141,12 @@ fun EndPatrolConfirmationDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // RadioButton(onClick = null) is decorative, so Material never
+                            // applies its 48dp minimum here and the row collapsed to 42dp.
+                            // Measured on a 1080x2400 emulator: 111px rows against a 126px
+                            // minimum. This is the reason a patrol ended, recorded as
+                            // evidence, chosen one-handed in the field.
+                            .heightIn(min = 48.dp)
                             .selectable(
                                 selected = reason == option,
                                 onClick = { reason = option },
