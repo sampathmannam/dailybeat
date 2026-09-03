@@ -15,6 +15,10 @@
         <item quantity="one">Journey map (%1$d point)</item>
         <item quantity="other">Journey map (%1$d points)</item>
     </plurals>
+    <plurals name="patrolgrid_points">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
     <plurals name="patrolgrid_route_points">
         <item quantity="one">%1$d route point</item>
         <item quantity="other">%1$d route points</item>

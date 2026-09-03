@@ -45,7 +45,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
+import com.dailybeat.app.R
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
@@ -163,7 +165,11 @@ fun MyPatrolScreen(
                     Text(
                         when {
                             state.selectedEvidenceTrackPointCount > 0 ->
-                                "${state.selectedEvidenceTrackPointCount} points"
+                                pluralStringResource(
+                                    R.plurals.patrolgrid_points,
+                                    state.selectedEvidenceTrackPointCount,
+                                    state.selectedEvidenceTrackPointCount,
+                                )
                             state.trackingActive -> "Tracking active"
                             else -> "Waiting to start"
                         },
