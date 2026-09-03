@@ -115,7 +115,8 @@ def test_open_source_map_and_fixed_retention_remain_release_policy():
         ROOT
         / "android/app/src/main/java/com/dailybeat/app/ui/patrol/PatrolGeographicRouteMap.kt"
     ).read_text(encoding="utf-8")
-    assert 'openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/fiord"' in GRADLE
+    assert 'openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/liberty"' in GRADLE
+    assert 'openFreeMapDarkStyleUrl = "https://tiles.openfreemap.org/styles/fiord"' in GRADLE
     assert 'implementation("org.maplibre.gl:android-sdk:' in GRADLE
     assert "PATROLGRID_MAP_STYLE_URL: ${{ secrets." not in WORKFLOW
     assert "uiSettings.isAttributionEnabled = true" in map_source

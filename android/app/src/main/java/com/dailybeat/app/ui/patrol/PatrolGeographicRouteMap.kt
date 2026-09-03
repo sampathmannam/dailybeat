@@ -38,11 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.dailybeat.app.BuildConfig
 import com.dailybeat.app.data.model.PriorityLocation
 import com.dailybeat.app.data.model.PriorityLocationState
 import com.dailybeat.app.patrolgrid.PatrolMapPoint
 import com.dailybeat.app.security.MapCachePrivacy
+import com.dailybeat.app.ui.components.patrolMapStyleUrl
 import com.dailybeat.app.ui.theme.Gold
 import com.dailybeat.app.ui.theme.Navy
 import com.dailybeat.app.ui.theme.SuccessGreen
@@ -92,7 +92,7 @@ internal fun PatrolGeographicRouteMap(
     totalRecordedPoints: Int,
     modifier: Modifier = Modifier,
 ) {
-    val styleUrl = BuildConfig.PATROLGRID_MAP_STYLE_URL
+    val styleUrl = patrolMapStyleUrl()
     var mapAttempt by remember(styleUrl) { mutableIntStateOf(0) }
     var mapError by remember(styleUrl, mapAttempt) { mutableStateOf(styleUrl.isBlank()) }
     var map by remember(styleUrl, mapAttempt) { mutableStateOf<MapLibreMap?>(null) }

@@ -53,13 +53,20 @@ val debugSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
     .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
     .getOrElse("")
     .trim()
-val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/fiord"
+val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/liberty"
+val openFreeMapDarkStyleUrl = "https://tiles.openfreemap.org/styles/fiord"
 val debugPatrolGridMapStyleUrlOverride = providers.gradleProperty("PATROLGRID_MAP_STYLE_URL")
     .orElse(providers.environmentVariable("PATROLGRID_MAP_STYLE_URL"))
     .getOrElse("")
     .trim()
 val debugPatrolGridMapStyleUrl =
     debugPatrolGridMapStyleUrlOverride.ifBlank { openFreeMapStyleUrl }
+val debugPatrolGridMapStyleUrlDarkOverride = providers.gradleProperty("PATROLGRID_MAP_STYLE_URL_DARK")
+    .orElse(providers.environmentVariable("PATROLGRID_MAP_STYLE_URL_DARK"))
+    .getOrElse("")
+    .trim()
+val debugPatrolGridMapStyleUrlDark =
+    debugPatrolGridMapStyleUrlDarkOverride.ifBlank { openFreeMapDarkStyleUrl }
 val debugPatrolGridPrivacyPolicyUrl = providers.gradleProperty("PATROLGRID_PRIVACY_POLICY_URL")
     .orElse(providers.environmentVariable("PATROLGRID_PRIVACY_POLICY_URL"))
     .getOrElse("")
@@ -68,6 +75,7 @@ val releaseSupabaseUrl = supabaseUrlFromEnvironment
 val releaseSupabaseAnonKey = supabaseAnonKeyFromEnvironment
 val releasePatrolGridPrivacyPolicyUrl = patrolGridPrivacyPolicyUrlFromEnvironment
 val releasePatrolGridMapStyleUrl = openFreeMapStyleUrl
+val releasePatrolGridMapStyleUrlDark = openFreeMapDarkStyleUrl
 val releasePatrolGridCommit = patrolGridReleaseCommitFromEnvironment
 // PatrolGrid's approved evidence-retention policy is part of the app identity,
 // not a release-time switch. Policy changes require reviewed source and a new APK.
@@ -126,6 +134,11 @@ android {
         )
         buildConfigField(
             "String",
+            "PATROLGRID_MAP_STYLE_URL_DARK",
+            quotedBuildConfig(debugPatrolGridMapStyleUrlDark),
+        )
+        buildConfigField(
+            "String",
             "PATROLGRID_PRIVACY_POLICY_URL",
             quotedBuildConfig(debugPatrolGridPrivacyPolicyUrl),
         )
@@ -175,6 +188,11 @@ android {
                 "String",
                 "PATROLGRID_MAP_STYLE_URL",
                 quotedBuildConfig(releasePatrolGridMapStyleUrl),
+            )
+            buildConfigField(
+                "String",
+                "PATROLGRID_MAP_STYLE_URL_DARK",
+                quotedBuildConfig(releasePatrolGridMapStyleUrlDark),
             )
             buildConfigField(
                 "String",
@@ -283,6 +301,7 @@ val validateReleaseConfiguration by tasks.registering {
             "SUPABASE_ANON_KEY",
             "PATROLGRID_PRIVACY_POLICY_URL",
             "PATROLGRID_MAP_STYLE_URL",
+            "PATROLGRID_MAP_STYLE_URL_DARK",
             "PATROLGRID_RELEASE_COMMIT",
             "PATROLGRID_BACKEND_IDENTITY",
             "PATROLGRID_PRIVACY_POLICY_STATUS",
@@ -294,6 +313,9 @@ val validateReleaseConfiguration by tasks.registering {
         }
         check(!providers.environmentVariable("PATROLGRID_MAP_STYLE_URL").isPresent) {
             "Release PatrolGrid builds reject PATROLGRID_MAP_STYLE_URL environment overrides."
+        }
+        check(!providers.environmentVariable("PATROLGRID_MAP_STYLE_URL_DARK").isPresent) {
+            "Release PatrolGrid builds reject PATROLGRID_MAP_STYLE_URL_DARK environment overrides."
         }
         check(!providers.environmentVariable("PATROLGRID_BACKEND_IDENTITY").isPresent) {
             "Release PatrolGrid backend identity is source-pinned and cannot be environment-overridden."
@@ -345,6 +367,12 @@ val validateReleaseConfiguration by tasks.registering {
         }
         check(isHttpsUrl(releasePatrolGridMapStyleUrl)) {
             "PatrolGrid's source-pinned OpenFreeMap style must use HTTPS."
+        }
+        check(releasePatrolGridMapStyleUrlDark == openFreeMapDarkStyleUrl) {
+            "Release PatrolGrid builds must use the source-pinned OpenFreeMap dark style."
+        }
+        check(isHttpsUrl(releasePatrolGridMapStyleUrlDark)) {
+            "PatrolGrid's source-pinned OpenFreeMap dark style must use HTTPS."
         }
         check(isHttpsUrl(releasePatrolGridPrivacyPolicyUrl)) {
             "Release PatrolGrid builds require an HTTPS PATROLGRID_PRIVACY_POLICY_URL."
@@ -419,6 +447,7 @@ val verifyReleaseBuildConfigValues by tasks.registering {
         verifySingleStringField("PATROLGRID_PRIVACY_POLICY_STATUS", expectedPrivacyPolicyStatus)
         verifySingleStringField("PATROLGRID_PRIVACY_POLICY_URL", releasePatrolGridPrivacyPolicyUrl)
         verifySingleStringField("PATROLGRID_MAP_STYLE_URL", openFreeMapStyleUrl)
+        verifySingleStringField("PATROLGRID_MAP_STYLE_URL_DARK", openFreeMapDarkStyleUrl)
         verifySingleStringField("APPLICATION_ID", patrolGridApplicationId)
         check(
             generatedSource.lineSequence().map(String::trim).count {

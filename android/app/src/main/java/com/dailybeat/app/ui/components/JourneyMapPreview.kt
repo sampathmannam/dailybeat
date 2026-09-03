@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.dailybeat.app.BuildConfig
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.security.MapCachePrivacy
@@ -68,8 +67,6 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlin.math.roundToInt
 
-private val mapStyleUrl: String
-    get() = BuildConfig.PATROLGRID_MAP_STYLE_URL
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
 private const val ROUTE_LAYER_ID = "dailybeat-route-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
@@ -90,6 +87,7 @@ fun JourneyMapPreview(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
+    val mapStyleUrl = patrolMapStyleUrl()
     val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
