@@ -5,6 +5,27 @@ always with its explicit adb serial. Debug/QA uses
 `com.dailybeat.app.patrolgrid.qa`; production uses
 `com.dailybeat.app.patrolgrid`.
 
+## Verifying device-only changes
+
+`assembleDebug`, `testDebugUnitTest` and `lintDebug` never execute a Room migration,
+a Keystore operation, or the foreground service. A change to any of those is not
+verified until the instrumentation suite has run:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Match CI's API level when you do. `.github/workflows/ci.yml` pins `api-level: 36`.
+On an API 37 AVD the whole `MainNavigationTest` class fails with
+`NoSuchMethodException: android.hardware.input.InputManager.getInstance`, because
+Espresso calls a method removed in 37. That failure is an emulator mismatch, not a
+regression, and it makes the local run impossible to read at face value.
+
+```bash
+sdkmanager --install "system-images;android-36;google_apis;arm64-v8a"
+avdmanager create avd -n patrolgrid-ci36 -k "system-images;android-36;google_apis;arm64-v8a"
+```
+
 ## QA development
 
 ```bash

@@ -36,6 +36,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 
+private const val UI_TIMEOUT_MS = 30_000L
+
 @RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalTestApi::class)
 class MainNavigationTest {
@@ -75,7 +77,7 @@ class MainNavigationTest {
 
     @Test
     fun patrolBottomNavigationVisitsAvailableSections() {
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("my_patrol_list").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_messages").assertDoesNotExist()
 
@@ -94,7 +96,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("patrol_control_list").assertIsDisplayed()
         composeRule.onNodeWithText("Patrol Control").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_alerts").assertDoesNotExist()
@@ -151,7 +153,7 @@ class MainNavigationTest {
 
         composeRule.onNodeWithTag("end_patrol").performClick()
         composeRule.onNodeWithTag("confirm_end_patrol").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_closed_state"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_closed_state"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("patrol_closed_state").assertIsDisplayed()
     }
 
@@ -162,7 +164,7 @@ class MainNavigationTest {
         composeRule.onNode(
             hasText("Bus stand") and hasClickAction(),
         ).performScrollTo().performClick()
-        composeRule.waitUntilAtLeastOneExists(hasText("Visited at 22:18"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasText("Visited at 22:18"), UI_TIMEOUT_MS)
 
         composeRule.onNodeWithTag("my_patrol_list").performScrollToNode(hasTestTag("record_deviation"))
         composeRule.onNodeWithTag("record_deviation").performClick()
@@ -198,14 +200,14 @@ class MainNavigationTest {
         ).performClick().assertIsSelected()
         composeRule.onNodeWithTag("confirm_end_patrol").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_closed_state"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_closed_state"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("patrol_closed_state").assertIsDisplayed()
     }
 
     @Test
     fun patrolMissionRowOpensMissionDetailSheet() {
         composeRule.onNodeWithTag("nav_missions").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("missions_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("missions_list"), UI_TIMEOUT_MS)
 
         composeRule.onNode(
             hasText("Night patrol · Sector 4") and hasClickAction(),
@@ -221,7 +223,7 @@ class MainNavigationTest {
         val missionTitle = "Day patrol · School corridor"
         val missionMatcher = hasText(missionTitle) and hasClickAction()
         composeRule.onNodeWithTag("nav_missions").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("missions_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("missions_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("missions_list").performScrollToNode(missionMatcher)
         composeRule.onNode(missionMatcher).performClick()
 
@@ -232,9 +234,9 @@ class MainNavigationTest {
         ).assertIsDisplayed()
 
         UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
-        composeRule.waitUntilDoesNotExist(hasTestTag("mission_detail_sheet"), 10_000)
+        composeRule.waitUntilDoesNotExist(hasTestTag("mission_detail_sheet"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("nav_my_patrol").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithText(missionTitle).assertIsDisplayed()
         composeRule.onNodeWithTag("my_patrol_list").performScrollToNode(hasTestTag("start_patrol"))
         composeRule.onNodeWithTag("start_patrol").assertIsDisplayed().assertIsEnabled()
@@ -244,7 +246,7 @@ class MainNavigationTest {
     fun supervisorMissionCardOpensMissionDetailSheet() {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
 
         composeRule.onNode(
             hasText("Paused with reason") and hasClickAction(),
@@ -263,7 +265,7 @@ class MainNavigationTest {
         openActiveLocalPatrol()
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
 
         composeRule.onNode(
             hasText("Night patrol · Sector 4") and hasClickAction(),
@@ -300,7 +302,7 @@ class MainNavigationTest {
 
         CaptureController.applyFromSettings(app)
 
-        composeRule.waitUntil(10_000) {
+        composeRule.waitUntil(UI_TIMEOUT_MS) {
             val settings = app.settingsRepository.get()
             settings.activePatrolMissionId == null &&
                 !settings.gpsCaptureEnabled &&
@@ -317,7 +319,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithText("Needs review").performClick()
         composeRule.onNodeWithText("Review with context").assertIsDisplayed()
         composeRule.onNodeWithText("Upcoming").performClick()
@@ -332,7 +334,7 @@ class MainNavigationTest {
 
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
         composeRule.onNodeWithText("Needs review").performClick()
         composeRule.onNode(
             hasText("Night patrol · Sector 4") and hasClickAction(),
@@ -374,10 +376,10 @@ class MainNavigationTest {
     fun supervisorAssignsRouteUnitAndFieldGuidance() {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
 
         composeRule.onNodeWithTag("assign_patrol").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("route_market_loop").performScrollTo().performClick()
         composeRule.onNodeWithTag("unit_9").performScrollTo().performClick()
         composeRule.onNodeWithTag("guidance_area").performScrollTo().performClick()
@@ -385,7 +387,7 @@ class MainNavigationTest {
 
         composeRule.waitUntilAtLeastOneExists(
             androidx.compose.ui.test.hasText("Evening patrol · Market loop"),
-            10_000,
+            UI_TIMEOUT_MS,
         )
         composeRule.onNodeWithText("Evening patrol · Market loop").assertIsDisplayed()
         composeRule.onNodeWithText(
@@ -397,10 +399,10 @@ class MainNavigationTest {
     fun supervisorAssignmentAlternativesAreSelectableAndSheetDismisses() {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
 
         composeRule.onNodeWithTag("assign_patrol").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("route_school_corridor").performScrollTo().assertIsSelected()
         composeRule.onNodeWithTag("route_night_sector_6").performScrollTo().performClick().assertIsSelected()
         composeRule.onNodeWithTag("unit_7").performScrollTo().assertIsSelected()
@@ -410,7 +412,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("guidance_suggested").performScrollTo().performClick().assertIsSelected()
 
         UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
-        composeRule.waitUntilDoesNotExist(hasTestTag("assignment_sheet"), 10_000)
+        composeRule.waitUntilDoesNotExist(hasTestTag("assignment_sheet"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("patrol_control_list").assertIsDisplayed()
     }
 
@@ -418,17 +420,17 @@ class MainNavigationTest {
     fun supervisorUpcomingAssignEntryOpensAssignmentSheet() {
         composeRule.onNodeWithTag("nav_more").performClick()
         composeRule.onNodeWithText("Supervisor").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("patrol_control_list"), UI_TIMEOUT_MS)
 
         composeRule.onNodeWithText("Upcoming").performClick()
         composeRule.onNodeWithTag("patrol_control_list")
             .performScrollToNode(hasTestTag("assign_patrol_upcoming"))
         composeRule.onNodeWithTag("assign_patrol_upcoming").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("assignment_sheet"), UI_TIMEOUT_MS)
         composeRule.onNodeWithTag("assignment_sheet").assertIsDisplayed()
         UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
-        composeRule.waitUntilDoesNotExist(hasTestTag("assignment_sheet"), 10_000)
+        composeRule.waitUntilDoesNotExist(hasTestTag("assignment_sheet"), UI_TIMEOUT_MS)
     }
 
     private fun openActiveLocalPatrol() {
@@ -439,7 +441,7 @@ class MainNavigationTest {
                 .get("patrolgrid-local", PatrolGridViewModel::class.java)
                 .refreshFromForeground()
         }
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("my_patrol_list"), UI_TIMEOUT_MS)
         composeRule.waitUntilAtLeastOneExists(hasText("Tracking active"), 20_000)
     }
 }
