@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import random
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,14 @@ if not CONTEXT_PATH.exists():
         f"Missing {CONTEXT_PATH}. Run tools/patrolgrid/supabase_e2e.py against local Supabase first."
     )
 CONTEXT = json.loads(CONTEXT_PATH.read_text(encoding="utf-8"))
-SEQUENCES = itertools.count(10_000)
+
+# Give every run its own band of sequence numbers. Track points are unique on
+# (session_id, sequence_number), so a fixed start replays numbers the previous run
+# already used, and the server correctly rejects them as reused evidence. That made a
+# second run against one context fail even though nothing was wrong. Bands stay well
+# inside int4, which is what the column is.
+SEQUENCE_BAND = 20_000
+SEQUENCES = itertools.count(10_000 + random.randrange(100_000) * SEQUENCE_BAND)
 
 
 class PatrolGridApiUser(HttpUser):
@@ -47,16 +55,27 @@ class PatrolGridApiUser(HttpUser):
                 )
 
     @task(4)
-    def read_own_recent_route(self) -> None:
+    def read_session_evidence_trail(self) -> None:
+        # Mirror SupabasePatrolGridClient.loadEvidenceTrail exactly. An unscoped read
+        # ordered by recorded_at is not a shape the Android client ever issues, and it
+        # measures the pathological plan: row-level security cannot use an index for it,
+        # so it degrades into a full sequential scan as track points accumulate and the
+        # gate stops reflecting production.
         with self.client.get(
-            "/rest/v1/patrolgrid_track_points?select=recorded_at,latitude,longitude,accuracy_m"
-            "&order=recorded_at.desc&limit=100",
+            "/rest/v1/patrolgrid_track_points?select=session_id,latitude,longitude"
+            f"&session_id=eq.{CONTEXT['session_id']}"
+            "&order=recorded_at.desc,sequence_number.desc&limit=1000",
             headers=self.headers,
-            name="GET own recent route",
+            name="GET session evidence trail",
             catch_response=True,
         ) as response:
             if response.status_code != 200:
                 response.failure(f"Unexpected HTTP {response.status_code}")
+                return
+            rows = response.json()
+            foreign = [row for row in rows if row["session_id"] != CONTEXT["session_id"]]
+            if foreign:
+                response.failure("Evidence trail returned a point from another session")
 
     @task(3)
     def append_route_point(self) -> None:
