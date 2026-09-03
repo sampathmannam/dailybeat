@@ -10,9 +10,6 @@ import com.dailybeat.app.backup.BackupCoordinator
 import com.dailybeat.app.backup.EncryptedBackupSessionStore
 import com.dailybeat.app.backup.LocalBackupStore
 import com.dailybeat.app.backup.SupabaseBackupClient
-import com.dailybeat.app.cloud.CloudLlmClient
-import com.dailybeat.app.cloud.PulseReportGenerator
-import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
@@ -25,11 +22,6 @@ import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.PatrolGridRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
-import com.dailybeat.app.cloud.WeeklyReportGenerator
-import com.dailybeat.app.export.PackageExporter
-import com.dailybeat.app.export.PdfExporter
-import com.dailybeat.app.geo.OsmGeocoder
-import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.security.PatrolTrackCipher
 import com.dailybeat.app.patrolgrid.SupabasePatrolGridClient
 import com.dailybeat.app.patrolgrid.PatrolTrackSyncer
@@ -76,8 +68,6 @@ class DailyBeatApp : Application() {
             )
             .build()
     }
-
-    val eventExtractor: EventExtractor by lazy { EventExtractor(cloudLlm, settingsRepository) }
 
     val eventRepository: EventRepository by lazy { EventRepository(db.events()) }
 
@@ -154,47 +144,6 @@ class DailyBeatApp : Application() {
     }
 
     val backupCoordinator by lazy { BackupCoordinator(localBackupStore, backupClient) }
-
-    val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
-
-    val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes()) }
-
-    val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
-
-    val reportGenerator: ReportGenerator by lazy {
-        ReportGenerator(
-            settingsRepository = settingsRepository,
-            cloudLlm = cloudLlm,
-            visitRepository = visitRepository,
-            eventRepository = eventRepository,
-            diaryRepository = diaryRepository,
-            appContext = this,
-        )
-    }
-
-    val pulseGenerator: PulseReportGenerator by lazy {
-        PulseReportGenerator(
-            settingsRepository = settingsRepository,
-            cloudLlm = cloudLlm,
-            visitRepository = visitRepository,
-            eventRepository = eventRepository,
-            diaryRepository = diaryRepository,
-        )
-    }
-
-    val weeklyGenerator: WeeklyReportGenerator by lazy {
-        WeeklyReportGenerator(
-            settingsRepository = settingsRepository,
-            cloudLlm = cloudLlm,
-            visitRepository = visitRepository,
-            eventRepository = eventRepository,
-            diaryRepository = diaryRepository,
-        )
-    }
-
-    val packageExporter: PackageExporter by lazy {
-        PackageExporter(this, diaryRepository, pdfExporter)
-    }
 
     override fun onCreate() {
         super.onCreate()

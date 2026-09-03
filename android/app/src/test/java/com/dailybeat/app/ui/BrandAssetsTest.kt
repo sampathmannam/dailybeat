@@ -27,19 +27,13 @@ class BrandAssetsTest {
         assertFalse("fully offline" in strings)
         assertFalse("local gguf" in strings)
         assertFalse("local model" in strings)
-        assertFalse("(offline)" in source("export/PdfExporter.kt").lowercase())
     }
 
     @Test
     fun userFacingDiaryCopyDoesNotContainDairyTypo() {
         val strings = visibleStrings()
-        val prompt = source("llm/DairyPrompt.kt").lowercase()
-        val diaryScreen = source("ui/diary/DiaryScreen.kt").lowercase()
 
         assertFalse("dairy" in strings)
-        assertFalse("formal dairy" in prompt)
-        assertFalse("ips dairy" in prompt)
-        assertFalse("share dairy pdf" in diaryScreen)
     }
 
     @Test
@@ -85,25 +79,71 @@ class BrandAssetsTest {
         assertFalse("context.getSharedPreferences" in keyStore)
     }
 
+    /**
+     * The legacy DailyBeat capture-and-upload stack was removed because it shipped
+     * third-party network egress and external-storage writes into a police build that
+     * never reached any of it. Nothing here is allowed to come back by accident: each
+     * of these either talks to a third party or writes patrol data somewhere
+     * `allowBackup=false` does not cover.
+     */
     @Test
-    fun officerNameIsReadableWhileApiKeyIsMasked() {
-        val settings = source("ui/settings/SettingsScreen.kt")
-        val officerField = settings.substringAfter("value = state.officerName")
-            .substringBefore("value = state.supervisorName")
-        val apiKeyField = settings.substringAfter("value = state.apiKeyDraft")
-            .substringBefore("if (state.hasApiKey)")
-
-        assertFalse("PasswordVisualTransformation" in officerField)
-        assertTrue("PasswordVisualTransformation" in apiKeyField)
-        assertTrue("KeyboardType.Password" in apiKeyField)
+    fun legacyCaptureAndEgressStackStaysDeleted() {
+        val removed = listOf(
+            "capture/VoiceCaptureOrchestrator.kt",
+            "capture/SpeechTranscriber.kt",
+            "capture/WhisperBridge.kt",
+            "capture/VoiceRecorder.kt",
+            "capture/CallLogWorker.kt",
+            "capture/VisitTracker.kt",
+            "geo/OsmGeocoder.kt",
+            "cloud/CloudLlmClient.kt",
+            "audit/CaptureAuditLog.kt",
+            "export/PdfExporter.kt",
+            "export/PackageExporter.kt",
+        )
+        val resurrected = removed.filter {
+            File("src/main/java/com/dailybeat/app/$it").exists()
+        }
+        assertTrue(
+            "Legacy capture/egress files are back: $resurrected",
+            resurrected.isEmpty(),
+        )
     }
 
+    /**
+     * PatrolGrid may contact its own Supabase backend and the pinned OpenFreeMap tile
+     * host, and nothing else. A police build must not acquire a new outbound host
+     * without that being a deliberate, reviewed change.
+     */
     @Test
-    fun productionVoiceCaptureNeverInventsAnEmulatorTranscript() {
-        val orchestrator = source("capture/VoiceCaptureOrchestrator.kt")
+    fun sourceContainsNoUnapprovedOutboundHosts() {
+        val allowed = setOf(
+            "tiles.openfreemap.org",
+            "fonts.googleapis.com",
+            "schemas.android.com",
+            "www.w3.org",
+            "maven.apache.org",
+        )
+        val offenders = mutableListOf<String>()
+        File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { file ->
+                Regex("""https://([a-zA-Z0-9.-]+)""").findAll(file.readText())
+                    .map { it.groupValues[1] }
+                    .filter { host -> host !in allowed && !host.endsWith(".supabase.co") }
+                    .forEach { host -> offenders += "${file.name}: $host" }
+            }
+        assertTrue("Unapproved outbound hosts in source: $offenders", offenders.isEmpty())
+    }
 
-        assertFalse("emulatorDemoTranscript" in orchestrator)
-        assertFalse(File("src/main/java/com/dailybeat/app/capture/WhisperBridge.kt").exists())
-        assertFalse(File("src/main/java/com/dailybeat/app/capture/VoiceRecorder.kt").exists())
+    /** External storage is the one location `allowBackup=false` does not protect. */
+    @Test
+    fun noSourceWritesPatrolDataToExternalStorage() {
+        val offenders = File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { "getExternalFilesDir" in it.readText() || "getExternalStorageDirectory" in it.readText() }
+            .map { it.name }
+            .toList()
+        assertTrue("Source writes to external storage: $offenders", offenders.isEmpty())
     }
 }
