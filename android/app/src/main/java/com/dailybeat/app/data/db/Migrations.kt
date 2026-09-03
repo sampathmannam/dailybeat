@@ -113,7 +113,10 @@ fun migration5To6(cipher: PatrolTrackCipher) = object : Migration(5, 6) {
         // is the one place the database has ever held plaintext coordinates. VACUUM
         // would also reclaim the pages but cannot run inside the transaction Room
         // wraps a migration in.
-        db.execSQL("PRAGMA secure_delete = ON")
+        // Run through query(), not execSQL(): a PRAGMA that sets a value also returns
+        // it, and execSQL rejects any statement producing a result row with
+        // "Queries can be performed using SQLiteDatabase query or rawQuery methods only".
+        db.query("PRAGMA secure_delete = ON").use { it.moveToFirst() }
         db.execSQL("DROP TABLE patrol_track_points")
         db.execSQL("ALTER TABLE patrol_track_points_secure RENAME TO patrol_track_points")
         db.execSQL(
