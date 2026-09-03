@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,7 +89,7 @@ fun PatrolFieldUpdateDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
 ) {
-    var detail by remember(kind) { mutableStateOf("") }
+    var detail by rememberSaveable(kind) { mutableStateOf("") }
     AlertDialog(
         modifier = Modifier.testTag("field_update_dialog"),
         onDismissRequest = onDismiss,
@@ -125,7 +126,7 @@ fun EndPatrolConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: (PatrolEndReason) -> Unit,
 ) {
-    var reason by remember { mutableStateOf(PatrolEndReason.COMPLETED) }
+    var reason by rememberSaveable { mutableStateOf(PatrolEndReason.COMPLETED) }
     AlertDialog(
         modifier = Modifier.testTag("end_patrol_dialog"),
         onDismissRequest = onDismiss,
@@ -588,8 +589,8 @@ fun PatrolReviewDialog(
     onDismiss: () -> Unit,
     onSubmit: (SupervisorReviewOutcome, String) -> Unit,
 ) {
-    var outcome by remember { mutableStateOf(SupervisorReviewOutcome.APPROVED) }
-    var notes by remember { mutableStateOf("") }
+    var outcome by rememberSaveable { mutableStateOf(SupervisorReviewOutcome.APPROVED) }
+    var notes by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         // The review notes field is required, so the keyboard is always up when the
         // supervisor reaches the buttons. Without imePadding the dialog keeps its

@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +50,11 @@ fun PatrolGridLoginScreen(
     locked: Boolean = false,
     onSignIn: (email: String, password: String) -> Unit,
 ) {
-    var email by remember { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    // password stays a plain remember on purpose. rememberSaveable writes through to the
+    // savedInstanceState Bundle, which the system may persist to disk and which turns up
+    // in process dumps; an email is worth restoring across a rotation, a password is not
+    // worth putting there. Retyping it is the cheaper cost.
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 

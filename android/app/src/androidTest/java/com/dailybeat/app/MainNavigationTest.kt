@@ -130,6 +130,30 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("field_update_dialog").assertDoesNotExist()
     }
 
+    /**
+     * Rotating the phone used to close the dialog and discard everything typed into it:
+     * the dialog flag and the note text were both plain `remember`, so an activity
+     * recreation dropped them. An officer writing why a patrol left its route would lose
+     * the note to an accidental rotation, silently. Found by rotating an emulator with a
+     * note half-written, not by reading the code.
+     */
+    @Test
+    fun aHalfWrittenNoteSurvivesActivityRecreation() {
+        openActiveLocalPatrol()
+        composeRule.onNodeWithTag("my_patrol_list").performScrollToNode(hasTestTag("add_observation"))
+        composeRule.onNodeWithTag("add_observation").performClick()
+        composeRule.onNodeWithTag("field_update_dialog").assertIsDisplayed()
+        composeRule.onNodeWithTag("observation_detail")
+            .performTextInput("Half written note that must survive")
+        composeRule.waitForIdle()
+
+        composeRule.activityRule.scenario.recreate()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("field_update_dialog"), UI_TIMEOUT_MS)
+        composeRule.onNodeWithTag("field_update_dialog").assertIsDisplayed()
+        composeRule.onNodeWithText("Half written note that must survive").assertIsDisplayed()
+    }
+
     @Test
     fun patrolEndRequiresConfirmation() {
         openActiveLocalPatrol()

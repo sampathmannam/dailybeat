@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +44,9 @@ fun OnboardingScreen(
     onComplete: (officerName: String, role: PatrolRole) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var step by remember { mutableIntStateOf(0) }
-    var officerName by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf(PatrolRole.PATROL) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var officerName by rememberSaveable { mutableStateOf("") }
+    var role by rememberSaveable { mutableStateOf(PatrolRole.PATROL) }
 
     Surface(
         modifier = modifier.fillMaxSize(),

@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -178,9 +179,9 @@ private fun PatrolGridScaffoldContent(
     onAcknowledgeRetentionIncident: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    var fieldEditor by remember { mutableStateOf<PatrolFieldUpdateKind?>(null) }
-    var endConfirmationOpen by remember { mutableStateOf(false) }
-    var reviewEditorOpen by remember { mutableStateOf(false) }
+    var fieldEditor by rememberSaveable { mutableStateOf<PatrolFieldUpdateKind?>(null) }
+    var endConfirmationOpen by rememberSaveable { mutableStateOf(false) }
+    var reviewEditorOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.messageId) {
         if (state.messageId > 0 && state.message != null) {
             snackbarHostState.showSnackbar(state.message)
