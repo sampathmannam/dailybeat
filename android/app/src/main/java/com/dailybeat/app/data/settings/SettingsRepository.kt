@@ -153,6 +153,20 @@ class SettingsRepository(private val context: Context) {
         }.commit()) { "Unable to persist the pending patrol close." }
     }
 
+    /**
+     * Deliberately kept in the plain preference file, not an encrypted store.
+     *
+     * This value is an authorization gate, not a label: MainActivity refuses sign-in
+     * when it is non-null and differs from the officer signing in, which is what stops
+     * a second officer taking over a device still holding the first officer's
+     * unsynchronized patrol evidence. Every encrypted preference reader in this app
+     * returns null on failure (runCatching{}.getOrNull()), and a null here
+     * short-circuits that comparison and OPENS the gate. Encrypting this field would
+     * therefore turn a Keystore fault into a cross-officer evidence disclosure.
+     *
+     * If it is ever moved, the read path must fail CLOSED - an unreadable owner has to
+     * block sign-in, not permit it.
+     */
     fun setPatrolEvidenceOwner(userId: String?) {
         check(prefs.edit().apply {
             if (userId.isNullOrBlank()) remove(KEY_PATROL_EVIDENCE_OWNER)

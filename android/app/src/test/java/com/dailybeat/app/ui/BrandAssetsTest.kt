@@ -132,6 +132,34 @@ class BrandAssetsTest {
     }
 
     /**
+     * patrol_evidence_owner gates sign-in when a device holds another officer's
+     * unsynchronized evidence. Encrypted stores here read through
+     * runCatching{}.getOrNull(), so moving this key into one makes a Keystore fault
+     * return null, short-circuit the gate condition and let the second officer in.
+     * Keep it in the plain store until the gate itself fails closed.
+     */
+    @Test
+    fun theEvidenceOwnerGateIsNotMovedToAFailSoftStore() {
+        val settings = source("data/settings/SettingsRepository.kt")
+        assertTrue(
+            "patrol_evidence_owner must stay in the plain preference file",
+            "getSharedPreferences(\"dailybeat_settings\"" in settings,
+        )
+        // Match the construction call, not the class name: the note on
+        // setPatrolEvidenceOwner explains the hazard and necessarily names the class.
+        assertFalse(
+            "SettingsRepository must not build an EncryptedSharedPreferences while it " +
+                "holds the evidence-owner gate; see the note on setPatrolEvidenceOwner",
+            "EncryptedSharedPreferences.create(" in settings,
+        )
+        val gate = source("MainActivity.kt")
+        assertTrue(
+            "the evidence-owner gate is gone from MainActivity",
+            "pendingOwner != null && pendingOwner != identity.userId" in gate,
+        )
+    }
+
+    /**
      * PatrolGrid may contact its own Supabase backend and the pinned OpenFreeMap tile
      * host, and nothing else. A police build must not acquire a new outbound host
      * without that being a deliberate, reviewed change.
