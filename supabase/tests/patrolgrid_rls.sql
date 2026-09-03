@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(276);
+select plan(277);
 
 insert into auth.users (
     id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -346,6 +346,14 @@ select is(
     or has_function_privilege('anon', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE'),
     false,
     'anonymous clients cannot execute the route geometry validators'
+);
+select is(
+    (select count(*)::int from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+        and not (c.relrowsecurity and c.relforcerowsecurity)),
+    0,
+    'every public table both enables and forces row level security'
 );
 select is(
     has_function_privilege('authenticated', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE')
