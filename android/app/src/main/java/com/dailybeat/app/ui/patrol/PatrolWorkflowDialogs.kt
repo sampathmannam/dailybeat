@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -331,6 +332,11 @@ fun PatrolMissionDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("mission_detail_sheet"),
+        // ModalBottomSheet consumes the window insets itself by default, so the
+        // navigationBarsPadding() below was applied but inert. Handing the insets to the
+        // content instead makes it resolve to the real 24dp, which ends the list viewport
+        // above the gesture bar rather than behind it.
+        windowInsets = WindowInsets(0, 0, 0, 0),
     ) {
         LazyColumn(
             modifier = Modifier.navigationBarsPadding().testTag("mission_detail_list"),
