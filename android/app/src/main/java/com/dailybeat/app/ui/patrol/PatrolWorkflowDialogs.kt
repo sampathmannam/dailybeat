@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -578,7 +579,13 @@ fun PatrolReviewDialog(
     var outcome by remember { mutableStateOf(SupervisorReviewOutcome.APPROVED) }
     var notes by remember { mutableStateOf("") }
     AlertDialog(
-        modifier = Modifier.testTag("review_dialog"),
+        // The review notes field is required, so the keyboard is always up when the
+        // supervisor reaches the buttons. Without imePadding the dialog keeps its
+        // full-screen height and Cancel/Submit sit underneath the IME: measured on a
+        // 1264x2780 device the keyboard starts at y=1646 while Submit spans 1606-1750,
+        // leaving a 40px sliver of a 144px target. Scrolling the content alone does not
+        // fix it, because the dialog itself is never told the window shrank.
+        modifier = Modifier.imePadding().testTag("review_dialog"),
         onDismissRequest = onDismiss,
         title = { Text("Review ${mission.title}") },
         text = {
