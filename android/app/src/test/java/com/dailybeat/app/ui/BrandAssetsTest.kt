@@ -195,4 +195,29 @@ class BrandAssetsTest {
             .toList()
         assertTrue("Source writes to external storage: $offenders", offenders.isEmpty())
     }
+
+    /**
+     * In an unconfigured preview build `addObservation` and `recordDeviation` take no text
+     * at all -- they bump a counter and set a flag, and the note the officer typed is
+     * dropped. Any message telling them it was saved on the device is therefore false, and
+     * on an evidence app a false persistence claim is the kind of thing someone relies on.
+     * Driving the preview build on an emulator is what surfaced it: the note vanished.
+     */
+    @Test
+    fun previewBuildDoesNotClaimToStoreNoteTextItDiscards() {
+        val viewModel = File("src/main/java/com/dailybeat/app/ui/patrol/PatrolGridViewModel.kt")
+        val offenders = Regex("""announce\("([^"]*)"\)""").findAll(viewModel.readText())
+            .map { it.groupValues[1] }
+            .filter { message ->
+                Regex("""sav(ed|e)\b""").containsMatchIn(message) &&
+                    "securely" !in message &&
+                    "could not" !in message &&
+                    "before saving" !in message
+            }
+            .toList()
+        assertTrue(
+            "Preview-build messages claim to save note text that is discarded: $offenders",
+            offenders.isEmpty(),
+        )
+    }
 }

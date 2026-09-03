@@ -467,7 +467,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             return
         }
         val count = repository.addObservation()
-        announce("Observation saved on this device · $count total")
+        announce("Preview build · observation $count counted, the text is not stored")
         refresh()
     }
 
@@ -504,7 +504,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             return
         }
         repository.recordDeviation()
-        announce("Operational deviation recorded for supervisor context")
+        announce("Preview build · deviation flagged, the reason text is not stored")
         refresh()
     }
 
@@ -513,7 +513,7 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
         if (normalized.isBlank()) return announce("Describe the safety event before saving")
         if (!app.isPatrolGridConfigured) {
             repository.addObservation()
-            announce("Safety event saved on this device for supervisor attention")
+            announce("Preview build · safety event counted, the text is not stored")
             refresh()
             return
         }
