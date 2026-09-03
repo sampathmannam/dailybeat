@@ -693,6 +693,11 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
             return
         }
         if (!app.isPatrolGridConfigured) {
+            // Close the sheet first, exactly as the server-backed path below does. The
+            // snackbar host lives on the Scaffold underneath the mission-detail sheet, so
+            // announcing while the sheet is still open posts the confirmation where nobody
+            // can see it and the submit looks like it did nothing.
+            _uiState.update { it.copy(missionDetailsOpen = false) }
             announce(
                 when (outcome) {
                     SupervisorReviewOutcome.APPROVED -> "Review approved in development preview"
