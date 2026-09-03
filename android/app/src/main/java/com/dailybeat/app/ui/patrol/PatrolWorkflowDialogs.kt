@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.res.pluralStringResource
+import com.dailybeat.app.R
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
@@ -417,12 +421,28 @@ fun PatrolMissionDetailSheet(
                             captureError = state.captureError,
                         )
                         Text(
-                            if (selectedEvidenceSource == null) {
-                                "${state.recordedTrackPoints} route points · ${state.observationCount} observations"
-                            } else {
-                                "${state.selectedEvidenceTrackPointCount} points from this session · " +
-                                    "${state.recordedTrackPoints} across the mission · " +
-                                    "${state.observationCount} observations"
+                            run {
+                                val points = pluralStringResource(
+                                    R.plurals.patrolgrid_route_points,
+                                    state.recordedTrackPoints,
+                                    state.recordedTrackPoints,
+                                )
+                                val observations = pluralStringResource(
+                                    R.plurals.patrolgrid_observations,
+                                    state.observationCount,
+                                    state.observationCount,
+                                )
+                                if (selectedEvidenceSource == null) {
+                                    "$points · $observations"
+                                } else {
+                                    val sessionPoints = pluralStringResource(
+                                        R.plurals.patrolgrid_session_points,
+                                        state.selectedEvidenceTrackPointCount,
+                                        state.selectedEvidenceTrackPointCount,
+                                    )
+                                    "$sessionPoints · ${state.recordedTrackPoints} across the mission · " +
+                                        observations
+                                }
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -562,7 +582,13 @@ fun PatrolReviewDialog(
         onDismissRequest = onDismiss,
         title = { Text("Review ${mission.title}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Three outcome options plus a multi-line notes field overflow the space left
+            // above the keyboard, which pushed Cancel and Submit underneath it. Scrolling
+            // the content keeps the dialog's own buttons reachable while typing.
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 ReviewOutcomeOption(
                     title = "Approved",
                     description = "Evidence and field context are sufficient to close the review.",
