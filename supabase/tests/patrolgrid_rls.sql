@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(274);
+select plan(276);
 
 insert into auth.users (
     id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -340,6 +340,18 @@ select is(
     or has_function_privilege('anon', 'public.patrolgrid_record_field_update(uuid,text,text,timestamptz,uuid,uuid,double precision,double precision)', 'EXECUTE'),
     false,
     'anonymous clients cannot execute evidence-ingestion workflows'
+);
+select is(
+    has_function_privilege('anon', 'public.patrolgrid_route_position_is_valid(jsonb)', 'EXECUTE')
+    or has_function_privilege('anon', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE'),
+    false,
+    'anonymous clients cannot execute the route geometry validators'
+);
+select is(
+    has_function_privilege('authenticated', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE')
+    and has_function_privilege('service_role', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE'),
+    true,
+    'row writes can still evaluate the route geometry check constraint'
 );
 select ok(
     public.patrolgrid_route_geojson_is_valid('{"type":"LineString","coordinates":[[77.5,13.0],[77.51,13.01]]}'::jsonb),

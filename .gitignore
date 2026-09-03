@@ -94,3 +94,6 @@ secrets/
 *.pem
 !release/patrolgrid-release-cert.pem
 *.key
+
+# gstack local artifacts (security reports stay on this machine)
+.gstack/
