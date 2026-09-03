@@ -18,7 +18,7 @@ Replace the decorative journey drawing on Today with a real, interactive map tha
 ## Technical design
 
 - Use MapLibre Native Android `11.8.0`, the official Android quickstart's compatible line for DailyBeat's Kotlin 1.9/Compose toolchain. The current 13.x line requires Kotlin 2.2 and would turn this feature into a risky platform migration.
-- Use OpenFreeMap's Liberty style at `https://tiles.openfreemap.org/styles/liberty`. It is based on OpenStreetMap data, requires no account or API key, and its official mobile guidance supports MapLibre Native.
+- Use OpenFreeMap's Fiord style at `https://tiles.openfreemap.org/styles/fiord`. It is based on OpenStreetMap data, requires no account or API key, and its official mobile guidance supports MapLibre Native. Fiord replaced the Liberty style on 2026-09-03: Liberty is a daylight style (`#f8f4f0` ground) and PatrolGrid's primary mission is a 22:00–02:00 night patrol, so a full-brightness map inside the dark UI is a night-vision problem in a vehicle. Fiord's slate-blue ground (`#45516E`) sits in the app's own navy palette and keeps road contrast essentially unchanged (1.41:1 minor-road-on-ground versus Liberty's 1.45:1). OpenFreeMap's `dark` style was rejected: at 1.10:1 its roads are almost invisible against its near-black ground, which would make a patrol route unreadable.
 - Host MapLibre's `MapView` inside Compose with `AndroidView` and forward Android lifecycle events.
 - Add a GeoJSON route source with a line layer and a point layer. Keep all geometry generation in a small pure Kotlin model so coordinate filtering and ordering can be unit-tested.
 - Keep attribution and logo controls visible. Do not implement tile prefetch or offline map downloads.

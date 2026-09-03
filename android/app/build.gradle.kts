@@ -53,7 +53,7 @@ val debugSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
     .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
     .getOrElse("")
     .trim()
-val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/liberty"
+val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/fiord"
 val debugPatrolGridMapStyleUrlOverride = providers.gradleProperty("PATROLGRID_MAP_STYLE_URL")
     .orElse(providers.environmentVariable("PATROLGRID_MAP_STYLE_URL"))
     .getOrElse("")

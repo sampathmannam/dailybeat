@@ -47,7 +47,7 @@ def test_release_rejects_same_name_gradle_properties():
 
 def test_release_map_is_source_pinned_while_debug_override_remains_available():
     assert (
-        'val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/liberty"'
+        'val openFreeMapStyleUrl = "https://tiles.openfreemap.org/styles/fiord"'
         in GRADLE
     )
     assert "val releasePatrolGridMapStyleUrl = openFreeMapStyleUrl" in GRADLE
