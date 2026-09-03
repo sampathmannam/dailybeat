@@ -111,6 +111,27 @@ class BrandAssetsTest {
     }
 
     /**
+     * The files being gone is not enough. Microphone and call-log capture come back
+     * the moment a permission is declared and something checks it, and with the
+     * helpers already present that diff looks smaller than the capability change is.
+     */
+    @Test
+    fun microphoneAndCallLogCaptureCannotBeReintroducedQuietly() {
+        val forbidden = listOf("RECORD_AUDIO", "READ_CALL_LOG")
+        val offenders = mutableListOf<String>()
+        forbidden.forEach { permission ->
+            if (permission in manifest()) offenders += "AndroidManifest.xml: $permission"
+        }
+        File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { file ->
+                val text = file.readText()
+                forbidden.filter { it in text }.forEach { offenders += "${file.name}: $it" }
+            }
+        assertTrue("Audio/call-log capture is being reintroduced: $offenders", offenders.isEmpty())
+    }
+
+    /**
      * PatrolGrid may contact its own Supabase backend and the pinned OpenFreeMap tile
      * host, and nothing else. A police build must not acquire a new outbound host
      * without that being a deliberate, reviewed change.
