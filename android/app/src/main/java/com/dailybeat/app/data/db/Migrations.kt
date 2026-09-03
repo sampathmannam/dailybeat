@@ -105,6 +105,15 @@ fun migration5To6(cipher: PatrolTrackCipher) = object : Migration(5, 6) {
             }
         }
 
+        // DROP TABLE frees pages without overwriting them, so the plaintext latitude
+        // and longitude of every historical patrol would stay recoverable by carving
+        // the freelist out of dailybeat.db on a recovered device. secure_delete makes
+        // SQLite zero the content it frees. It is set here rather than as a global
+        // pragma because it costs write amplification on every later delete, and this
+        // is the one place the database has ever held plaintext coordinates. VACUUM
+        // would also reclaim the pages but cannot run inside the transaction Room
+        // wraps a migration in.
+        db.execSQL("PRAGMA secure_delete = ON")
         db.execSQL("DROP TABLE patrol_track_points")
         db.execSQL("ALTER TABLE patrol_track_points_secure RENAME TO patrol_track_points")
         db.execSQL(
