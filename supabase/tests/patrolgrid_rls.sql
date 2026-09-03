@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(277);
+select plan(278);
 
 insert into auth.users (
     id, aud, role, email, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -354,6 +354,18 @@ select is(
         and not (c.relrowsecurity and c.relforcerowsecurity)),
     0,
     'every public table both enables and forces row level security'
+);
+-- FORCE is only an actual control when the objects' owner lacks BYPASSRLS.
+-- Today it does hold it, so FORCE is inert and this records that honestly rather
+-- than asserting a guarantee the deployment does not provide. If ownership ever
+-- moves to a role without BYPASSRLS this flips, and the tables written only by the
+-- definer (audit events, the three retention tables) will need INSERT policies.
+select is(
+    (select rolbypassrls from pg_roles
+      where rolname = (select pg_get_userbyid(relowner) from pg_class
+                        where oid = 'public.patrolgrid_track_points'::regclass)),
+    true,
+    'schema owner still holds BYPASSRLS, so FORCE row level security is inert'
 );
 select is(
     has_function_privilege('authenticated', 'public.patrolgrid_route_geojson_is_valid(jsonb)', 'EXECUTE')

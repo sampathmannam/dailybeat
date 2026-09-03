@@ -1,25 +1,34 @@
 -- Force row level security on every table in the public schema.
 --
--- All 19 tables already ENABLE row level security, which is enough for PostgREST:
--- it connects as `authenticator` and switches to anon/authenticated/service_role,
--- none of which own these tables, so policies apply.
+-- READ THIS BEFORE RELYING ON IT: in the current Supabase deployment these
+-- statements are INERT. They are kept because they cost nothing and become
+-- effective the moment the ownership assumption below changes, but they are not
+-- an active control today and must not be counted as one.
 --
--- What ENABLE does not cover is the table owner. The 22 SECURITY DEFINER functions
--- in this schema run as owner and therefore bypass RLS entirely, which means the
--- ownership checks written inside those functions carry the whole isolation burden
--- on their own. A future function added without one of those checks would have no
--- second line of defence.
+-- Why inert: every table and all 25 SECURITY DEFINER functions in this schema are
+-- owned by `postgres`, and `postgres` holds the BYPASSRLS role attribute. BYPASSRLS
+-- overrides FORCE ROW LEVEL SECURITY unconditionally, so policies still do not
+-- apply to the definer. Verified directly: an INSERT as `postgres` into
+-- patrolgrid_retention_runs -- which has FORCE set and zero policies, so it must
+-- fail with 42501 under an effective FORCE -- succeeds.
 --
--- FORCE makes policies apply to the owner too, so a missing ownership check inside
--- a SECURITY DEFINER function fails closed instead of silently reading across
--- tenants.
+-- An earlier version of this file claimed FORCE meant "a missing ownership check
+-- inside a SECURITY DEFINER function fails closed instead of silently reading
+-- across tenants". That claim was wrong. The ownership checks inside those 25
+-- functions remain the ONLY thing preventing cross-tenant access, exactly as
+-- before this migration. Adding a SECURITY DEFINER function without one is still
+-- a single point of failure.
 --
--- Verified before shipping: with FORCE active on all 19 tables the pgTAP suite
--- passes 282/282, and tools/patrolgrid/supabase_e2e.py passes end to end, covering
--- track point ingestion, field updates, priority visits, the server-owned session
--- lifecycle, atomic assignment, supervisor review, duty-window enforcement, the
--- 365-day retention clock and the audit trail. Nothing in the workflow depended on
--- the owner bypass.
+-- Note also how the wrong claim survived review: the pgTAP suite and the
+-- end-to-end RPC exercise were both run with FORCE enabled and both passed, which
+-- was taken as evidence the control worked. They passed because the control does
+-- nothing. A green suite after enabling a control shows only that nothing broke.
+--
+-- To make this an actual control, the schema objects must be owned by a role
+-- without BYPASSRLS, and the tables that are currently written only by the definer
+-- (patrolgrid_audit_events and the three retention tables, which have no INSERT
+-- policy at all) would then need explicit owner-scoped policies or those writes
+-- will fail closed.
 
 alter table public.patrolgrid_subdivisions force row level security;
 alter table public.patrolgrid_memberships force row level security;
