@@ -15,6 +15,18 @@
         <item quantity="one">Journey map (%1$d point)</item>
         <item quantity="other">Journey map (%1$d points)</item>
     </plurals>
+    <plurals name="patrolgrid_route_points">
+        <item quantity="one">%1$d route point</item>
+        <item quantity="other">%1$d route points</item>
+    </plurals>
+    <plurals name="patrolgrid_observations">
+        <item quantity="one">%1$d observation</item>
+        <item quantity="other">%1$d observations</item>
+    </plurals>
+    <plurals name="patrolgrid_session_points">
+        <item quantity="one">%1$d point from this session</item>
+        <item quantity="other">%1$d points from this session</item>
+    </plurals>
     <string name="journey_map_open">Open full map</string>
     <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
     <string name="journey_map_retry">Retry map</string>

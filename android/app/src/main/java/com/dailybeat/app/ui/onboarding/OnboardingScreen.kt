@@ -96,7 +96,8 @@ fun OnboardingScreen(
                     )
                     OutlinedTextField(
                         value = officerName,
-                        onValueChange = { officerName = it },
+                        // Bound the field the way every other free-text input here is bounded.
+                        onValueChange = { officerName = it.take(80) },
                         modifier = Modifier.fillMaxWidth().testTag("onboarding_officer_name"),
                         label = { Text(stringResource(R.string.officer_name_label)) },
                         singleLine = true,
