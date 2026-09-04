@@ -1,5 +1,6 @@
 package com.dailybeat.app.backup
 
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -22,12 +23,27 @@ data class BackupSignUpResult(
 interface BackupRemote {
     val isConfigured: Boolean
     fun currentSession(): BackupSession?
+    suspend fun authenticatedSession(): Result<BackupSession>
     suspend fun signUp(email: String, password: String): Result<BackupSignUpResult>
     suspend fun signIn(email: String, password: String): Result<BackupSession>
     suspend fun upload(snapshotJson: String): Result<Unit>
     suspend fun download(): Result<RemoteBackup?>
+    suspend fun revokeSession(): Result<Unit> {
+        signOut()
+        return Result.success(Unit)
+    }
     fun signOut()
 }
+
+open class BackupRemoteException(message: String) : IllegalStateException(message)
+
+class BackupSessionExpiredException :
+    BackupRemoteException("Cloud authorization expired. Sign in again.")
+
+class BackupTransientException(message: String) : BackupRemoteException(message)
+
+fun Throwable.isTransientBackupFailure(): Boolean =
+    this is IOException || this is BackupTransientException
 
 class SupabaseBackupClient(
     private val configuration: BackupConfiguration,
@@ -38,6 +54,13 @@ class SupabaseBackupClient(
     override val isConfigured: Boolean get() = configuration.isConfigured
 
     override fun currentSession(): BackupSession? = sessionStore.get()
+
+    override suspend fun authenticatedSession(): Result<BackupSession> = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureConfigured()
+            validSession()
+        }
+    }
 
     override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
         withContext(Dispatchers.IO) {
@@ -123,6 +146,24 @@ class SupabaseBackupClient(
         sessionStore.clear()
     }
 
+    override suspend fun revokeSession(): Result<Unit> = withContext(Dispatchers.IO) {
+        val session = sessionStore.get()
+        sessionStore.clear()
+        if (session == null) return@withContext Result.success(Unit)
+        runCatching {
+            ensureConfigured()
+            val request = authorizedRequestBuilder("/auth/v1/logout?scope=local", session)
+                .post("{}".toRequestBody(JSON))
+                .build()
+            try {
+                execute(request)
+            } catch (_: BackupSessionExpiredException) {
+                // The server already considers this session unusable.
+            }
+            Unit
+        }
+    }
+
     private suspend fun validSession(): BackupSession {
         val current = sessionStore.get()
             ?: throw IllegalStateException("Sign in to use cloud backup.")
@@ -135,9 +176,9 @@ class SupabaseBackupClient(
             .post(body.toRequestBody(JSON))
             .build()
         return try {
-            parseSession(execute(request), current).also(sessionStore::save)
+            parseSession(execute(request, sessionRefresh = true), current).also(sessionStore::save)
         } catch (error: Exception) {
-            sessionStore.clear()
+            if (error is BackupSessionExpiredException) sessionStore.clear()
             throw error
         }
     }
@@ -166,19 +207,26 @@ class SupabaseBackupClient(
     private fun authorizedRequestBuilder(path: String, session: BackupSession): Request.Builder =
         requestBuilder(path).header("Authorization", "Bearer ${session.accessToken}")
 
-    private fun execute(request: Request, authRequest: Boolean = false): String {
+    private fun execute(
+        request: Request,
+        authRequest: Boolean = false,
+        sessionRefresh: Boolean = false,
+    ): String {
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                val message = when {
-                    authRequest && response.code in 400..499 -> "Email or password is incorrect."
-                    response.code == 401 || response.code == 403 ->
-                        "Cloud backup authorization expired. Sign in again."
-                    response.code == 404 -> "No cloud backup was found."
-                    response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
-                    response.code >= 500 -> "Cloud backup service is temporarily unavailable."
-                    else -> "Cloud backup request failed (${response.code})."
+                val error = when {
+                    authRequest && response.code in 400..499 ->
+                        BackupRemoteException("Email or password is incorrect.")
+                    sessionRefresh && response.code in 400..499 -> BackupSessionExpiredException()
+                    response.code == 401 || response.code == 403 -> BackupSessionExpiredException()
+                    response.code == 404 -> BackupRemoteException("No cloud backup was found.")
+                    response.code == 429 ->
+                        BackupTransientException("Cloud backup is temporarily busy. Try again shortly.")
+                    response.code >= 500 ->
+                        BackupTransientException("Cloud backup service is temporarily unavailable.")
+                    else -> BackupRemoteException("Cloud backup request failed (${response.code}).")
                 }
-                throw IllegalStateException(message)
+                throw error
             }
             return response.body?.string().orEmpty()
         }

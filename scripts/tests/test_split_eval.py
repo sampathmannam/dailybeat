@@ -25,7 +25,7 @@ def test_split_eval_holdout(tmp_path: Path):
         "--holdout",
         "10",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, check=False)
     assert result.returncode == 0
 
     eval_rows = [json.loads(line) for line in eval_out.read_text(encoding="utf-8").splitlines()]

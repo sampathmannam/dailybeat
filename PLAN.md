@@ -1,12 +1,14 @@
 ﻿# DailyBeat â€” Build Plan (Local-Model-Only, End-to-End)
 
+> **Legacy DailyBeat reference only.** This predates the PatrolGrid multi-user/Supabase product and is not a current release, security, retention, support, or distribution specification. Use `docs/PATROLGRID_ROLLOUT.md`, `docs/PATROLGRID_ROLLOUT_READINESS.md`, `docs/PATROLGRID_PRIVACY_POLICY.md`, and `docs/RELEASE.md` for PatrolGrid decisions.
+
 > Hand this document to an LLM agent. The agent should be able to execute it start to finish and produce an installable APK. Every phase has a single, named verification check. If a check fails, the agent fixes it before moving on.
 
 ---
 
 ## 0. Project facts the executing agent MUST honor
 
-**User:** Sampath M, IPS officer. Building a personal R&D product. No department support. Privacy is non-negotiable.
+**User:** Sampath M, IPS officer. Building a personal R&D product with no separate technical-support desk. Existing official Department supervisor/command channels still handle account recovery, privacy requests, grievances, and operational escalation. Privacy is non-negotiable.
 
 **Hardware (verified 2026-08-25):**
 - CPU: AMD Ryzen 7 7435HS (16 cores)
@@ -943,7 +945,7 @@ Get-Item android\app\build\outputs\apk\debug\app-debug.apk | Select-Object Lengt
 
 ## 15. Phase 13 â€” Build the release APK (half day)
 
-**Goal:** signed APK ready to install on the user's daily phone, and optionally uploaded to Play Store.
+**Goal:** signed APK ready to install directly on the user's daily phone. Play Store publication is not part of this product's distribution plan.
 
 **Steps:**
 

@@ -6,44 +6,163 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  patrolgrid-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-locked API, load, and policy test tools
+        env:
+          PIP_CONFIG_FILE: /dev/null
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+        run: |
+          set -euo pipefail
+          ci_venv="$RUNNER_TEMP/patrolgrid-ci"
+          python3 -m venv "$ci_venv"
+          "$ci_venv/bin/python" -m pip install \
+            --index-url https://pypi.org/simple \
+            --no-cache-dir --no-deps --only-binary=:all: --require-hashes \
+            -r scripts/requirements-ci.txt
+          "$ci_venv/bin/python" -m pip check
+          printf '%s\n' "$ci_venv/bin" >> "$GITHUB_PATH"
+
+      - name: Start disposable Supabase stack
+        run: supabase start --exclude studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,supavisor
+
+      - name: Verify migrations and row-level security
+        run: |
+          supabase db reset --local --no-seed
+          supabase test db --local
+          supabase db lint --local --level warning --schema public
+
+      - name: Exercise Auth and PostgREST end to end
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" \
+          SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          python3 tools/patrolgrid/supabase_e2e.py
+
+      - name: Run synthetic PatrolGrid load test
+        run: |
+          locust -f tools/locust/patrolgrid_locust.py \
+            --headless --users 10 --spawn-rate 5 --run-time 15s --only-summary
+
+      - name: Stop disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v4
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
+        with:
+          cache-disabled: true
 
       - name: Build and test
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
         run: |
           cd android
-          ./gradlew assembleDebug testDebugUnitTest --no-daemon --stacktrace
+          ./gradlew assembleDebug testDebugUnitTest lintDebug --refresh-dependencies --dependency-verification strict --no-daemon --stacktrace
+
+      - name: Enable KVM acceleration
+        run: |
+          set -euxo pipefail
+          if [[ ! -c /dev/kvm ]]; then
+            if grep -qw vmx /proc/cpuinfo; then
+              kvm_vendor_module=kvm_intel
+            elif grep -qw svm /proc/cpuinfo; then
+              kvm_vendor_module=kvm_amd
+            else
+              echo "::error::Runner CPU exposes neither Intel VMX nor AMD SVM; hardware-accelerated Android tests cannot run."
+              exit 1
+            fi
+            sudo modprobe kvm
+            sudo modprobe "$kvm_vendor_module"
+          fi
+          if [[ ! -c /dev/kvm ]]; then
+            echo "::error::KVM modules loaded but /dev/kvm is still unavailable; refusing software-emulated Android tests."
+            exit 1
+          fi
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+          stat -c 'KVM device: %A %U:%G %t:%T %n' /dev/kvm
+          grep -E '^kvm(_intel|_amd)? ' /proc/modules || true
+          id
+          test -c /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
 
       - name: Instrumentation tests (emulator)
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/patrolgrid-gradle-cold
         with:
-          api-level: 34
+          api-level: 36
           # MapLibre ships x86_64, so the cloud-only app can run on this emulator.
           arch: x86_64
           profile: Nexus 6
           force-avd-creation: true
           disable-animations: true
+          disable-linux-hw-accel: false
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: |
             adb shell getprop sys.boot_completed | grep -q 1
             until adb shell pm list packages >/dev/null 2>&1; do sleep 2; done
-            cd android && ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+            cd android && ./gradlew connectedDebugAndroidTest --dependency-verification strict --no-daemon --stacktrace
 
       - name: Python tests
+        env:
+          PIP_CONFIG_FILE: /dev/null
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
         run: |
-          pip install -e ".[dev]"
-          python3 -m pytest scripts/tests/ -q
+          set -euo pipefail
+          ci_venv="$RUNNER_TEMP/patrolgrid-ci"
+          python3 -m venv "$ci_venv"
+          "$ci_venv/bin/python" -m pip install \
+            --index-url https://pypi.org/simple \
+            --no-cache-dir --no-deps --only-binary=:all: --require-hashes \
+            -r scripts/requirements-ci.txt
+          "$ci_venv/bin/python" -m pip check
+          "$ci_venv/bin/python" -m pytest scripts/tests/ -q

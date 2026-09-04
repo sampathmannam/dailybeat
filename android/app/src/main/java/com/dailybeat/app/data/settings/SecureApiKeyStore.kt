@@ -1,3 +1,8 @@
+// API-key writes use synchronous commit() so callers can detect a failed
+// persist and abort the flow; KTX edit returns Unit, so the non-KTX form
+// is intentional.
+@file:Suppress("UseKtx")
+
 package com.dailybeat.app.data.settings
 
 import android.content.Context

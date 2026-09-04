@@ -1,0 +1,31 @@
+# PatrolGrid supervisor assignment-entry and mission-detail E2E flow.
+
+appId: com.dailybeat.app.patrolgrid.qa
+---
+- launchApp:
+    clearState: true
+- tapOn: "Continue"
+- tapOn: "Officer name"
+- inputText: "Inspector Audit"
+- hideKeyboard
+- tapOn: "Supervisor"
+- tapOn: "Continue"
+- tapOn: "Get started"
+- tapOn:
+    text: "While using the app"
+    optional: true
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "Patrol Control"
+- assertNotVisible: "Alerts"
+- tapOn: "Assign patrol"
+- assertVisible: "Route and duty window"
+- assertVisible: "Day patrol · School corridor"
+- pressKey: BACK
+- assertVisible: "Patrol Control"
+- tapOn: "Missions"
+- assertVisible: "Missions"
+- assertVisible: "Day patrol · School corridor"
+- tapOn: "Day patrol · School corridor"
+- assertVisible: "Planned and recorded route"

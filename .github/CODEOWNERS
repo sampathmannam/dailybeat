@@ -1,0 +1,18 @@
+# PatrolGrid is maintained by a single accountable release owner. The branch
+# ruleset requires a pull request and passing checks; this file makes ownership
+# explicit without creating an impossible self-approval requirement.
+* @sampathmannam
+
+/.github/workflows/ @sampathmannam
+/android/app/build.gradle.kts @sampathmannam
+/android/patrolgrid-production.properties @sampathmannam
+/android/gradle/ @sampathmannam
+/docs/PATROLGRID_PRIVACY_POLICY.md @sampathmannam
+/docs/PATROLGRID_ROLLOUT_READINESS.md @sampathmannam
+/release/ @sampathmannam
+/scripts/mac_*release* @sampathmannam
+/scripts/requirements-*.in @sampathmannam
+/scripts/requirements-*.txt @sampathmannam
+/scripts/tests/test_*release* @sampathmannam
+/scripts/tests/test_*supply_chain* @sampathmannam
+/supabase/migrations/ @sampathmannam

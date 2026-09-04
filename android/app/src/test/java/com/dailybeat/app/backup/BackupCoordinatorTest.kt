@@ -69,6 +69,9 @@ class BackupCoordinatorTest {
 
         override val isConfigured: Boolean = true
         override fun currentSession(): BackupSession? = BackupSession("user", "person@example.com", "a", "r", Long.MAX_VALUE)
+
+        override suspend fun authenticatedSession(): Result<BackupSession> =
+            Result.success(requireNotNull(currentSession()))
         override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
             Result.success(BackupSignUpResult(currentSession(), false))
         override suspend fun signIn(email: String, password: String): Result<BackupSession> =

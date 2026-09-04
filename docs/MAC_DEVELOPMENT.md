@@ -1,94 +1,91 @@
-# DailyBeat — MacBook / laptop development
+# PatrolGrid Mac development and direct installation
 
-Run DailyBeat **on your laptop** with Android Studio emulator or a USB-connected phone.
+Use an Android Studio emulator for routine QA. Use a USB phone for GPS/device checks,
+always with its explicit adb serial. Debug/QA uses
+`com.dailybeat.app.patrolgrid.qa`; production uses
+`com.dailybeat.app.patrolgrid`.
 
-## One-time setup
+## Verifying device-only changes
+
+`assembleDebug`, `testDebugUnitTest` and `lintDebug` never execute a Room migration,
+a Keystore operation, or the foreground service. A change to any of those is not
+verified until the instrumentation suite has run:
 
 ```bash
-git clone https://github.com/sampathmannam/dailybeat.git ~/github/dailybeat
-cd ~/github/dailybeat
-
-chmod +x scripts/*.sh
-./scripts/mac_setup.sh
+./gradlew :app:connectedDebugAndroidTest
 ```
 
-**Requirements**
-- Android Studio (SDK + emulator)
-- Java 17: `brew install openjdk@17`
-- `adb` on PATH:
+Match CI's API level when you do. `.github/workflows/ci.yml` pins `api-level: 36`.
+On an API 37 AVD the whole `MainNavigationTest` class fails with
+`NoSuchMethodException: android.hardware.input.InputManager.getInstance`, because
+Espresso calls a method removed in 37. That failure is an emulator mismatch, not a
+regression, and it makes the local run impossible to read at face value.
+
+```bash
+sdkmanager --install "system-images;android-36;google_apis;arm64-v8a"
+avdmanager create avd -n patrolgrid-ci36 -k "system-images;android-36;google_apis;arm64-v8a"
+```
+
+## QA development
 
 ```bash
 export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"
-```
-
-Add that line to `~/.zshrc` so it persists.
-
-## Connect emulator or phone
-
-### Emulator (recommended)
-1. Open **Android Studio**
-2. **Device Manager** → create/start a device (Pixel, API 34)
-3. Wait until the emulator home screen appears
-
-### Physical phone
-1. Enable **Developer options** → **USB debugging**
-2. Plug in USB, accept the debugging prompt on the phone
-
-### Verify connection
-
-```bash
 adb devices
+./scripts/mac_emulator_demo.sh
+./scripts/mac_sync_and_run.sh <emulator-or-phone-serial>
 ```
 
-You should see something like `emulator-5554   device` or your phone ID.
-
-## Run DailyBeat (build on laptop)
+Runtime permissions remain ungranted by default so consent is tested. Synthetic QA may
+explicitly pre-grant them:
 
 ```bash
-cd ~/github/dailybeat
-git pull origin main
-./scripts/mac_sync_and_run.sh
+PATROLGRID_GRANT_QA_PERMISSIONS=1 ./scripts/mac_sync_and_run.sh emulator-5554
 ```
 
-This pulls **v2.0.0** from `main`, builds, installs, grants permissions, and launches the app.
-
-## Fast install (no build — download APK)
+The QA helper never switches branches or pulls implicitly. A deliberate clean,
+fast-forward-only sync is opt-in:
 
 ```bash
-./scripts/mac_install_release_apk.sh
+PATROLGRID_SYNC_REMOTE=1 ./scripts/mac_sync_and_run.sh emulator-5554
 ```
 
-Downloads `app-release.apk` from GitHub Releases **v2.0.0**.
+## Approved production release
 
-## Cursor on your Mac (local agent)
+GitHub contains only a public-key-encrypted unsigned candidate. Never download or
+install a plaintext APK from a GitHub release and never invoke repo release helpers
+directly. After the separately audited one-time bootstrap described in `RELEASE.md`,
+use only:
 
-1. **File → Open Folder** → `~/github/dailybeat`
-2. Use **Agent** with **local** execution (this machine)
-3. Local agent can run `adb` on your emulator; cloud agents cannot
+```bash
+TRUSTED='/Library/Application Support/PatrolGrid/release-tools/current/bin/patrolgrid-release'
+"$TRUSTED" check
+"$TRUSTED" create-tag patrolgrid-v1.0.0
+git push origin refs/tags/patrolgrid-v1.0.0
+"$TRUSTED" ceremony patrolgrid-v1.0.0 \
+  ./owner-vault/PatrolGrid-1.0.0-owner-bundle
+"$TRUSTED" install ./owner-vault/PatrolGrid-1.0.0-owner-bundle/staff <phone-adb-serial>
+```
 
-## v2 app tour (on your screen)
+The ceremony publishes one mode-0700 owner bundle atomically. Share only its three-file
+`staff/` child; its separate `owner/` child contains the mapping and must remain private.
+The installer accepts only the untouched staff directory produced locally by the
+ceremony. It does not accept a URL, draft, ciphertext, or raw APK. A first
+production install must use the verified ADB/managed-device flow or a separately
+authenticated out-of-band hash and certificate-verification procedure.
 
-1. **Onboarding** → officer name → Get started
-2. **Today** → manual event or mic FAB
-3. **Diary** → Generate → edit → Share PDF
-4. **History** → past days
-5. **Settings** → GPS, places, model import
+## Expected fail-closed messages today
 
-Optional mirror: `brew install scrcpy && scrcpy`
+- FileVault is off: enable it before handling plaintext release material.
+- The GitHub CLI session is not the exact repository owner with current admin authority:
+  correct that owner-authenticated session before a release ceremony.
+- Backend/privacy source is `UNCONFIGURED` / `UNAPPROVED`: complete Department and
+  production-service review; do not add a placeholder bypass.
+- Production environment values are absent: add only the exact reviewed Supabase URL
+  and anon key after the committed hashes match.
+- Root trusted bundle absent: independently audit and run the one-time bootstrap; do
+  not copy or execute a mutable checkout helper as a workaround.
 
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `adb: more than one device` | `export DAILYBEAT_ADB_SERIAL=ZD2232FCR5` (phone) or `emulator-5554` |
-| `Unable to locate a Java Runtime` | `brew install openjdk@17` then add to `~/.zshrc`: `export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"` |
-| No Java needed | `./scripts/mac_install_release_apk.sh` installs pre-built APK |
-| `adb: no devices` | Start emulator or check USB cable / debugging |
-| `adb offline` | `adb kill-server && adb start-server` |
-| Gradle fails | `cd android && ./gradlew clean assembleDebug` |
-| Old UI | `git pull origin main` — you need v2.0.0 on `main` |
-
-## GitHub
-
-- Repo: https://github.com/sampathmannam/dailybeat
-- Releases: https://github.com/sampathmannam/dailybeat/releases/tag/v2.0.0
+For emulator/Java issues, start Android Studio's emulator and use its bundled JBR.
+Install Build Tools 36.0.0 from SDK Manager. Do not restart or replace pinned release
+tools during a ceremony. No automated upgrade is shipped; a changed tool or bundle
+blocks release until a new independent audit and recorded admin reinstall.

@@ -29,7 +29,15 @@ select table_privs_are(
     array['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
     'authenticated users have the required backup privileges'
 );
-select row_security_active('public.dailybeat_backups'::regclass, 'row-level security is active');
+select is(
+    (
+        select relrowsecurity
+        from pg_class
+        where oid = 'public.dailybeat_backups'::regclass
+    ),
+    true,
+    'row-level security is active'
+);
 
 select * from finish();
 rollback;

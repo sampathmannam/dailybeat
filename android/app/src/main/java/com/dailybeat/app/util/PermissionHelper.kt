@@ -8,10 +8,6 @@ import androidx.core.content.ContextCompat
 
 object PermissionHelper {
 
-    fun hasRecordAudio(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-
     fun hasLocation(context: Context): Boolean {
         val fine = ContextCompat.checkSelfPermission(
             context,
@@ -24,26 +20,8 @@ object PermissionHelper {
         return fine || coarse
     }
 
-    fun hasBackgroundLocation(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return hasLocation(context)
-        return ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    /** Foreground location on all APIs; background location on API 29+ when passive GPS is expected. */
-    fun canCaptureLocation(context: Context): Boolean {
-        if (!hasLocation(context)) return false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return hasBackgroundLocation(context)
-        }
-        return true
-    }
-
-    fun hasCallLog(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
-            PackageManager.PERMISSION_GRANTED
+    /** Patrol tracking runs as a visible location foreground service. */
+    fun canCaptureLocation(context: Context): Boolean = hasLocation(context)
 
     fun hasNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true

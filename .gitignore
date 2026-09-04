@@ -50,6 +50,14 @@ android/app/release/
 *.aab
 *.keystore
 *.jks
+*.p12
+*.pfx
+*.pkcs12
+*.kbx
+*.gpg
+*.pgp
+*.rev
+private-keys-v1.d/
 google-services.json
 
 # Editor
@@ -70,6 +78,7 @@ tmp/
 temp/
 .cache/
 supabase/.temp/
+supabase/.branches/
 
 # Aider chat history
 .aider.chat.history.md
@@ -83,4 +92,8 @@ supabase/.temp/
 .env.*.local
 secrets/
 *.pem
+!release/patrolgrid-release-cert.pem
 *.key
+
+# gstack local artifacts (security reports stay on this machine)
+.gstack/

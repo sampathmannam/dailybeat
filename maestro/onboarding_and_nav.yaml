@@ -1,20 +1,50 @@
-# Maestro E2E flows for DailyBeat
-# Install: https://maestro.mobile.dev
-# Run: maestro test maestro/
+# PatrolGrid patrol-personnel E2E flow.
 
-appId: com.dailybeat.app
+appId: com.dailybeat.app.patrolgrid.qa
 ---
 - launchApp:
     clearState: true
 - tapOn: "Continue"
 - tapOn: "Officer name"
 - inputText: "Inspector Audit"
+- hideKeyboard
 - tapOn: "Continue"
 - tapOn: "Get started"
-- assertVisible: "Today"
-- tapOn: "Load synthetic demo day"
-- tapOn: "Diary"
-- assertVisible: "Custom events (paste)"
-- tapOn: "History"
-- tapOn: "Settings"
-- assertVisible: "Cloud AI"
+- tapOn:
+    text: "While using the app"
+    optional: true
+- tapOn:
+    text: "Allow"
+    optional: true
+- assertVisible: "My Patrol"
+- assertNotVisible: "Messages"
+- swipe:
+    direction: UP
+    duration: 600
+- swipe:
+    direction: UP
+    duration: 600
+- tapOn: "Start patrol"
+- assertVisible: "Observation"
+- tapOn: "Observation"
+- assertVisible: "Add observation"
+- assertVisible: "What did you observe?"
+- tapOn: "What did you observe?"
+- inputText: "Bus stand clear and street lighting operational"
+- hideKeyboard
+- tapOn: "Save securely"
+- swipe:
+    direction: UP
+    duration: 500
+- tapOn: "End patrol"
+- assertVisible: "End this patrol?"
+- tapOn: "Continue patrol"
+- assertVisible: "Observation"
+- tapOn: "End patrol"
+- assertVisible: "End this patrol?"
+- tapOn: "End patrol"
+- assertVisible: "Patrol ended · waiting for supervisor review"
+- tapOn: "Missions"
+- assertVisible: "Missions"
+- tapOn: "Night patrol · Sector 4"
+- assertVisible: "Planned and recorded route"

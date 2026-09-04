@@ -27,38 +27,32 @@ class BrandAssetsTest {
         assertFalse("fully offline" in strings)
         assertFalse("local gguf" in strings)
         assertFalse("local model" in strings)
-        assertFalse("(offline)" in source("export/PdfExporter.kt").lowercase())
     }
 
     @Test
     fun userFacingDiaryCopyDoesNotContainDairyTypo() {
         val strings = visibleStrings()
-        val prompt = source("llm/DairyPrompt.kt").lowercase()
-        val diaryScreen = source("ui/diary/DiaryScreen.kt").lowercase()
 
         assertFalse("dairy" in strings)
-        assertFalse("formal dairy" in prompt)
-        assertFalse("ips dairy" in prompt)
-        assertFalse("share dairy pdf" in diaryScreen)
     }
 
     @Test
-    fun launcherUsesSelectedSmartFieldNoteBrand() {
+    fun launcherUsesPatrolGridBrand() {
         val colors = resource("values/colors.xml")
         val foreground = resource("drawable/ic_launcher_foreground.xml")
 
-        assertTrue("#0B1633" in colors)
-        assertTrue("#FFF7E8" in foreground)
-        assertTrue("#FF6B4A" in foreground)
-        assertTrue("#F4A629" in foreground)
-        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 4)
+        assertTrue("#0F172A" in colors)
+        assertTrue("#1E3A5F" in foreground)
+        assertTrue("#E8A317" in foreground)
+        assertTrue("#16A34A" in foreground)
+        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 5)
         assertFalse("M54,30 L70,54 L54,78 L38,54 Z" in foreground)
     }
 
     @Test
     fun adaptiveLaunchersSupportAndroidThemedIcons() {
-        val launcher = resource("mipmap-anydpi-v26/ic_launcher.xml")
-        val roundLauncher = resource("mipmap-anydpi-v26/ic_launcher_round.xml")
+        val launcher = resource("mipmap-anydpi/ic_launcher.xml")
+        val roundLauncher = resource("mipmap-anydpi/ic_launcher_round.xml")
         val monochrome = resource("drawable/ic_launcher_monochrome.xml")
 
         assertTrue("<monochrome android:drawable=\"@drawable/ic_launcher_monochrome\"" in launcher)
@@ -85,25 +79,145 @@ class BrandAssetsTest {
         assertFalse("context.getSharedPreferences" in keyStore)
     }
 
+    /**
+     * The legacy DailyBeat capture-and-upload stack was removed because it shipped
+     * third-party network egress and external-storage writes into a police build that
+     * never reached any of it. Nothing here is allowed to come back by accident: each
+     * of these either talks to a third party or writes patrol data somewhere
+     * `allowBackup=false` does not cover.
+     */
     @Test
-    fun officerNameIsReadableWhileApiKeyIsMasked() {
-        val settings = source("ui/settings/SettingsScreen.kt")
-        val officerField = settings.substringAfter("value = state.officerName")
-            .substringBefore("value = state.supervisorName")
-        val apiKeyField = settings.substringAfter("value = state.apiKeyDraft")
-            .substringBefore("if (state.hasApiKey)")
-
-        assertFalse("PasswordVisualTransformation" in officerField)
-        assertTrue("PasswordVisualTransformation" in apiKeyField)
-        assertTrue("KeyboardType.Password" in apiKeyField)
+    fun legacyCaptureAndEgressStackStaysDeleted() {
+        val removed = listOf(
+            "capture/VoiceCaptureOrchestrator.kt",
+            "capture/SpeechTranscriber.kt",
+            "capture/WhisperBridge.kt",
+            "capture/VoiceRecorder.kt",
+            "capture/CallLogWorker.kt",
+            "capture/VisitTracker.kt",
+            "geo/OsmGeocoder.kt",
+            "cloud/CloudLlmClient.kt",
+            "audit/CaptureAuditLog.kt",
+            "export/PdfExporter.kt",
+            "export/PackageExporter.kt",
+        )
+        val resurrected = removed.filter {
+            File("src/main/java/com/dailybeat/app/$it").exists()
+        }
+        assertTrue(
+            "Legacy capture/egress files are back: $resurrected",
+            resurrected.isEmpty(),
+        )
     }
 
+    /**
+     * The files being gone is not enough. Microphone and call-log capture come back
+     * the moment a permission is declared and something checks it, and with the
+     * helpers already present that diff looks smaller than the capability change is.
+     */
     @Test
-    fun productionVoiceCaptureNeverInventsAnEmulatorTranscript() {
-        val orchestrator = source("capture/VoiceCaptureOrchestrator.kt")
+    fun microphoneAndCallLogCaptureCannotBeReintroducedQuietly() {
+        val forbidden = listOf("RECORD_AUDIO", "READ_CALL_LOG")
+        val offenders = mutableListOf<String>()
+        forbidden.forEach { permission ->
+            if (permission in manifest()) offenders += "AndroidManifest.xml: $permission"
+        }
+        File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { file ->
+                val text = file.readText()
+                forbidden.filter { it in text }.forEach { offenders += "${file.name}: $it" }
+            }
+        assertTrue("Audio/call-log capture is being reintroduced: $offenders", offenders.isEmpty())
+    }
 
-        assertFalse("emulatorDemoTranscript" in orchestrator)
-        assertFalse(File("src/main/java/com/dailybeat/app/capture/WhisperBridge.kt").exists())
-        assertFalse(File("src/main/java/com/dailybeat/app/capture/VoiceRecorder.kt").exists())
+    /**
+     * patrol_evidence_owner gates sign-in when a device holds another officer's
+     * unsynchronized evidence. Encrypted stores here read through
+     * runCatching{}.getOrNull(), so moving this key into one makes a Keystore fault
+     * return null, short-circuit the gate condition and let the second officer in.
+     * Keep it in the plain store until the gate itself fails closed.
+     */
+    @Test
+    fun theEvidenceOwnerGateIsNotMovedToAFailSoftStore() {
+        val settings = source("data/settings/SettingsRepository.kt")
+        assertTrue(
+            "patrol_evidence_owner must stay in the plain preference file",
+            "getSharedPreferences(\"dailybeat_settings\"" in settings,
+        )
+        // Match the construction call, not the class name: the note on
+        // setPatrolEvidenceOwner explains the hazard and necessarily names the class.
+        assertFalse(
+            "SettingsRepository must not build an EncryptedSharedPreferences while it " +
+                "holds the evidence-owner gate; see the note on setPatrolEvidenceOwner",
+            "EncryptedSharedPreferences.create(" in settings,
+        )
+        val gate = source("MainActivity.kt")
+        assertTrue(
+            "the evidence-owner gate is gone from MainActivity",
+            "pendingOwner != null && pendingOwner != identity.userId" in gate,
+        )
+    }
+
+    /**
+     * PatrolGrid may contact its own Supabase backend and the pinned OpenFreeMap tile
+     * host, and nothing else. A police build must not acquire a new outbound host
+     * without that being a deliberate, reviewed change.
+     */
+    @Test
+    fun sourceContainsNoUnapprovedOutboundHosts() {
+        val allowed = setOf(
+            "tiles.openfreemap.org",
+            "fonts.googleapis.com",
+            "schemas.android.com",
+            "www.w3.org",
+            "maven.apache.org",
+        )
+        val offenders = mutableListOf<String>()
+        File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { file ->
+                Regex("""https://([a-zA-Z0-9.-]+)""").findAll(file.readText())
+                    .map { it.groupValues[1] }
+                    .filter { host -> host !in allowed && !host.endsWith(".supabase.co") }
+                    .forEach { host -> offenders += "${file.name}: $host" }
+            }
+        assertTrue("Unapproved outbound hosts in source: $offenders", offenders.isEmpty())
+    }
+
+    /** External storage is the one location `allowBackup=false` does not protect. */
+    @Test
+    fun noSourceWritesPatrolDataToExternalStorage() {
+        val offenders = File("src/main/java").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { "getExternalFilesDir" in it.readText() || "getExternalStorageDirectory" in it.readText() }
+            .map { it.name }
+            .toList()
+        assertTrue("Source writes to external storage: $offenders", offenders.isEmpty())
+    }
+
+    /**
+     * In an unconfigured preview build `addObservation` and `recordDeviation` take no text
+     * at all -- they bump a counter and set a flag, and the note the officer typed is
+     * dropped. Any message telling them it was saved on the device is therefore false, and
+     * on an evidence app a false persistence claim is the kind of thing someone relies on.
+     * Driving the preview build on an emulator is what surfaced it: the note vanished.
+     */
+    @Test
+    fun previewBuildDoesNotClaimToStoreNoteTextItDiscards() {
+        val viewModel = File("src/main/java/com/dailybeat/app/ui/patrol/PatrolGridViewModel.kt")
+        val offenders = Regex("""announce\("([^"]*)"\)""").findAll(viewModel.readText())
+            .map { it.groupValues[1] }
+            .filter { message ->
+                Regex("""sav(ed|e)\b""").containsMatchIn(message) &&
+                    "securely" !in message &&
+                    "could not" !in message &&
+                    "before saving" !in message
+            }
+            .toList()
+        assertTrue(
+            "Preview-build messages claim to save note text that is discarded: $offenders",
+            offenders.isEmpty(),
+        )
     }
 }
