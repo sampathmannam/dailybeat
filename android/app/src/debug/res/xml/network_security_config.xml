@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-variant override so a debug build can talk to a Supabase stack running on the
+  developer's own machine, reached over `adb reverse tcp:54321 tcp:54321`. Supabase local
+  serves plain HTTP, and the app otherwise refuses cleartext outright.
+
+  This file exists only in src/debug. The release build keeps
+  src/main/res/xml/network_security_config.xml, where cleartext stays false with no
+  exemptions, so nothing here can reach a shipped APK. The exemption is also pinned to
+  loopback: a debug build still cannot send cleartext anywhere off the device.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
