@@ -32,6 +32,14 @@ data class PatrolGridRemoteSnapshot(
     val evidenceSources: List<PatrolEvidenceSource> = emptyList(),
     val selectedEvidenceSessionId: String? = null,
     val priorityVisitEvidence: List<PatrolPriorityVisitEvidence> = emptyList(),
+    /**
+     * A patrol session this officer still has open on the server while this device holds no
+     * local active patrol. Set only for the PATROL role. It happens after a reinstall, a
+     * cleared app store, or a replacement handset: the session keeps running server-side but
+     * the device that could record into it is gone.
+     */
+    val resumableSessionId: String? = null,
+    val resumableMissionId: String? = null,
 )
 
 data class PatrolMapPoint(val latitude: Double, val longitude: Double)

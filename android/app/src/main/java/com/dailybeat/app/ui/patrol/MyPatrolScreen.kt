@@ -69,6 +69,7 @@ fun MyPatrolScreen(
     onRecordSafetyEvent: () -> Unit,
     onRecordReviewContext: () -> Unit,
     onEndPatrol: () -> Unit,
+    onResumePatrol: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val mission = state.primaryMission
@@ -231,6 +232,46 @@ fun MyPatrolScreen(
                     onRecordSafetyEvent = onRecordSafetyEvent,
                     onEndPatrol = onEndPatrol,
                 )
+            } else if (state.resumableSessionId != null && state.resumableMissionId == mission.id) {
+                // The session is still open on the server while this device holds no local
+                // patrol state. Saying "closed" here was simply untrue, and it left the
+                // officer no way to record into the patrol or to end it.
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().testTag("patrol_resumable_state"),
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "This patrol is still open on the server, but this device is not tracking it.",
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                "Resume it to record evidence and end the patrol from this device.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onResumePatrol,
+                        enabled = !state.operationInProgress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 54.dp)
+                            .testTag("resume_patrol"),
+                        shape = MaterialTheme.shapes.small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold,
+                            contentColor = Color(0xFF0F172A),
+                        ),
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Resume patrol", fontWeight = FontWeight.SemiBold)
+                    }
+                }
             } else if (mission.status == com.dailybeat.app.data.model.PatrolMissionStatus.ASSIGNED) {
                 Button(
                     onClick = onStartPatrol,

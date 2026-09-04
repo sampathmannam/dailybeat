@@ -70,6 +70,25 @@ class SupabasePatrolGridClient(
             session = session,
         )
         val missionIds = (0 until missionRows.length()).map { missionRows.getJSONObject(it).getString("id") }
+        // An officer whose device lost its local patrol state still has the session running
+        // on the server. Without this the app renders the mission "On route" and then tells
+        // them it is closed, offering no action at all, so the patrol can be neither recorded
+        // into nor ended. Row-level security scopes this to the caller's own sessions.
+        // Only worth asking when a resume could actually apply: this device holds no local
+        // active patrol, so nothing is being tracked here. When it does hold one there is
+        // nothing orphaned and the common refresh path keeps its original request count.
+        val openSessionRow = if (identity.role == PatrolRole.PATROL && activeMissionId == null) {
+            getRows(
+                path = "/rest/v1/patrolgrid_sessions" +
+                    "?select=id,mission_id,started_at&ended_at=is.null" +
+                    "&order=started_at.desc&limit=1",
+                session = session,
+            ).takeIf { it.length() > 0 }?.getJSONObject(0)
+        } else {
+            null
+        }
+        val resumableMission = openSessionRow?.getString("mission_id")?.takeIf { it in missionIds }
+        val resumableSession = openSessionRow?.getString("id")?.takeIf { resumableMission != null }
         val evidenceMissionId = activeMissionId?.takeIf { it in missionIds }
             ?: (0 until missionRows.length()).map { missionRows.getJSONObject(it) }
                 .firstOrNull { it.getString("status") == "active" }?.getString("id")
@@ -250,6 +269,8 @@ class SupabasePatrolGridClient(
             reviewContextResponse = contextResponse?.optString("detail")?.takeIf(String::isNotBlank),
             evidenceSources = evidenceSources,
             selectedEvidenceSessionId = selectedEvidenceSource?.sessionId,
+            resumableSessionId = resumableSession,
+            resumableMissionId = resumableMission,
             priorityVisitEvidence = mapPriorityVisitEvidence(
                 visits = visits,
                 evidenceMissionId = evidenceMissionId,

@@ -131,6 +131,13 @@ fun PatrolGridAppScaffold(
                     viewModel.startPatrol()
                 }
             },
+            onResumePatrol = {
+                if (!state.locationPermissionGranted) {
+                    onRequestLocationPermission()
+                } else {
+                    viewModel.resumePatrol()
+                }
+            },
             onMarkVisited = viewModel::markCurrentPriorityVisited,
             onAddObservation = viewModel::addObservation,
             onRecordDeviation = viewModel::recordDeviation,
@@ -160,6 +167,7 @@ private fun PatrolGridScaffoldContent(
     onSelectSupervisorTab: (SupervisorMissionTab) -> Unit,
     onRoleSelected: (PatrolRole) -> Unit,
     onStartPatrol: () -> Unit,
+    onResumePatrol: () -> Unit,
     onMarkVisited: () -> Unit,
     onAddObservation: (String) -> Unit,
     onRecordDeviation: (String) -> Unit,
@@ -228,6 +236,7 @@ private fun PatrolGridScaffoldContent(
                 MyPatrolScreen(
                     state = state,
                     onStartPatrol = onStartPatrol,
+                    onResumePatrol = onResumePatrol,
                     onMarkVisited = onMarkVisited,
                     onAddObservation = { fieldEditor = PatrolFieldUpdateKind.OBSERVATION },
                     onRecordDeviation = { fieldEditor = PatrolFieldUpdateKind.DEVIATION },

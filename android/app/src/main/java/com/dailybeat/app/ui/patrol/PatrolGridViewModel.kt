@@ -108,6 +108,13 @@ data class PatrolGridUiState(
     val unreadableTrackPoints: Int = 0,
     val captureError: String? = null,
     val trackingActive: Boolean = false,
+    /**
+     * A session this officer still has open on the server while this device is not tracking.
+     * Surfaced so an officer whose device lost its local patrol state can take the patrol
+     * back rather than being shown a mission that is "On route" and simultaneously "closed".
+     */
+    val resumableSessionId: String? = null,
+    val resumableMissionId: String? = null,
     val locationPermissionGranted: Boolean = false,
     val observationCount: Int = 0,
     val review: PatrolReview? = null,
@@ -338,6 +345,48 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
         }
         refresh()
         announce("Showing ${if (role == PatrolRole.SUPERVISOR) "supervisor" else "patrol personnel"} view")
+    }
+
+    /**
+     * Take back a patrol whose session is still open on the server after this device lost its
+     * local state -- a reinstall, cleared storage, or a replacement handset. Tracking still
+     * only ever starts from an explicit tap, so the consent the privacy notice promises is
+     * unchanged; this simply stops the officer being locked out of a patrol that is genuinely
+     * running, unable to record evidence into it or to end it.
+     */
+    fun resumePatrol() {
+        if (_uiState.value.operationInProgress) return
+        val state = _uiState.value
+        val sessionId = state.resumableSessionId ?: return
+        val missionId = state.resumableMissionId ?: return
+        val mission = state.allMissions.firstOrNull { it.id == missionId } ?: return
+        val retention = app.settingsRepository.get()
+        if (retention.patrolRetentionEnforcementFailureAtMs != null ||
+            retention.patrolRetentionDeletionIntentCount > 0
+        ) {
+            announce("Patrol cannot resume until the required secure evidence cleanup succeeds")
+            _uiState.update { it.copy(captureError = PATROLGRID_RETENTION_ENFORCEMENT_ERROR) }
+            return
+        }
+        if (mission.endsAtEpochMs?.let { it <= System.currentTimeMillis() } == true) {
+            announce("This duty window has ended. Ask the supervisor for a new or extended mission")
+            return
+        }
+        if (!PermissionHelper.canCaptureLocation(app)) {
+            announce("Location permission is required before patrol tracking can resume")
+            refreshPermissionState()
+            return
+        }
+        viewModelScope.launch {
+            setOperationInProgress(true)
+            app.settingsRepository.setPatrolEvidenceOwner(
+                app.patrolGridRemote.currentSession()?.userId,
+            )
+            app.settingsRepository.setActivePatrolSession(sessionId)
+            startLocalPatrol(missionId)
+            setOperationInProgress(false)
+            announce("Patrol resumed on this device; tracking is on again")
+        }
     }
 
     fun startPatrol() {
@@ -962,6 +1011,10 @@ class PatrolGridViewModel(application: Application) : AndroidViewModel(applicati
                     localUnreadableTrackPoints,
                 ),
                 trackingActive = effectiveActiveMissionId != null,
+                resumableSessionId = snapshot.resumableSessionId
+                    ?.takeIf { effectiveActiveMissionId == null },
+                resumableMissionId = snapshot.resumableMissionId
+                    ?.takeIf { effectiveActiveMissionId == null },
                 locationPermissionGranted = PermissionHelper.canCaptureLocation(app),
                 observationCount = snapshot.observationCount,
                 review = primary?.let { mission ->
