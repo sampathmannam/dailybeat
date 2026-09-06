@@ -16,10 +16,12 @@
   call wording in the AI prompts are gone. Restoring an older cloud backup still works.
 
 ### Fixed
-- **Stays were never recorded against the right day.** Every stay was written with a start time of
-  zero, because the dwell start was read inside the coroutine that recorded it after the field had
-  already been reset. No stay could match today's date, so none appeared on Today, on the map, or
-  in the diary context.
+- **A stay's start time was subject to a data race.** The dwell start was read inside the coroutine
+  that recorded the stay, while the field was reset synchronously right after that coroutine was
+  launched, with no synchronisation between them. Losing the race stores the stay at the epoch,
+  where it matches no date and appears nowhere in the app. Tests reproduce the loss reliably; real
+  captures on an Android 17 device happened to win it, so the corruption is intermittent rather
+  than certain. The start time is now read before dispatching.
 - **Stays were lost on a vehicle departure.** A stay ended at the last sample taken inside its
   radius, and the 75 m update filter produces none when the officer drives off, so the whole stay
   was discarded. Stays now end when the departure is detected.
