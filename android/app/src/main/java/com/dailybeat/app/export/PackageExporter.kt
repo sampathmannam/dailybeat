@@ -3,6 +3,7 @@ package com.dailybeat.app.export
 import android.content.Context
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.repo.DiaryRepository
+import com.dailybeat.app.util.AppStorage
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -16,10 +17,8 @@ class PackageExporter(
 ) {
 
     suspend fun exportWeekPackage(officerName: String, supervisorName: String): File {
-        val dir = File(context.getExternalFilesDir(null), "DailyBeat")
-        dir.mkdirs()
         val stamp = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val zipFile = File(dir, "dailybeat-export-$stamp.zip")
+        val zipFile = AppStorage.outputFile(context, "dailybeat-export-$stamp.zip")
 
         ZipOutputStream(zipFile.outputStream()).use { zip ->
             val auditLines = CaptureAuditLog.readRecent(context, 500)

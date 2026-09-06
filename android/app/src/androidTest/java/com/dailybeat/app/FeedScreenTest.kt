@@ -2,6 +2,7 @@ package com.dailybeat.app
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -56,7 +57,7 @@ class FeedScreenTest {
 
         composeRule.waitUntilAtLeastOneExists(hasText("Today"), timeoutMillis = 10_000)
         composeRule.onNodeWithTag("feed_list")
-            .performScrollToNode(hasText("feed_card_${DateKeys.today()}", substring = true))
+            .performScrollToNode(hasTestTag("feed_card_${DateKeys.today()}"))
 
         // Seeded stays come from the synthetic day and must be named, not coordinates.
         composeRule.onNodeWithText("Police Headquarters").assertIsDisplayed()

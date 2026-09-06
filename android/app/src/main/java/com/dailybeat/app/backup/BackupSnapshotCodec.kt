@@ -126,6 +126,9 @@ object BackupSnapshotCodec {
     private fun settingsJson(value: BackupSettings) = JSONObject().apply {
         put("officerName", value.officerName)
         put("gpsCaptureEnabled", value.gpsCaptureEnabled)
+        // Retired in 3.6.0. Still written because releases before it read this key strictly and
+        // would fail to restore a backup taken on a newer phone.
+        put("callLogEnabled", false)
         put("cloudLlmEnabled", value.cloudLlmEnabled)
         put("cloudProvider", value.cloudProvider)
         put("cloudModel", value.cloudModel)
@@ -135,17 +138,25 @@ object BackupSnapshotCodec {
         put("supervisorName", value.supervisorName)
     }
 
-    private fun settings(value: JSONObject) = BackupSettings(
-        officerName = value.getString("officerName"),
-        gpsCaptureEnabled = value.getBoolean("gpsCaptureEnabled"),
-        cloudLlmEnabled = value.getBoolean("cloudLlmEnabled"),
-        cloudProvider = value.getString("cloudProvider"),
-        cloudModel = value.getString("cloudModel"),
-        cloudBaseUrl = value.getString("cloudBaseUrl"),
-        autoEveningReport = value.getBoolean("autoEveningReport"),
-        autoMiddayPulse = value.getBoolean("autoMiddayPulse"),
-        supervisorName = value.getString("supervisorName"),
-    )
+    /**
+     * Settings are read leniently, with the defaults from [BackupSettings] filling any gap. A
+     * preference that a later release adds or retires must never make an existing backup
+     * unrestorable; the records themselves are still read strictly.
+     */
+    private fun settings(value: JSONObject): BackupSettings {
+        val defaults = BackupSettings()
+        return BackupSettings(
+            officerName = value.optString("officerName").ifBlank { defaults.officerName },
+            gpsCaptureEnabled = value.optBoolean("gpsCaptureEnabled", defaults.gpsCaptureEnabled),
+            cloudLlmEnabled = value.optBoolean("cloudLlmEnabled", defaults.cloudLlmEnabled),
+            cloudProvider = value.optString("cloudProvider").ifBlank { defaults.cloudProvider },
+            cloudModel = value.optString("cloudModel").ifBlank { defaults.cloudModel },
+            cloudBaseUrl = value.optString("cloudBaseUrl", defaults.cloudBaseUrl),
+            autoEveningReport = value.optBoolean("autoEveningReport", defaults.autoEveningReport),
+            autoMiddayPulse = value.optBoolean("autoMiddayPulse", defaults.autoMiddayPulse),
+            supervisorName = value.optString("supervisorName", defaults.supervisorName),
+        )
+    }
 
     private fun JSONObject.putNullable(name: String, value: Any?) {
         put(name, value ?: JSONObject.NULL)

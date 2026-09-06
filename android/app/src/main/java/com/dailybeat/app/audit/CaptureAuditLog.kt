@@ -1,6 +1,7 @@
 package com.dailybeat.app.audit
 
 import android.content.Context
+import com.dailybeat.app.util.AppStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -44,5 +45,5 @@ object CaptureAuditLog {
     }
 
     private fun auditFile(context: Context): File =
-        File(context.getExternalFilesDir(null), "DailyBeat/capture_audit.log")
+        AppStorage.outputFile(context, "capture_audit.log")
 }

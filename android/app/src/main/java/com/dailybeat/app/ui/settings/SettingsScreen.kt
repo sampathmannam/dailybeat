@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +51,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val showQaTools = booleanResource(R.bool.show_qa_tools)
+    val batterySettingsContext = LocalContext.current
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -312,6 +314,25 @@ fun SettingsScreen(
                     checked = state.gpsEnabled,
                     onCheckedChange = viewModel::setGpsEnabled,
                 )
+                Text(
+                    text = if (state.batteryUnrestricted) {
+                        stringResource(R.string.battery_unrestricted)
+                    } else {
+                        stringResource(R.string.battery_restricted)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.batteryUnrestricted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+                if (!state.batteryUnrestricted) {
+                    SecondaryButton(
+                        text = stringResource(R.string.battery_open_settings),
+                        onClick = { openBatterySettings(batterySettingsContext) },
+                    )
+                }
                 state.captureMessage?.let { message ->
                     Text(
                         text = message,
@@ -436,6 +457,25 @@ private fun PlaceCard(place: Place, onDelete: () -> Unit) {
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))
             }
+        }
+    }
+}
+
+/**
+ * Sends the officer to the system screen where DailyBeat can be set to Unrestricted. The app
+ * deliberately does not ask for the exemption directly; the system list is the honest route and
+ * needs no extra permission.
+ */
+private fun openBatterySettings(context: android.content.Context) {
+    val intent = android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }.onFailure {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
         }
     }
 }

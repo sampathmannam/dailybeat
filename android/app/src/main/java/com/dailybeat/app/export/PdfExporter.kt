@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import com.dailybeat.app.util.AppStorage
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -66,9 +67,7 @@ class PdfExporter(private val context: Context) {
         )
         document.finishPage(page)
 
-        val dir = File(context.getExternalFilesDir(null), "DailyBeat")
-        dir.mkdirs()
-        val out = File(dir, "$dateStr.pdf")
+        val out = AppStorage.outputFile(context, "$dateStr.pdf")
         out.outputStream().use { document.writeTo(it) }
         document.close()
         return out

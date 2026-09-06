@@ -19,7 +19,8 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
 
     suspend fun saveForDate(date: LocalDate, text: String) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty()) return
+        // An empty body is a deliberate clear, not a no-op; dropping it made the old text
+        // reappear the next time the day was opened.
         diaryDao.upsert(
             DiaryEntry(
                 dateKey = DateKeys.format(date),

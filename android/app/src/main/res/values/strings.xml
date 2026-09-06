@@ -71,7 +71,10 @@
     <string name="settings_title">Settings</string>
     <string name="settings_capture_group">Capture</string>
     <string name="officer_name_label">Officer name</string>
-    <string name="gps_capture_label">GPS breadcrumbs (every 60s / 100m)</string>
+    <string name="gps_capture_label">GPS breadcrumbs (every 45s / 75m)</string>
+    <string name="battery_unrestricted">Battery: unrestricted. Passive tracking can run all day.</string>
+    <string name="battery_restricted">Battery optimisation is on for DailyBeat. Android may stop tracking in the background. Set DailyBeat to Unrestricted.</string>
+    <string name="battery_open_settings">Open battery settings</string>
     <string name="places_title">Named places (geofences)</string>
     <string name="place_name_label">Place name</string>
     <string name="place_lat_label">Latitude</string>

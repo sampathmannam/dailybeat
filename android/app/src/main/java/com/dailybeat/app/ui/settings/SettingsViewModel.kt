@@ -13,6 +13,7 @@ import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.DayContextBuilder
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
+import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,7 @@ data class SettingsUiState(
     val supervisorName: String = "",
     val gpsEnabled: Boolean = true,
     val captureMessage: String? = null,
+    val batteryUnrestricted: Boolean = true,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
     val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
@@ -67,37 +69,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refresh() {
         val settings = app.settingsRepository.get()
-        val current = _uiState.value
         viewModelScope.launch {
             val places = app.placeRepository.all()
             val recentVisits = app.visitRepository.visitsLastDays(14)
             val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
-            _uiState.value = SettingsUiState(
-                officerName = settings.officerName,
-                supervisorName = settings.supervisorName,
-                gpsEnabled = settings.gpsCaptureEnabled,
-                captureMessage = current.captureMessage,
-                cloudLlmEnabled = settings.cloudLlmEnabled,
-                cloudProvider = settings.cloudProvider,
-                cloudModel = settings.cloudModel,
-                cloudBaseUrl = settings.cloudBaseUrl,
-                apiKeyDraft = current.apiKeyDraft,
-                hasApiKey = withContext(Dispatchers.IO) {
-                    app.settingsRepository.secureApiKey.hasApiKey()
-                },
-                autoEveningReport = settings.autoEveningReport,
-                autoMiddayPulse = settings.autoMiddayPulse,
-                places = places,
-                auditLines = CaptureAuditLog.readRecent(app),
-                placeSuggestions = suggestions,
-                backupConfigured = app.backupCoordinator.isConfigured,
-                backupEmailDraft = current.backupEmailDraft,
-                backupPasswordDraft = current.backupPasswordDraft,
-                backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
-                backupBusy = current.backupBusy,
-                backupMessage = current.backupMessage,
-                backupRestoreConfirmation = current.backupRestoreConfirmation,
-            )
+            val hasKey = withContext(Dispatchers.IO) {
+                app.settingsRepository.secureApiKey.hasApiKey()
+            }
+            val auditLines = CaptureAuditLog.readRecent(app)
+            // Copy rather than rebuild: a rebuild threw away whatever the officer was in the
+            // middle of, such as a half-typed place or the result of a connection test.
+            _uiState.update { current ->
+                current.copy(
+                    officerName = settings.officerName,
+                    supervisorName = settings.supervisorName,
+                    gpsEnabled = settings.gpsCaptureEnabled,
+                    batteryUnrestricted = PermissionHelper.isIgnoringBatteryOptimizations(app),
+                    cloudLlmEnabled = settings.cloudLlmEnabled,
+                    cloudProvider = settings.cloudProvider,
+                    cloudModel = settings.cloudModel,
+                    cloudBaseUrl = settings.cloudBaseUrl,
+                    hasApiKey = hasKey,
+                    autoEveningReport = settings.autoEveningReport,
+                    autoMiddayPulse = settings.autoMiddayPulse,
+                    places = places,
+                    auditLines = auditLines,
+                    placeSuggestions = suggestions,
+                    backupConfigured = app.backupCoordinator.isConfigured,
+                    backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
+                )
+            }
         }
     }
 
@@ -393,8 +394,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             app.placeRepository.add(name, lat, lon)
-            refresh()
             _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "", placeError = null) }
+            refresh()
         }
     }
 

@@ -1,5 +1,54 @@
 # Changelog
 
+## 3.6.0 — 2026-09-07
+
+### Added
+- **Daily journey feed.** The History tab is now a feed with one card per day: the day's route
+  drawn from its GPS track, distance travelled, time out, stop count, and every stay listed as
+  name, arrival time, and duration ("Rasipuram Police Station · 08:00 · 40 min"). Tapping a day
+  opens its diary. Routes are vector-drawn rather than embedding a map view per card.
+- **Places are named by the map.** Reverse geocoding now requests name details at building zoom
+  and prefers the feature's own name over the street it sits on, so a stay at a police station is
+  labelled as that station. Names are cached with the address (schema 5).
+
+### Removed
+- **Call-log capture.** The permission, worker, Settings toggle, synthetic call events, and the
+  call wording in the AI prompts are gone. Restoring an older cloud backup still works.
+
+### Fixed
+- **Stays were never recorded against the right day.** Every stay was written with a start time of
+  zero, because the dwell start was read inside the coroutine that recorded it after the field had
+  already been reset. No stay could match today's date, so none appeared on Today, on the map, or
+  in the diary context.
+- **Stays were lost on a vehicle departure.** A stay ended at the last sample taken inside its
+  radius, and the 75 m update filter produces none when the officer drives off, so the whole stay
+  was discarded. Stays now end when the departure is detected.
+- **Journeys between two places were dropped** when the stay anchor reset mid-trip.
+- **The weekly rollup overwrote the same day's diary**, and the unattended 8 PM report overwrote
+  anything the officer had typed by hand. Both now keep the officer's text and replace only their
+  own block on regeneration.
+- **Passive capture stayed dead after a force-stop or an app update** until the next reboot, while
+  Today still reported "GPS tracking on". Opening the app re-arms capture, and the status now
+  reflects whether the service is genuinely running.
+- **Capture was switched off entirely for anyone who granted location "while using the app"**, even
+  though a foreground service with the location type keeps receiving fixes.
+- **The evening and midday reports ran a cloud round trip inside a broadcast receiver**, which the
+  platform kills long before a 180-second request can finish. Both now run in WorkManager, which
+  also waits for connectivity; the retry worker previously had no network constraint and burned out
+  its attempts while offline.
+- **Clearing a diary did not stick** — an empty body was discarded and the old text reappeared.
+- **PDF export, the week ZIP export, and audit-log reads and writes ran on the UI thread.**
+- Voice capture could hang forever if the recognizer never called back; it now times out.
+- Settings no longer discards a half-typed place or a connection-test result when it refreshes.
+- File output falls back to internal storage when external app storage is unavailable.
+
+### Tests
+- Unit tests: 64 → 111. New coverage for the capture engine (which had none), the real shipped
+  database upgrade paths (2→5, previously untested), geocoding and name extraction, report save
+  semantics, and the feed model.
+- Instrumented: added feed and capture-lifecycle tests; permission granting in tests no longer
+  races the tests that depend on it.
+
 ## 3.4.0 — 2026-08-30
 
 - Replaced the decorative journey sketch with an interactive OpenStreetMap-based map using MapLibre and OpenFreeMap.
