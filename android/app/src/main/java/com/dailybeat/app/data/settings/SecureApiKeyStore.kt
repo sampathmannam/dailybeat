@@ -5,15 +5,15 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-class SecureApiKeyStore(private val context: Context) {
+open class SecureApiKeyStore(private val context: Context) {
 
     private val prefs: SharedPreferences by lazy { createPrefs(context) }
 
-    fun getApiKey(): String? = runCatching {
+    open fun getApiKey(): String? = runCatching {
         prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
     }.getOrNull()
 
-    fun setApiKey(key: String) {
+    open fun setApiKey(key: String) {
         try {
             check(prefs.edit().putString(KEY_API, key.trim()).commit())
         } catch (error: Exception) {
@@ -21,11 +21,11 @@ class SecureApiKeyStore(private val context: Context) {
         }
     }
 
-    fun clearApiKey() {
+    open fun clearApiKey() {
         runCatching { prefs.edit().remove(KEY_API).commit() }
     }
 
-    fun hasApiKey(): Boolean = !getApiKey().isNullOrBlank()
+    open fun hasApiKey(): Boolean = !getApiKey().isNullOrBlank()
 
     private companion object {
         private const val KEY_API = "cloud_llm_api_key"

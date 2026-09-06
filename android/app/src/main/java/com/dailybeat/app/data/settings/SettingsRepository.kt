@@ -2,10 +2,12 @@ package com.dailybeat.app.data.settings
 
 import android.content.Context
 
-class SettingsRepository(private val context: Context) {
+class SettingsRepository(
+    private val context: Context,
+    val secureApiKey: SecureApiKeyStore = SecureApiKeyStore(context),
+) {
 
     private val prefs = context.getSharedPreferences("dailybeat_settings", Context.MODE_PRIVATE)
-    val secureApiKey = SecureApiKeyStore(context)
 
     fun get(): AppSettings = AppSettings(
         officerName = prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer",

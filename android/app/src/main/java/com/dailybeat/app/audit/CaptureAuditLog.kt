@@ -1,6 +1,8 @@
 package com.dailybeat.app.audit
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -15,7 +17,7 @@ object CaptureAuditLog {
     private val timeFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         .withZone(ZoneId.systemDefault())
 
-    fun log(context: Context, category: String, detail: String) {
+    suspend fun log(context: Context, category: String, detail: String) = withContext(Dispatchers.IO) {
         val line = "${timeFmt.format(Instant.now())} | $category | ${detail.replace("\n", " ")}\n"
         try {
             val file = auditFile(context)
@@ -26,11 +28,16 @@ object CaptureAuditLog {
         }
     }
 
-    fun readRecent(context: Context, maxLines: Int = 80): List<String> {
-        val file = auditFile(context)
-        if (!file.exists()) return emptyList()
-        return file.readLines().takeLast(maxLines)
-    }
+    suspend fun readRecent(context: Context, maxLines: Int = 80): List<String> =
+        withContext(Dispatchers.IO) {
+            val file = auditFile(context)
+            if (!file.exists()) return@withContext emptyList()
+            try {
+                file.readLines().takeLast(maxLines)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
 
     fun clear(context: Context) {
         auditFile(context).delete()

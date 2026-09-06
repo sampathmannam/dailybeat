@@ -5,6 +5,7 @@ import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.util.DateKeys
 import java.time.LocalDate
 
 class ReportGenerator(
@@ -62,9 +63,28 @@ class ReportGenerator(
         }
     }
 
+    /** Explicit, officer-initiated generation: the freshly generated report becomes the diary. */
     suspend fun generateAndSaveForDate(date: LocalDate): Result<String> {
         return generateForDate(date).onSuccess { text ->
             diaryRepository.saveForDate(date, text)
         }
+    }
+
+    /**
+     * Generation the officer did not ask for right now (the 8 PM alarm and its retries).
+     * Nothing they typed by hand may be lost, so the report is kept in its own block and a
+     * later run replaces that block instead of appending another copy.
+     */
+    suspend fun generateUnattendedForDate(date: LocalDate): Result<String> {
+        return generateForDate(date).onSuccess { text ->
+            val block = "$REPORT_MARKER${DateKeys.format(date)}) —\n$text"
+            val existing = diaryRepository.textForDate(date).orEmpty()
+            val base = existing.substringBefore(REPORT_MARKER).trimEnd()
+            diaryRepository.saveForDate(date, if (base.isBlank()) block else "$base\n\n$block")
+        }
+    }
+
+    private companion object {
+        const val REPORT_MARKER = "— AI daily report ("
     }
 }

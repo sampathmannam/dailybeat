@@ -57,9 +57,23 @@ class WeeklyReportGenerator(
         """.trimIndent()
 
         return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).map { report ->
-            val block = "— Weekly rollup (${DateKeys.format(start)} – ${DateKeys.format(end)}) —\n${report.trim()}"
-            diaryRepository.saveForDate(end, block)
+            val block = "$ROLLUP_MARKER${DateKeys.format(start)} – ${DateKeys.format(end)}) —\n${report.trim()}"
+            val existing = diaryRepository.textForDate(end).orEmpty()
+            diaryRepository.saveForDate(end, mergeRollup(existing, block))
             block
         }
+    }
+
+    /**
+     * The rollup lives alongside the day's own diary instead of replacing it, and a regenerated
+     * rollup replaces the previous one rather than stacking another copy.
+     */
+    private fun mergeRollup(existing: String, block: String): String {
+        val base = existing.substringBefore(ROLLUP_MARKER).trimEnd()
+        return if (base.isBlank()) block else "$base\n\n$block"
+    }
+
+    private companion object {
+        const val ROLLUP_MARKER = "— Weekly rollup ("
     }
 }

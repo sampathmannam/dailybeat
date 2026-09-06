@@ -13,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class CloudLlmClient(
+open class CloudLlmClient(
     private val apiKeyStore: SecureApiKeyStore,
 ) {
 
@@ -25,7 +25,7 @@ class CloudLlmClient(
 
     private val jsonMedia = "application/json".toMediaType()
 
-    suspend fun generate(settings: AppSettings, systemPrompt: String, userPrompt: String): Result<String> =
+    open suspend fun generate(settings: AppSettings, systemPrompt: String, userPrompt: String): Result<String> =
         withContext(Dispatchers.IO) {
             val apiKey = apiKeyStore.getApiKey()
             if (apiKey.isNullOrBlank()) {

@@ -67,6 +67,17 @@ class MainActivity : ComponentActivity() {
 
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Passive capture does not survive a force-stop or an app update, and BootReceiver only
+        // runs after a reboot. Re-apply it every time the officer opens the app so tracking is
+        // never silently dead while the UI claims it is on.
+        val app = application as DailyBeatApp
+        if (app.settingsRepository.isOnboardingComplete()) {
+            CaptureController.applyFromSettings(this)
+        }
+    }
+
     private fun requestRuntimePermissions() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,

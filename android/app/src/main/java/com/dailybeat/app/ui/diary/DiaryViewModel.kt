@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.llm.buildDairyPrompt
 import com.dailybeat.app.util.DateKeys
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 data class DiaryUiState(
@@ -163,15 +165,20 @@ class DiaryViewModel(
         }
     }
 
-    fun exportPdfPath(): String? {
+    /** Rendering and writing the PDF is disk work, so it must not run on the UI thread. */
+    suspend fun exportPdfPath(): String? {
         val dairy = _uiState.value.text.trim()
         if (dairy.isEmpty()) return null
-        val officer = app.settingsRepository.get().officerName
-        return app.pdfExporter.exportDairy(
-            officer,
-            dairy,
-            date,
-            app.settingsRepository.get().supervisorName,
-        ).absolutePath
+        val settings = app.settingsRepository.get()
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                app.pdfExporter.exportDairy(
+                    settings.officerName,
+                    dairy,
+                    date,
+                    settings.supervisorName,
+                ).absolutePath
+            }.getOrNull()
+        }
     }
 }

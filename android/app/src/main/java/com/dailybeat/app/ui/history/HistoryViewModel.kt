@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class HistoryUiState(
     val isGeneratingWeekly: Boolean = false,
@@ -54,10 +56,13 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
             _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
             try {
                 val settings = app.settingsRepository.get()
-                val file = app.packageExporter.exportWeekPackage(
-                    officerName = settings.officerName,
-                    supervisorName = settings.supervisorName,
-                )
+                // Zipping a month of diaries and rendering their PDFs is heavy disk work.
+                val file = withContext(Dispatchers.IO) {
+                    app.packageExporter.exportWeekPackage(
+                        officerName = settings.officerName,
+                        supervisorName = settings.supervisorName,
+                    )
+                }
                 _uiState.value = _uiState.value.copy(
                     isExporting = false,
                     message = "Export saved: ${file.name}",

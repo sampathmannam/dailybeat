@@ -1,6 +1,7 @@
 package com.dailybeat.app
 
 import android.Manifest
+import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -44,11 +45,21 @@ class OnboardingFlowTest {
 
 internal fun grantCorePermissions() {
     val pkg = InstrumentationRegistry.getInstrumentation().targetContext.packageName
-    val shell = InstrumentationRegistry.getInstrumentation().uiAutomation
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.ACCESS_FINE_LOCATION}")
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.ACCESS_COARSE_LOCATION}")
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.ACCESS_BACKGROUND_LOCATION}")
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.POST_NOTIFICATIONS}")
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.READ_CALL_LOG}")
-    shell.executeShellCommand("pm grant $pkg ${Manifest.permission.RECORD_AUDIO}")
+    listOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.POST_NOTIFICATIONS,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.RECORD_AUDIO,
+    ).forEach { permission -> runShellCommand("pm grant $pkg $permission") }
+}
+
+/**
+ * `executeShellCommand` only queues the command; draining its output is what makes the caller
+ * wait for it. Without this, tests race the permission grants they depend on.
+ */
+private fun runShellCommand(command: String) {
+    val fd = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+    ParcelFileDescriptor.AutoCloseInputStream(fd).use { it.readBytes() }
 }

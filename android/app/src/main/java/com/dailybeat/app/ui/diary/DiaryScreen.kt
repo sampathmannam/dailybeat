@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -29,6 +30,7 @@ import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -39,6 +41,7 @@ fun DiaryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val dateLabel = uiState.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -139,13 +142,12 @@ fun DiaryScreen(
                 PrimaryButton(
                     text = stringResource(R.string.share_pdf_button),
                     onClick = {
-                        val path = viewModel.exportPdfPath()
-                        if (path != null) {
-                            val file = java.io.File(path)
+                        scope.launch {
+                            val path = viewModel.exportPdfPath() ?: return@launch
                             val uri = FileProvider.getUriForFile(
                                 context,
                                 "${context.packageName}.fileprovider",
-                                file,
+                                java.io.File(path),
                             )
                             val share = Intent(Intent.ACTION_SEND).apply {
                                 type = "application/pdf"

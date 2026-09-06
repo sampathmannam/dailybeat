@@ -79,6 +79,7 @@ class LocationService : Service() {
         )
 
         startForeground(NOTIFICATION_ID, buildNotification())
+        isRunning = true
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 45_000L)
             .setMinUpdateIntervalMillis(45_000L)
             .setMinUpdateDistanceMeters(75f)
@@ -94,6 +95,7 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         if (::visitTracker.isInitialized) {
             visitTracker.flushPending()
         }
@@ -120,6 +122,11 @@ class LocationService : Service() {
     companion object {
         const val CHANNEL_ID = "location_capture"
         const val NOTIFICATION_ID = 1002
+
+        /** Whether capture is genuinely collecting, as opposed to merely being enabled in Settings. */
+        @Volatile
+        var isRunning: Boolean = false
+            private set
 
         fun start(context: Context) {
             try {

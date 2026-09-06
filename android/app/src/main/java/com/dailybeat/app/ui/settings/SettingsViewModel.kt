@@ -239,7 +239,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun loadAuditLog() {
-        _uiState.update { it.copy(auditLines = CaptureAuditLog.readRecent(app)) }
+        viewModelScope.launch {
+            val lines = CaptureAuditLog.readRecent(app)
+            _uiState.update { it.copy(auditLines = lines) }
+        }
     }
 
     fun setAutoMiddayPulse(enabled: Boolean) {

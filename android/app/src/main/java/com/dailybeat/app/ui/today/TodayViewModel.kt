@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.capture.LocationService
 import com.dailybeat.app.capture.VoiceCaptureOrchestrator
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.util.PermissionHelper
@@ -168,6 +169,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
     private fun isGpsCaptureActive(): Boolean {
         val settings = app.settingsRepository.get()
         return settings.gpsCaptureEnabled &&
-            PermissionHelper.canCaptureLocation(getApplication())
+            PermissionHelper.canCaptureLocation(getApplication()) &&
+            LocationService.isRunning
     }
 }
