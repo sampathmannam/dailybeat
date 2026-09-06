@@ -15,6 +15,7 @@ import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
+import com.dailybeat.app.data.db.MIGRATION_4_5
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
@@ -32,7 +33,7 @@ class DailyBeatApp : Application() {
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
     }
 

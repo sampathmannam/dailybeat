@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
-import com.dailybeat.app.capture.CallLogWorker
 import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
@@ -26,7 +25,6 @@ data class SettingsUiState(
     val officerName: String = "",
     val supervisorName: String = "",
     val gpsEnabled: Boolean = true,
-    val callLogEnabled: Boolean = false,
     val captureMessage: String? = null,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
@@ -78,7 +76,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 officerName = settings.officerName,
                 supervisorName = settings.supervisorName,
                 gpsEnabled = settings.gpsCaptureEnabled,
-                callLogEnabled = settings.callLogEnabled,
                 captureMessage = current.captureMessage,
                 cloudLlmEnabled = settings.cloudLlmEnabled,
                 cloudProvider = settings.cloudProvider,
@@ -279,26 +276,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         app.settingsRepository.setGpsEnabled(enabled)
         _uiState.update { it.copy(gpsEnabled = enabled) }
         CaptureController.applyFromSettings(app)
-    }
-
-    fun setCallLogEnabled(enabled: Boolean) {
-        app.settingsRepository.setCallLogEnabled(enabled)
-        _uiState.update { it.copy(callLogEnabled = enabled, captureMessage = null) }
-        if (enabled) {
-            CaptureController.applyFromSettings(app)
-        } else {
-            CallLogWorker.cancel(app)
-        }
-    }
-
-    fun onCallLogPermissionDenied() {
-        app.settingsRepository.setCallLogEnabled(false)
-        _uiState.update {
-            it.copy(
-                callLogEnabled = false,
-                captureMessage = "Call-log permission was not granted. Call capture remains off.",
-            )
-        }
     }
 
     fun setCloudLlmEnabled(enabled: Boolean) {

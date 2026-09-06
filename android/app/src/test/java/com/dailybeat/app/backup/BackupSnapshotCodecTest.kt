@@ -49,7 +49,6 @@ class BackupSnapshotCodecTest {
             settings = BackupSettings(
                 officerName = "Sampath",
                 gpsCaptureEnabled = true,
-                callLogEnabled = false,
                 cloudLlmEnabled = true,
                 cloudProvider = "deepseek",
                 cloudModel = "deepseek-chat",

@@ -40,7 +40,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.diary.DiaryScreen
-import com.dailybeat.app.ui.history.HistoryScreen
+import com.dailybeat.app.ui.feed.FeedScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
 import com.dailybeat.app.ui.today.TodayViewModel
@@ -215,7 +215,7 @@ fun DailyBeatAppScaffold() {
                 DiaryScreen()
             }
             composable(Routes.HISTORY) {
-                HistoryScreen(
+                FeedScreen(
                     onOpenDiary = { dateKey ->
                         navController.navigate(Routes.diary(dateKey)) {
                             launchSingleTop = true

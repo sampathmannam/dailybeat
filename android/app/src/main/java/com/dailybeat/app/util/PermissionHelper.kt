@@ -41,10 +41,6 @@ object PermissionHelper {
         return true
     }
 
-    fun hasCallLog(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
-            PackageManager.PERMISSION_GRANTED
-
     fun hasNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ContextCompat.checkSelfPermission(

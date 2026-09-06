@@ -31,7 +31,6 @@ data class BackupSnapshot(
 data class BackupSettings(
     val officerName: String = "IPS Officer",
     val gpsCaptureEnabled: Boolean = true,
-    val callLogEnabled: Boolean = false,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = "deepseek",
     val cloudModel: String = "deepseek-chat",

@@ -7,6 +7,7 @@ import com.dailybeat.app.geo.OsmGeocoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 import kotlin.math.cos
 import kotlin.math.sqrt
 
@@ -18,6 +19,7 @@ class VisitTracker(
     private val placeRepository: PlaceRepository,
     private val osmGeocoder: OsmGeocoder,
     private val onVisitRecorded: suspend (LocationVisit) -> Unit,
+    private val ioContext: CoroutineContext = Dispatchers.IO,
 ) {
 
     companion object {
@@ -34,21 +36,29 @@ class VisitTracker(
     private var transitStartMs: Long = 0L
     private var transitLat: Double? = null
     private var transitLon: Double? = null
+    private var departureLat: Double? = null
+    private var departureLon: Double? = null
     private var inTransit = false
 
     fun onLocation(latitude: Double, longitude: Double, timestampMs: Long) {
-        val lat = dwellLat
-        val lon = dwellLon
-        if (lat == null || lon == null) {
-            startDwell(latitude, longitude, timestampMs)
+        val anchorLat = dwellLat
+        val anchorLon = dwellLon
+        if (anchorLat == null || anchorLon == null) {
+            // No place anchor. A journey already under way must keep running: dropping it here
+            // is what used to lose the trip between two stays.
+            if (inTransit) {
+                transitLat = latitude
+                transitLon = longitude
+                finishTransitIfArrived(latitude, longitude, timestampMs)
+            } else {
+                startDwell(latitude, longitude, timestampMs)
+            }
             return
         }
 
-        val distFromDwell = distanceM(latitude, longitude, lat, lon)
-
-        if (distFromDwell <= DWELL_RADIUS_M) {
-            dwellLat = (lat + latitude) / 2.0
-            dwellLon = (lon + longitude) / 2.0
+        if (distanceM(latitude, longitude, anchorLat, anchorLon) <= DWELL_RADIUS_M) {
+            dwellLat = (anchorLat + latitude) / 2.0
+            dwellLon = (anchorLon + longitude) / 2.0
             lastSampleMs = timestampMs
             inTransit = false
             return
@@ -56,31 +66,42 @@ class VisitTracker(
 
         if (!inTransit) {
             inTransit = true
-            transitStartMs = lastSampleMs.takeIf { it > 0 } ?: timestampMs
-            transitLat = latitude
-            transitLon = longitude
-        } else {
-            transitLat = latitude
-            transitLon = longitude
+            transitStartMs = lastSampleMs.takeIf { it > dwellStartMs } ?: dwellStartMs
+            departureLat = anchorLat
+            departureLon = anchorLon
         }
+        transitLat = latitude
+        transitLon = longitude
 
-        val dwellDuration = transitStartMs - dwellStartMs
-        if (dwellDuration >= MIN_DWELL_MS && dwellStartMs > 0) {
-            finalizeDwell(dwellEndMs = transitStartMs)
+        // The stay ends when we notice the officer has left. Using only the last in-radius
+        // sample discarded the entire stay whenever they drove off, because the 75 m update
+        // filter produces no in-radius sample on the way out.
+        val dwellEndMs = lastSampleMs.takeIf { it > dwellStartMs } ?: timestampMs
+        if (dwellStartMs > 0 && dwellEndMs - dwellStartMs >= MIN_DWELL_MS) {
+            finalizeDwell(dwellEndMs)
         }
+        resetDwell()
 
-        val transitDuration = timestampMs - transitStartMs
-        if (inTransit && transitDuration >= MIN_TRANSIT_MS &&
-            distanceM(latitude, longitude, lat, lon) >= MOVE_AWAY_M
-        ) {
-            val tLat = transitLat ?: latitude
-            val tLon = transitLon ?: longitude
-            scope.launch(Dispatchers.IO) {
-                recordTransit(transitStartMs, timestampMs, tLat, tLon)
-            }
-            inTransit = false
-            startDwell(latitude, longitude, timestampMs)
+        finishTransitIfArrived(latitude, longitude, timestampMs)
+    }
+
+    private fun finishTransitIfArrived(latitude: Double, longitude: Double, timestampMs: Long) {
+        if (!inTransit) return
+        val fromLat = departureLat ?: return
+        val fromLon = departureLon ?: return
+        val movedFarEnough = distanceM(latitude, longitude, fromLat, fromLon) >= MOVE_AWAY_M
+        if (timestampMs - transitStartMs < MIN_TRANSIT_MS || !movedFarEnough) return
+
+        val startMs = transitStartMs
+        val tLat = transitLat ?: latitude
+        val tLon = transitLon ?: longitude
+        scope.launch(ioContext) {
+            recordTransit(startMs, timestampMs, tLat, tLon)
         }
+        inTransit = false
+        departureLat = null
+        departureLon = null
+        startDwell(latitude, longitude, timestampMs)
     }
 
     private fun startDwell(latitude: Double, longitude: Double, timestampMs: Long) {
@@ -94,14 +115,13 @@ class VisitTracker(
     private fun finalizeDwell(dwellEndMs: Long) {
         val lat = dwellLat ?: return
         val lon = dwellLon ?: return
-        if (dwellEndMs - dwellStartMs < MIN_DWELL_MS) {
-            resetDwell()
-            return
+        // Read the start time now: resetDwell() zeroes it before the coroutine below gets to
+        // run, which used to store every stay at the epoch so it never matched today's date.
+        val startMs = dwellStartMs
+        if (startMs <= 0 || dwellEndMs - startMs < MIN_DWELL_MS) return
+        scope.launch(ioContext) {
+            recordDwell(startMs, dwellEndMs, lat, lon)
         }
-        scope.launch(Dispatchers.IO) {
-            recordDwell(dwellStartMs, dwellEndMs, lat, lon)
-        }
-        resetDwell()
     }
 
     private fun resetDwell() {
@@ -113,23 +133,23 @@ class VisitTracker(
     private suspend fun recordDwell(startMs: Long, endMs: Long, lat: Double, lon: Double) {
         val places = placeRepository.all()
         val matched = GeofenceMatcher.matchPlace(lat, lon, places)
-        val address = osmGeocoder.resolve(lat, lon)
-        val placeName = matched?.name ?: extractShortName(address)
+        val resolved = osmGeocoder.resolve(lat, lon)
         onVisitRecorded(
             LocationVisit(
                 startMs = startMs,
                 endMs = endMs,
                 latitude = lat,
                 longitude = lon,
-                placeName = placeName,
-                address = address,
+                // A place the officer saved themselves outranks whatever the map calls it.
+                placeName = matched?.name ?: resolved.label,
+                address = resolved.address,
                 visitType = "dwell",
             ),
         )
     }
 
     private suspend fun recordTransit(startMs: Long, endMs: Long, lat: Double, lon: Double) {
-        val address = osmGeocoder.resolve(lat, lon)
+        val resolved = osmGeocoder.resolve(lat, lon)
         onVisitRecorded(
             LocationVisit(
                 startMs = startMs,
@@ -137,15 +157,10 @@ class VisitTracker(
                 latitude = lat,
                 longitude = lon,
                 placeName = null,
-                address = address,
+                address = resolved.address,
                 visitType = "transit",
             ),
         )
-    }
-
-    private fun extractShortName(display: String): String {
-        val parts = display.split(",").map { it.trim() }
-        return parts.firstOrNull()?.take(80) ?: display.take(80)
     }
 
     private fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -160,14 +175,8 @@ class VisitTracker(
 
     /** Flush open dwell when location service stops (e.g. app killed). */
     fun flushPending() {
-        val lat = dwellLat
-        val lon = dwellLon
-        if (lat == null || lon == null || dwellStartMs <= 0) return
         val endMs = lastSampleMs.takeIf { it > dwellStartMs } ?: System.currentTimeMillis()
-        if (endMs - dwellStartMs < MIN_DWELL_MS) return
-        scope.launch(Dispatchers.IO) {
-            recordDwell(dwellStartMs, endMs, lat, lon)
-        }
+        finalizeDwell(endMs)
         resetDwell()
     }
 }

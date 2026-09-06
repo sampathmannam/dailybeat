@@ -1,10 +1,5 @@
 package com.dailybeat.app.ui.settings
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,16 +50,6 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val showQaTools = booleanResource(R.bool.show_qa_tools)
-    val context = LocalContext.current
-    val callLogPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
-            viewModel.setCallLogEnabled(true)
-        } else {
-            viewModel.onCallLogPermissionDenied()
-        }
-    }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -327,22 +311,6 @@ fun SettingsScreen(
                     label = stringResource(R.string.gps_capture_label),
                     checked = state.gpsEnabled,
                     onCheckedChange = viewModel::setGpsEnabled,
-                )
-                ToggleRow(
-                    label = stringResource(R.string.call_log_label),
-                    checked = state.callLogEnabled,
-                    onCheckedChange = { enabled ->
-                        if (!enabled) {
-                            viewModel.setCallLogEnabled(false)
-                        } else if (
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
-                            PackageManager.PERMISSION_GRANTED
-                        ) {
-                            viewModel.setCallLogEnabled(true)
-                        } else {
-                            callLogPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
-                        }
-                    },
                 )
                 state.captureMessage?.let { message ->
                     Text(

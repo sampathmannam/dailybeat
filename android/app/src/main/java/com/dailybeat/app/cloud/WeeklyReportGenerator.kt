@@ -49,7 +49,7 @@ class WeeklyReportGenerator(
         val context = ContextLimiter.trimForLlm(sections.joinToString("\n"))
         val prompt = """
             Write a weekly IPS diary rollup covering the past 7 days.
-            Highlight patterns: frequent locations, call volume, key notes.
+            Highlight patterns: frequent locations, time spent at each, key notes.
             Cite source refs like [V1] when present in data. Formal tone.
 
             DATA:

@@ -35,7 +35,7 @@ class PulseReportGenerator(
 
         val prompt = """
             Write a brief midday status pulse (3–5 sentences) for an IPS officer.
-            Summarize where they have been so far today and key calls/notes.
+            Summarize where they have been so far today and key notes.
             Formal tone. No invented facts.
 
             DATA:

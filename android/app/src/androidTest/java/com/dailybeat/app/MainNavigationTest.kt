@@ -76,7 +76,7 @@ class MainNavigationTest {
     fun syntheticDayCanBeLoadedRepeatedlyWithoutDuplicatingRecords() {
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
         composeRule.waitUntilAtLeastOneExists(
-            hasText("Synthetic day loaded: 7 visits, 8 events."),
+            hasText("Synthetic day loaded: 7 visits, 5 events."),
             timeoutMillis = 10_000,
         )
 
@@ -87,7 +87,7 @@ class MainNavigationTest {
         )
 
         composeRule.onNodeWithTag("nav_diary").performClick()
-        composeRule.onNodeWithText("8 events logged for this day").assertIsDisplayed()
+        composeRule.onNodeWithText("5 events logged for this day").assertIsDisplayed()
 
         // MapLibre continuously invalidates frames on the software-rendered CI emulator,
         // so verify the final accessibility signal with UiAutomator instead of waiting for

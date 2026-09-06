@@ -12,11 +12,21 @@ import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/** What the map knows about a spot: its own name for it, plus the full postal address. */
+data class ResolvedPlace(
+    val name: String?,
+    val address: String,
+) {
+    /** Best single label to show the officer, e.g. "Rasipuram Police Station". */
+    val label: String get() = name ?: address.substringBefore(",").trim().ifBlank { address }
+}
+
 /**
  * OpenStreetMap Nominatim reverse geocoding (free). Respects 1 req/s policy via mutex delay.
  */
-class OsmGeocoder(
+open class OsmGeocoder(
     private val geocodeDao: GeocodeDao,
+    private val baseUrl: String = NOMINATIM_URL,
 ) {
 
     private val client = OkHttpClient.Builder()
@@ -27,45 +37,85 @@ class OsmGeocoder(
     private val throttle = Mutex()
     private var lastRequestMs = 0L
 
-    suspend fun resolve(latitude: Double, longitude: Double): String = withContext(Dispatchers.IO) {
-        if (!isValidCoordinate(latitude, longitude)) {
-            return@withContext fallbackLabel(latitude, longitude)
+    open suspend fun resolve(latitude: Double, longitude: Double): ResolvedPlace =
+        withContext(Dispatchers.IO) {
+            if (!isValidCoordinate(latitude, longitude)) {
+                return@withContext ResolvedPlace(null, fallbackLabel(latitude, longitude))
+            }
+            val key = cacheKey(latitude, longitude)
+            geocodeDao.get(key)?.let { cached ->
+                return@withContext ResolvedPlace(cached.placeName, cached.displayName)
+            }
+
+            throttle.withLock {
+                val wait = 1100L - (System.currentTimeMillis() - lastRequestMs)
+                if (wait > 0) kotlinx.coroutines.delay(wait)
+                lastRequestMs = System.currentTimeMillis()
+            }
+
+            // zoom=18 asks for building/POI granularity so named places such as a police
+            // station come back as a name instead of just the street they sit on.
+            val url = String.format(
+                Locale.US,
+                "%s?lat=%.6f&lon=%.6f&format=json&addressdetails=1&namedetails=1&zoom=18",
+                baseUrl,
+                latitude,
+                longitude,
+            )
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
+                .header("Accept-Language", "en")
+                .build()
+
+            val fallback = ResolvedPlace(null, fallbackLabel(latitude, longitude))
+            val body = try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext fallback
+                    response.body?.string()
+                }
+            } catch (_: Exception) {
+                return@withContext fallback
+            } ?: return@withContext fallback
+
+            val resolved = try {
+                parse(JSONObject(body), latitude, longitude)
+            } catch (_: Exception) {
+                return@withContext fallback
+            }
+
+            geocodeDao.put(
+                GeocodeCache(key = key, displayName = resolved.address, placeName = resolved.name),
+            )
+            resolved
         }
-        val key = cacheKey(latitude, longitude)
-        val cached = geocodeDao.get(key)
-        if (cached != null) return@withContext cached.displayName
 
-        throttle.withLock {
-            val wait = 1100L - (System.currentTimeMillis() - lastRequestMs)
-            if (wait > 0) kotlinx.coroutines.delay(wait)
-            lastRequestMs = System.currentTimeMillis()
-        }
-
-        val url = String.format(
-            Locale.US,
-            "https://nominatim.openstreetmap.org/reverse?lat=%.6f&lon=%.6f&format=json&addressdetails=1",
-            latitude,
-            longitude,
-        )
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
-            .header("Accept-Language", "en")
-            .build()
-
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            return@withContext fallbackLabel(latitude, longitude)
-        }
-
-        val body = response.body?.string() ?: return@withContext fallbackLabel(latitude, longitude)
-        val json = JSONObject(body)
-        val display = json.optString("display_name").takeIf { it.isNotBlank() }
+    internal fun parse(json: JSONObject, latitude: Double, longitude: Double): ResolvedPlace {
+        val address = json.optString("display_name").trimOrNull()
             ?: fallbackLabel(latitude, longitude)
-
-        geocodeDao.put(GeocodeCache(key = key, displayName = display))
-        display
+        return ResolvedPlace(name = extractName(json), address = address)
     }
+
+    /**
+     * Nominatim reports a named feature in several places depending on its version and what
+     * kind of feature it is, so take the first that actually names the spot rather than the
+     * street or the town it sits in.
+     */
+    private fun extractName(json: JSONObject): String? {
+        json.optJSONObject("namedetails")?.let { names ->
+            names.optString("name").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+            names.optString("name:en").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+        }
+        json.optString("name").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+        json.optJSONObject("address")?.let { address ->
+            NAMED_FEATURE_KEYS.forEach { key ->
+                address.optString(key).trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+            }
+        }
+        return null
+    }
+
+    private fun String.trimOrNull(): String? = trim().takeIf { it.isNotEmpty() && it != "null" }
 
     private fun cacheKey(lat: Double, lon: Double): String =
         String.format(Locale.US, "%.4f,%.4f", lat, lon)
@@ -76,4 +126,37 @@ class OsmGeocoder(
     private fun isValidCoordinate(lat: Double, lon: Double): Boolean =
         lat in -90.0..90.0 && lon in -180.0..180.0 &&
             !(lat == 0.0 && lon == 0.0)
+
+    private companion object {
+        const val NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+        const val MAX_NAME_CHARS = 80
+
+        /**
+         * Address keys that name a place rather than locate it, most specific first. Ordered so
+         * a police station wins over the road it is on and the town it is in.
+         */
+        val NAMED_FEATURE_KEYS = listOf(
+            "police",
+            "amenity",
+            "office",
+            "building",
+            "shop",
+            "tourism",
+            "historic",
+            "leisure",
+            "military",
+            "healthcare",
+            "hospital",
+            "school",
+            "college",
+            "university",
+            "place_of_worship",
+            "neighbourhood",
+            "hamlet",
+            "suburb",
+            "village",
+            "town",
+            "city",
+        )
+    }
 }

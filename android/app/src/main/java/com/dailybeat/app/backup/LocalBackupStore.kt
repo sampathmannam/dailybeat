@@ -25,7 +25,6 @@ class LocalBackupStore(
             settings = BackupSettings(
                 officerName = settings.officerName,
                 gpsCaptureEnabled = settings.gpsCaptureEnabled,
-                callLogEnabled = settings.callLogEnabled,
                 cloudLlmEnabled = settings.cloudLlmEnabled,
                 cloudProvider = settings.cloudProvider,
                 cloudModel = settings.cloudModel,
@@ -57,7 +56,6 @@ class LocalBackupStore(
     private fun applySettings(settings: BackupSettings) {
         settingsRepository.setOfficerName(settings.officerName)
         settingsRepository.setGpsEnabled(settings.gpsCaptureEnabled)
-        settingsRepository.setCallLogEnabled(settings.callLogEnabled)
         settingsRepository.setCloudLlmEnabled(settings.cloudLlmEnabled)
         settingsRepository.setCloudProvider(settings.cloudProvider)
         settingsRepository.setCloudModel(settings.cloudModel)

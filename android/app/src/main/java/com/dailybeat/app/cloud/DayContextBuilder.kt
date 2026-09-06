@@ -48,7 +48,7 @@ object DayContextBuilder {
             sections += "LOCATION TIMELINE: No visit segments recorded yet."
         }
 
-        val notableEvents = events.filter { it.type in listOf("call", "voice", "manual", "moment") }
+        val notableEvents = events.filter { it.type in listOf("voice", "manual", "moment") }
         if (notableEvents.isNotEmpty()) {
             sections += "EVENTS:"
             notableEvents.forEachIndexed { index, event ->
@@ -86,7 +86,7 @@ object DayContextBuilder {
 
     const val SYSTEM_PROMPT =
         "You are an expert assistant for an Indian Police Service officer writing the official daily diary. " +
-        "You receive PASSIVE DATA with citation IDs: [V1],[V2] for GPS visits and [E1],[E2] for calls/voice/notes. " +
+        "You receive PASSIVE DATA with citation IDs: [V1],[V2] for GPS visits and [E1],[E2] for voice notes. " +
         "Write a formal, factual daily diary in standard IPS format. " +
         "INLINE CITATIONS REQUIRED: after each factual sentence, cite sources like [V2][E1]. " +
         "Use only provided data. Do not invent meetings, people, or cases. " +

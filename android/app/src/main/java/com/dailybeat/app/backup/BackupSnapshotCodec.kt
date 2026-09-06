@@ -126,7 +126,6 @@ object BackupSnapshotCodec {
     private fun settingsJson(value: BackupSettings) = JSONObject().apply {
         put("officerName", value.officerName)
         put("gpsCaptureEnabled", value.gpsCaptureEnabled)
-        put("callLogEnabled", value.callLogEnabled)
         put("cloudLlmEnabled", value.cloudLlmEnabled)
         put("cloudProvider", value.cloudProvider)
         put("cloudModel", value.cloudModel)
@@ -139,7 +138,6 @@ object BackupSnapshotCodec {
     private fun settings(value: JSONObject) = BackupSettings(
         officerName = value.getString("officerName"),
         gpsCaptureEnabled = value.getBoolean("gpsCaptureEnabled"),
-        callLogEnabled = value.getBoolean("callLogEnabled"),
         cloudLlmEnabled = value.getBoolean("cloudLlmEnabled"),
         cloudProvider = value.getString("cloudProvider"),
         cloudModel = value.getString("cloudModel"),
