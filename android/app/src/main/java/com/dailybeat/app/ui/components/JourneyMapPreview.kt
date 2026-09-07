@@ -76,6 +76,7 @@ private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 fun JourneyMapPreview(
     visits: List<LocationVisit>,
     modifier: Modifier = Modifier,
+    onFailure: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val model = remember(visits) { JourneyMapModel.fromVisits(visits) }
@@ -102,7 +103,10 @@ fun JourneyMapPreview(
             map = readyMap
             loadStyle(readyMap)
         },
-        onMapError = { mapError = true },
+        onMapError = {
+            mapError = true
+            onFailure("MapLibre map loading failed.")
+        },
     )
 
     DisposableEffect(map, loadedStyle, model, mapView, mapViewportSize) {
@@ -135,6 +139,7 @@ fun JourneyMapPreview(
                     mapRendered = false
                     mapView.contentDescription = mapDescription
                     mapError = true
+                    onFailure("MapLibre journey render failed.")
                 },
             )
             onDispose {

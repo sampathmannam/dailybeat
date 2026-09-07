@@ -14,13 +14,9 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -89,22 +85,9 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithText("5 events logged for this day").assertIsDisplayed()
 
-        // MapLibre continuously invalidates frames on the software-rendered CI emulator,
-        // so verify the final accessibility signal with UiAutomator instead of waiting for
-        // Compose's global idling resource after the map enters the viewport.
         composeRule.onNodeWithTag("nav_today").performClick()
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val readyDescription = instrumentation.targetContext
-            .getString(R.string.journey_map_ready_content_description)
-        val device = UiDevice.getInstance(instrumentation)
-        val fullyRendered = device.wait(Until.hasObject(By.desc(readyDescription)), 30_000)
-        if (!fullyRendered) {
-            composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
-            composeRule.onNodeWithText("Map tiles are unavailable").assertDoesNotExist()
-        } else {
-            assertTrue("Live OpenStreetMap did not fully render within 60 seconds", fullyRendered)
-        }
+        composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
     }
 
     @Test

@@ -10,7 +10,7 @@ import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.domain.FrequentPlaceLearner
 import com.dailybeat.app.domain.PlaceSuggestion
-import com.dailybeat.app.cloud.DayContextBuilder
+import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.util.PermissionHelper
@@ -68,36 +68,46 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refresh() {
-        val settings = app.settingsRepository.get()
         viewModelScope.launch {
-            val places = app.placeRepository.all()
-            val recentVisits = app.visitRepository.visitsLastDays(14)
-            val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
-            val hasKey = withContext(Dispatchers.IO) {
-                app.settingsRepository.secureApiKey.hasApiKey()
-            }
-            val auditLines = CaptureAuditLog.readRecent(app)
-            // Copy rather than rebuild: a rebuild threw away whatever the officer was in the
-            // middle of, such as a half-typed place or the result of a connection test.
-            _uiState.update { current ->
-                current.copy(
-                    officerName = settings.officerName,
-                    supervisorName = settings.supervisorName,
-                    gpsEnabled = settings.gpsCaptureEnabled,
-                    batteryUnrestricted = PermissionHelper.isIgnoringBatteryOptimizations(app),
-                    cloudLlmEnabled = settings.cloudLlmEnabled,
-                    cloudProvider = settings.cloudProvider,
-                    cloudModel = settings.cloudModel,
-                    cloudBaseUrl = settings.cloudBaseUrl,
-                    hasApiKey = hasKey,
-                    autoEveningReport = settings.autoEveningReport,
-                    autoMiddayPulse = settings.autoMiddayPulse,
-                    places = places,
-                    auditLines = auditLines,
-                    placeSuggestions = suggestions,
-                    backupConfigured = app.backupCoordinator.isConfigured,
-                    backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
-                )
+            try {
+                val settings = app.settingsRepository.get()
+                val places = app.placeRepository.all()
+                val recentVisits = app.visitRepository.visitsLastDays(14)
+                val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
+                val hasKey = withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.hasApiKey()
+                }
+                val auditLines = CaptureAuditLog.readRecent(app)
+                // Copy rather than rebuild: a rebuild threw away whatever the officer was in the
+                // middle of, such as a half-typed place or the result of a connection test.
+                _uiState.update { current ->
+                    current.copy(
+                        officerName = settings.officerName,
+                        supervisorName = settings.supervisorName,
+                        gpsEnabled = settings.gpsCaptureEnabled,
+                        captureMessage = captureStatusMessage(settings.gpsCaptureEnabled),
+                        batteryUnrestricted = PermissionHelper.isIgnoringBatteryOptimizations(app),
+                        cloudLlmEnabled = settings.cloudLlmEnabled,
+                        cloudProvider = settings.cloudProvider,
+                        cloudModel = settings.cloudModel,
+                        cloudBaseUrl = settings.cloudBaseUrl,
+                        hasApiKey = hasKey,
+                        autoEveningReport = settings.autoEveningReport,
+                        autoMiddayPulse = settings.autoMiddayPulse,
+                        places = places,
+                        auditLines = auditLines,
+                        placeSuggestions = suggestions,
+                        backupConfigured = app.backupCoordinator.isConfigured,
+                        backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
+                    )
+                }
+            } catch (error: Exception) {
+                _uiState.update { current ->
+                    current.copy(
+                        backupBusy = false,
+                        backupMessage = error.message ?: "Unable to load settings data.",
+                    )
+                }
             }
         }
     }
@@ -231,8 +241,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun addSuggestedPlace(suggestion: PlaceSuggestion) {
         viewModelScope.launch {
-            app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
-            refresh()
+            runCatching {
+                app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
+            }.fold(
+                onSuccess = { refresh() },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(placeError = error.message ?: "Unable to save the suggested place.")
+                    }
+                },
+            )
         }
     }
 
@@ -256,15 +274,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun seedSyntheticData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSeedingSynthetic = true, syntheticResult = null) }
-            val result = SyntheticDayGenerator.seedToday(app)
-            CaptureAuditLog.log(app, "synthetic", "Settings seeded ${result.visitsInserted} visits")
-            _uiState.update {
-                it.copy(
-                    isSeedingSynthetic = false,
-                    syntheticResult = "Loaded ${result.visitsInserted} visits and ${result.eventsInserted} events.",
-                    auditLines = CaptureAuditLog.readRecent(app),
-                )
-            }
+            runCatching { SyntheticDayGenerator.seedToday(app) }.fold(
+                onSuccess = { result ->
+                    CaptureAuditLog.log(app, "synthetic", "Settings seeded ${result.visitsInserted} visits")
+                    _uiState.update {
+                        it.copy(
+                            isSeedingSynthetic = false,
+                            syntheticResult = "Loaded ${result.visitsInserted} visits and ${result.eventsInserted} events.",
+                            auditLines = CaptureAuditLog.readRecent(app),
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isSeedingSynthetic = false,
+                            syntheticResult = error.message ?: "Unable to load synthetic data.",
+                        )
+                    }
+                },
+            )
         }
     }
 
@@ -275,13 +304,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setGpsEnabled(enabled: Boolean) {
         app.settingsRepository.setGpsEnabled(enabled)
-        _uiState.update { it.copy(gpsEnabled = enabled) }
+        _uiState.update {
+            it.copy(gpsEnabled = enabled, captureMessage = captureStatusMessage(enabled))
+        }
         CaptureController.applyFromSettings(app)
     }
 
     fun setCloudLlmEnabled(enabled: Boolean) {
         app.settingsRepository.setCloudLlmEnabled(enabled)
         _uiState.update { it.copy(cloudLlmEnabled = enabled) }
+        if (enabled) PulseScheduler.scheduleNext(app) else PulseScheduler.cancel(app)
     }
 
     fun setCloudProvider(providerId: String) {
@@ -317,6 +349,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }.fold(
                 onSuccess = {
+                    PulseScheduler.scheduleNext(app)
                     _uiState.update {
                         it.copy(apiKeyDraft = "", hasApiKey = true, cloudTestResult = "API key saved securely.")
                     }
@@ -338,41 +371,54 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun testCloudConnection() {
         viewModelScope.launch {
             _uiState.update { it.copy(cloudTesting = true, cloudTestResult = null) }
-            val settings = app.settingsRepository.get()
-            val draft = _uiState.value.apiKeyDraft.trim()
-            if (draft.isNotEmpty()) {
-                val saveError = withContext(Dispatchers.IO) {
-                    runCatching {
-                        app.settingsRepository.secureApiKey.setApiKey(draft)
-                    }.exceptionOrNull()
-                }
-                if (saveError != null) {
-                    _uiState.update {
-                        it.copy(
-                            cloudTesting = false,
-                            cloudTestResult = saveError.message ?: "Unable to save the API key securely.",
-                        )
+            try {
+                val settings = app.settingsRepository.get()
+                val draft = _uiState.value.apiKeyDraft.trim()
+                if (draft.isNotEmpty()) {
+                    val saveError = withContext(Dispatchers.IO) {
+                        runCatching {
+                            app.settingsRepository.secureApiKey.setApiKey(draft)
+                        }.exceptionOrNull()
                     }
-                    return@launch
+                    if (saveError != null) {
+                        _uiState.update {
+                            it.copy(
+                                cloudTesting = false,
+                                cloudTestResult = saveError.message
+                                    ?: "Unable to save the API key securely.",
+                            )
+                        }
+                        return@launch
+                    }
+                    PulseScheduler.scheduleNext(app)
                 }
-            }
-            val result = app.cloudLlm.generate(
-                settings,
-                DayContextBuilder.SYSTEM_PROMPT,
-                "Reply with exactly: DailyBeat cloud AI is connected.",
-            )
-            _uiState.update {
-                it.copy(
-                    cloudTesting = false,
-                    cloudTestResult = result.fold(
-                        onSuccess = { "Connected successfully." },
-                        onFailure = { error -> error.message ?: "Connection failed." },
-                    ),
-                    hasApiKey = withContext(Dispatchers.IO) {
-                        app.settingsRepository.secureApiKey.hasApiKey()
-                    },
-                    apiKeyDraft = "",
+                val result = app.cloudLlm.generate(
+                    settings,
+                    "You are a connection test. Return only the requested confirmation text.",
+                    "Reply with exactly: DailyBeat cloud AI is connected.",
+                    maxOutputTokens = CloudTokenBudgets.CONNECTION,
                 )
+                val hasApiKey = withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.hasApiKey()
+                }
+                _uiState.update {
+                    it.copy(
+                        cloudTesting = false,
+                        cloudTestResult = result.fold(
+                            onSuccess = { "Connected successfully." },
+                            onFailure = { error -> error.message ?: "Connection failed." },
+                        ),
+                        hasApiKey = hasApiKey,
+                        apiKeyDraft = "",
+                    )
+                }
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        cloudTesting = false,
+                        cloudTestResult = error.message ?: "Connection failed.",
+                    )
+                }
             }
         }
     }
@@ -393,17 +439,44 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val lon = state.placeLon.toDouble()
 
         viewModelScope.launch {
-            app.placeRepository.add(name, lat, lon)
-            _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "", placeError = null) }
-            refresh()
+            runCatching { app.placeRepository.add(name, lat, lon) }.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(placeName = "", placeLat = "", placeLon = "", placeError = null)
+                    }
+                    refresh()
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(placeError = error.message ?: "Unable to add this place.")
+                    }
+                },
+            )
         }
     }
 
     fun deletePlace(place: Place) {
         viewModelScope.launch {
-            app.placeRepository.delete(place)
-            refresh()
+            runCatching { app.placeRepository.delete(place) }.fold(
+                onSuccess = { refresh() },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(placeError = error.message ?: "Unable to delete this place.")
+                    }
+                },
+            )
         }
+    }
+
+    private fun captureStatusMessage(enabled: Boolean): String? = when {
+        !enabled -> null
+        !PermissionHelper.hasLocation(app) ->
+            "Location permission is off. Open Android app settings and allow location."
+        !PermissionHelper.hasBackgroundLocation(app) ->
+            "For reliable passive capture, allow location all the time in Android app settings."
+        !PermissionHelper.hasNotifications(app) ->
+            "Notifications are off. Enable them so Android can show capture status."
+        else -> null
     }
 
 }

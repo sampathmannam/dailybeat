@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.util.DateKeys
-import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +21,7 @@ data class FeedUiState(
     val isExporting: Boolean = false,
     val message: String? = null,
     val error: String? = null,
+    val exportPath: String? = null,
 )
 
 class FeedViewModel(application: Application) : AndroidViewModel(application) {
@@ -37,9 +37,18 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refresh() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val days = withContext(Dispatchers.IO) { loadDays() }
-            _uiState.value = _uiState.value.copy(days = days, isLoading = false)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            runCatching { withContext(Dispatchers.IO) { loadDays() } }.fold(
+                onSuccess = { days ->
+                    _uiState.value = _uiState.value.copy(days = days, isLoading = false)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = error.message ?: "Unable to load captured days.",
+                    )
+                },
+            )
         }
     }
 
@@ -53,10 +62,9 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun buildDay(date: LocalDate, places: List<Place>): DayFeedItem {
-        val (start, end) = DayBounds.dayStartEnd(date)
         return DayFeedBuilder.build(
             date = date,
-            visits = app.visitRepository.visitsForDate(date).filter { it.startMs in start..end },
+            visits = app.visitRepository.visitsForDate(date),
             diaryText = app.diaryRepository.textForDate(date),
             places = places,
         )
@@ -66,7 +74,9 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isGeneratingWeekly) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGeneratingWeekly = true, error = null, message = null)
-            app.weeklyGenerator.generateAndSave().fold(
+            val result = runCatching { app.weeklyGenerator.generateAndSave() }
+                .getOrElse { Result.failure(it) }
+            result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isGeneratingWeekly = false,
@@ -88,9 +98,9 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isExporting) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
-            val settings = app.settingsRepository.get()
             runCatching {
-                // Zipping a month of diaries and rendering their PDFs is heavy disk work.
+                val settings = app.settingsRepository.get()
+                // Zipping a week of diaries and rendering their PDFs is heavy disk work.
                 withContext(Dispatchers.IO) {
                     app.packageExporter.exportWeekPackage(
                         officerName = settings.officerName,
@@ -101,7 +111,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess = { file ->
                     _uiState.value = _uiState.value.copy(
                         isExporting = false,
-                        message = "Export saved: ${file.name}",
+                        message = "Export ready: ${file.name}",
+                        exportPath = file.absolutePath,
                     )
                 },
                 onFailure = { error ->
@@ -123,10 +134,33 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
-            _uiState.value = _uiState.value.copy(message = "Saved \"$trimmed\". Future stays here will use it.")
-            refresh()
+            runCatching {
+                app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
+            }.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        message = "Saved \"$trimmed\". Future stays here will use it.",
+                        error = null,
+                    )
+                    refresh()
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        error = error.message ?: "Unable to save this place.",
+                    )
+                },
+            )
         }
+    }
+
+    fun consumeExport() {
+        _uiState.value = _uiState.value.copy(exportPath = null)
+    }
+
+    fun onExportShareFailed() {
+        _uiState.value = _uiState.value.copy(
+            error = "The export was created, but no app could open the share sheet.",
+        )
     }
 
     private companion object {

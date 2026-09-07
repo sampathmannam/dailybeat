@@ -39,6 +39,7 @@ class WeeklyReportGeneratorTest {
             settings: AppSettings,
             systemPrompt: String,
             userPrompt: String,
+            maxOutputTokens: Int,
         ): Result<String> = Result.success(reply)
     }
 

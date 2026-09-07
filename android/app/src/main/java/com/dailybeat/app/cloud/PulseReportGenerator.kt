@@ -42,13 +42,29 @@ class PulseReportGenerator(
             $context
         """.trimIndent()
 
-        return cloudLlm.generate(settings, DayContextBuilder.SYSTEM_PROMPT, prompt).map { pulse ->
-            val header = "— Midday pulse ${date} —\n"
-            val block = header + pulse.trim()
+        return cloudLlm.generate(
+            settings = settings,
+            systemPrompt = DayContextBuilder.SYSTEM_PROMPT,
+            userPrompt = prompt,
+            maxOutputTokens = CloudTokenBudgets.MIDDAY_PULSE,
+        ).mapCatching { pulse ->
+            val block = "$PULSE_START_BOUNDARY$PULSE_MARKER${date} —\n" +
+                "${pulse.trim()}\n$PULSE_END_BOUNDARY"
             val existing = diaryRepository.textForDate(date).orEmpty()
-            val merged = if (existing.isBlank()) block else "$existing\n\n$block"
+            val merged = GeneratedDiaryBlock.merge(
+                existing = existing,
+                startPrefix = PULSE_START_BOUNDARY,
+                endMarker = PULSE_END_BOUNDARY,
+                replacement = block,
+            )
             diaryRepository.saveForDate(date, merged)
             block
         }
+    }
+
+    private companion object {
+        const val PULSE_MARKER = "— Midday pulse "
+        const val PULSE_START_BOUNDARY = "\u2063\u2062\u2062\u2062\u2063"
+        const val PULSE_END_BOUNDARY = "\u2063\u2064\u2064\u2064\u2063"
     }
 }

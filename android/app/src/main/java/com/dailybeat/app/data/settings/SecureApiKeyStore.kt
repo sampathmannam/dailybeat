@@ -4,18 +4,24 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.dailybeat.app.cloud.ApiKeySource
 
-open class SecureApiKeyStore(private val context: Context) {
+open class SecureApiKeyStore(private val context: Context) : ApiKeySource {
 
     private val prefs: SharedPreferences by lazy { createPrefs(context) }
 
-    open fun getApiKey(): String? = runCatching {
-        prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
+    override fun getApiKey(): String? = runCatching {
+        prefs.getString(KEY_API, null)?.takeIf {
+            it.isNotBlank() && it.length <= MAX_API_KEY_CHARS
+        }
     }.getOrNull()
 
     open fun setApiKey(key: String) {
+        val trimmed = key.trim()
+        require(trimmed.isNotEmpty()) { "API key cannot be empty." }
+        require(trimmed.length <= MAX_API_KEY_CHARS) { "API key is too long." }
         try {
-            check(prefs.edit().putString(KEY_API, key.trim()).commit())
+            check(prefs.edit().putString(KEY_API, trimmed).commit())
         } catch (error: Exception) {
             throw IllegalStateException("Unable to store the API key securely on this device.", error)
         }
@@ -30,6 +36,7 @@ open class SecureApiKeyStore(private val context: Context) {
     private companion object {
         private const val KEY_API = "cloud_llm_api_key"
         private const val ENCRYPTED_FILE = "dailybeat_secure"
+        private const val MAX_API_KEY_CHARS = 4_096
         private fun createPrefs(context: Context): SharedPreferences {
             return EncryptedSharedPreferences.create(
                 context,

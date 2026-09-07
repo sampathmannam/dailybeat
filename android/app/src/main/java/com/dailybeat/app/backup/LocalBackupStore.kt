@@ -16,24 +16,26 @@ class LocalBackupStore(
 ) : SnapshotStore {
     override suspend fun createSnapshot(): BackupSnapshot {
         val settings = settingsRepository.get()
-        return BackupSnapshot(
-            createdAtMs = clock(),
-            events = db.events().all(),
-            places = db.places().all(),
-            diaries = db.diaries().all(),
-            visits = db.visits().all(),
-            settings = BackupSettings(
-                officerName = settings.officerName,
-                gpsCaptureEnabled = settings.gpsCaptureEnabled,
-                cloudLlmEnabled = settings.cloudLlmEnabled,
-                cloudProvider = settings.cloudProvider,
-                cloudModel = settings.cloudModel,
-                cloudBaseUrl = settings.cloudBaseUrl,
-                autoEveningReport = settings.autoEveningReport,
-                autoMiddayPulse = settings.autoMiddayPulse,
-                supervisorName = settings.supervisorName,
-            ),
-        )
+        return db.withTransaction {
+            BackupSnapshot(
+                createdAtMs = clock(),
+                events = db.events().all(),
+                places = db.places().all(),
+                diaries = db.diaries().all(),
+                visits = db.visits().all(),
+                settings = BackupSettings(
+                    officerName = settings.officerName,
+                    gpsCaptureEnabled = settings.gpsCaptureEnabled,
+                    cloudLlmEnabled = settings.cloudLlmEnabled,
+                    cloudProvider = settings.cloudProvider,
+                    cloudModel = settings.cloudModel,
+                    cloudBaseUrl = settings.cloudBaseUrl,
+                    autoEveningReport = settings.autoEveningReport,
+                    autoMiddayPulse = settings.autoMiddayPulse,
+                    supervisorName = settings.supervisorName,
+                ),
+            )
+        }
     }
 
     override suspend fun restore(snapshot: BackupSnapshot) {

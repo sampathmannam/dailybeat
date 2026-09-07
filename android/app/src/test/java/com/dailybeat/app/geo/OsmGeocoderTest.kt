@@ -137,6 +137,13 @@ class OsmGeocoderTest {
     }
 
     @Test
+    fun `oversized map response degrades without buffering it`() = runBlocking {
+        server.enqueue(MockResponse().setBody("x".repeat(1_100_000)))
+
+        assertTrue(geocoder.resolve(lat, lon).address.startsWith("Location "))
+    }
+
+    @Test
     fun `a meaningless coordinate is never sent to the map`() = runBlocking {
         val resolved = geocoder.resolve(0.0, 0.0)
 

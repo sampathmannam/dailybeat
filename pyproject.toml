@@ -1,7 +1,7 @@
 [project]
 name = "dailybeat"
 version = "0.1.0"
-description = "Local-model-only police dairy writer for Android"
+description = "Passive journey capture and cloud-assisted daily diary app for Android"
 requires-python = ">=3.10"
 
 # Runtime deps

@@ -80,6 +80,7 @@
     <string name="battery_unrestricted">Battery: unrestricted. Passive tracking can run all day.</string>
     <string name="battery_restricted">Battery optimisation is on for DailyBeat. Android may stop tracking in the background. Set DailyBeat to Unrestricted.</string>
     <string name="battery_open_settings">Open battery settings</string>
+    <string name="open_app_settings">Open app settings</string>
     <string name="places_title">Named places (geofences)</string>
     <string name="place_name_label">Place name</string>
     <string name="place_lat_label">Latitude</string>
@@ -106,7 +107,7 @@
     <string name="backup_sign_out">Sign out of cloud backup</string>
     <string name="backup_api_key_excluded">For safety, cloud AI API keys are never included. Enter the key again on a new phone.</string>
     <string name="cancel">Cancel</string>
-    <string name="settings_cloud_desc">Your API key is stored encrypted on this device. Activity summaries are sent to your chosen provider when generating reports.</string>
+    <string name="settings_cloud_desc">Your API key is stored encrypted on this device. Activity summaries are sent to your chosen provider for reports; voice transcripts are sent for optional structuring when Cloud AI is ready.</string>
     <string name="cloud_llm_enabled">Use cloud LLM for daily reports</string>
     <string name="cloud_api_key_label">API key</string>
     <string name="cloud_api_key_saved_hint">API key saved securely. Enter a new key only to replace it.</string>
@@ -118,7 +119,7 @@
     <string name="diary_cloud_hint">Cloud AI turns your GPS journey and notes into your official diary.</string>
     <string name="diary_local_hint">Add a cloud API key in Settings to generate AI reports.</string>
     <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
-    <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports. Data stays on your device until you generate.</string>
+    <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports and optional voice-note structuring. Report generation and cloud-enabled voice structuring send text to your chosen provider.</string>
     <string name="onboarding_officer_title">Your name for PDF headers</string>
     <string name="onboarding_privacy_title">Privacy first</string>
     <string name="onboarding_privacy_body">Grant location (all the time for passive tracking) and notifications when prompted. You control capture in Settings.</string>

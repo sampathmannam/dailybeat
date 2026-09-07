@@ -7,6 +7,7 @@ import com.dailybeat.app.util.AppStorage
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -19,25 +20,49 @@ class PackageExporter(
     suspend fun exportWeekPackage(officerName: String, supervisorName: String): File {
         val stamp = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val zipFile = AppStorage.outputFile(context, "dailybeat-export-$stamp.zip")
+        val tempZip = File.createTempFile(
+            "dailybeat-export-",
+            ".tmp",
+            zipFile.parentFile ?: context.cacheDir,
+        )
 
-        ZipOutputStream(zipFile.outputStream()).use { zip ->
-            val auditLines = CaptureAuditLog.readRecent(context, 500)
-            zip.putNextEntry(ZipEntry("capture_audit.log"))
-            zip.write(auditLines.joinToString("\n").toByteArray())
-            zip.closeEntry()
-
-            val diaries = diaryRepository.recentSync(30)
-            diaries.forEach { entry ->
-                zip.putNextEntry(ZipEntry("diaries/${entry.dateKey}.txt"))
-                zip.write(entry.text.toByteArray())
+        try {
+            ZipOutputStream(tempZip.outputStream()).use { zip ->
+                val auditLines = CaptureAuditLog.readRecent(context, 500)
+                zip.putNextEntry(ZipEntry("capture_audit.log"))
+                zip.write(auditLines.joinToString("\n").toByteArray(StandardCharsets.UTF_8))
                 zip.closeEntry()
 
-                val pdf = pdfExporter.exportDairy(officerName, entry.text, LocalDate.parse(entry.dateKey), supervisorName)
-                zip.putNextEntry(ZipEntry("diaries/${entry.dateKey}.pdf"))
-                pdf.inputStream().use { input -> input.copyTo(zip) }
-                zip.closeEntry()
+                val diaries = diaryRepository.recentSync(7).filter { it.text.isNotBlank() }
+                diaries.forEach { entry ->
+                    zip.putNextEntry(ZipEntry("diaries/${entry.dateKey}.txt"))
+                    zip.write(entry.text.toByteArray(StandardCharsets.UTF_8))
+                    zip.closeEntry()
+
+                    val pdf = File.createTempFile("dailybeat-${entry.dateKey}-", ".pdf", context.cacheDir)
+                    try {
+                        pdfExporter.exportDairy(
+                            officerName = officerName,
+                            dairyText = entry.text,
+                            date = LocalDate.parse(entry.dateKey),
+                            supervisorName = supervisorName,
+                            destination = pdf,
+                        )
+                        zip.putNextEntry(ZipEntry("diaries/${entry.dateKey}.pdf"))
+                        pdf.inputStream().use { input -> input.copyTo(zip) }
+                        zip.closeEntry()
+                    } finally {
+                        pdf.delete()
+                    }
+                }
             }
+            if (!tempZip.renameTo(zipFile)) {
+                tempZip.copyTo(zipFile, overwrite = true)
+                tempZip.delete()
+            }
+            return zipFile
+        } finally {
+            if (tempZip.exists()) tempZip.delete()
         }
-        return zipFile
     }
 }

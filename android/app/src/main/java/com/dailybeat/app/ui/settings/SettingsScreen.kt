@@ -20,11 +20,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,6 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
@@ -51,7 +55,16 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val showQaTools = booleanResource(R.bool.show_qa_tools)
-    val batterySettingsContext = LocalContext.current
+    val settingsContext = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+    DisposableEffect(lifecycle, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -330,7 +343,7 @@ fun SettingsScreen(
                 if (!state.batteryUnrestricted) {
                     SecondaryButton(
                         text = stringResource(R.string.battery_open_settings),
-                        onClick = { openBatterySettings(batterySettingsContext) },
+                        onClick = { openBatterySettings(settingsContext) },
                     )
                 }
                 state.captureMessage?.let { message ->
@@ -338,6 +351,10 @@ fun SettingsScreen(
                         text = message,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.open_app_settings),
+                        onClick = { openAppSettings(settingsContext) },
                     )
                 }
             }
@@ -477,5 +494,15 @@ private fun openBatterySettings(context: android.content.Context) {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
+    }
+}
+
+private fun openAppSettings(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }

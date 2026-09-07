@@ -51,6 +51,13 @@ class VisitTrackerTest {
             )
     }
 
+    private class MemoryStateStore : VisitTrackerStateStore {
+        var state: VisitTrackerState? = null
+        override fun load(): VisitTrackerState? = state
+        override fun save(state: VisitTrackerState) { this.state = state }
+        override fun clear() { state = null }
+    }
+
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -161,6 +168,41 @@ class VisitTrackerTest {
             start,
             stay.startMs,
         )
+    }
+
+    @Test
+    fun `an open stay survives location service recreation`() {
+        val store = MemoryStateStore()
+        val firstTracker = VisitTracker(
+            scope = scope,
+            placeRepository = PlaceRepository(db.places()),
+            osmGeocoder = StubGeocoder(db.geocodes()),
+            onVisitRecorded = { visit -> recorded.add(visit) },
+            stateStore = store,
+        )
+        firstTracker.onLocation(stationLat, stationLon, start)
+        firstTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+
+        val restartedTracker = VisitTracker(
+            scope = scope,
+            placeRepository = PlaceRepository(db.places()),
+            osmGeocoder = StubGeocoder(db.geocodes()),
+            onVisitRecorded = { visit -> recorded.add(visit) },
+            stateStore = store,
+        )
+        restartedTracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(45))
+
+        assertEquals(start, awaitVisit("dwell").startMs)
+    }
+
+    @Test
+    fun `a sparse departure is not also counted as a forty minute drive`() {
+        tracker.onLocation(stationLat, stationLon, start)
+        tracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(40))
+
+        awaitVisit("dwell")
+        Thread.sleep(500)
+        assertTrue(recorded.none { it.visitType == "transit" })
     }
 
     private fun minutes(count: Long): Long = TimeUnit.MINUTES.toMillis(count)

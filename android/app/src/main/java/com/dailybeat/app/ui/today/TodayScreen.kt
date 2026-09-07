@@ -18,22 +18,26 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
-import com.dailybeat.app.ui.components.JourneyMapPreview
+import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
@@ -43,6 +47,7 @@ import com.dailybeat.app.ui.components.VisitCard
 @Composable
 fun TodayScreen(
     onOpenDiary: () -> Unit,
+    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
     onRecordVoice: (() -> Unit)? = null,
     headerSubtitle: String? = null,
@@ -50,9 +55,18 @@ fun TodayScreen(
 ) {
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var optionalNote by remember { mutableStateOf("") }
-    var showOptionalNote by remember { mutableStateOf(false) }
+    var optionalNote by rememberSaveable { mutableStateOf("") }
+    var showOptionalNote by rememberSaveable { mutableStateOf(false) }
     val showQaTools = booleanResource(R.bool.show_qa_tools)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+    DisposableEffect(lifecycle, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshStatus()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -183,7 +197,10 @@ fun TodayScreen(
 
         if (visits.isNotEmpty()) {
             item {
-                JourneyMapPreview(visits = visits)
+                JourneyRoutePreview(
+                    visits = visits,
+                    onOpenMap = onOpenMap,
+                )
             }
             item { SectionHeader(title = stringResource(R.string.journey_section)) }
             items(visits, key = { it.id }) { visit ->
@@ -241,9 +258,10 @@ fun TodayScreen(
                 PrimaryButton(
                     text = stringResource(R.string.save_optional_note),
                     onClick = {
-                        viewModel.addOptionalNote(optionalNote)
-                        optionalNote = ""
-                        showOptionalNote = false
+                        viewModel.addOptionalNote(optionalNote) {
+                            optionalNote = ""
+                            showOptionalNote = false
+                        }
                     },
                     enabled = optionalNote.isNotBlank(),
                 )

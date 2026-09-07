@@ -43,7 +43,7 @@ class SupabaseBackupClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 ensureConfigured()
-                require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+                validateCredentials(email, password)
                 val body = JSONObject()
                     .put("email", email.trim())
                     .put("password", password)
@@ -65,7 +65,7 @@ class SupabaseBackupClient(
     override suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
-            require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+            validateCredentials(email, password)
             val body = JSONObject()
                 .put("email", email.trim())
                 .put("password", password)
@@ -147,14 +147,20 @@ class SupabaseBackupClient(
         val user = root.optJSONObject("user")
         val userId = user?.optString("id")?.takeIf(String::isNotBlank) ?: fallback?.userId
         val email = user?.optString("email")?.takeIf(String::isNotBlank) ?: fallback?.email.orEmpty()
+        val accessToken = root.getString("access_token")
+        val refreshToken = root.optString("refresh_token").takeIf(String::isNotBlank)
+            ?: fallback?.refreshToken
+            ?: throw IllegalStateException("Cloud backup sign-in returned an invalid session.")
+        check(accessToken.length <= MAX_TOKEN_CHARS && refreshToken.length <= MAX_TOKEN_CHARS) {
+            "Cloud backup sign-in returned an invalid session."
+        }
+        val expiresInSeconds = root.optLong("expires_in", 3600L).coerceIn(60L, MAX_SESSION_SECONDS)
         return BackupSession(
             userId = requireNotNull(userId) { "Cloud backup sign-in returned an invalid session." },
             email = email,
-            accessToken = root.getString("access_token"),
-            refreshToken = root.optString("refresh_token").takeIf(String::isNotBlank)
-                ?: fallback?.refreshToken
-                ?: throw IllegalStateException("Cloud backup sign-in returned an invalid session."),
-            expiresAtMs = clock() + root.optLong("expires_in", 3600L) * 1_000L,
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            expiresAtMs = clock() + expiresInSeconds * 1_000L,
         )
     }
 
@@ -180,7 +186,15 @@ class SupabaseBackupClient(
                 }
                 throw IllegalStateException(message)
             }
-            return response.body?.string().orEmpty()
+            val body = response.body ?: return ""
+            if (body.contentLength() > MAX_RESPONSE_BYTES) {
+                throw IllegalStateException("Cloud backup response was too large.")
+            }
+            val source = body.source()
+            if (source.request(MAX_RESPONSE_BYTES + 1L)) {
+                throw IllegalStateException("Cloud backup response was too large.")
+            }
+            return source.readUtf8()
         }
     }
 
@@ -188,8 +202,18 @@ class SupabaseBackupClient(
         check(configuration.isConfigured) { "Cloud backup is not configured in this build." }
     }
 
+    private fun validateCredentials(email: String, password: String) {
+        require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+        require(email.length <= 320 && password.length <= 1_024) {
+            "Email or password is too long."
+        }
+    }
+
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
         const val REFRESH_EARLY_MS = 60_000L
+        const val MAX_RESPONSE_BYTES = 12L * 1024L * 1024L
+        const val MAX_TOKEN_CHARS = 131_072
+        const val MAX_SESSION_SECONDS = 7L * 24L * 60L * 60L
     }
 }

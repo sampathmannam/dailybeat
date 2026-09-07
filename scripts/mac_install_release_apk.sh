@@ -12,8 +12,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/mac_adb_common.sh"
 
 DEVICE_ARG="${1:-}"
-TAG="${DAILYBEAT_RELEASE_TAG:-v2.0.0}"
-APK_NAME="app-release.apk"
+TAG="${DAILYBEAT_RELEASE_TAG:-v3.5.0}"
+APK_NAME="DailyBeat-${TAG}.apk"
 TMP="${TMPDIR:-/tmp}/dailybeat-${TAG}.apk"
 URL="https://github.com/sampathmannam/dailybeat/releases/download/${TAG}/${APK_NAME}"
 PKG=com.dailybeat.app
@@ -29,8 +29,13 @@ mac_adb_pick_device "$DEVICE_ARG"
 
 echo "=== Download $TAG release APK → $TMP ==="
 curl -fsSL -o "$TMP" "$URL" || {
-  echo "Download failed. Open: https://github.com/sampathmannam/dailybeat/releases/tag/$TAG"
-  exit 1
+  # Releases through v3.5.0 used the generic artifact name.
+  APK_NAME="app-release.apk"
+  URL="https://github.com/sampathmannam/dailybeat/releases/download/${TAG}/${APK_NAME}"
+  curl -fsSL -o "$TMP" "$URL" || {
+    echo "Download failed. Open: https://github.com/sampathmannam/dailybeat/releases/tag/$TAG"
+    exit 1
+  }
 }
 
 echo "=== Install on $MAC_ADB_SERIAL ==="
@@ -39,7 +44,7 @@ mac_adb install -r "$TMP"
 mac_adb shell pm grant "$PKG" android.permission.RECORD_AUDIO 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true
-mac_adb shell pm grant "$PKG" android.permission.READ_CALL_LOG 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.ACCESS_BACKGROUND_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
 mac_adb shell am start -n "$PKG/.MainActivity"

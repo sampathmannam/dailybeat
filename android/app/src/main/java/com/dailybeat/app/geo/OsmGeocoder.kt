@@ -32,6 +32,7 @@ open class OsmGeocoder(
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)
         .build()
 
     private val throttle = Mutex()
@@ -43,7 +44,7 @@ open class OsmGeocoder(
                 return@withContext ResolvedPlace(null, fallbackLabel(latitude, longitude))
             }
             val key = cacheKey(latitude, longitude)
-            geocodeDao.get(key)?.let { cached ->
+            runCatching { geocodeDao.get(key) }.getOrNull()?.let { cached ->
                 return@withContext ResolvedPlace(cached.placeName, cached.displayName)
             }
 
@@ -72,7 +73,13 @@ open class OsmGeocoder(
             val body = try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@withContext fallback
-                    response.body?.string()
+                    val responseBody = response.body ?: return@withContext fallback
+                    if (responseBody.contentLength() > MAX_RESPONSE_BYTES) {
+                        return@withContext fallback
+                    }
+                    val source = responseBody.source()
+                    if (source.request(MAX_RESPONSE_BYTES + 1L)) return@withContext fallback
+                    source.readUtf8()
                 }
             } catch (_: Exception) {
                 return@withContext fallback
@@ -84,14 +91,16 @@ open class OsmGeocoder(
                 return@withContext fallback
             }
 
-            geocodeDao.put(
-                GeocodeCache(key = key, displayName = resolved.address, placeName = resolved.name),
-            )
+            runCatching {
+                geocodeDao.put(
+                    GeocodeCache(key = key, displayName = resolved.address, placeName = resolved.name),
+                )
+            }
             resolved
         }
 
     internal fun parse(json: JSONObject, latitude: Double, longitude: Double): ResolvedPlace {
-        val address = json.optString("display_name").trimOrNull()
+        val address = json.optString("display_name").trimOrNull()?.take(MAX_ADDRESS_CHARS)
             ?: fallbackLabel(latitude, longitude)
         return ResolvedPlace(name = extractName(json), address = address)
     }
@@ -130,6 +139,8 @@ open class OsmGeocoder(
     private companion object {
         const val NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
         const val MAX_NAME_CHARS = 80
+        const val MAX_ADDRESS_CHARS = 1_000
+        const val MAX_RESPONSE_BYTES = 1L * 1024L * 1024L
 
         /**
          * Address keys that name a place rather than locate it, most specific first. Ordered so

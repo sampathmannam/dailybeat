@@ -3,6 +3,7 @@ package com.dailybeat.app.export
 import android.graphics.Paint
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,5 +24,15 @@ class PdfExporterTest {
             80f,
         )
         assertTrue(lines.size > 1)
+    }
+
+    @Test
+    fun wrapLine_splitsOneUnbrokenTokenToPageWidth() {
+        val paint = Paint().apply { textSize = 12f }
+
+        val lines = exporter.wrapLine("x".repeat(1_000), paint, 80f)
+
+        assertTrue(lines.size > 1)
+        assertFalse(lines.any { paint.measureText(it) > 80f })
     }
 }

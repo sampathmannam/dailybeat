@@ -76,6 +76,7 @@ Before a risky update you can also take a copy from **Settings → Cloud backup*
 
 - GPS breadcrumbs, visits, and notes stay on your device.
 - **Cloud reports** send a text summary of that day's activity to your chosen LLM provider when you generate (or at 8 PM auto-report).
+- **Voice notes** use Android's configured speech-recognition service. When Cloud AI is ready, the transcript is sent to the chosen provider for structuring; if that step is unavailable, DailyBeat still saves the transcript locally.
 - API keys are stored encrypted on device.
 
 ## Training (your machine)

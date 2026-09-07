@@ -32,12 +32,12 @@ class ReportGeneratorTest {
     private lateinit var events: EventRepository
     private lateinit var generator: ReportGenerator
 
-    private class FakeCloudLlm(context: Context, private val reply: String) :
-        CloudLlmClient(InMemoryApiKeyStore(context)) {
+    private class FakeCloudLlm(private val reply: String) : CloudTextGenerator {
         override suspend fun generate(
             settings: AppSettings,
             systemPrompt: String,
             userPrompt: String,
+            maxOutputTokens: Int,
         ): Result<String> = Result.success(reply)
     }
 
@@ -53,12 +53,14 @@ class ReportGeneratorTest {
         diaries = DiaryRepository(db.diaries())
         events = EventRepository(db.events())
         generator = ReportGenerator(
+            appContext = context,
             settingsRepository = settings,
-            cloudLlm = FakeCloudLlm(context, "Generated AI report body."),
+            validatedReportClient = ValidatedReportClient(
+                FakeCloudLlm("Generated AI report body [E1]."),
+            ),
             visitRepository = VisitRepository(db.visits()),
             eventRepository = events,
             diaryRepository = diaries,
-            appContext = context,
         )
     }
 
@@ -81,7 +83,7 @@ class ReportGeneratorTest {
             "The 8 PM auto-report destroyed the officer's own diary text. Stored: $stored",
             stored.contains("Hand-written diary the officer typed during the day."),
         )
-        assertTrue("The auto-report was not saved. Stored: $stored", stored.contains("Generated AI report body."))
+        assertTrue("The auto-report was not saved. Stored: $stored", stored.contains("Generated AI report body [E1]."))
     }
 
     @Test
@@ -97,7 +99,7 @@ class ReportGeneratorTest {
         assertEquals(
             "A retry must replace the previous auto-report, not append another copy.",
             1,
-            Regex("Generated AI report body\\.").findAll(stored).count(),
+            Regex("Generated AI report body \\[E1]\\.").findAll(stored).count(),
         )
         assertTrue(stored.contains("Officer notes."))
     }
@@ -109,7 +111,7 @@ class ReportGeneratorTest {
 
         generator.generateUnattendedForDate(today).getOrThrow()
 
-        assertTrue(diaries.textForDate(today).orEmpty().contains("Generated AI report body."))
+        assertTrue(diaries.textForDate(today).orEmpty().contains("Generated AI report body [E1]."))
     }
 
     @Test
@@ -120,7 +122,7 @@ class ReportGeneratorTest {
 
         generator.generateAndSaveForDate(today).getOrThrow()
 
-        assertEquals("Generated AI report body.", diaries.textForDate(today))
+        assertEquals("Generated AI report body [E1].", diaries.textForDate(today))
     }
 
     @Test
