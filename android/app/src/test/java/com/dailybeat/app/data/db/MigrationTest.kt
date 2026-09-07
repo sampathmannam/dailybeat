@@ -3,10 +3,14 @@ package com.dailybeat.app.data.db
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,7 +20,8 @@ import java.io.File
 
 /**
  * Exercises the real upgrade paths shipped to users:
- * app v1.0.x wrote schema 2, app v2.x wrote schema 3, app v3.x wrote schema 4, current app expects schema 5.
+ * app v1.0.x wrote schema 2, app v2.x wrote schema 3, app v3.x wrote schema 4, and
+ * the two v3.6 development lines wrote different schema-5 shapes. The combined app expects 6.
  *
  * Each test builds the legacy database with the exact SQL Room generated for that
  * version, then opens it through the production [DailyBeatDb] builder so Room runs the
@@ -92,12 +97,97 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migratesFromReleasedV36Schema5WithDsrAndWithoutGeocodePlaceName() {
+        createSchema5Variant(keepDsrTables = true, keepGeocodePlaceName = false)
+
+        val db = openWithProductionMigrations()
+        try {
+            assertEquals(listOf("Legacy diary text"), runBlocking { db.diaries().all() }.map { it.text })
+            assertEquals(null, runBlocking { db.geocodes().get("11.4557,78.1856") }?.placeName)
+            assertEquals(
+                "legacy-dsr.pdf",
+                runBlocking { db.dsr().importByHash("legacy-sha") }?.originalFileName,
+            )
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migratesFromReliabilityQaSchema5WithGeocodePlaceNameAndWithoutDsr() {
+        createSchema5Variant(keepDsrTables = false, keepGeocodePlaceName = true)
+
+        val db = openWithProductionMigrations()
+        try {
+            assertEquals(listOf("Legacy diary text"), runBlocking { db.diaries().all() }.map { it.text })
+            assertEquals(null, runBlocking { db.geocodes().get("11.4557,78.1856") }?.placeName)
+            assertNull(runBlocking { db.dsr().importByHash("not-present") })
+        } finally {
+            db.close()
+        }
+    }
+
     /** Opens the database exactly the way [com.dailybeat.app.DailyBeatApp] does. */
     private fun openWithProductionMigrations(): DailyBeatDb =
         Room.databaseBuilder(context, DailyBeatDb::class.java, DB_NAME)
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(*DailyBeatMigrations.ALL)
             .build()
             .also { it.openHelper.writableDatabase }
+
+    private fun createSchema5Variant(
+        keepDsrTables: Boolean,
+        keepGeocodePlaceName: Boolean,
+    ) {
+        createLegacyDatabase(version = 4, withIndices = true, withVisitTables = true)
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(DB_NAME)
+                .callback(
+                    object : SupportSQLiteOpenHelper.Callback(5) {
+                        override fun onCreate(db: SupportSQLiteDatabase) =
+                            error("Expected the schema-4 fixture to exist")
+
+                        override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                            assertEquals(4, oldVersion)
+                            assertEquals(5, newVersion)
+                            MIGRATION_4_5.migrate(db)
+                        }
+                    },
+                )
+                .build(),
+        )
+        helper.writableDatabase
+        helper.close()
+
+        val raw = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+        if (!keepDsrTables) {
+            DSR_TABLES.forEach { raw.execSQL("DROP TABLE IF EXISTS `$it`") }
+        } else {
+            raw.execSQL(
+                "INSERT INTO dsr_imports (id, sha256, originalFileName, storedFileName, " +
+                    "fileSizeBytes, reportType, reportDate, importedAt, pageCount, caseCount, " +
+                    "forecastCount, issueCount, qualityScore, active, replacedImportId) VALUES " +
+                    "('legacy-import', 'legacy-sha', 'legacy-dsr.pdf', 'legacy.pdf', 42, 'DSR', " +
+                    "'2026-09-06', 1, 1, 0, 0, 0, 100, 1, NULL)",
+            )
+        }
+        if (!keepGeocodePlaceName) {
+            raw.execSQL("ALTER TABLE geocode_cache RENAME TO geocode_cache_complete")
+            raw.execSQL(
+                "CREATE TABLE geocode_cache (`key` TEXT NOT NULL, displayName TEXT NOT NULL, " +
+                    "fetchedAt INTEGER NOT NULL, PRIMARY KEY(`key`))",
+            )
+            raw.execSQL(
+                "INSERT INTO geocode_cache (`key`, displayName, fetchedAt) " +
+                    "SELECT `key`, displayName, fetchedAt FROM geocode_cache_complete",
+            )
+            raw.execSQL("DROP TABLE geocode_cache_complete")
+        }
+        raw.version = 5
+        raw.close()
+    }
 
     private fun createLegacyDatabase(
         version: Int,
@@ -166,5 +256,14 @@ class MigrationTest {
 
     private companion object {
         const val DB_NAME = "dailybeat-migration-test.db"
+        val DSR_TABLES = listOf(
+            "dsr_quality_issues",
+            "dsr_forecasts",
+            "dsr_metric_snapshots",
+            "dsr_station_snapshots",
+            "dsr_case_mentions",
+            "dsr_cases",
+            "dsr_imports",
+        )
     }
 }

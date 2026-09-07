@@ -45,8 +45,12 @@ class MainNavigationTest {
     }
 
     @Test
-    fun bottomNavVisitsAllFourTabs() {
+    fun bottomNavVisitsAllFiveTabs() {
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("nav_dsr").performClick()
+        composeRule.onNodeWithText("DSR Command").assertIsDisplayed()
+        composeRule.onNodeWithText("No DSR imported").assertIsDisplayed()
 
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithTag("nav_diary").assertIsDisplayed()

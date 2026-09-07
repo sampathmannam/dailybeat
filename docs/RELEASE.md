@@ -1,45 +1,48 @@
-# DailyBeat v3.6.0 release candidate — install and verify
+# DailyBeat v3.7.0 release candidate — install and verify
+
+DailyBeat v3.6.0 is the current signed stable release. Version 3.7.0 combines its local-first DSR
+Command dashboard with the journey-feed and reliability hardening work. The QA application ID is
+`com.dailybeat.app.qa`, so candidate testing does not replace `com.dailybeat.app` or its data.
+
+## DSR Command dashboard
+
+Open **DSR** and choose **Upload DSR or operational PDF** whenever a new report arrives. DailyBeat
+extracts supported operational tables on the device, adds the report to the cumulative dashboard,
+and flags fields that need review. Source PDFs remain in app-private storage and are excluded from
+cloud backup.
 
 ## Cloud AI configuration
 
-This release defaults to DeepSeek (`deepseek-chat`) and also supports the app's
-other cloud-provider options. Configure the provider and API key in Settings →
-Cloud AI after installation. No API key is included in the source code or APK.
-Diary generation requires network access and a valid provider key; it does not
-use an offline fallback.
+This release defaults to DeepSeek (`deepseek-chat`) and supports the other cloud-provider options
+shown in Settings. Configure the provider and API key in Settings → Cloud AI after installation.
+No provider key is included in the source or APK. Diary generation requires network access and a
+valid key; it does not use an offline model fallback.
 
 ## Cloud backup
 
-Cloud backup uses a DailyBeat Supabase project configured at build time with
-`SUPABASE_URL` and `SUPABASE_ANON_KEY`. These are public client configuration;
-the database protects every backup with authenticated owner-only row-level
-security. The release workflow reads both values from GitHub Actions secrets.
+Cloud backup uses a DailyBeat Supabase project configured at build time with `SUPABASE_URL` and
+`SUPABASE_ANON_KEY`. These are public client configuration; authenticated owner-only row-level
+security protects each backup. The Cloud AI provider key is never backed up.
 
-After installation, open Settings → Cloud backup, sign in, and select **Back up
-now**. On a replacement phone, install the same signed DailyBeat package, sign
-in to the same account, and explicitly confirm **Restore from cloud**. Restore
-replaces local records only after the complete remote snapshot validates.
-
-The Cloud AI provider key is never backed up. Enter it again on a new phone.
+After installation, open Settings → Cloud backup, sign in, and select **Back up now**. On a
+replacement phone, install the same signed DailyBeat package, sign in to the same account, and
+explicitly confirm **Restore from cloud**. Restore replaces local records only after the complete
+remote snapshot validates.
 
 ## Signed APK
 
-After the hardening branch is merged and the tag is published, download from GitHub Releases
-(tag `v3.6.0`):
+After the hardening branch is merged and every release gate passes, download these assets from
+GitHub Releases (tag `v3.7.0`):
 
-- `DailyBeat-v3.6.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v3.7.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
-Verify downloads against `SHA256SUMS.txt` in the release assets.
+The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
+for build, Android instrumentation (including a real Supabase backup/restore round trip), backend,
+and CodeQL checks, then verifies the permanent signing-certificate fingerprint before publishing.
+Do not create a tag from a feature branch merely to obtain an APK.
 
-The release workflow refuses tags that are not on `main`, whose version does not match the tag,
-or whose `verify` and `instrumentation` checks have not passed. Do not tag a branch merely to
-obtain an APK.
-
-## Test the release candidate on an Android phone
-
-The QA application ID is `com.dailybeat.app.qa`, so this procedure does not overwrite the signed
-stable app or its data:
+## Test the candidate on a physical Android phone
 
 ```bash
 git clone https://github.com/sampathmannam/dailybeat.git
@@ -48,44 +51,44 @@ DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
   ./scripts/mac_phone_e2e.sh YOUR_ADB_SERIAL
 ```
 
-The script runs the debug build, JVM tests, lint, and Compose instrumentation on the connected
-phone, then launches the QA app and writes a screenshot, launch result, device build, installed
-package details, PID, and logcat under `android/app/build/outputs/phone-evidence/`. It fails if
-Android does not report a successful launch, the process exits, or the log contains an app crash
-or ANR.
+The script rejects emulators, removes and reinstalls only the disposable QA package, runs the
+debug build, JVM tests, lint, and Compose instrumentation, and captures a screenshot, launch
+result, device build, installed-package details, PID, and logcat under
+`android/app/build/outputs/phone-evidence/`. It fails if Android cannot launch the activity, the
+process exits, or the log contains an app crash or ANR.
 
-## Install on Android phone
+To include the mandatory live backup/restore check, set these values in the current shell before
+running the script and set `DAILYBEAT_REQUIRE_LIVE_BACKUP=1`:
 
-1. Copy APK to phone (USB, AirDrop, etc.)
-2. Open file → Install (allow unknown sources if prompted)
-3. Grant permissions when asked: location and notifications; microphone is requested only when
-   recording a voice note
-4. Open Settings → Cloud AI, enter the DeepSeek API key, and test the connection
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `DAILYBEAT_BACKUP_TEST_EMAIL`
+- `DAILYBEAT_BACKUP_TEST_PASSWORD`
 
-## Build and install QA on an emulator (Mac)
+Use a dedicated, email-confirmed QA account. The same four names are GitHub Actions secrets used
+by CI; credential values are never committed.
 
-```bash
-git clone https://github.com/sampathmannam/dailybeat.git
-cd dailybeat
-DAILYBEAT_BRANCH=hardening/end-to-end-reliability ./scripts/mac_sync_and_run.sh
-```
+## Install on Android
 
-## Verify cloud AI
-
-1. Add a manual event
-2. Generate the diary using the configured DeepSeek account
-3. Review the generated text and share the PDF
-4. With networking disabled, generation must report a clear cloud-connection error; no offline model is used
+1. Download only the APK attached to the GitHub Release and verify it with `SHA256SUMS.txt`.
+2. Open the APK and allow installation from the chosen file app if Android asks.
+3. Install over the existing signed DailyBeat app; do not uninstall, because uninstalling deletes
+   the local database.
+4. Grant location and notification permissions. Microphone access is requested only when recording
+   a voice note.
+5. Configure Cloud AI and cloud backup in Settings.
 
 ## Verify the core offline path
 
-1. Leave Cloud AI unconfigured and record a voice note; the recognized transcript must still save locally.
+1. Leave Cloud AI unconfigured and record a voice note; the recognized transcript must still save
+   locally.
 2. Add and then clear an optional diary note; reopen the day and verify it remains cleared.
-3. Turn GPS capture on, background the app, move between two places, and verify the Today count
-   and History feed update after returning.
-4. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
-5. Deny map/network access; the diary, route list, notes, and export must remain usable.
+3. Turn GPS capture on, background the app, move between two places, and verify the Today count and
+   History feed update after returning.
+4. Import an operational PDF and verify its DSR cards and review warnings without network access.
+5. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
+6. Deny map/network access; the diary, route list, notes, DSR dashboard, and export must remain usable.
 
 ## Support
 
-Issues: GitHub Issues on `sampathmannam/dailybeat`
+Report issues in the `sampathmannam/dailybeat` GitHub repository.

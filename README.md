@@ -2,7 +2,8 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.6.0** — Daily journey feed, place names taken from the map, call-log capture removed, and a capture/reliability overhaul.
+**v3.7.0 candidate** — Combines the local-first DSR Command dashboard with the daily journey
+feed, map-derived place names, removal of call-log capture, and an end-to-end reliability overhaul.
 
 Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
 Configure it at runtime in Settings → Cloud AI. The key is not bundled in the APK.
@@ -12,16 +13,17 @@ Configure it at runtime in Settings → Cloud AI. The key is not bundled in the 
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Existing stable release (currently v3.5.0)
+# Existing stable release (currently v3.6.0)
 ./scripts/mac_install_release_apk.sh YOUR_DEVICE_ID
 
-# Build, test, and install the v3.6 QA candidate without replacing the stable app
+# Build, test, and install the v3.7 QA candidate without replacing the stable app
 DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
   ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-The signed v3.6.0 APK will appear in GitHub Releases only after the hardening branch is merged
-and the `v3.6.0` tag passes both CI gates. To build the candidate locally:
+The signed v3.7.0 APK will appear in GitHub Releases only after the hardening branch is merged and
+the build, live cloud-backup instrumentation, backend, and security gates all pass. To build the
+candidate locally:
 
 ```bash
 cd android && ./gradlew assembleDebug
@@ -60,6 +62,15 @@ Before a risky update you can also take a copy from **Settings → Cloud backup*
 5. Tap **Generate AI daily report** or wait for the 8 PM auto-report.
 6. Review, edit, and share PDF from **Diary**, and browse each day on **Feed**.
 
+## DSR Command
+
+1. Open the **DSR** tab and select **Upload DSR or operational PDF**.
+2. Choose a Daily DSR, all-crime statement, TASMAC inventory, or fatal-accident PDF.
+3. Review the command cards and any verification warnings before relying on the figures.
+4. Upload the next DSR the following day. A corrected file for the same report date archives the earlier snapshot instead of double-counting it.
+
+Extraction is performed on the Android device. The dashboard stores operational case metadata, not victim/accused names, phone numbers, addresses, or narrative gists. Source PDFs stay in app-private storage and are excluded from cloud backup. See [docs/DSR_COMMAND.md](docs/DSR_COMMAND.md).
+
 ## Features
 
 | Feature | Status |
@@ -74,6 +85,10 @@ Before a risky update you can also take a copy from **Settings → Cloud backup*
 | Offline LLM fallback | ❌ intentionally cloud-only |
 | Diary edit + PDF share | ✅ |
 | Daily journey feed (route, distance, named stops) | ✅ |
+| DSR PDF import + command dashboard | ✅ on-device |
+| Duplicate/collision/date/total validation | ✅ |
+| All-crime full-year/YTD trend and station gaps | ✅ |
+| TASMAC + fatal-accident headline metrics | ✅ |
 | Unit tests | ✅ |
 
 ## Privacy
@@ -82,6 +97,7 @@ Before a risky update you can also take a copy from **Settings → Cloud backup*
 - **Cloud reports** send a text summary of that day's activity to your chosen LLM provider when you generate (or at 8 PM auto-report).
 - **Voice notes** use Android's configured speech-recognition service. When Cloud AI is ready, the transcript is sent to the chosen provider for structuring; if that step is unavailable, DailyBeat still saves the transcript locally.
 - API keys are stored encrypted on device.
+- DSR parsing does not call the configured cloud LLM and DSR records are not included in the cloud backup snapshot.
 
 ## Training (your machine)
 

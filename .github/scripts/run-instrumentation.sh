@@ -25,7 +25,33 @@ if [ "$android_ready_status" -ne 0 ]; then
 fi
 
 cd "$GITHUB_WORKSPACE/android"
-timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+
+instrumentation_args=()
+if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PASSWORD:-}" ]; then
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+    echo "Live backup credentials were provided without Supabase configuration."
+    capture_evidence 2
+    exit 2
+  fi
+
+  sha256_text() {
+    printf '%s' "$1" | sha256sum | awk '{print $1}'
+  }
+  instrumentation_args+=(
+    "-Pandroid.testInstrumentationRunnerArguments.backupEmail=$DAILYBEAT_BACKUP_TEST_EMAIL"
+    "-Pandroid.testInstrumentationRunnerArguments.backupPassword=$DAILYBEAT_BACKUP_TEST_PASSWORD"
+    "-Pandroid.testInstrumentationRunnerArguments.backupEmailSha=$(sha256_text "$DAILYBEAT_BACKUP_TEST_EMAIL")"
+    "-Pandroid.testInstrumentationRunnerArguments.backupPasswordSha=$(sha256_text "$DAILYBEAT_BACKUP_TEST_PASSWORD")"
+    "-Pandroid.testInstrumentationRunnerArguments.backupConfigSha=$(sha256_text "$SUPABASE_URL|$SUPABASE_ANON_KEY")"
+  )
+elif [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
+  echo "Live backup verification requires DAILYBEAT_BACKUP_TEST_EMAIL and DAILYBEAT_BACKUP_TEST_PASSWORD."
+  capture_evidence 2
+  exit 2
+fi
+
+timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest \
+  "${instrumentation_args[@]}" --no-daemon --stacktrace
 test_status=$?
 capture_evidence "$test_status"
 exit "$test_status"

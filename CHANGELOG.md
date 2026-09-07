@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.6.0 — 2026-09-07
+## 3.7.0 — 2026-09-07
 
 ### Added
 - **Daily journey feed.** The History tab is now a feed with one card per day: the day's route
@@ -9,7 +9,7 @@
   opens its diary. Routes are vector-drawn rather than embedding a map view per card.
 - **Places are named by the map.** Reverse geocoding now requests name details at building zoom
   and prefers the feature's own name over the street it sits on, so a stay at a police station is
-  labelled as that station. Names are cached with the address (schema 5).
+  labelled as that station. Names are cached with the address (schema 6).
 
 ### Removed
 - **Call-log capture.** The permission, worker, Settings toggle, synthetic call events, and the
@@ -34,6 +34,9 @@
   normal navigation independent of tile-network and MapLibre idling behavior.
 - **Cloud-backup restore validates bounds, record counts, coordinates, dates, providers, and the
   complete snapshot before the local Room transaction can replace records.**
+- **The schema-6 upgrade reconciles both schema-5 variants safely.** Existing v3.6 installs retain
+  DSR imports while gaining named geocodes, and reliability QA installs retain their diary and
+  geocode cache while gaining DSR tables.
 - **CI now separates build/unit/lint from Android 14 instrumentation**, bounds emulator execution,
   captures failure evidence, and gates tagged releases on both successful checks.
 - **A stay's start time was subject to a data race.** The dwell start was read inside the coroutine
@@ -83,6 +86,18 @@
   (2→5, previously untested), geocoding and name extraction, report save semantics, and the feed model.
 - Instrumented: added feed and capture-lifecycle tests; permission granting in tests no longer
   races the tests that depend on it.
+
+## 3.6.0 — 2026-09-07
+
+### Added
+- **Local-first DSR Command dashboard.** Operational PDF imports are parsed on the device into
+  command cards, forecasts, station snapshots, headline metrics, and review warnings.
+- Corrected reports replace the active snapshot for the same date instead of double-counting it;
+  imported source PDFs remain in app-private storage and are excluded from cloud backup.
+
+### Release
+- Re-established the permanent signed-APK publisher and added the PDFBox optional JPEG-2000
+  shrinker rule required by the release build.
 
 ## 3.4.0 — 2026-08-30
 
