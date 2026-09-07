@@ -29,6 +29,12 @@ def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanu
 
     assert 'case "$MAC_ADB_SERIAL" in' in runner
     assert "emulator-*)" in runner
+    assert 'QA_TEST_PACKAGE="${QA_PACKAGE}.test"' in runner
+    assert 'mac_adb uninstall "$disposable_package"' in runner
+    assert 'mac_adb uninstall "com.dailybeat.app"' not in runner
+    assert runner.index('mac_adb uninstall "$disposable_package"') < runner.index(
+        "./gradlew connectedDebugAndroidTest"
+    )
     assert runner.index("./gradlew connectedDebugAndroidTest") < runner.index("./gradlew installDebug")
     assert 'pm path "$QA_PACKAGE"' in runner
 

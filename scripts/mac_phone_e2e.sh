@@ -32,6 +32,19 @@ case "$MAC_ADB_SERIAL" in
     ;;
 esac
 
+QA_PACKAGE="com.dailybeat.app.qa"
+QA_TEST_PACKAGE="${QA_PACKAGE}.test"
+for disposable_package in "$QA_TEST_PACKAGE" "$QA_PACKAGE"; do
+  package_path="$(mac_adb shell pm path "$disposable_package" 2>/dev/null || true)"
+  if [[ "$package_path" == package:* ]]; then
+    echo "Removing disposable QA package $disposable_package from $MAC_ADB_SERIAL"
+    if ! mac_adb uninstall "$disposable_package" >/dev/null; then
+      echo "Could not remove $disposable_package. The stable com.dailybeat.app package was not touched."
+      exit 1
+    fi
+  fi
+done
+
 echo "=== Build, unit tests, and lint for QA on $MAC_ADB_SERIAL ==="
 cd "$ROOT/android"
 ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
@@ -42,7 +55,6 @@ echo "=== Run Compose end-to-end tests on $MAC_ADB_SERIAL ==="
 echo "=== Reinstall QA app after the Android test runner cleanup ==="
 ./gradlew installDebug --no-daemon --stacktrace
 
-QA_PACKAGE="com.dailybeat.app.qa"
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.RECORD_AUDIO 2>/dev/null || true
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.ACCESS_FINE_LOCATION 2>/dev/null || true
