@@ -6,9 +6,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
+    release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
     assert 'versionCode = 12' in gradle
     assert 'versionName = "3.6.0"' in gradle
+    assert release_marker == "3.6.0"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -32,6 +34,8 @@ def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     assert "DAILYBEAT_KEYSTORE_BASE64" in workflow
     assert "apksigner verify --print-certs" in workflow
     assert "app-release.apk" in workflow
+    assert "release/version.txt" in workflow
+    assert "build patrolgrid-backend codeql" in workflow
 
 
 def test_cloud_backup_schema_enforces_owner_only_row_level_security():
