@@ -23,9 +23,24 @@ mac_adb start-server
 mac_adb_pick_device "${1:-}"
 mac_ensure_java
 
-echo "=== Build, unit tests, lint, and install QA on $MAC_ADB_SERIAL ==="
+case "$MAC_ADB_SERIAL" in
+  emulator-*)
+    echo "This gate requires a physical Android phone; $MAC_ADB_SERIAL is an emulator."
+    echo "Connect the phone with USB debugging enabled, then pass its serial as the argument:"
+    echo "  ./scripts/mac_phone_e2e.sh YOUR_PHONE_SERIAL"
+    exit 1
+    ;;
+esac
+
+echo "=== Build, unit tests, and lint for QA on $MAC_ADB_SERIAL ==="
 cd "$ROOT/android"
-./gradlew assembleDebug testDebugUnitTest lintDebug installDebug --no-daemon --stacktrace
+./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
+
+echo "=== Run Compose end-to-end tests on $MAC_ADB_SERIAL ==="
+./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+
+echo "=== Reinstall QA app after the Android test runner cleanup ==="
+./gradlew installDebug --no-daemon --stacktrace
 
 QA_PACKAGE="com.dailybeat.app.qa"
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.RECORD_AUDIO 2>/dev/null || true
@@ -34,8 +49,11 @@ mac_adb shell pm grant "$QA_PACKAGE" android.permission.ACCESS_FINE_LOCATION 2>/
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.ACCESS_BACKGROUND_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
-echo "=== Run Compose end-to-end tests on $MAC_ADB_SERIAL ==="
-./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
+PACKAGE_PATH="$(mac_adb shell pm path "$QA_PACKAGE" 2>/dev/null || true)"
+if [[ "$PACKAGE_PATH" != package:* ]]; then
+  echo "QA package was not installed on $MAC_ADB_SERIAL after instrumentation."
+  exit 1
+fi
 
 echo "=== Launch QA app and capture evidence ==="
 EVIDENCE_DIR="$ROOT/android/app/build/outputs/phone-evidence/$MAC_ADB_SERIAL"
@@ -44,14 +62,19 @@ mac_adb logcat -c
 mac_adb shell am force-stop "$QA_PACKAGE"
 mac_adb shell getprop ro.build.fingerprint > "$EVIDENCE_DIR/device-build.txt"
 mac_adb shell dumpsys package "$QA_PACKAGE" > "$EVIDENCE_DIR/package.txt"
-mac_adb shell am start -W -n "$QA_PACKAGE/com.dailybeat.app.MainActivity" \
-  > "$EVIDENCE_DIR/launch.txt"
+if ! mac_adb shell am start -W -n "$QA_PACKAGE/com.dailybeat.app.MainActivity" \
+  > "$EVIDENCE_DIR/launch.txt" 2>&1; then
+  echo "Android could not launch the QA activity:"
+  cat "$EVIDENCE_DIR/launch.txt"
+  exit 1
+fi
 sleep 3
 mac_adb exec-out screencap -p > "$EVIDENCE_DIR/screen.png"
 mac_adb logcat -d -v threadtime > "$EVIDENCE_DIR/logcat.txt"
 
 if ! grep -q "Status: ok" "$EVIDENCE_DIR/launch.txt"; then
   echo "Android did not report a successful QA launch. See $EVIDENCE_DIR/launch.txt"
+  cat "$EVIDENCE_DIR/launch.txt"
   exit 1
 fi
 

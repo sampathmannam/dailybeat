@@ -24,6 +24,15 @@ def test_debug_build_is_isolated_from_the_installed_release_app():
     assert 'applicationIdSuffix = ".qa"' in gradle
 
 
+def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanup():
+    runner = (ROOT / "scripts/mac_phone_e2e.sh").read_text(encoding="utf-8")
+
+    assert 'case "$MAC_ADB_SERIAL" in' in runner
+    assert "emulator-*)" in runner
+    assert runner.index("./gradlew connectedDebugAndroidTest") < runner.index("./gradlew installDebug")
+    assert 'pm path "$QA_PACKAGE"' in runner
+
+
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
