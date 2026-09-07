@@ -1,7 +1,7 @@
 # DailyBeat — Honest Release-Candidate Rating (v3.7.0)
 
 This assessment covers `hardening/end-to-end-reliability`. It reflects source review, the JVM and
-Android suites on an API 34 emulator, 13 Python policy/tooling tests, Android Lint, APK assembly,
+Android suites on an API 34 emulator, 14 Python policy/tooling tests, Android Lint, APK assembly,
 adversarial GPS/cloud/backup cases, CI failure-evidence capture, and a successful Android 17
 physical-phone gate. CI now requires the live cloud-backup round trip instead of accepting a skip.
 
@@ -50,6 +50,6 @@ be misleading until the physical-phone, real-patrol, and live-provider evidence 
 | Loop | Scope | Gate |
 |------|-------|------|
 | Source hardening | Capture, diary, cloud, backup, export, map, release, privacy | Review plus focused regression tests |
-| Deterministic verification | APK assembly, JVM tests, Android Lint, 13 Python tests | GitHub `build` and `patrolgrid-backend` jobs |
+| Deterministic verification | APK assembly, JVM tests, Android Lint, 14 Python tests | GitHub `build` and `patrolgrid-backend` jobs |
 | Device-shaped verification | 16 API 34 instrumentation methods, lifecycle and UI flows, screenshot/logcat evidence | GitHub `instrumentation` job |
 | Physical verification | Same gates on isolated `com.dailybeat.app.qa`, then launch/PID/crash/ANR check | Connected-phone script; required before release promotion |

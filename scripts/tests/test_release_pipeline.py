@@ -47,6 +47,12 @@ def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanu
     assert 'pm path "$QA_PACKAGE"' in runner
 
 
+def test_phone_installer_defaults_to_the_current_signed_stable_release():
+    installer = (ROOT / "scripts/mac_install_release_apk.sh").read_text(encoding="utf-8")
+
+    assert 'DAILYBEAT_RELEASE_TAG:-v3.6.0' in installer
+
+
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     workflow = (ROOT / ".github/workflows/publish-release.yml").read_text(encoding="utf-8")
 
@@ -94,6 +100,8 @@ def test_ci_requires_a_live_cloud_backup_round_trip():
     assert 'DAILYBEAT_REQUIRE_LIVE_BACKUP: "1"' in workflow
     assert "secrets.DAILYBEAT_BACKUP_TEST_EMAIL" in workflow
     assert "secrets.DAILYBEAT_BACKUP_TEST_PASSWORD" in workflow
+    assert "Verify live backup gate configuration" in workflow
+    assert 'branches: [main, "hardening/**"]' not in workflow
     assert "backupEmailSha" in runner
     assert "backupPasswordSha" in runner
     assert "backupConfigSha" in runner

@@ -68,7 +68,7 @@ data untouched, and writes launch, screenshot, package, device-build, PID, and l
 ./scripts/mac_install_release_apk.sh
 ```
 
-Downloads the latest configured stable release (currently **v3.5.0**) and supports both the old
+Downloads the latest configured stable release (currently **v3.6.0**) and supports both the old
 `app-release.apk` asset name and the versioned name used by newer releases.
 
 ## Cursor on your Mac (local agent)

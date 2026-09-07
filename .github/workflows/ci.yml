@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "hardening/**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -109,6 +109,22 @@ jobs:
       - name: Build instrumentation APKs
         working-directory: android
         run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Verify live backup gate configuration
+        shell: bash
+        run: |
+          missing=0
+          for secret_name in \
+            SUPABASE_URL \
+            SUPABASE_ANON_KEY \
+            DAILYBEAT_BACKUP_TEST_EMAIL \
+            DAILYBEAT_BACKUP_TEST_PASSWORD; do
+            if [ -z "${!secret_name-}" ]; then
+              echo "::error::Missing GitHub Actions secret $secret_name"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
 
       - name: Instrumentation tests (Android 14 emulator)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2

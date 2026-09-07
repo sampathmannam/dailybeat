@@ -12,7 +12,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/mac_adb_common.sh"
 
 DEVICE_ARG="${1:-}"
-TAG="${DAILYBEAT_RELEASE_TAG:-v3.5.0}"
+TAG="${DAILYBEAT_RELEASE_TAG:-v3.6.0}"
 APK_NAME="DailyBeat-${TAG}.apk"
 TMP="${TMPDIR:-/tmp}/dailybeat-${TAG}.apk"
 URL="https://github.com/sampathmannam/dailybeat/releases/download/${TAG}/${APK_NAME}"
@@ -29,7 +29,7 @@ mac_adb_pick_device "$DEVICE_ARG"
 
 echo "=== Download $TAG release APK → $TMP ==="
 curl -fsSL -o "$TMP" "$URL" || {
-  # Releases through v3.5.0 used the generic artifact name.
+  # Older releases used the generic artifact name.
   APK_NAME="app-release.apk"
   URL="https://github.com/sampathmannam/dailybeat/releases/download/${TAG}/${APK_NAME}"
   curl -fsSL -o "$TMP" "$URL" || {
