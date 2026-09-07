@@ -49,8 +49,10 @@ DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
 ```
 
 The script runs the debug build, JVM tests, lint, and Compose instrumentation on the connected
-phone, then launches the QA app and writes a screenshot, launch result, PID, and logcat under
-`android/app/build/outputs/phone-evidence/`.
+phone, then launches the QA app and writes a screenshot, launch result, device build, installed
+package details, PID, and logcat under `android/app/build/outputs/phone-evidence/`. It fails if
+Android does not report a successful launch, the process exits, or the log contains an app crash
+or ANR.
 
 ## Install on Android phone
 

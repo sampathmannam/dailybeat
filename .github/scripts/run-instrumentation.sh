@@ -27,7 +27,5 @@ fi
 cd "$GITHUB_WORKSPACE/android"
 timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
 test_status=$?
-if [ "$test_status" -ne 0 ]; then
-  capture_evidence "$test_status"
-fi
+capture_evidence "$test_status"
 exit "$test_status"
