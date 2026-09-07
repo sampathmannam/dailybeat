@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.Dispatchers
@@ -44,18 +45,20 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun loadDays(): List<DayFeedItem> {
         val today = DateKeys.today()
+        val places = app.placeRepository.all()
         return (0 until DAYS_IN_FEED)
             .map { today.minusDays(it.toLong()) }
-            .map { date -> buildDay(date) }
+            .map { date -> buildDay(date, places) }
             .filterNot { it.isEmpty }
     }
 
-    private suspend fun buildDay(date: LocalDate): DayFeedItem {
+    private suspend fun buildDay(date: LocalDate, places: List<Place>): DayFeedItem {
         val (start, end) = DayBounds.dayStartEnd(date)
         return DayFeedBuilder.build(
             date = date,
             visits = app.visitRepository.visitsForDate(date).filter { it.startMs in start..end },
             diaryText = app.diaryRepository.textForDate(date),
+            places = places,
         )
     }
 

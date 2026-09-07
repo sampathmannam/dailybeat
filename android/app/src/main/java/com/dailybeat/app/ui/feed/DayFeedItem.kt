@@ -1,6 +1,8 @@
 package com.dailybeat.app.ui.feed
 
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.domain.GeofenceMatcher
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlin.math.cos
@@ -57,7 +59,16 @@ object DayFeedBuilder {
 
     private const val MAX_PREVIEW_CHARS = 220
 
-    fun build(date: LocalDate, visits: List<LocationVisit>, diaryText: String?): DayFeedItem {
+    /**
+     * [places] the officer has named are applied here rather than only at capture time, so
+     * naming a spot relabels the stays already recorded there instead of appearing to do nothing.
+     */
+    fun build(
+        date: LocalDate,
+        visits: List<LocationVisit>,
+        diaryText: String?,
+        places: List<Place> = emptyList(),
+    ): DayFeedItem {
         val ordered = visits.sortedBy { it.startMs }
         val mappable = ordered.filter { it.hasUsableCoordinate() }
 
@@ -65,7 +76,7 @@ object DayFeedBuilder {
             .filter { it.visitType != "transit" }
             .map {
                 DayStay(
-                    name = it.displayName(),
+                    name = it.displayName(places),
                     startMs = it.startMs,
                     endMs = maxOf(it.endMs, it.startMs),
                     latitude = it.latitude,
@@ -94,8 +105,9 @@ object DayFeedBuilder {
         )
     }
 
-    private fun LocationVisit.displayName(): String =
-        placeName?.trim()?.takeIf { it.isNotEmpty() }
+    private fun LocationVisit.displayName(places: List<Place>): String =
+        GeofenceMatcher.matchPlace(latitude, longitude, places)?.name
+            ?: placeName?.trim()?.takeIf { it.isNotEmpty() }
             ?: address?.substringBefore(",")?.trim()?.takeIf { it.isNotEmpty() }
             ?: "Unnamed place"
 
