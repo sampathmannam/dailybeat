@@ -22,8 +22,8 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "3.5.0"
+        versionCode = 12
+        versionName = "3.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
@@ -109,6 +109,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
+    // On-device text extraction keeps operational DSR documents off third-party AI services.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
