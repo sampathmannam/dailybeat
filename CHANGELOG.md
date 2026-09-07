@@ -44,10 +44,23 @@
 - Settings no longer discards a half-typed place or a connection-test result when it refreshes.
 - File output falls back to internal storage when external app storage is unavailable.
 
+### Security and robustness audit
+- **Fixed a crash found by adversarial UI fuzzing.** An Android Monkey run aborted at event 4720
+  with `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true`,
+  raised by Compose's directional focus search inside a LazyColumn. It is reachable from a
+  hardware keyboard, a D-pad, or accessibility navigation. Fixed by moving to Compose BOM
+  2024.09.02 (compileSdk 35, AGP 8.6.1); 14,000 Monkey events across four seeds now run clean.
+- Android Lint: 0 errors.
+- All 122 shipped dependencies checked against the OSV vulnerability database: 0 vulnerable.
+- Release build verified end to end through R8 minification.
+
 ### Tests
-- Unit tests: 64 → 111. New coverage for the capture engine (which had none), the real shipped
-  database upgrade paths (2→5, previously untested), geocoding and name extraction, report save
-  semantics, and the feed model.
+- Unit tests: 64 → 137, including adversarial suites that fuzz the capture engine with random,
+  reversed, repeated, and antimeridian-crossing GPS fixes, and drive the cloud client through rate
+  limits, outages, dropped connections, malformed JSON, and oversized answers. The cloud client
+  previously had no tests at all.
+  New coverage for the capture engine (which had none), the real shipped database upgrade paths
+  (2→5, previously untested), geocoding and name extraction, report save semantics, and the feed model.
 - Instrumented: added feed and capture-lifecycle tests; permission granting in tests no longer
   races the tests that depend on it.
 
