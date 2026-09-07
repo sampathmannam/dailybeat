@@ -12,15 +12,19 @@ Configure it at runtime in Settings → Cloud AI. The key is not bundled in the 
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Mac emulator (laptop)
-./scripts/mac_setup.sh          # once
-./scripts/mac_install_release_apk.sh emulator-5554   # or your device id
+# Existing stable release (currently v3.5.0)
+./scripts/mac_install_release_apk.sh YOUR_DEVICE_ID
+
+# Build, test, and install the v3.6 QA candidate without replacing the stable app
+DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
+  ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-APKs: GitHub Releases `v3.6.0` or build locally:
+The signed v3.6.0 APK will appear in GitHub Releases only after the hardening branch is merged
+and the `v3.6.0` tag passes both CI gates. To build the candidate locally:
 
 ```bash
-cd android && ./gradlew assembleRelease
+cd android && ./gradlew assembleDebug
 ```
 
 ## Installing on your phone, and updating without losing data

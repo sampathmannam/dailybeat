@@ -16,6 +16,26 @@
   call wording in the AI prompts are gone. Restoring an older cloud backup still works.
 
 ### Fixed
+- **Voice notes no longer depend on a successful cloud round trip.** The recognized transcript is
+  always preserved as the source event; cloud metadata extraction is best-effort and can never
+  replace the officer's words with a shortened model summary.
+- **Capture now survives service recreation with an on-device checkpoint**, consumes every fix in
+  a batched Fused Location update, requests sticky service restart, rejects reversed timestamps,
+  and does not wait for reverse geocoding before treating a visit as persistable.
+- **Cross-midnight visits appear on both affected days** with each day's clipped duration instead
+  of disappearing because their start timestamp belonged to the previous day.
+- **Cloud reports fail closed on unknown citations**, retry only typed transient failures, use
+  explicit output budgets and bounded responses, and preserve officer-written text around
+  unattended daily, midday, and weekly generated blocks.
+- **Diary drafts survive process recreation and intentional clearing.** Pending edits are flushed
+  before generation, failed note saves keep the typed text on screen, and PDF/ZIP exports are
+  written atomically and surfaced through Android's share sheet.
+- **Map rendering moved to a dedicated screen.** Today uses a lightweight route preview, keeping
+  normal navigation independent of tile-network and MapLibre idling behavior.
+- **Cloud-backup restore validates bounds, record counts, coordinates, dates, providers, and the
+  complete snapshot before the local Room transaction can replace records.**
+- **CI now separates build/unit/lint from Android 14 instrumentation**, bounds emulator execution,
+  captures failure evidence, and gates tagged releases on both successful checks.
 - **A stay's start time was subject to a data race.** The dwell start was read inside the coroutine
   that recorded the stay, while the field was reset synchronously right after that coroutine was
   launched, with no synchronisation between them. Losing the race stores the stay at the epoch,
@@ -55,7 +75,7 @@
 - Release build verified end to end through R8 minification.
 
 ### Tests
-- Unit tests: 64 → 137, including adversarial suites that fuzz the capture engine with random,
+- Unit coverage expanded substantially, including adversarial suites that fuzz the capture engine with random,
   reversed, repeated, and antimeridian-crossing GPS fixes, and drive the cloud client through rate
   limits, outages, dropped connections, malformed JSON, and oversized answers. The cloud client
   previously had no tests at all.

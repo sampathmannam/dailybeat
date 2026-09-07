@@ -225,7 +225,7 @@ fun JourneyMapPreview(
                         }
                     },
                 ) {
-                    Text(stringResource(R.string.journey_map_open))
+                    Text(stringResource(R.string.journey_map_open_external))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,

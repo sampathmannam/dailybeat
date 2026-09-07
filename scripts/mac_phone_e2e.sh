@@ -7,6 +7,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=mac_adb_common.sh
 source "$ROOT/scripts/mac_adb_common.sh"
 
+if [ -n "${DAILYBEAT_BRANCH:-}" ]; then
+  echo "=== Sync branch $DAILYBEAT_BRANCH ==="
+  git -C "$ROOT" fetch origin "$DAILYBEAT_BRANCH"
+  git -C "$ROOT" checkout "$DAILYBEAT_BRANCH"
+  git -C "$ROOT" pull --ff-only origin "$DAILYBEAT_BRANCH"
+fi
+
 if ! command -v adb >/dev/null 2>&1; then
   echo "adb not found. Add Android SDK platform-tools to PATH."
   exit 1
