@@ -60,7 +60,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 todayVisits,
                 todayEvents,
                 diaryRepository.observeToday(),
-            ) { visits, events, diary ->
+                LocationService.running,
+            ) { visits, events, diary, _ ->
                 TodayUiState(
                     visitCount = visits.size,
                     eventCount = events.size,

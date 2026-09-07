@@ -22,6 +22,9 @@ import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class LocationService : Service() {
@@ -79,7 +82,7 @@ class LocationService : Service() {
         )
 
         startForeground(NOTIFICATION_ID, buildNotification())
-        isRunning = true
+        _running.value = true
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 45_000L)
             .setMinUpdateIntervalMillis(45_000L)
             .setMinUpdateDistanceMeters(75f)
@@ -95,7 +98,7 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
-        isRunning = false
+        _running.value = false
         if (::visitTracker.isInitialized) {
             visitTracker.flushPending()
         }
@@ -123,10 +126,16 @@ class LocationService : Service() {
         const val CHANNEL_ID = "location_capture"
         const val NOTIFICATION_ID = 1002
 
-        /** Whether capture is genuinely collecting, as opposed to merely being enabled in Settings. */
-        @Volatile
-        var isRunning: Boolean = false
-            private set
+        private val _running = MutableStateFlow(false)
+
+        /**
+         * Whether capture is genuinely collecting, as opposed to merely being enabled in
+         * Settings. Observable so the status the officer sees changes the moment the service
+         * starts or stops, instead of showing whatever was true when the screen was built.
+         */
+        val running: StateFlow<Boolean> = _running.asStateFlow()
+
+        val isRunning: Boolean get() = _running.value
 
         fun start(context: Context) {
             try {
