@@ -206,12 +206,11 @@ class DsrReportParser {
 
     private fun allCrimeHeadCode(value: String): String {
         val compact = DsrNormalization.whitespace(value).uppercase(Locale.ENGLISH)
-            .replace(".", "")
-            .replace(" ", "_")
-            .replace("-", "_")
+            .replace(Regex("[^A-Z0-9]+"), "_")
+            .trim('_')
         return when (compact) {
-            "HB_DAY" -> "HB_DAY"
-            "HB_NIGHT" -> "HB_NIGHT"
+            "H_B_DAY" -> "HB_DAY"
+            "H_B_NIGHT" -> "HB_NIGHT"
             else -> compact
         }
     }
@@ -732,7 +731,13 @@ class DsrReportParser {
                 metrics += ParsedDsrMetric("esakshya.pending", it[it.lastIndex - 1], DsrMetricSemantics.PENDING)
                 metrics += ParsedDsrMetric("esakshya.sid_later", it.last(), DsrMetricSemantics.PENDING)
             }
-        lastTotalValue(section(fullText, "NBW Pending", listOf("NBW Received", "C.No.114-3")))?.let {
+        lastTotalValue(
+            section(
+                fullText,
+                "NBW Pending",
+                listOf("NBW Received", "C.No.", "e-filed rectification", "Case Note", "Station CCTV"),
+            ),
+        )?.let {
             metrics += ParsedDsrMetric("nbw.pending", it, DsrMetricSemantics.PENDING)
         }
         lastTotalValue(section(fullText, "e-filed rectification", listOf("Case Note", "Station CCTV", "MV Petty Case")))?.let {
