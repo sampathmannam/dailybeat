@@ -1,1 +1,2 @@
 Publish DailyBeat v3.6.0 from the protected main branch.
+Retry after adding the optional PDFBox JPEG-2000 shrinker rule.
