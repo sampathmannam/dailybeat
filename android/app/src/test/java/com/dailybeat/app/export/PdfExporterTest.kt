@@ -2,8 +2,9 @@ package com.dailybeat.app.export
 
 import android.graphics.Paint
 import androidx.test.core.app.ApplicationProvider
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -34,5 +35,19 @@ class PdfExporterTest {
 
         assertTrue(lines.size > 1)
         assertFalse(lines.any { paint.measureText(it) > 80f })
+    }
+
+    @Test
+    fun wrapLine_keepsUnicodeCodePointsIntactWhenSplitting() {
+        val paint = Paint().apply { textSize = 12f }
+        val token = "🙂".repeat(200)
+
+        val lines = exporter.wrapLine(token, paint, 80f)
+
+        assertEquals(token, lines.joinToString(separator = ""))
+        assertFalse(lines.any { line ->
+            line.isNotEmpty() &&
+                (Character.isLowSurrogate(line.first()) || Character.isHighSurrogate(line.last()))
+        })
     }
 }

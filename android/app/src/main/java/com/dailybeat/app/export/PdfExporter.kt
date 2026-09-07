@@ -160,11 +160,10 @@ class PdfExporter(private val context: Context) {
             if (paint.measureText(word) > maxWidth) {
                 if (current.isNotEmpty()) {
                     lines.add(current)
-                    current = ""
                 }
                 var remaining = word
                 while (paint.measureText(remaining) > maxWidth) {
-                    val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                    val count = fittingPrefixLength(remaining, paint, maxWidth)
                     lines.add(remaining.take(count))
                     remaining = remaining.drop(count)
                 }
@@ -181,5 +180,34 @@ class PdfExporter(private val context: Context) {
         }
         if (current.isNotEmpty()) lines.add(current)
         return lines
+    }
+
+    /**
+     * Returns the longest prefix that fits. Using measured binary search rather than trusting
+     * Paint.breakText keeps wrapping deterministic across Android, Robolectric, and vendor fonts.
+     */
+    private fun fittingPrefixLength(text: String, paint: Paint, maxWidth: Float): Int {
+        var low = 1
+        var high = text.length
+        var best = 0
+        while (low <= high) {
+            val midpoint = (low + high).ushr(1)
+            val safeMidpoint = if (
+                midpoint < text.length &&
+                Character.isHighSurrogate(text[midpoint - 1]) &&
+                Character.isLowSurrogate(text[midpoint])
+            ) {
+                midpoint - 1
+            } else {
+                midpoint
+            }
+            if (safeMidpoint > 0 && paint.measureText(text, 0, safeMidpoint) <= maxWidth) {
+                best = maxOf(best, safeMidpoint)
+                low = midpoint + 1
+            } else {
+                high = midpoint - 1
+            }
+        }
+        return best.takeIf { it > 0 } ?: Character.charCount(text.codePointAt(0))
     }
 }

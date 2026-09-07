@@ -8,10 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
@@ -155,12 +156,12 @@ fun JourneyMapPreview(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
-        Column {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (mapError) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .weight(1f)
                         .padding(20.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -181,12 +182,15 @@ fun JourneyMapPreview(
                     }
                 }
             } else {
-                Box {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
                     AndroidView(
                         factory = { mapView },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
+                            .fillMaxSize()
                             .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )

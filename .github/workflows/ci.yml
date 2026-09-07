@@ -77,6 +77,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
 
+      # Compile before the emulator starts. Building MapLibre native APKs while the emulator is
+      # booting can starve Android's package service on hosted runners and produce a false test
+      # failure before a single test is installed.
+      - name: Build instrumentation APKs
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
+
       - name: Instrumentation tests (Android 14 emulator)
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
@@ -85,7 +92,7 @@ jobs:
           profile: Nexus 6
           force-avd-creation: true
           disable-animations: true
-          emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
           script: bash .github/scripts/run-instrumentation.sh
 
       - name: Upload instrumentation evidence

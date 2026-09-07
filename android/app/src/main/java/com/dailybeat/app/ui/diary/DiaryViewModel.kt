@@ -125,13 +125,14 @@ class DiaryViewModel(
     }
 
     fun generateFromLoggedEvents() {
+        if (_uiState.value.isGenerating) return
+        _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
         viewModelScope.launch {
             runReportGeneration()
         }
     }
 
     private suspend fun runReportGeneration() {
-        _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
         val result = runCatching {
             flushPendingEdit()
             app.reportGenerator.generateForDate(date)
@@ -166,13 +167,14 @@ class DiaryViewModel(
     }
 
     fun generateFromCustomEvents() {
+        if (_uiState.value.isGenerating) return
         val eventsText = _uiState.value.customEvents.trim()
         if (eventsText.isEmpty()) {
             _uiState.value = _uiState.value.copy(error = "Enter events to convert.")
             return
         }
+        _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isGenerating = true, error = null)
             val result = runCatching {
                 flushPendingEdit()
                 val settings = app.settingsRepository.get()

@@ -83,7 +83,7 @@ open class OsmGeocoder(
                 }
             } catch (_: Exception) {
                 return@withContext fallback
-            } ?: return@withContext fallback
+            }
 
             val resolved = try {
                 parse(JSONObject(body), latitude, longitude)

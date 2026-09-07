@@ -263,7 +263,7 @@ fun TodayScreen(
                             showOptionalNote = false
                         }
                     },
-                    enabled = optionalNote.isNotBlank(),
+                    enabled = optionalNote.isNotBlank() && !uiState.isSavingNote,
                 )
             }
         }

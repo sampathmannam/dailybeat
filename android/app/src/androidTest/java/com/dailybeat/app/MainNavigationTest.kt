@@ -88,6 +88,10 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("nav_today").performClick()
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
         composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
+        composeRule.onNodeWithText("Open full map").performClick()
+        composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("journey_map_back").performClick()
+        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
 
     @Test

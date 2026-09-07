@@ -72,8 +72,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     fun generateWeeklyRollup() {
         if (_uiState.value.isGeneratingWeekly) return
+        _uiState.value = _uiState.value.copy(isGeneratingWeekly = true, error = null, message = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isGeneratingWeekly = true, error = null, message = null)
             val result = runCatching { app.weeklyGenerator.generateAndSave() }
                 .getOrElse { Result.failure(it) }
             result.fold(
@@ -96,8 +96,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     fun exportPackage() {
         if (_uiState.value.isExporting) return
+        _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
             runCatching {
                 val settings = app.settingsRepository.get()
                 // Zipping a week of diaries and rendering their PDFs is heavy disk work.

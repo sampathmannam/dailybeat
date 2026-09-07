@@ -11,20 +11,17 @@ capture_evidence() {
   timeout --kill-after=5s 30s adb logcat -d -v threadtime > "$evidence_dir/logcat.txt" || true
 }
 
-timeout --kill-after=10s 2m bash -c \
-  'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 2; done'
-readiness_status=$?
-if [ "$readiness_status" -ne 0 ]; then
-  capture_evidence "$readiness_status"
-  exit "$readiness_status"
-fi
-
-timeout --kill-after=10s 2m bash -c \
-  'until adb shell pm list packages >/dev/null 2>&1; do sleep 2; done'
-package_status=$?
-if [ "$package_status" -ne 0 ]; then
-  capture_evidence "$package_status"
-  exit "$package_status"
+timeout --kill-after=10s 3m bash -c '
+  set -o pipefail
+  until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ] &&
+    adb shell service check package 2>/dev/null | tr -d "\r" | grep -q "package: found"; do
+    sleep 2
+  done
+'
+android_ready_status=$?
+if [ "$android_ready_status" -ne 0 ]; then
+  capture_evidence "$android_ready_status"
+  exit "$android_ready_status"
 fi
 
 cd "$GITHUB_WORKSPACE/android"

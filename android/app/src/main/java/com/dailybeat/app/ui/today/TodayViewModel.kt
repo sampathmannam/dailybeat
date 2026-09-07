@@ -31,6 +31,7 @@ data class TodayUiState(
     val seedMessage: String? = null,
     val isRecordingVoice: Boolean = false,
     val voiceMessage: String? = null,
+    val isSavingNote: Boolean = false,
     val error: String? = null,
 )
 
@@ -104,13 +105,18 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addOptionalNote(text: String, onSaved: () -> Unit = {}) {
+        if (_uiState.value.isSavingNote) return
+        _uiState.update { it.copy(isSavingNote = true, error = null) }
         viewModelScope.launch {
             runCatching { repository.addManualEvent(text) }.fold(
                 onSuccess = {
-                    clearError()
+                    _uiState.update { it.copy(isSavingNote = false, error = null) }
                     onSaved()
                 },
-                onFailure = { error -> showError(error, "Unable to save the note.") },
+                onFailure = { error ->
+                    _uiState.update { it.copy(isSavingNote = false) }
+                    showError(error, "Unable to save the note.")
+                },
             )
         }
     }
@@ -136,8 +142,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     fun recordVoiceNote() {
         if (_uiState.value.isRecordingVoice) return
+        _uiState.value = _uiState.value.copy(isRecordingVoice = true, voiceMessage = null, error = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isRecordingVoice = true, voiceMessage = null, error = null)
             val result = runCatching { VoiceCaptureOrchestrator(app).captureAndSave() }
                 .getOrElse { Result.failure(it) }
             result.fold(
@@ -165,8 +171,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     fun seedSyntheticDay() {
         if (_uiState.value.isSeeding) return
+        _uiState.value = _uiState.value.copy(isSeeding = true, seedMessage = null, error = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSeeding = true, seedMessage = null, error = null)
             runCatching { SyntheticDayGenerator.seedToday(app) }.fold(
                 onSuccess = { result ->
                     CaptureAuditLog.log(
@@ -190,8 +196,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     fun generateAiReport() {
         if (_uiState.value.isGeneratingReport) return
+        _uiState.value = _uiState.value.copy(isGeneratingReport = true, error = null)
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isGeneratingReport = true, error = null)
             val result = runCatching {
                 app.reportGenerator.generateAndSaveForDate(com.dailybeat.app.util.DateKeys.today())
             }.getOrElse { Result.failure(it) }
