@@ -152,8 +152,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq '.object.sha' 2>/dev/null || true)"
+          tag_sha=""
+          if existing_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+            --jq '.object.sha' 2>/dev/null)"; then
+            tag_sha="$existing_tag_sha"
+          fi
           if [[ -n "$tag_sha" && "$tag_sha" != "$GITHUB_SHA" ]]; then
             echo "Tag $RELEASE_TAG already points to $tag_sha, not $GITHUB_SHA."
             exit 1
