@@ -341,7 +341,7 @@ private fun AllCrimeTrendCard(values: List<AllCrimePeriod>) {
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                "Bars compare cases per covered month, so the 2026 YTD report is not treated as a full year.",
+                "Bars compare cases per covered month, so YTD reports are not treated as full years.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
