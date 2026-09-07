@@ -3,6 +3,7 @@ package com.dailybeat.app
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.capture.LocationService
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -27,6 +28,7 @@ class CaptureLifecycleTest {
         app = ApplicationProvider.getApplicationContext()
         app.settingsRepository.setOnboardingComplete(true)
         app.settingsRepository.setGpsEnabled(true)
+        OperationalFailureLog.clear(app)
         stopCaptureAndWait()
     }
 
@@ -40,9 +42,11 @@ class CaptureLifecycleTest {
         assertFalse("Precondition: capture must be stopped before launch.", LocationService.isRunning)
 
         ActivityScenario.launch(MainActivity::class.java).use {
+            val restarted = waitFor(timeoutMs = 15_000) { LocationService.isRunning }
             assertTrue(
-                "Opening the app did not restart passive GPS capture.",
-                waitFor(timeoutMs = 15_000) { LocationService.isRunning },
+                "Opening the app did not restart passive GPS capture. Diagnostics: " +
+                    OperationalFailureLog.readRecent(app).joinToString(),
+                restarted,
             )
         }
     }
