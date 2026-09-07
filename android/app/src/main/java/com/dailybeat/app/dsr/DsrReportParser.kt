@@ -28,7 +28,7 @@ class DsrReportParser {
 
     fun parse(originalFileName: String, pages: List<String>): ParsedOperationalReport {
         require(pages.isNotEmpty()) { "The PDF has no readable pages." }
-        val fullText = pages.joinToString("\n\f\n")
+        val fullText = pages.joinToString("\n\u000C\n")
         val reportType = detectType(fullText)
         return when (reportType) {
             OperationalReportType.DSR -> parseDsr(originalFileName, pages, fullText)

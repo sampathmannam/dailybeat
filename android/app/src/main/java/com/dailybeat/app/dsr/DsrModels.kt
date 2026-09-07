@@ -96,8 +96,8 @@ data class ParsedOperationalReport(
 ) {
     val qualityScore: Int
         get() {
-            val deductions = issues.sumOf {
-                when (it.severity) {
+            val deductions = issues.fold(0) { total, issue ->
+                total + when (issue.severity) {
                     DsrIssueSeverity.ERROR -> 20
                     DsrIssueSeverity.WARNING -> 7
                     DsrIssueSeverity.INFO -> 1
