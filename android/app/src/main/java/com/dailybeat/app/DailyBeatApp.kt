@@ -15,6 +15,12 @@ import com.dailybeat.app.cloud.ReportGenerator
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.db.MIGRATION_2_3
 import com.dailybeat.app.data.db.MIGRATION_3_4
+import com.dailybeat.app.data.db.MIGRATION_4_5
+import com.dailybeat.app.data.repo.DsrRepository
+import com.dailybeat.app.dsr.DsrDocumentStore
+import com.dailybeat.app.dsr.DsrImportService
+import com.dailybeat.app.dsr.DsrPdfTextExtractor
+import com.dailybeat.app.dsr.DsrReportParser
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
@@ -27,12 +33,13 @@ import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.notify.DailyReminderScheduler
 import com.dailybeat.app.notify.PulseScheduler
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 
 class DailyBeatApp : Application() {
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
     }
 
@@ -45,6 +52,17 @@ class DailyBeatApp : Application() {
     val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
     val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
+
+    val dsrRepository: DsrRepository by lazy { DsrRepository(db, db.dsr()) }
+
+    val dsrImportService: DsrImportService by lazy {
+        DsrImportService(
+            documentStore = DsrDocumentStore(this),
+            textExtractor = DsrPdfTextExtractor(),
+            parser = DsrReportParser(),
+            repository = dsrRepository,
+        )
+    }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
@@ -104,6 +122,7 @@ class DailyBeatApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        PDFBoxResourceLoader.init(this)
         createNotificationChannels()
         DailyReminderScheduler.createChannel(this)
         DailyReminderScheduler.scheduleNext(this)
