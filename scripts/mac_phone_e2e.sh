@@ -42,13 +42,27 @@ EVIDENCE_DIR="$ROOT/android/app/build/outputs/phone-evidence/$MAC_ADB_SERIAL"
 mkdir -p "$EVIDENCE_DIR"
 mac_adb logcat -c
 mac_adb shell am force-stop "$QA_PACKAGE"
+mac_adb shell getprop ro.build.fingerprint > "$EVIDENCE_DIR/device-build.txt"
+mac_adb shell dumpsys package "$QA_PACKAGE" > "$EVIDENCE_DIR/package.txt"
 mac_adb shell am start -W -n "$QA_PACKAGE/com.dailybeat.app.MainActivity" \
   > "$EVIDENCE_DIR/launch.txt"
+sleep 3
 mac_adb exec-out screencap -p > "$EVIDENCE_DIR/screen.png"
 mac_adb logcat -d -v threadtime > "$EVIDENCE_DIR/logcat.txt"
 
+if ! grep -q "Status: ok" "$EVIDENCE_DIR/launch.txt"; then
+  echo "Android did not report a successful QA launch. See $EVIDENCE_DIR/launch.txt"
+  exit 1
+fi
+
 if ! mac_adb shell pidof "$QA_PACKAGE" > "$EVIDENCE_DIR/pid.txt"; then
   echo "QA app did not remain alive after launch. See $EVIDENCE_DIR/logcat.txt"
+  exit 1
+fi
+
+if grep -A 4 "FATAL EXCEPTION" "$EVIDENCE_DIR/logcat.txt" | grep -q "Process: $QA_PACKAGE" ||
+  grep -q "ANR in $QA_PACKAGE" "$EVIDENCE_DIR/logcat.txt"; then
+  echo "QA app crashed or stopped responding after launch. See $EVIDENCE_DIR/logcat.txt"
   exit 1
 fi
 
