@@ -14,13 +14,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -53,6 +59,18 @@ fun FeedScreen(
     viewModel: FeedViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
+
+    stayBeingNamed?.let { stay ->
+        NamePlaceDialog(
+            stay = stay,
+            onDismiss = { stayBeingNamed = null },
+            onSave = { name ->
+                viewModel.saveNamedPlace(stay, name)
+                stayBeingNamed = null
+            },
+        )
+    }
 
     LazyColumn(
         modifier = modifier
@@ -100,13 +118,21 @@ fun FeedScreen(
         }
 
         items(state.days, key = { it.date.toString() }) { day ->
-            DayFeedCard(day = day, onClick = { onOpenDiary(DateKeys.format(day.date)) })
+            DayFeedCard(
+                day = day,
+                onClick = { onOpenDiary(DateKeys.format(day.date)) },
+                onNameStay = { stay -> stayBeingNamed = stay },
+            )
         }
     }
 }
 
 @Composable
-private fun DayFeedCard(day: DayFeedItem, onClick: () -> Unit) {
+private fun DayFeedCard(
+    day: DayFeedItem,
+    onClick: () -> Unit,
+    onNameStay: (DayStay) -> Unit,
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -173,7 +199,9 @@ private fun DayFeedCard(day: DayFeedItem, onClick: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    day.stays.take(MAX_STAYS_SHOWN).forEach { StayRow(it) }
+                    day.stays.take(MAX_STAYS_SHOWN).forEach { stay ->
+                        StayRow(stay = stay, onNameStay = { onNameStay(stay) })
+                    }
                     if (day.stays.size > MAX_STAYS_SHOWN) {
                         Text(
                             text = stringResource(
@@ -202,8 +230,13 @@ private fun DayFeedCard(day: DayFeedItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StayRow(stay: DayStay) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onNameStay),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(
             modifier = Modifier
                 .size(8.dp)
@@ -259,4 +292,50 @@ internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today
     today -> "Today"
     today.minusDays(1) -> "Yesterday"
     else -> "${java.time.temporal.ChronoUnit.DAYS.between(date, today)} days ago"
+}
+
+/**
+ * Names the place a stay happened at. OpenStreetMap has no point of interest at many real stops,
+ * so the map can only offer the road; naming it once makes every later stay there read correctly.
+ */
+@Composable
+private fun NamePlaceDialog(
+    stay: DayStay,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var draft by remember(stay) { mutableStateOf(stay.name) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.feed_name_place_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.feed_name_place_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .testTag("name_place_field"),
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.feed_name_place_label)) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(draft) },
+                enabled = draft.isNotBlank(),
+                modifier = Modifier.testTag("name_place_save"),
+            ) { Text(stringResource(R.string.feed_name_place_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.feed_name_place_cancel)) }
+        },
+    )
 }

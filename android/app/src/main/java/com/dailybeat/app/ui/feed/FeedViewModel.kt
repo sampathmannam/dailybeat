@@ -111,7 +111,23 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Saves a stay's own coordinates as a named place. OpenStreetMap has no POI at many real
+     * stops, so reverse geocoding can only offer the road; naming it once teaches the app, and
+     * [com.dailybeat.app.domain.GeofenceMatcher] labels every later stay there.
+     */
+    fun saveNamedPlace(stay: DayStay, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
+            _uiState.value = _uiState.value.copy(message = "Saved \"$trimmed\". Future stays here will use it.")
+            refresh()
+        }
+    }
+
     private companion object {
         const val DAYS_IN_FEED = 30
+        const val PLACE_RADIUS_M = 150
     }
 }

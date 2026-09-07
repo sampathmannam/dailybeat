@@ -12,6 +12,8 @@ data class DayStay(
     val name: String,
     val startMs: Long,
     val endMs: Long,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
 ) {
     val durationMinutes: Long get() = TimeUnit.MILLISECONDS.toMinutes(endMs - startMs).coerceAtLeast(0)
 }
@@ -66,6 +68,8 @@ object DayFeedBuilder {
                     name = it.displayName(),
                     startMs = it.startMs,
                     endMs = maxOf(it.endMs, it.startMs),
+                    latitude = it.latitude,
+                    longitude = it.longitude,
                 )
             }
 

@@ -64,6 +64,11 @@
     <string name="feed_stat_distance">Distance</string>
     <string name="feed_stat_time_out">Time out</string>
     <string name="feed_stat_stops">Stops</string>
+    <string name="feed_name_place_title">Name this place</string>
+    <string name="feed_name_place_body">The map has no name for some spots, so it falls back to the road. Name it once and every later stay here uses it.</string>
+    <string name="feed_name_place_label">Place name</string>
+    <string name="feed_name_place_save">Save place</string>
+    <string name="feed_name_place_cancel">Cancel</string>
     <string name="feed_more_stops">+%1$d more stops</string>
     <string name="feed_route_content_description">Route map for the day with %1$d stops</string>
     <string name="share_pdf_button">Share PDF</string>
