@@ -27,7 +27,7 @@ def test_debug_build_is_isolated_from_the_installed_release_app():
 
 
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
-    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/publish-release.yml").read_text(encoding="utf-8")
 
     assert "assembleDebug" not in workflow
     assert "app-debug.apk" not in workflow
@@ -35,6 +35,8 @@ def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     assert "apksigner verify --print-certs" in workflow
     assert "app-release.apk" in workflow
     assert "release/version.txt" in workflow
+    assert "release/requests/*.txt" in workflow
+    assert "workflow_dispatch:" in workflow
     assert "build patrolgrid-backend codeql" in workflow
 
 
@@ -51,7 +53,7 @@ def test_cloud_backup_schema_enforces_owner_only_row_level_security():
 
 
 def test_release_injects_public_supabase_configuration_from_github_secrets():
-    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/publish-release.yml").read_text(encoding="utf-8")
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
 
     assert "SUPABASE_URL: ${{ secrets.SUPABASE_URL }}" in workflow
