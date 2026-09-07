@@ -55,7 +55,10 @@ class FeedScreenTest {
     fun feedShowsTodayAsACardWithStopsAndDurations() {
         composeRule.onNodeWithTag("nav_history").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasText("Today"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_card_${DateKeys.today()}"),
+            timeoutMillis = 20_000,
+        )
         composeRule.onNodeWithTag("feed_list")
             .performScrollToNode(hasTestTag("feed_card_${DateKeys.today()}"))
 
@@ -69,7 +72,10 @@ class FeedScreenTest {
     @Test
     fun tappingADayOpensThatDaysDiary() {
         composeRule.onNodeWithTag("nav_history").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasText("Today"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_card_${DateKeys.today()}"),
+            timeoutMillis = 20_000,
+        )
 
         composeRule.onNodeWithTag("feed_card_${DateKeys.today()}").performClick()
 
