@@ -1,4 +1,12 @@
-# DailyBeat v3.5.0 — Install
+# DailyBeat v3.6.0 — Install
+
+## DSR Command dashboard
+
+Open **DSR Command** and choose **Import PDF** whenever a new Daily Situation
+Report arrives. DailyBeat extracts supported operational tables on the device,
+adds the report to the cumulative dashboard, and flags fields that need review.
+The source PDF and extracted operational content remain on the device unless
+the user explicitly exports or shares them.
 
 ## Cloud AI configuration
 
@@ -24,12 +32,14 @@ The Cloud AI provider key is never backed up. Enter it again on a new phone.
 
 ## APK
 
-Download from GitHub Releases (tag `v3.5.0`):
-- `app-release.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+Download from GitHub Releases (tag `v3.6.0`):
+
+- `DailyBeat-v3.6.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 
 Verify downloads against `SHA256SUMS.txt` in the release assets.
 
-If the release has no APK yet, either wait for the **Release APK** GitHub Action on tag `v3.5.0`, or build locally:
+If the release has no APK yet, either wait for the **Release APK** GitHub Action
+on tag `v3.6.0`, or build locally:
 
 ```bash
 cd android && ./gradlew assembleRelease
