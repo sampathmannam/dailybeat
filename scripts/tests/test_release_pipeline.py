@@ -20,6 +20,12 @@ def test_release_build_requires_the_permanent_signing_key():
     assert 'signingConfig = signingConfigs.getByName("release")' in gradle
 
 
+def test_release_shrinker_allows_pdfbox_optional_jpeg2000_codec():
+    rules = (ROOT / "android/app/proguard-rules.pro").read_text(encoding="utf-8")
+
+    assert "-dontwarn com.gemalto.jp2.**" in rules
+
+
 def test_debug_build_is_isolated_from_the_installed_release_app():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
 
