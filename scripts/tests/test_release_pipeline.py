@@ -86,7 +86,7 @@ def test_mac_helpers_detect_android_studios_bundled_java_runtime():
 def test_phone_installer_defaults_to_the_current_signed_stable_release():
     installer = (ROOT / "scripts/mac_install_release_apk.sh").read_text(encoding="utf-8")
 
-    assert 'DAILYBEAT_RELEASE_TAG:-v3.6.0' in installer
+    assert 'DAILYBEAT_RELEASE_TAG:-v3.7.0' in installer
 
 
 def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():

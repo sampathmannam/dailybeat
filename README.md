@@ -2,8 +2,8 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.7.0 candidate** — Daily journey feed, map-derived place names, removal of call-log capture,
-and an end-to-end reliability overhaul. DSR is now a separate app.
+**v3.7.0** — Daily journey feed, map-derived place names, removal of call-log capture, and an
+end-to-end reliability overhaul. DSR is now a separate app.
 
 Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
 Configure it at runtime in Settings → Cloud AI. The key is not bundled in the APK.
@@ -13,7 +13,7 @@ Configure it at runtime in Settings → Cloud AI. The key is not bundled in the 
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Existing stable release (currently v3.6.0)
+# Current stable release (v3.7.0)
 ./scripts/mac_install_release_apk.sh YOUR_DEVICE_ID
 
 # Build, test, and install the v3.7 QA candidate without replacing the stable app
@@ -21,9 +21,8 @@ DAILYBEAT_BRANCH=hardening/reliability-pass \
   ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-The signed v3.7.0 APK will appear in GitHub Releases only after the hardening branch is merged and
-the build, live cloud-backup instrumentation, backend, and security gates all pass. To build the
-candidate locally:
+The signed v3.7.0 APK is published through GitHub Releases only after the build, live cloud-backup
+instrumentation, backend, and security gates all pass. To build an isolated QA APK locally:
 
 ```bash
 cd android && ./gradlew assembleDebug

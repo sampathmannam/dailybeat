@@ -55,12 +55,13 @@ This builds and installs `com.dailybeat.app.qa`, which can coexist with the sign
 To run the complete build, unit, lint, and Compose test gate on a physical phone:
 
 ```bash
-DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
+DAILYBEAT_BRANCH=main \
   ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-This installs the separate `com.dailybeat.app.qa` package, leaves the signed stable app and its
-data untouched, and writes launch, screenshot, package, device-build, PID, and logcat evidence.
+This installs and resets only the disposable `com.dailybeat.app.qa.e2eloop` package, leaves the
+signed stable app and regular QA data untouched, and writes launch, screenshot, package,
+device-build, PID, and logcat evidence.
 
 ## Fast install (no build — download APK)
 
@@ -68,7 +69,7 @@ data untouched, and writes launch, screenshot, package, device-build, PID, and l
 ./scripts/mac_install_release_apk.sh
 ```
 
-Downloads the latest configured stable release (currently **v3.6.0**) and supports both the old
+Downloads the latest configured stable release (currently **v3.7.0**) and supports both the old
 `app-release.apk` asset name and the versioned name used by newer releases.
 
 ## Cursor on your Mac (local agent)

@@ -1,4 +1,4 @@
-# DailyBeat v3.7.0 release candidate — install and verify
+# DailyBeat v3.7.0 — install and verify
 
 Version 3.7.0 focuses on journey-feed and reliability hardening. DSR is a separate app in the
 private `sampathmannam/dsr` repository; its old DailyBeat records and PDFs are retained, not deleted.
@@ -25,8 +25,7 @@ remote snapshot validates.
 
 ## Signed APK
 
-After the hardening branch is merged and every release gate passes, download these assets from
-GitHub Releases (tag `v3.7.0`):
+After every release gate passes, download these assets from GitHub Releases (tag `v3.7.0`):
 
 - `DailyBeat-v3.7.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
@@ -41,7 +40,7 @@ Do not create a tag from a feature branch merely to obtain an APK.
 ```bash
 git clone https://github.com/sampathmannam/dailybeat.git
 cd dailybeat
-DAILYBEAT_BRANCH=hardening/reliability-pass \
+DAILYBEAT_BRANCH=main \
   ./scripts/mac_phone_e2e.sh YOUR_ADB_SERIAL
 ```
 
