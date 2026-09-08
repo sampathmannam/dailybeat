@@ -27,6 +27,14 @@ fi
 cd "$GITHUB_WORKSPACE/android"
 
 instrumentation_args=()
+if [ "${DAILYBEAT_OFFLINE_TESTS_ONLY:-0}" = "1" ]; then
+  if [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
+    echo "Offline-only mode cannot bypass the required live backup gate."
+    capture_evidence 2
+    exit 2
+  fi
+  instrumentation_args+=("-Pandroid.testInstrumentationRunnerArguments.notClass=com.dailybeat.app.CloudBackupLiveTest")
+fi
 if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PASSWORD:-}" ]; then
   if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
     echo "Live backup credentials were provided without Supabase configuration."

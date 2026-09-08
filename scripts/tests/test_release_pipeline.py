@@ -1,7 +1,19 @@
 from pathlib import Path
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_offline_instrumentation_does_not_bypass_the_live_release_gate():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    assert jobs["offline-instrumentation"]["env"] == {"DAILYBEAT_OFFLINE_TESTS_ONLY": "1"}
+    assert jobs["instrumentation"]["env"]["DAILYBEAT_REQUIRE_LIVE_BACKUP"] == "1"
+    assert "DAILYBEAT_OFFLINE_TESTS_ONLY" not in jobs["instrumentation"]["env"]
+    runner = (ROOT / ".github/scripts/run-instrumentation.sh").read_text(encoding="utf-8")
+    assert "Offline-only mode cannot bypass the required live backup gate." in runner
+    assert "notClass=com.dailybeat.app.CloudBackupLiveTest" in runner
 
 
 def test_android_version_advances_for_obtainium_update():

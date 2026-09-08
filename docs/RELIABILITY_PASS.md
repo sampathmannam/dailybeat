@@ -13,6 +13,8 @@ are never reset or replaced by instrumentation.
 - Kept the diary editor available after clearing text; manual offline entries can be rewritten.
 - Corrected week exports to seven calendar days ending today, excluding old/future records.
 - Added phone regressions for diary recreation, native PDF/ZIP export, local backup and map navigation.
+- Added an independent offline CI device-test job; missing live-backup credentials no longer
+  prevent the core tests from running. The mandatory live release gate cannot be bypassed.
 
 ## Feature coverage and remaining gates
 

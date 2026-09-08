@@ -67,6 +67,53 @@ jobs:
             android/app/build/reports/tests/
             android/app/build/reports/lint-results-debug.html
 
+  # Exercise local features even when dedicated live-backup credentials are unavailable.
+  # The separate required instrumentation job below still enforces the live release gate.
+  offline-instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DAILYBEAT_OFFLINE_TESTS_ONLY: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
+      - name: Build disposable offline test APKs
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop --no-daemon
+      - name: Enable KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Offline core end-to-end tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 34
+          target: google_apis_playstore
+          arch: x86_64
+          profile: Nexus 6
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
+          script: bash .github/scripts/run-instrumentation.sh
+      - name: Upload offline test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: offline-instrumentation-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            android/app/build/reports/androidTests/connected/
+            android/app/build/outputs/androidTest-results/connected/
+            android/app/build/outputs/instrumentation-evidence/
+
   instrumentation:
     runs-on: ubuntu-latest
     timeout-minutes: 45
