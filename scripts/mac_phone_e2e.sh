@@ -50,7 +50,10 @@ cd "$ROOT/android"
 ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
 
 echo "=== Run Compose end-to-end tests on $MAC_ADB_SERIAL ==="
-phone_instrumentation_args=()
+run_phone_instrumentation() {
+  ./gradlew connectedDebugAndroidTest "$@" --no-daemon --stacktrace
+}
+
 if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PASSWORD:-}" ]; then
   if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
     echo "Live backup credentials were provided without SUPABASE_URL and SUPABASE_ANON_KEY."
@@ -60,19 +63,18 @@ if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PA
   mac_sha256_text() {
     printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
   }
-  phone_instrumentation_args+=(
-    "-Pandroid.testInstrumentationRunnerArguments.backupEmail=$DAILYBEAT_BACKUP_TEST_EMAIL"
-    "-Pandroid.testInstrumentationRunnerArguments.backupPassword=$DAILYBEAT_BACKUP_TEST_PASSWORD"
-    "-Pandroid.testInstrumentationRunnerArguments.backupEmailSha=$(mac_sha256_text "$DAILYBEAT_BACKUP_TEST_EMAIL")"
-    "-Pandroid.testInstrumentationRunnerArguments.backupPasswordSha=$(mac_sha256_text "$DAILYBEAT_BACKUP_TEST_PASSWORD")"
+  run_phone_instrumentation \
+    "-Pandroid.testInstrumentationRunnerArguments.backupEmail=$DAILYBEAT_BACKUP_TEST_EMAIL" \
+    "-Pandroid.testInstrumentationRunnerArguments.backupPassword=$DAILYBEAT_BACKUP_TEST_PASSWORD" \
+    "-Pandroid.testInstrumentationRunnerArguments.backupEmailSha=$(mac_sha256_text "$DAILYBEAT_BACKUP_TEST_EMAIL")" \
+    "-Pandroid.testInstrumentationRunnerArguments.backupPasswordSha=$(mac_sha256_text "$DAILYBEAT_BACKUP_TEST_PASSWORD")" \
     "-Pandroid.testInstrumentationRunnerArguments.backupConfigSha=$(mac_sha256_text "$SUPABASE_URL|$SUPABASE_ANON_KEY")"
-  )
 elif [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
   echo "Live backup verification requires DAILYBEAT_BACKUP_TEST_EMAIL and DAILYBEAT_BACKUP_TEST_PASSWORD."
   exit 1
+else
+  run_phone_instrumentation
 fi
-
-./gradlew connectedDebugAndroidTest "${phone_instrumentation_args[@]}" --no-daemon --stacktrace
 
 echo "=== Reinstall QA app after the Android test runner cleanup ==="
 ./gradlew installDebug --no-daemon --stacktrace

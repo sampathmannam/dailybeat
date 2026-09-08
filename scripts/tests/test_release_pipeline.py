@@ -47,6 +47,21 @@ def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanu
     assert 'pm path "$QA_PACKAGE"' in runner
 
 
+def test_phone_gate_does_not_expand_an_empty_array_under_macos_bash_strict_mode():
+    runner = (ROOT / "scripts/mac_phone_e2e.sh").read_text(encoding="utf-8")
+
+    assert "phone_instrumentation_args=()" not in runner
+    assert 'run_phone_instrumentation()' in runner
+    assert './gradlew connectedDebugAndroidTest "$@" --no-daemon --stacktrace' in runner
+    assert "else\n  run_phone_instrumentation\nfi" in runner
+
+
+def test_mac_helpers_detect_android_studios_bundled_java_runtime():
+    helper = (ROOT / "scripts/mac_adb_common.sh").read_text(encoding="utf-8")
+
+    assert '"/Applications/Android Studio.app/Contents/jbr/Contents/Home"' in helper
+
+
 def test_phone_installer_defaults_to_the_current_signed_stable_release():
     installer = (ROOT / "scripts/mac_install_release_apk.sh").read_text(encoding="utf-8")
 
