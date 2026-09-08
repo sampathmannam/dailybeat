@@ -21,7 +21,8 @@ import java.io.File
 /**
  * Exercises the real upgrade paths shipped to users:
  * app v1.0.x wrote schema 2, app v2.x wrote schema 3, app v3.x wrote schema 4, and
- * the two v3.6 development lines wrote different schema-5 shapes. The combined app expects 6.
+ * the two v3.6 development lines wrote different schema-5 shapes. The app now expects 7,
+ * retaining dormant DSR records even though DSR's active feature has moved to a separate app.
  *
  * Each test builds the legacy database with the exact SQL Room generated for that
  * version, then opens it through the production [DailyBeatDb] builder so Room runs the
@@ -126,6 +127,28 @@ class MigrationTest {
         } finally {
             db.close()
         }
+    }
+
+    @Test
+    fun migratesSchema6WithoutLosingDsrCaseReferencesOrDiary() {
+        createSchema5Variant(keepDsrTables = true, keepGeocodePlaceName = true)
+        SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { raw ->
+            raw.execSQL("""
+                INSERT INTO dsr_cases VALUES ('RASIPURAM|2099|1', 'RASIPURAM', 'Rasipuram', '1', 2099,
+                    '1/2099', 'Test head', '194 BNSS', 'HIGH', '2099-01-01', '2099-01-02', 1)
+            """.trimIndent())
+            raw.execSQL("INSERT INTO dsr_case_mentions VALUES ('legacy-import|RASIPURAM|2099|1', 'legacy-import', 'RASIPURAM|2099|1', '2099-01-01', 3)")
+            raw.version = 6
+        }
+        val db = openWithProductionMigrations()
+        try {
+            val snapshot = runBlocking { db.dsr().snapshotsForImport("legacy-import") }.single()
+            assertEquals("Test head", snapshot.caseData.head)
+            assertEquals(3, snapshot.sourcePage)
+            assertEquals(true, snapshot.legacySnapshot)
+            assertEquals(1, runBlocking { db.dsr().importById("legacy-import") }?.parserVersion)
+            assertEquals(listOf("Legacy diary text"), runBlocking { db.diaries().all() }.map { it.text })
+        } finally { db.close() }
     }
 
     /** Opens the database exactly the way [com.dailybeat.app.DailyBeatApp] does. */

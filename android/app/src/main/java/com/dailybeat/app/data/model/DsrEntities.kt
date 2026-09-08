@@ -1,6 +1,8 @@
 package com.dailybeat.app.data.model
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -11,7 +13,7 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "dsr_imports",
     indices = [
-        Index(value = ["sha256"], unique = true),
+        Index(value = ["sha256"]),
         Index(value = ["reportDate", "reportType", "active"]),
     ],
 )
@@ -31,6 +33,55 @@ data class DsrImport(
     val qualityScore: Int,
     val active: Boolean = true,
     val replacedImportId: String? = null,
+    @ColumnInfo(defaultValue = "1") val parserVersion: Int = 1,
+    val reprocessedFromId: String? = null,
+)
+
+/** Immutable values for this parsing result; workflow records are deliberately separate. */
+@Entity(tableName = "dsr_case_snapshots", indices = [Index("importId"), Index("caseKey")])
+data class DsrCaseSnapshot(
+    @PrimaryKey val id: String,
+    val importId: String,
+    @Embedded val caseData: DsrCase,
+    val sourcePage: Int?,
+    // Old versions kept only one mutable case row. Never imply reconstructed history is exact.
+    val legacySnapshot: Boolean = false,
+)
+
+@Entity(tableName = "dsr_case_work", indices = [Index("dueDate")])
+data class DsrCaseWork(
+    @PrimaryKey val caseKey: String,
+    val owner: String = "",
+    val status: String = "OPEN",
+    val nextAction: String = "",
+    val dueDate: String? = null,
+    val updatedAt: Long,
+    val updatedBy: String,
+    val revision: Long = 1,
+)
+
+@Entity(tableName = "dsr_procedure_checks", indices = [Index("caseKey")])
+data class DsrProcedureCheck(
+    @PrimaryKey val id: String,
+    val caseKey: String,
+    val code: String,
+    val state: String,
+    val note: String,
+    val sourceImportId: String,
+    val updatedAt: Long,
+    val updatedBy: String,
+    @ColumnInfo(defaultValue = "1") val guidanceVersion: Int = 1,
+)
+
+/** Append-only within the app; user-entered names are not authenticated signatures. */
+@Entity(tableName = "dsr_case_audit", indices = [Index(value = ["caseKey", "createdAt"])])
+data class DsrCaseAudit(
+    @PrimaryKey val id: String,
+    val caseKey: String,
+    val createdAt: Long,
+    val actor: String,
+    val action: String,
+    val detail: String,
 )
 
 /**

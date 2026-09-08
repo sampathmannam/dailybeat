@@ -51,6 +51,7 @@ elif [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
 fi
 
 timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest \
+  -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop \
   "${instrumentation_args[@]}" --no-daemon --stacktrace
 test_status=$?
 capture_evidence "$test_status"

@@ -33,7 +33,9 @@ class PackageExporter(
                 zip.write(auditLines.joinToString("\n").toByteArray(StandardCharsets.UTF_8))
                 zip.closeEntry()
 
-                val diaries = diaryRepository.recentSync(7).filter { it.text.isNotBlank() }
+                // A week is seven calendar days, not the seven most recently stored diaries.
+                // The old query could export months-old or future-dated entries unexpectedly.
+                val diaries = diaryRepository.weekEnding(LocalDate.parse(stamp))
                 diaries.forEach { entry ->
                     zip.putNextEntry(ZipEntry("diaries/${entry.dateKey}.txt"))
                     zip.write(entry.text.toByteArray(StandardCharsets.UTF_8))

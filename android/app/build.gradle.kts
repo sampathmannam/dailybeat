@@ -15,6 +15,9 @@ val supabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
     .getOrElse("")
 val debugApplicationIdSuffix = providers.gradleProperty("dailybeatDebugApplicationIdSuffix")
     .getOrElse(".qa")
+require(Regex("\\.qa(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*").matches(debugApplicationIdSuffix)) {
+    "Debug builds must use .qa or a nested .qa.* package; production data must stay isolated."
+}
 
 android {
     namespace = "com.dailybeat.app"
@@ -97,6 +100,21 @@ tasks.withType<Test> {
     }
 }
 
+// The regular .qa app can contain the officer's imported PDFs. Instrumentation fixtures
+// are destructive, so neither a default Gradle invocation nor a runner may target it.
+val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {
+    doLast {
+        require(debugApplicationIdSuffix == ".qa.e2eloop") {
+            "Instrumentation requires -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop; keep production and regular QA data intact."
+        }
+    }
+}
+tasks.configureEach {
+    if (name == "connectedDebugAndroidTest" || name == "installDebugAndroidTest") {
+        dependsOn(verifyDisposableTestTarget)
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
@@ -120,8 +138,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
-    // On-device text extraction keeps operational DSR documents off third-party AI services.
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

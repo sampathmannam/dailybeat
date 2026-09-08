@@ -38,6 +38,9 @@ class FeedScreenTest {
     @Before
     fun seedADay() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        check(context.packageName == "com.dailybeat.app.qa.e2eloop") {
+            "Destructive feed tests require the disposable .qa.e2eloop package."
+        }
         context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE)
             .edit().clear().apply()
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()

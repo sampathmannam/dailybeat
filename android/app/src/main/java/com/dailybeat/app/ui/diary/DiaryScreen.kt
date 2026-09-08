@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,8 @@ fun DiaryScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .imePadding()
+            .testTag("diary_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -125,13 +129,15 @@ fun DiaryScreen(
             }
         }
 
-        if (uiState.text.isNotBlank()) {
+        // Keep the editor available after clearing a draft, and allow offline manual diaries.
+        // Hiding it when text becomes blank traps the user with no way to type a replacement.
+        run {
             item {
                 SectionHeader(title = stringResource(R.string.daily_diary_label))
                 OutlinedTextField(
                     value = uiState.text,
                     onValueChange = viewModel::updateDiaryText,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("diary_editor"),
                     label = { Text(stringResource(R.string.edit_dairy_label)) },
                     minLines = 8,
                     shape = RoundedCornerShape(16.dp),
@@ -141,6 +147,7 @@ fun DiaryScreen(
             item {
                 PrimaryButton(
                     text = stringResource(R.string.share_pdf_button),
+                    enabled = uiState.text.isNotBlank() && !uiState.isGenerating,
                     onClick = {
                         scope.launch {
                             val path = viewModel.exportPdfPath() ?: return@launch

@@ -32,7 +32,7 @@ case "$MAC_ADB_SERIAL" in
     ;;
 esac
 
-QA_PACKAGE="com.dailybeat.app.qa"
+QA_PACKAGE="com.dailybeat.app.qa.e2eloop"
 QA_TEST_PACKAGE="${QA_PACKAGE}.test"
 for disposable_package in "$QA_TEST_PACKAGE" "$QA_PACKAGE"; do
   package_path="$(mac_adb shell pm path "$disposable_package" 2>/dev/null || true)"
@@ -47,11 +47,11 @@ done
 
 echo "=== Build, unit tests, and lint for QA on $MAC_ADB_SERIAL ==="
 cd "$ROOT/android"
-./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
+./gradlew assembleDebug testDebugUnitTest lintDebug -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop --no-daemon --stacktrace
 
 echo "=== Run Compose end-to-end tests on $MAC_ADB_SERIAL ==="
 run_phone_instrumentation() {
-  ./gradlew connectedDebugAndroidTest "$@" --no-daemon --stacktrace
+  ./gradlew connectedDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop "$@" --no-daemon --stacktrace
 }
 
 if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PASSWORD:-}" ]; then
@@ -77,7 +77,7 @@ else
 fi
 
 echo "=== Reinstall QA app after the Android test runner cleanup ==="
-./gradlew installDebug --no-daemon --stacktrace
+./gradlew installDebug -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop --no-daemon --stacktrace
 
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.RECORD_AUDIO 2>/dev/null || true
 mac_adb shell pm grant "$QA_PACKAGE" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true

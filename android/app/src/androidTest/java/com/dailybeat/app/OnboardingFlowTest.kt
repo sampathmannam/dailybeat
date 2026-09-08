@@ -25,6 +25,7 @@ class OnboardingFlowTest {
 
     @Before
     fun resetAppState() {
+        requireDisposableTestApp()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE).edit().clear().apply()
         grantCorePermissions()
@@ -44,6 +45,7 @@ class OnboardingFlowTest {
 }
 
 internal fun grantCorePermissions() {
+    requireDisposableTestApp()
     val pkg = InstrumentationRegistry.getInstrumentation().targetContext.packageName
     listOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -52,6 +54,13 @@ internal fun grantCorePermissions() {
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.RECORD_AUDIO,
     ).forEach { permission -> runShellCommand("pm grant $pkg $permission") }
+}
+
+/** All test mutations are restricted to a disposable application, even when run directly. */
+internal fun requireDisposableTestApp() {
+    check(InstrumentationRegistry.getInstrumentation().targetContext.packageName == "com.dailybeat.app.qa.e2eloop") {
+        "Tests must use com.dailybeat.app.qa.e2eloop. Production and regular QA data are off limits."
+    }
 }
 
 /**

@@ -31,6 +31,7 @@ class MainNavigationTest {
 
     @Before
     fun skipOnboarding() {
+        requireDisposableTestApp()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE).edit().clear().apply()
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
@@ -45,12 +46,11 @@ class MainNavigationTest {
     }
 
     @Test
-    fun bottomNavVisitsAllFiveTabs() {
+    fun bottomNavVisitsAllFourTabsWithoutDsr() {
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("nav_dsr").performClick()
-        composeRule.onNodeWithText("DSR Command").assertIsDisplayed()
-        composeRule.onNodeWithText("No DSR imported").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
+        composeRule.onNodeWithText("DSR Command").assertDoesNotExist()
 
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithTag("nav_diary").assertIsDisplayed()

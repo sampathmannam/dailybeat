@@ -20,10 +20,12 @@ def test_release_build_requires_the_permanent_signing_key():
     assert 'signingConfig = signingConfigs.getByName("release")' in gradle
 
 
-def test_release_shrinker_allows_pdfbox_optional_jpeg2000_codec():
+def test_dsr_pdfbox_dependency_is_no_longer_bundled_in_dailybeat():
     rules = (ROOT / "android/app/proguard-rules.pro").read_text(encoding="utf-8")
 
-    assert "-dontwarn com.gemalto.jp2.**" in rules
+    assert "com.gemalto.jp2" not in rules
+    dependencies = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
+    assert "pdfbox-android" not in dependencies
 
 
 def test_debug_build_is_isolated_from_the_installed_release_app():
@@ -32,6 +34,9 @@ def test_debug_build_is_isolated_from_the_installed_release_app():
     assert 'providers.gradleProperty("dailybeatDebugApplicationIdSuffix")' in gradle
     assert '.getOrElse(".qa")' in gradle
     assert "applicationIdSuffix = debugApplicationIdSuffix" in gradle
+    assert "production data must stay isolated" in gradle
+    assert 'tasks.register("verifyDisposableTestTarget")' in gradle
+    assert "dependsOn(verifyDisposableTestTarget)" in gradle
 
 
 def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanup():
@@ -40,6 +45,8 @@ def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanu
     assert 'case "$MAC_ADB_SERIAL" in' in runner
     assert "emulator-*)" in runner
     assert 'QA_TEST_PACKAGE="${QA_PACKAGE}.test"' in runner
+    assert 'QA_PACKAGE="com.dailybeat.app.qa.e2eloop"' in runner
+    assert runner.count("-PdailybeatDebugApplicationIdSuffix=.qa.e2eloop") == 3
     assert 'mac_adb uninstall "$disposable_package"' in runner
     assert 'mac_adb uninstall "com.dailybeat.app"' not in runner
     assert runner.index('mac_adb uninstall "$disposable_package"') < runner.index(
@@ -54,7 +61,7 @@ def test_phone_gate_does_not_expand_an_empty_array_under_macos_bash_strict_mode(
 
     assert "phone_instrumentation_args=()" not in runner
     assert 'run_phone_instrumentation()' in runner
-    assert './gradlew connectedDebugAndroidTest "$@" --no-daemon --stacktrace' in runner
+    assert './gradlew connectedDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop "$@" --no-daemon --stacktrace' in runner
     assert "else\n  run_phone_instrumentation\nfi" in runner
 
 

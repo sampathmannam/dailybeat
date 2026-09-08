@@ -1,15 +1,9 @@
 # DailyBeat v3.7.0 release candidate — install and verify
 
-DailyBeat v3.6.0 is the current signed stable release. Version 3.7.0 combines its local-first DSR
-Command dashboard with the journey-feed and reliability hardening work. The QA application ID is
-`com.dailybeat.app.qa`, so candidate testing does not replace `com.dailybeat.app` or its data.
-
-## DSR Command dashboard
-
-Open **DSR** and choose **Upload DSR or operational PDF** whenever a new report arrives. DailyBeat
-extracts supported operational tables on the device, adds the report to the cumulative dashboard,
-and flags fields that need review. Source PDFs remain in app-private storage and are excluded from
-cloud backup.
+Version 3.7.0 focuses on journey-feed and reliability hardening. DSR is a separate app in the
+private `sampathmannam/dsr` repository; its old DailyBeat records and PDFs are retained, not deleted.
+Regular QA uses `com.dailybeat.app.qa`. Destructive instrumentation must use
+`com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
 
 ## Cloud AI configuration
 
@@ -47,7 +41,7 @@ Do not create a tag from a feature branch merely to obtain an APK.
 ```bash
 git clone https://github.com/sampathmannam/dailybeat.git
 cd dailybeat
-DAILYBEAT_BRANCH=hardening/end-to-end-reliability \
+DAILYBEAT_BRANCH=hardening/reliability-pass \
   ./scripts/mac_phone_e2e.sh YOUR_ADB_SERIAL
 ```
 
@@ -85,9 +79,9 @@ by CI; credential values are never committed.
 2. Add and then clear an optional diary note; reopen the day and verify it remains cleared.
 3. Turn GPS capture on, background the app, move between two places, and verify the Today count and
    History feed update after returning.
-4. Import an operational PDF and verify its DSR cards and review warnings without network access.
+4. Verify the four tabs: Today, Diary, Feed and Settings. DSR must not appear.
 5. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
-6. Deny map/network access; the diary, route list, notes, DSR dashboard, and export must remain usable.
+6. Deny map/network access; the diary, route list, notes, and export must remain usable.
 
 ## Support
 
