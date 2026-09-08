@@ -3,6 +3,8 @@
 ## 3.7.0 — 2026-09-07
 
 ### Added
+- **A redesigned adaptive “Journey Ledger” app icon** combines the daily record, mapped route,
+  and destination in one small-size-safe mark, with Android monochrome/themed-icon support.
 - **Daily journey feed.** The History tab is now a feed with one card per day: the day's route
   drawn from its GPS track, distance travelled, time out, stop count, and every stay listed as
   name, arrival time, and duration ("Rasipuram Police Station · 08:00 · 40 min"). Tapping a day
