@@ -7,17 +7,13 @@ class DeepSeekCompatibleUser(HttpUser):
     host = "http://127.0.0.1:19090"
     wait_time = between(0.1, 0.3)
 
-    @task
-    def generate_daily_report(self):
+    def _generate(self, *, system_prompt: str, user_content: str, request_name: str):
         payload = {
             "model": "deepseek-chat",
             "temperature": 0.2,
             "messages": [
-                {"role": "system", "content": "Create a concise daily report."},
-                {
-                    "role": "user",
-                    "content": "Synthetic visits: Home, Office, Home. No personal data.",
-                },
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
             ],
         }
         with self.client.post(
@@ -27,7 +23,7 @@ class DeepSeekCompatibleUser(HttpUser):
                 "Content-Type": "application/json",
             },
             json=payload,
-            name="POST /v1/chat/completions",
+            name=request_name,
             catch_response=True,
         ) as response:
             if response.status_code != 200:
@@ -40,3 +36,23 @@ class DeepSeekCompatibleUser(HttpUser):
                 return
             if not content:
                 response.failure("Cloud response content was empty")
+
+    @task(3)
+    def generate_daily_report(self):
+        self._generate(
+            system_prompt="Create a concise daily report.",
+            user_content="Synthetic visits: Home, Office, Home. No personal data.",
+            request_name="POST /v1/chat/completions [daily]",
+        )
+
+    @task(1)
+    def generate_weekly_feed_rollup(self):
+        synthetic_days = "\n".join(
+            f"Day {day}: Station, Court, Patrol; 3 stops; {12 + day}.5 km."
+            for day in range(1, 8)
+        )
+        self._generate(
+            system_prompt="Create a concise weekly rollup from the journey feed.",
+            user_content=f"Synthetic week only; no personal data.\n{synthetic_days}",
+            request_name="POST /v1/chat/completions [weekly feed]",
+        )

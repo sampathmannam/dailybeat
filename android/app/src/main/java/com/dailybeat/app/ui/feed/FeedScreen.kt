@@ -67,6 +67,12 @@ fun FeedScreen(
     val context = LocalContext.current
     var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
 
+    // Navigation keeps this ViewModel alive. Refresh whenever the destination re-enters the
+    // composition so visits captured while another screen was open appear immediately.
+    LaunchedEffect(viewModel) {
+        viewModel.refresh()
+    }
+
     LaunchedEffect(state.exportPath) {
         val path = state.exportPath ?: return@LaunchedEffect
         viewModel.consumeExport()
@@ -160,6 +166,7 @@ private fun DayFeedCard(
     onClick: () -> Unit,
     onNameStay: (DayStay) -> Unit,
 ) {
+    var showAllStays by remember(day.date, day.stays.size) { mutableStateOf(false) }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -226,17 +233,26 @@ private fun DayFeedCard(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    day.stays.take(MAX_STAYS_SHOWN).forEach { stay ->
+                    val shownStays = if (showAllStays) day.stays else day.stays.take(MAX_STAYS_SHOWN)
+                    shownStays.forEach { stay ->
                         StayRow(stay = stay, onNameStay = { onNameStay(stay) })
                     }
                     if (day.stays.size > MAX_STAYS_SHOWN) {
                         Text(
-                            text = stringResource(
-                                R.string.feed_more_stops,
-                                day.stays.size - MAX_STAYS_SHOWN,
-                            ),
+                            text = if (showAllStays) {
+                                stringResource(R.string.feed_show_fewer_stops)
+                            } else {
+                                stringResource(
+                                    R.string.feed_more_stops,
+                                    day.stays.size - MAX_STAYS_SHOWN,
+                                )
+                            },
+                            modifier = Modifier
+                                .clickable { showAllStays = !showAllStays }
+                                .testTag("feed_toggle_stops_${day.date}"),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }
@@ -258,10 +274,15 @@ private fun DayFeedCard(
 
 @Composable
 private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
+    val interactionModifier = if (stay.canBeNamed) {
+        Modifier.clickable(onClick = onNameStay)
+    } else {
+        Modifier
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onNameStay),
+            .then(interactionModifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -277,7 +298,10 @@ private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${formatClock(stay.startMs)} · ${formatDuration(stay.durationMinutes)}",
+                text = buildString {
+                    append("${formatClock(stay.startMs)} · ${formatDuration(stay.durationMinutes)}")
+                    if (!stay.canBeNamed) append(" · ${stringResource(R.string.feed_location_unreliable)}")
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

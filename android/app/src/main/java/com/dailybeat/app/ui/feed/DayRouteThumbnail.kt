@@ -106,7 +106,16 @@ private fun DrawScope.drawGrid(color: Color) {
  */
 internal fun projectToUnitSquare(route: List<RoutePoint>): List<Pair<Double, Double>> {
     if (route.isEmpty()) return emptyList()
-    val xs = route.map { mercatorX(it.longitude) }
+    val unwrappedLongitudes = buildList<Double> {
+        add(route.first().longitude)
+        route.drop(1).forEach { point ->
+            var longitude = point.longitude
+            while (longitude - last() > 180.0) longitude -= 360.0
+            while (longitude - last() < -180.0) longitude += 360.0
+            add(longitude)
+        }
+    }
+    val xs = unwrappedLongitudes.map(::mercatorX)
     val ys = route.map { mercatorY(it.latitude) }
 
     val minX = xs.min()

@@ -83,4 +83,20 @@ class FeedPresentationTest {
     fun `an empty route projects to nothing`() {
         assertEquals(emptyList<Pair<Double, Double>>(), projectToUnitSquare(emptyList()))
     }
+
+    @Test
+    fun `a route crossing the antimeridian uses the short visual span`() {
+        val projected = projectToUnitSquare(
+            listOf(
+                RoutePoint(10.0, 179.0, isStay = true),
+                RoutePoint(10.1, -179.0, isStay = true),
+                RoutePoint(10.2, 178.0, isStay = true),
+            ),
+        )
+
+        assertTrue(
+            "Nearby points across the antimeridian should not span the whole canvas: $projected",
+            kotlin.math.abs(projected[0].first - projected[1].first) < 0.8,
+        )
+    }
 }

@@ -14,6 +14,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dailybeat.app.util.DateKeys
+import com.dailybeat.app.util.DayBounds
+import com.dailybeat.app.data.model.LocationVisit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -88,5 +90,73 @@ class FeedScreenTest {
         composeRule.waitUntilAtLeastOneExists(hasText("Your days"), timeoutMillis = 10_000)
 
         composeRule.onNodeWithText("No days captured yet").assertDoesNotExist()
+    }
+
+    @Test
+    fun allStopsCanBeExpandedInsteadOfRemainingHidden() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        val dayStart = DayBounds.dayStartEnd(DateKeys.today()).first
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.db.clearAllTables()
+                repeat(8) { index ->
+                    app.visitRepository.insert(
+                        LocationVisit(
+                            startMs = dayStart + index * 20 * 60_000L,
+                            endMs = dayStart + (index * 20 + 10) * 60_000L,
+                            latitude = 11.4557 + index * 0.001,
+                            longitude = 78.1856,
+                            placeName = "Stop ${index + 1}",
+                            visitType = "dwell",
+                        ),
+                    )
+                }
+            }
+        }
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasText("+3 more stops"), timeoutMillis = 20_000)
+
+        composeRule.onNodeWithText("+3 more stops").performClick()
+        composeRule.onNodeWithTag("feed_list").performScrollToNode(hasText("Stop 8"))
+
+        composeRule.onNodeWithText("Stop 8").assertIsDisplayed()
+    }
+
+    @Test
+    fun returningToFeedLoadsDaysCapturedWhileItWasAway() {
+        val yesterday = DateKeys.today().minusDays(1)
+        val dayStart = DayBounds.dayStartEnd(yesterday).first
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+
+        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_card_${DateKeys.today()}"),
+            timeoutMillis = 20_000,
+        )
+        composeRule.onNodeWithTag("feed_card_$yesterday").assertDoesNotExist()
+        composeRule.onNodeWithTag("nav_today").performClick()
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.visitRepository.insert(
+                    LocationVisit(
+                        startMs = dayStart + 60_000L,
+                        endMs = dayStart + 20 * 60_000L,
+                        latitude = 11.4557,
+                        longitude = 78.1856,
+                        placeName = "Yesterday Station",
+                        visitType = "dwell",
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_card_$yesterday"),
+            timeoutMillis = 20_000,
+        )
+
+        composeRule.onNodeWithTag("feed_card_$yesterday").assertIsDisplayed()
     }
 }

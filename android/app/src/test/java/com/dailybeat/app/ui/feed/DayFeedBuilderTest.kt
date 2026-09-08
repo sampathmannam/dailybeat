@@ -90,6 +90,48 @@ class DayFeedBuilderTest {
     }
 
     @Test
+    fun `an impossible gps teleport is left out of the route and distance`() {
+        val visits = listOf(
+            stay("Station", 0, 30, lat = 11.4557, lon = 78.1856),
+            stay("GPS outlier", 31, 32, lat = -33.8688, lon = 151.2093),
+            stay("Court", 40, 70, lat = 11.4647, lon = 78.1856),
+        )
+
+        val item = DayFeedBuilder.build(date, visits, null)
+
+        assertEquals(listOf(11.4557, 11.4647), item.route.map { it.latitude })
+        assertTrue("Expected the nearby journey only, got ${item.distanceKm} km", item.distanceKm in 0.9..1.1)
+        assertFalse(item.stays.single { it.name == "GPS outlier" }.canBeNamed)
+    }
+
+    @Test
+    fun `an impossible first gps fix does not hide the later local route`() {
+        val visits = listOf(
+            stay("Bad first fix", 0, 1, lat = -33.8688, lon = 151.2093),
+            stay("Station", 10, 30, lat = 11.4557, lon = 78.1856),
+            stay("Court", 40, 70, lat = 11.4647, lon = 78.1856),
+        )
+
+        val item = DayFeedBuilder.build(date, visits, null)
+
+        assertEquals(listOf(11.4557, 11.4647), item.route.map { it.latitude })
+        assertTrue("Expected the later local journey, got ${item.distanceKm} km", item.distanceKm in 0.9..1.1)
+    }
+
+    @Test
+    fun `a plausible long journey remains in the route`() {
+        val visits = listOf(
+            stay("Start", 0, 30, lat = 11.4557, lon = 78.1856),
+            stay("Destination", 210, 240, lat = 13.0827, lon = 80.2707),
+        )
+
+        val item = DayFeedBuilder.build(date, visits, null)
+
+        assertEquals(2, item.route.size)
+        assertTrue("Expected a long but plausible journey, got ${item.distanceKm} km", item.distanceKm > 250)
+    }
+
+    @Test
     fun `time out spans the first and last thing captured`() {
         val visits = listOf(stay("A", 30, 60), stay("B", 120, 200, lat = 11.47))
 
@@ -116,6 +158,7 @@ class DayFeedBuilderTest {
         assertEquals(2, item.stayCount)
         assertEquals(1, item.route.size)
         assertEquals(0.0, item.distanceKm, 0.0001)
+        assertFalse(item.stays.last().canBeNamed)
     }
 
     @Test

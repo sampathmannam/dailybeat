@@ -133,6 +133,13 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     fun saveNamedPlace(stay: DayStay, name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
+        if (!stay.canBeNamed) {
+            _uiState.value = _uiState.value.copy(
+                message = null,
+                error = "This stop has no reliable location to name.",
+            )
+            return
+        }
         viewModelScope.launch {
             runCatching {
                 app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)

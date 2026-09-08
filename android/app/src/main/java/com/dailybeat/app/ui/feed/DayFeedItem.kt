@@ -16,8 +16,10 @@ data class DayStay(
     val endMs: Long,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
+    val locationReliable: Boolean = true,
 ) {
     val durationMinutes: Long get() = TimeUnit.MILLISECONDS.toMinutes(endMs - startMs).coerceAtLeast(0)
+    val canBeNamed: Boolean get() = locationReliable && isUsableFeedCoordinate(latitude, longitude)
 }
 
 /** A point on the drawn route. Transit points carry the shape, stays carry the dots. */
@@ -70,7 +72,8 @@ object DayFeedBuilder {
         places: List<Place> = emptyList(),
     ): DayFeedItem {
         val ordered = visits.sortedBy { it.startMs }
-        val mappable = ordered.filter { it.hasUsableCoordinate() }
+        val mappable = plausibleRoute(ordered.filter { it.hasUsableCoordinate() })
+        val reliableCoordinateVisits = mappable.toSet()
 
         val stays = ordered
             .filter { it.visitType != "transit" }
@@ -81,6 +84,7 @@ object DayFeedBuilder {
                     endMs = maxOf(it.endMs, it.startMs),
                     latitude = it.latitude,
                     longitude = it.longitude,
+                    locationReliable = it in reliableCoordinateVisits,
                 )
             }
 
@@ -112,9 +116,42 @@ object DayFeedBuilder {
             ?: "Unnamed place"
 
     private fun LocationVisit.hasUsableCoordinate(): Boolean =
-        latitude.isFinite() && longitude.isFinite() &&
-            latitude in -90.0..90.0 && longitude in -180.0..180.0 &&
-            !(latitude == 0.0 && longitude == 0.0)
+        isUsableFeedCoordinate(latitude, longitude)
+
+    /**
+     * GPS occasionally returns a valid-looking coordinate thousands of kilometres away. Keep
+     * such a point in the stop list for auditability, but do not let it flatten the route preview
+     * or turn a local day's distance into a transcontinental journey.
+     */
+    private fun plausibleRoute(visits: List<LocationVisit>): List<LocationVisit> {
+        if (visits.size < 2) return visits
+        val firstPlausibleIndex = if (
+            visits.size >= 3 &&
+            !isPlausibleRouteSegment(visits[0], visits[1]) &&
+            isPlausibleRouteSegment(visits[1], visits[2])
+        ) {
+            1
+        } else {
+            0
+        }
+        val accepted = mutableListOf(visits[firstPlausibleIndex])
+        visits.drop(firstPlausibleIndex + 1).forEach { candidate ->
+            if (isPlausibleRouteSegment(accepted.last(), candidate)) {
+                accepted += candidate
+            }
+        }
+        return accepted
+    }
+
+    private fun isPlausibleRouteSegment(from: LocationVisit, to: LocationVisit): Boolean {
+        val distance = distanceM(from.latitude, from.longitude, to.latitude, to.longitude)
+        val movementWindowMs = maxOf(
+            to.startMs - from.endMs,
+            to.endMs - to.startMs,
+            MIN_ROUTE_SEGMENT_MS,
+        )
+        return distance / (movementWindowMs / 1000.0) <= MAX_ROUTE_SPEED_METERS_PER_SECOND
+    }
 
     private fun routeDistanceMeters(visits: List<LocationVisit>): Double =
         visits.zipWithNext().sumOf { (from, to) ->
@@ -130,4 +167,12 @@ object DayFeedBuilder {
             kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
         return earth * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
+
+    private const val MIN_ROUTE_SEGMENT_MS = 60_000L
+    private const val MAX_ROUTE_SPEED_METERS_PER_SECOND = 100.0 // 360 km/h
 }
+
+internal fun isUsableFeedCoordinate(latitude: Double, longitude: Double): Boolean =
+    latitude.isFinite() && longitude.isFinite() &&
+        latitude in -90.0..90.0 && longitude in -180.0..180.0 &&
+        !(latitude == 0.0 && longitude == 0.0)
