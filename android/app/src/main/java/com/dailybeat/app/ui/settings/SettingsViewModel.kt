@@ -34,6 +34,8 @@ data class SettingsUiState(
     val cloudBaseUrl: String = "",
     val apiKeyDraft: String = "",
     val hasApiKey: Boolean = false,
+    val apiKeyBusy: Boolean = false,
+    val apiKeyRemovalConfirmation: Boolean = false,
     val autoEveningReport: Boolean = true,
     val autoMiddayPulse: Boolean = false,
     val cloudTestResult: String? = null,
@@ -63,7 +65,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private var placeMutationInFlight = false
-    private var apiKeySaveInFlight = false
 
     init {
         refresh()
@@ -381,8 +382,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveApiKey() {
         val key = _uiState.value.apiKeyDraft.trim()
-        if (key.isEmpty() || apiKeySaveInFlight) return
-        apiKeySaveInFlight = true
+        if (key.isEmpty() || _uiState.value.apiKeyBusy) return
+        _uiState.update { it.copy(apiKeyBusy = true, cloudTestResult = null) }
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -390,16 +391,67 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
             }.fold(
                 onSuccess = {
-                    apiKeySaveInFlight = false
                     PulseScheduler.scheduleNext(app)
                     _uiState.update {
-                        it.copy(apiKeyDraft = "", hasApiKey = true, cloudTestResult = "API key saved securely.")
+                        it.copy(
+                            apiKeyDraft = "",
+                            hasApiKey = true,
+                            apiKeyBusy = false,
+                            cloudTestResult = "API key saved securely.",
+                        )
                     }
                 },
                 onFailure = { error ->
-                    apiKeySaveInFlight = false
                     _uiState.update {
-                        it.copy(cloudTestResult = error.message ?: "Unable to save the API key securely.")
+                        it.copy(
+                            apiKeyBusy = false,
+                            cloudTestResult = error.message ?: "Unable to save the API key securely.",
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestApiKeyRemoval() {
+        if (_uiState.value.hasApiKey && !_uiState.value.apiKeyBusy) {
+            _uiState.update { it.copy(apiKeyRemovalConfirmation = true, cloudTestResult = null) }
+        }
+    }
+
+    fun cancelApiKeyRemoval() {
+        _uiState.update { it.copy(apiKeyRemovalConfirmation = false) }
+    }
+
+    fun confirmApiKeyRemoval() {
+        if (_uiState.value.apiKeyBusy || !_uiState.value.hasApiKey) return
+        _uiState.update {
+            it.copy(apiKeyBusy = true, apiKeyRemovalConfirmation = false, cloudTestResult = null)
+        }
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    app.settingsRepository.secureApiKey.clearApiKey()
+                }
+            }.fold(
+                onSuccess = {
+                    PulseScheduler.cancel(app)
+                    _uiState.update {
+                        it.copy(
+                            apiKeyDraft = "",
+                            hasApiKey = false,
+                            apiKeyBusy = false,
+                            cloudTestResult = "API key removed from this phone. Cloud requests are stopped.",
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            apiKeyBusy = false,
+                            cloudTestResult = error.message
+                                ?: "Unable to remove the API key securely.",
+                        )
                     }
                 },
             )

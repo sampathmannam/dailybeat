@@ -18,6 +18,9 @@ are never reset or replaced by instrumentation.
 - Preserved expanded Feed stops across scrolling/rotation and enlarged their toggle target.
 - Refresh Feed when returning from the background, cancel obsolete overlapping loads, and
   exercise foreground resume without recreating the Activity in a dedicated regression.
+- Allow the officer to remove the encrypted cloud API key with explicit confirmation. A failed
+  secure-store deletion is reported, and a successful removal cancels scheduled cloud pulses
+  without changing local DailyBeat records.
 
 ## Feature coverage and remaining gates
 
@@ -68,13 +71,15 @@ credentials documented in RELEASE.md; absent credentials must remain an explicit
   of physical-phone or live-provider validation.
 - Locust against the loopback-only synthetic API: 20 users / 1,615 requests and 50 users /
   3,965 requests, both 20-second runs, **0 failures**. This is not a live-provider capacity result.
-- `ZD2232FCR5`: connected for read-only checks, then disconnected before installation. New
-  device regressions compiled but were **not run** on the phone in this pass.
+- `ZD2232FCR5`: protected physical-phone run passed **23 tests, 0 failed, 1 skipped**. The skipped
+  test is the live Supabase backup round trip because dedicated QA credentials are absent.
+  Onboarding/navigation, capture lifecycle, Today/notes, diary, Feed, maps, local backup,
+  PDF/ZIP export, Settings validation and encrypted API-key removal passed in the disposable app.
 - Shared emulator: system/System UI ANRs; not reset or treated as valid phone evidence.
 - Live backup configuration and dedicated account credentials were absent, so live verification
   remains pending. Do not weaken the release gate or use production credentials to bypass this.
 - Production remained version 3.5.0, last updated 2026-08-31 01:04:24. The QA PDF's SHA-256
   matched its stored content hash. No production or regular QA data was cleared or rewritten.
 
-Reconnect the phone to complete the feature-by-feature device pass, visual/permission review,
-real movement and voice tests, then run another clean regression loop before requesting release.
+Automated phone interactions now pass. Complete the remaining manual visual/permission review,
+real movement and voice tests, and dedicated-account live-service checks before requesting release.

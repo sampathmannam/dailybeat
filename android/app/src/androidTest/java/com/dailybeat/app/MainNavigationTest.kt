@@ -15,6 +15,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Before
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -174,6 +175,30 @@ class MainNavigationTest {
         }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun savedCloudApiKeyCanBeRemovedWithConfirmation() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        app.settingsRepository.secureApiKey.setApiKey("disposable-device-test-key")
+
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("API key saved securely", substring = true),
+            timeoutMillis = 10_000,
+        )
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasText("Remove saved API key"))
+        composeRule.onNodeWithTag("remove_api_key").performClick()
+        composeRule.onNodeWithText("Remove saved API key?").assertIsDisplayed()
+        composeRule.onNodeWithTag("confirm_remove_api_key").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("API key removed from this phone", substring = true),
+            timeoutMillis = 10_000,
+        )
+
+        assertFalse(app.settingsRepository.secureApiKey.hasApiKey())
+        composeRule.onNodeWithText("Remove saved API key").assertDoesNotExist()
     }
 
     @Test

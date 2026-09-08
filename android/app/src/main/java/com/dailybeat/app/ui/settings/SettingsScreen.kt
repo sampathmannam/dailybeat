@@ -14,11 +14,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +59,26 @@ fun SettingsScreen(
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val settingsContext = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+    if (state.apiKeyRemovalConfirmation) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelApiKeyRemoval,
+            title = { Text(stringResource(R.string.remove_api_key_title)) },
+            text = { Text(stringResource(R.string.remove_api_key_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmApiKeyRemoval,
+                    enabled = !state.apiKeyBusy,
+                    modifier = Modifier.testTag("confirm_remove_api_key"),
+                ) { Text(stringResource(R.string.remove_api_key_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelApiKeyRemoval) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 
     DisposableEffect(lifecycle, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -236,11 +258,18 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    SecondaryButton(
+                        text = stringResource(R.string.remove_api_key),
+                        onClick = viewModel::requestApiKeyRemoval,
+                        enabled = !state.apiKeyBusy && !state.cloudTesting,
+                        modifier = Modifier.testTag("remove_api_key"),
+                    )
                 }
                 PrimaryButton(
                     text = stringResource(R.string.save_api_key),
                     onClick = viewModel::saveApiKey,
-                    enabled = state.apiKeyDraft.isNotBlank(),
+                    enabled = state.apiKeyDraft.isNotBlank() &&
+                        !state.apiKeyBusy && !state.cloudTesting,
                 )
                 OutlinedTextField(
                     value = state.cloudModel,
@@ -280,7 +309,7 @@ fun SettingsScreen(
                 SecondaryButton(
                     text = stringResource(R.string.test_cloud_connection),
                     onClick = viewModel::testCloudConnection,
-                    enabled = !state.cloudTesting,
+                    enabled = !state.cloudTesting && !state.apiKeyBusy,
                 )
                 state.cloudTestResult?.let { msg ->
                     Text(text = msg, style = MaterialTheme.typography.bodySmall)

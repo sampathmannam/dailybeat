@@ -118,6 +118,10 @@
     <string name="cloud_api_key_label">API key</string>
     <string name="cloud_api_key_saved_hint">API key saved securely. Enter a new key only to replace it.</string>
     <string name="save_api_key">Save API key</string>
+    <string name="remove_api_key">Remove saved API key</string>
+    <string name="remove_api_key_title">Remove saved API key?</string>
+    <string name="remove_api_key_warning">This removes the encrypted key from this phone and stops automatic cloud reports and cloud-assisted voice structuring. Your local DailyBeat records remain.</string>
+    <string name="remove_api_key_confirm">Remove key</string>
     <string name="cloud_model_label">Model name</string>
     <string name="cloud_base_url_label">Base URL (OpenAI-compatible)</string>
     <string name="test_cloud_connection">Test connection</string>

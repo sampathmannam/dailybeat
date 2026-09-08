@@ -28,7 +28,11 @@ open class SecureApiKeyStore(private val context: Context) : ApiKeySource {
     }
 
     open fun clearApiKey() {
-        runCatching { prefs.edit().remove(KEY_API).commit() }
+        try {
+            check(prefs.edit().remove(KEY_API).commit())
+        } catch (error: Exception) {
+            throw IllegalStateException("Unable to remove the API key securely from this device.", error)
+        }
     }
 
     open fun hasApiKey(): Boolean = !getApiKey().isNullOrBlank()
