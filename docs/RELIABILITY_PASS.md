@@ -24,6 +24,8 @@ are never reset or replaced by instrumentation.
 - Rebuild Feed date/time/distance formatting from the current Android configuration after a
   language or region change. Route accessibility descriptions and hidden-stop labels now use
   quantity-aware singular/plural resources.
+- Require confirmation before deleting a named place. The warning explains the impact, cancel
+  preserves the geofence, and deletion leaves recorded visits and diary entries intact.
 
 ## Feature coverage and remaining gates
 
@@ -80,6 +82,8 @@ credentials documented in RELEASE.md; absent credentials must remain an explicit
   PDF/ZIP export, Settings validation and encrypted API-key removal passed in the disposable app.
 - After the locale/resource fix, all **6 Feed tests** passed again on `ZD2232FCR5` with no skips
   or failures. Lint no longer reports the Feed constant-locale or plural-candidate warnings.
+- All **11 Settings/navigation tests** passed on `ZD2232FCR5` after adding named-place deletion
+  confirmation, including both cancel/preserve and confirm/delete branches.
 - Shared emulator: system/System UI ANRs; not reset or treated as valid phone evidence.
 - Live backup configuration and dedicated account credentials were absent, so live verification
   remains pending. Do not weaken the release gate or use production credentials to bypass this.

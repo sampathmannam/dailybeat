@@ -102,6 +102,9 @@
     <string name="place_lon_label">Longitude</string>
     <string name="add_place_button">Add place</string>
     <string name="delete_place">Delete place</string>
+    <string name="delete_place_title">Delete named place?</string>
+    <string name="delete_place_warning">Delete “%1$s”? Future visits here will no longer use this saved name. Recorded visits and diary entries remain.</string>
+    <string name="delete_place_confirm">Delete place</string>
     <string name="location_service_title">DailyBeat location</string>
     <string name="location_service_passive">Tracking visits and transit for your daily report</string>
     <string name="reminder_title">DailyBeat</string>

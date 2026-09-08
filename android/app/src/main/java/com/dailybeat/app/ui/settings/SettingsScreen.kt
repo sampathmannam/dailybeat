@@ -24,6 +24,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -59,6 +62,7 @@ fun SettingsScreen(
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val settingsContext = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var placePendingDeletion by remember { mutableStateOf<Place?>(null) }
 
     if (state.apiKeyRemovalConfirmation) {
         AlertDialog(
@@ -76,6 +80,29 @@ fun SettingsScreen(
                 TextButton(onClick = viewModel::cancelApiKeyRemoval) {
                     Text(stringResource(R.string.cancel))
                 }
+            },
+        )
+    }
+
+    placePendingDeletion?.let { place ->
+        AlertDialog(
+            onDismissRequest = { placePendingDeletion = null },
+            title = { Text(stringResource(R.string.delete_place_title)) },
+            text = { Text(stringResource(R.string.delete_place_warning, place.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePlace(place)
+                        placePendingDeletion = null
+                    },
+                    modifier = Modifier.testTag("confirm_delete_place"),
+                ) { Text(stringResource(R.string.delete_place_confirm)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { placePendingDeletion = null },
+                    modifier = Modifier.testTag("cancel_delete_place"),
+                ) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -436,7 +463,7 @@ fun SettingsScreen(
         }
 
         items(state.places, key = { it.id }) { place ->
-            PlaceCard(place = place, onDelete = { viewModel.deletePlace(place) })
+            PlaceCard(place = place, onDelete = { placePendingDeletion = place })
         }
     }
 }
@@ -500,7 +527,10 @@ private fun PlaceCard(place: Place, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onDelete) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.testTag("delete_place_${place.id}"),
+            ) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))
             }
         }

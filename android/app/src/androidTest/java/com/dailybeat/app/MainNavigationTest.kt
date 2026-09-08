@@ -3,6 +3,7 @@ package com.dailybeat.app
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -199,6 +200,37 @@ class MainNavigationTest {
 
         assertFalse(app.settingsRepository.secureApiKey.hasApiKey())
         composeRule.onNodeWithText("Remove saved API key").assertDoesNotExist()
+    }
+
+    @Test
+    fun deletingNamedPlaceRequiresConfirmation() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.placeRepository.add("Disposable HQ", 11.4557, 78.1856)
+            }
+        }
+        val place = runBlocking {
+            withContext(Dispatchers.IO) { app.placeRepository.all().single() }
+        }
+
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("settings_list"), timeoutMillis = 10_000)
+        // Named places are below the fold on the physical phone. Ask the lazy list to compose
+        // the target before asserting or tapping it.
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Disposable HQ"))
+        composeRule.onNodeWithText("Disposable HQ").assertIsDisplayed()
+        composeRule.onNodeWithTag("delete_place_${place.id}").performClick()
+        composeRule.onNodeWithText("Delete named place?").assertIsDisplayed()
+        composeRule.onNodeWithTag("cancel_delete_place").performClick()
+        assertFalse(runBlocking { withContext(Dispatchers.IO) { app.placeRepository.all() } }.isEmpty())
+
+        composeRule.onNodeWithTag("delete_place_${place.id}").performClick()
+        composeRule.onNodeWithTag("confirm_delete_place").performClick()
+        composeRule.waitUntil(10_000) {
+            runBlocking { withContext(Dispatchers.IO) { app.placeRepository.all().isEmpty() } }
+        }
+        composeRule.onNodeWithText("Disposable HQ").assertDoesNotExist()
     }
 
     @Test
