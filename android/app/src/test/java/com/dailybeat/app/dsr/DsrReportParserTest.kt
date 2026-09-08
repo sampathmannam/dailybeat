@@ -144,6 +144,40 @@ class DsrReportParserTest {
     }
 
     @Test
+    fun detectsFatalAccidentTitleYearMismatchEvenWhenTheMonthMatches() {
+        val text = """
+            ROAD SAFETY MEETING ANALYSIS OF FATAL ACCIDENTS OCCURRED IN JANUARY 2098
+            1 Example Station Alpha 7001/99 18.01.2099 20.30 TEST-1 Bus Pedestrian
+            Total No. of Accident: 01
+        """.trimIndent()
+
+        val parsed = parser.parse("SYNTHETIC Fatal Accident Report.pdf", listOf(text))
+
+        assertEquals("2099-01-01", parsed.reportDate)
+        assertTrue(parsed.issues.any { it.code == "ACCIDENT_PERIOD_MISMATCH" })
+    }
+
+    @Test
+    fun repeatedDsrPageHeaderIsNotAppendedToForecastDetails() {
+        val text = """
+            DAILY DSR 05.01.2099
+            Police Station Advance Forecast 06.01.99
+            Rasipuram A synthetic procession will be held at Test Temple.
+            DAILY DSR 05.01.2099
+            Vennandur A synthetic public exam will be conducted.
+            Station Progress
+            Total 0 0 - - - - - - - - - -
+            I-Reported Cases
+            I-Charged Cases 2.O
+        """.trimIndent()
+
+        val parsed = parser.parse("05.01.99 SYNTHETIC DSR.pdf", listOf(text))
+
+        assertEquals(2, parsed.forecasts.size)
+        assertTrue(parsed.forecasts.none { it.details.contains("DAILY DSR", ignoreCase = true) })
+    }
+
+    @Test
     fun parsesAllCrimeAggregatePageAndFlagsBadPrintedPercentage() {
         val summaryPage = """
             RASIPURAM SUB-DIVISION

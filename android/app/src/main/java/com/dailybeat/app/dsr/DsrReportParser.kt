@@ -663,7 +663,9 @@ class DsrReportParser {
         val stationBlocks = mutableListOf<Pair<NormalizedStation, StringBuilder>>()
         block.lineSequence().forEach { rawLine ->
             val line = DsrNormalization.whitespace(rawLine)
-            if (line.isBlank() || line.startsWith("Police Station", true)) return@forEach
+            if (line.isBlank() || line.startsWith("Police Station", true) || dsrDate.containsMatchIn(line)) {
+                return@forEach
+            }
             val startMatch = DsrNormalization.stationAtStart(line)
             if (startMatch != null) {
                 stationBlocks += startMatch.first to StringBuilder(startMatch.second)
@@ -827,11 +829,14 @@ class DsrReportParser {
             .toList()
         val modalMonth = occurrenceDates.groupingBy { it.monthValue }.eachCount().maxByOrNull { it.value }?.key
         val modalYear = occurrenceDates.groupingBy { it.year }.eachCount().maxByOrNull { it.value }?.key
-        if (titleMonth != null && modalMonth != null && titleMonth != modalMonth) {
+        val titlePeriodDiffers =
+            titleMonth != null && modalMonth != null && titleMonth != modalMonth ||
+                titleYear != null && modalYear != null && titleYear != modalYear
+        if (titlePeriodDiffers) {
             issues += ParsedDsrIssue(
                 DsrIssueSeverity.ERROR,
                 "ACCIDENT_PERIOD_MISMATCH",
-                "The fatal-accident title month does not match the month recorded in most case dates.",
+                "The fatal-accident title period does not match the month and year recorded in most case dates.",
             )
         }
         val accidentCounts = Regex("(?i)Total\\s+No\\.?\\s+of\\s+Accident\\s*:\\s*(\\d+)")

@@ -29,7 +29,9 @@ def test_release_shrinker_allows_pdfbox_optional_jpeg2000_codec():
 def test_debug_build_is_isolated_from_the_installed_release_app():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
 
-    assert 'applicationIdSuffix = ".qa"' in gradle
+    assert 'providers.gradleProperty("dailybeatDebugApplicationIdSuffix")' in gradle
+    assert '.getOrElse(".qa")' in gradle
+    assert "applicationIdSuffix = debugApplicationIdSuffix" in gradle
 
 
 def test_phone_gate_targets_hardware_and_reinstalls_after_instrumentation_cleanup():

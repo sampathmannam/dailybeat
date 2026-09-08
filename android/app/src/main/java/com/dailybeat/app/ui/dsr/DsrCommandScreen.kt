@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ fun DsrCommandScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .testTag("dsr_command_list")
             .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -134,22 +136,22 @@ fun DsrCommandScreen(
             }
 
             pendingMetrics(state.metrics).takeIf { it.isNotEmpty() }?.let { pending ->
-                item { SectionHeader("Pending work") }
+                item { SectionHeader("Pending work (${pending.size})") }
                 items(pending, key = { it.metricCode }) { metric -> PendingMetricRow(metric) }
             }
 
             state.dashboard.forecasts.takeIf { it.isNotEmpty() }?.let { forecasts ->
-                item { SectionHeader("Advance forecast") }
-                items(forecasts.take(5), key = { it.id }) { forecast -> ForecastCard(forecast) }
+                item { SectionHeader("Advance forecast (${forecasts.size})") }
+                items(forecasts, key = { it.id }) { forecast -> ForecastCard(forecast) }
             }
 
             state.dashboard.cases.takeIf { it.isNotEmpty() }?.let { cases ->
-                item { SectionHeader("Reported cases") }
-                items(cases.take(20), key = { it.caseKey }) { case -> CaseCard(case) }
+                item { SectionHeader("Reported cases (${cases.size})") }
+                items(cases, key = { it.caseKey }) { case -> CaseCard(case) }
             }
 
             state.dashboard.stations.filter { it.stationCode != "TOTAL" }.takeIf { it.isNotEmpty() }?.let { stations ->
-                item { SectionHeader("Station activity") }
+                item { SectionHeader("Station activity (${stations.size})") }
                 items(stations, key = { it.stationCode }) { station -> StationRow(station, reported.coerceAtLeast(1)) }
             }
 
@@ -176,13 +178,13 @@ fun DsrCommandScreen(
         }
 
         state.dashboard.issues.takeIf { it.isNotEmpty() }?.let { issues ->
-            item { SectionHeader("Needs verification") }
-            items(issues.take(12), key = { it.id }) { issue -> QualityIssueCard(issue) }
+            item { SectionHeader("Needs verification (${issues.size})") }
+            items(issues, key = { it.id }) { issue -> QualityIssueCard(issue) }
         }
 
         state.imports.takeIf { it.isNotEmpty() }?.let { imports ->
-            item { SectionHeader("Import history") }
-            items(imports.take(10), key = { it.id }) { report -> ImportHistoryRow(report) }
+            item { SectionHeader("Import history (${imports.size})") }
+            items(imports, key = { it.id }) { report -> ImportHistoryRow(report) }
         }
     }
 }
@@ -215,7 +217,7 @@ private fun ImportHealthCard(value: DsrImport) {
                 Text("${value.qualityScore}%", color = healthColor, fontWeight = FontWeight.Bold)
             }
             LinearProgressIndicator(
-                progress = value.qualityScore / 100f,
+                progress = { value.qualityScore / 100f },
                 modifier = Modifier.fillMaxWidth(),
                 color = healthColor,
             )
@@ -274,7 +276,8 @@ private fun ForecastCard(value: DsrForecast) {
                 PriorityBadge(value.priority)
             }
             Text(
-                value.category.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase),
+                value.category.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase) +
+                    " · ${displayDate(value.eventDate)}",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -300,7 +303,7 @@ private fun StationRow(value: DsrStationSnapshot, maxReported: Int) {
                 Text("$count reported · ${value.chargedCases ?: 0} charged", style = MaterialTheme.typography.labelMedium)
             }
             LinearProgressIndicator(
-                progress = (count.toFloat() / maxReported).coerceIn(0f, 1f),
+                progress = { (count.toFloat() / maxReported).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -357,7 +360,7 @@ private fun AllCrimeTrendCard(values: List<AllCrimePeriod>) {
                         )
                     }
                     LinearProgressIndicator(
-                        progress = (monthlyRate / maxMonthlyRate).coerceIn(0f, 1f),
+                        progress = { (monthlyRate / maxMonthlyRate).coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
@@ -393,7 +396,7 @@ private fun AllCrimeStationCard(value: AllCrimeStation) {
                     color = if (value.reported > value.detected) Color(0xFFB45309) else Color(0xFF15803D),
                 )
             }
-            LinearProgressIndicator(progress = rate.coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(progress = { rate.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
             Text(
                 "${value.detected}/${value.reported} detected · ₹${indianNumber(value.propertyRecovered)} of " +
                     "₹${indianNumber(value.propertyLost)} recovered",
@@ -453,7 +456,16 @@ private fun SupportingMetricRow(value: DsrMetricSnapshot) {
 
 @Composable
 private fun QualityIssueCard(value: DsrQualityIssue) {
-    val color = if (value.severity == "ERROR") MaterialTheme.colorScheme.error else Color(0xFFB45309)
+    val color = when (value.severity) {
+        "ERROR" -> MaterialTheme.colorScheme.error
+        "INFO" -> MaterialTheme.colorScheme.primary
+        else -> Color(0xFFB45309)
+    }
+    val severityLabel = when (value.severity) {
+        "ERROR" -> "Blocking error"
+        "INFO" -> "Note"
+        else -> "Review"
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -462,8 +474,15 @@ private fun QualityIssueCard(value: DsrQualityIssue) {
         Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.padding(top = 6.dp).size(8.dp).background(color, CircleShape)) {}
             Column {
-                Text(value.code.replace('_', ' '), style = MaterialTheme.typography.labelLarge, color = color)
+                Text(
+                    "$severityLabel · ${value.code.replace('_', ' ')}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = color,
+                )
                 Text(value.message, style = MaterialTheme.typography.bodyMedium)
+                value.caseKey?.let {
+                    Text("Case ${formatDsrCaseReference(it)}", style = MaterialTheme.typography.labelMedium)
+                }
                 value.sourcePage?.let { Text("Source page $it", style = MaterialTheme.typography.labelMedium) }
             }
         }
@@ -641,6 +660,17 @@ private fun allCrimeHeadLabel(code: String): String = when (code) {
     "THEFT_B" -> "Theft - B"
     "THEFT_C" -> "Theft - C"
     else -> code.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase)
+}
+
+internal fun formatDsrCaseReference(caseKey: String): String {
+    val parts = caseKey.substringBefore("|CONFLICT-").split('|')
+    if (parts.size < 3) return caseKey
+    val station = when (parts[0]) {
+        "AWPS_RPM" -> "Rasipuram AWPS"
+        "TRAFFIC_RPM" -> "Rasipuram Traffic"
+        else -> allCrimeStationName(parts[0])
+    }
+    return "$station · ${parts[2]}/${parts[1]}"
 }
 
 private fun percentage(numerator: Int, denominator: Int): Int =

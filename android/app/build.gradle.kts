@@ -13,6 +13,8 @@ val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
 val supabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
     .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
     .getOrElse("")
+val debugApplicationIdSuffix = providers.gradleProperty("dailybeatDebugApplicationIdSuffix")
+    .getOrElse(".qa")
 
 android {
     namespace = "com.dailybeat.app"
@@ -40,7 +42,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".qa"
+            applicationIdSuffix = debugApplicationIdSuffix
         }
         release {
             isMinifyEnabled = true
