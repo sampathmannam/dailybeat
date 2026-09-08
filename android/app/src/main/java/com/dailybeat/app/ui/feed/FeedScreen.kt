@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -139,6 +141,9 @@ fun FeedScreen(
             state.error?.let {
                 Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
+            if (state.isLoading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed_loading"))
+            }
         }
 
         if (state.days.isEmpty() && !state.isLoading) {
@@ -166,7 +171,9 @@ private fun DayFeedCard(
     onClick: () -> Unit,
     onNameStay: (DayStay) -> Unit,
 ) {
-    var showAllStays by remember(day.date, day.stays.size) { mutableStateOf(false) }
+    // Lazy cards leave composition while scrolling. Preserve the officer's expansion choice
+    // across scrolling, rotation and refreshed visits instead of silently collapsing the day.
+    var showAllStays by rememberSaveable(day.date) { mutableStateOf(false) }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,22 +245,24 @@ private fun DayFeedCard(
                         StayRow(stay = stay, onNameStay = { onNameStay(stay) })
                     }
                     if (day.stays.size > MAX_STAYS_SHOWN) {
-                        Text(
-                            text = if (showAllStays) {
-                                stringResource(R.string.feed_show_fewer_stops)
-                            } else {
-                                stringResource(
-                                    R.string.feed_more_stops,
-                                    day.stays.size - MAX_STAYS_SHOWN,
-                                )
-                            },
-                            modifier = Modifier
-                                .clickable { showAllStays = !showAllStays }
-                                .testTag("feed_toggle_stops_${day.date}"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        TextButton(
+                            onClick = { showAllStays = !showAllStays },
+                            modifier = Modifier.testTag("feed_toggle_stops_${day.date}"),
+                        ) {
+                            Text(
+                                text = if (showAllStays) {
+                                    stringResource(R.string.feed_show_fewer_stops)
+                                } else {
+                                    stringResource(
+                                        R.string.feed_more_stops,
+                                        day.stays.size - MAX_STAYS_SHOWN,
+                                    )
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                 }
             }

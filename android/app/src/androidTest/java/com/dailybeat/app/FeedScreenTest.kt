@@ -6,9 +6,11 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -120,9 +122,16 @@ class FeedScreenTest {
         composeRule.onNodeWithTag("nav_history").performClick()
         composeRule.waitUntilAtLeastOneExists(hasText("+3 more stops"), timeoutMillis = 20_000)
 
-        composeRule.onNodeWithText("+3 more stops").performClick()
+        // A lazy card may exist below the viewport. Scroll the actual control into view
+        // before tapping; otherwise the gesture can hit the bottom navigation instead.
+        composeRule.onNodeWithTag("feed_toggle_stops_${DateKeys.today()}")
+            .performScrollTo().performClick()
         composeRule.onNodeWithTag("feed_list").performScrollToNode(hasText("Stop 8"))
 
+        composeRule.onNodeWithText("Stop 8").assertIsDisplayed()
+        composeRule.activityRule.scenario.recreate()
+        waitForFeedRefresh()
+        composeRule.onNodeWithTag("feed_list").performScrollToNode(hasText("Stop 8"))
         composeRule.onNodeWithText("Stop 8").assertIsDisplayed()
     }
 
@@ -155,11 +164,18 @@ class FeedScreenTest {
         }
 
         composeRule.onNodeWithTag("nav_history").performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasTestTag("feed_card_$yesterday"),
-            timeoutMillis = 20_000,
-        )
+        waitForFeedRefresh()
+        // Unseen lazy-list rows are not composed. Waiting for their semantics without
+        // scrolling incorrectly reports a missing day on a smaller viewport.
+        composeRule.onNodeWithTag("feed_list").performScrollToNode(hasTestTag("feed_card_$yesterday"))
 
         composeRule.onNodeWithTag("feed_card_$yesterday").assertIsDisplayed()
+    }
+
+    private fun waitForFeedRefresh() {
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("feed_list"), timeoutMillis = 20_000)
+        composeRule.waitUntil(20_000) {
+            composeRule.onAllNodesWithTag("feed_loading").fetchSemanticsNodes().isEmpty()
+        }
     }
 }
