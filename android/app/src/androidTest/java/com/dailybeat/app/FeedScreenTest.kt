@@ -15,6 +15,7 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.lifecycle.Lifecycle
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
 import com.dailybeat.app.data.model.LocationVisit
@@ -170,6 +171,37 @@ class FeedScreenTest {
         composeRule.onNodeWithTag("feed_list").performScrollToNode(hasTestTag("feed_card_$yesterday"))
 
         composeRule.onNodeWithTag("feed_card_$yesterday").assertIsDisplayed()
+    }
+
+    @Test
+    fun foregroundingFeedLoadsVisitsCapturedInTheBackground() {
+        val yesterday = DateKeys.today().minusDays(1)
+        val dayStart = DayBounds.dayStartEnd(yesterday).first
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+
+        composeRule.onNodeWithTag("nav_history").performClick()
+        waitForFeedRefresh()
+        // Stop and resume the same Activity, without recreating it or switching tabs.
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.visitRepository.insert(
+                    LocationVisit(
+                        startMs = dayStart + 60_000L,
+                        endMs = dayStart + 20 * 60_000L,
+                        latitude = 11.4557,
+                        longitude = 78.1856,
+                        placeName = "Background Station",
+                        visitType = "dwell",
+                    ),
+                )
+            }
+        }
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        waitForFeedRefresh()
+        composeRule.onNodeWithTag("feed_list").performScrollToNode(hasTestTag("feed_card_$yesterday"))
+        composeRule.onNodeWithTag("feed_card_$yesterday").assertIsDisplayed()
+        composeRule.onNodeWithText("Background Station").assertIsDisplayed()
     }
 
     private fun waitForFeedRefresh() {

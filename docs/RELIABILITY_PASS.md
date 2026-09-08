@@ -15,6 +15,9 @@ are never reset or replaced by instrumentation.
 - Added phone regressions for diary recreation, native PDF/ZIP export, local backup and map navigation.
 - Added an independent offline CI device-test job; missing live-backup credentials no longer
   prevent the core tests from running. The mandatory live release gate cannot be bypassed.
+- Preserved expanded Feed stops across scrolling/rotation and enlarged their toggle target.
+- Refresh Feed when returning from the background, cancel obsolete overlapping loads, and
+  exercise foreground resume without recreating the Activity in a dedicated regression.
 
 ## Feature coverage and remaining gates
 
@@ -59,7 +62,10 @@ credentials documented in RELEASE.md; absent credentials must remain an explicit
 - Debug app and instrumentation APK builds: passed.
 - JVM/unit/integration suite: **172 passed, 0 failed** after DSR-only tests moved repositories.
 - Android lint: passed; existing warnings remain (not a zero-warning claim).
-- Python runner/release safety suite: **16 passed, 0 failed**.
+- Python runner/release safety suite: **17 passed, 0 failed**.
+- Hosted fresh-emulator offline suite at `941e604`: **21 passed, 0 failed** in CI run
+  `34202453050`. The next foreground-resume regression is additional coverage, not evidence
+  of physical-phone or live-provider validation.
 - Locust against the loopback-only synthetic API: 20 users / 1,615 requests and 50 users /
   3,965 requests, both 20-second runs, **0 failures**. This is not a live-provider capacity result.
 - `ZD2232FCR5`: connected for read-only checks, then disconnected before installation. New

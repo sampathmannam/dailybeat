@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.FileProvider
 import com.dailybeat.app.R
@@ -69,10 +73,15 @@ fun FeedScreen(
     val context = LocalContext.current
     var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
 
-    // Navigation keeps this ViewModel alive. Refresh whenever the destination re-enters the
-    // composition so visits captured while another screen was open appear immediately.
-    LaunchedEffect(viewModel) {
-        viewModel.refresh()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // A destination can stay composed while the app is in the background. Refresh on resume
+    // as well as navigation re-entry so newly captured visits do not leave the Feed stale.
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(state.exportPath) {

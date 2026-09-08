@@ -7,6 +7,8 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,19 +32,24 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+    private var refreshJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        // Initial load, navigation and foreground resume may overlap. Only the newest load
+        // may publish state; cancellation must not surface as a user-visible load error.
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             runCatching { withContext(Dispatchers.IO) { loadDays() } }.fold(
                 onSuccess = { days ->
                     _uiState.value = _uiState.value.copy(days = days, isLoading = false)
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = error.message ?: "Unable to load captured days.",
