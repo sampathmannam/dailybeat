@@ -19,7 +19,10 @@
     <string name="journey_map_open_external">Open in OpenStreetMap</string>
     <string name="journey_map_title">Today’s journey</string>
     <string name="journey_map_back_content_description">Back to Today</string>
-    <string name="journey_preview_content_description">Route preview with %1$d recorded points</string>
+    <plurals name="journey_preview_content_description">
+        <item quantity="one">Route preview with %1$d recorded point</item>
+        <item quantity="other">Route preview with %1$d recorded points</item>
+    </plurals>
     <string name="journey_map_unavailable">Map tiles are unavailable. Your recorded journey is still listed below.</string>
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
@@ -73,10 +76,16 @@
     <string name="feed_name_place_label">Place name</string>
     <string name="feed_name_place_save">Save place</string>
     <string name="feed_name_place_cancel">Cancel</string>
-    <string name="feed_more_stops">+%1$d more stops</string>
+    <plurals name="feed_more_stops">
+        <item quantity="one">+%1$d more stop</item>
+        <item quantity="other">+%1$d more stops</item>
+    </plurals>
     <string name="feed_show_fewer_stops">Show fewer stops</string>
     <string name="feed_location_unreliable">GPS needs review</string>
-    <string name="feed_route_content_description">Route map for the day with %1$d stops</string>
+    <plurals name="feed_route_content_description">
+        <item quantity="one">Route map for the day with %1$d stop</item>
+        <item quantity="other">Route map for the day with %1$d stops</item>
+    </plurals>
     <string name="share_pdf_button">Share PDF</string>
     <string name="recording_label">Listening… stop speaking to save</string>
     <string name="settings_title">Settings</string>

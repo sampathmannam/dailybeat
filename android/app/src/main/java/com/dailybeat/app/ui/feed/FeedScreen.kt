@@ -34,7 +34,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -58,10 +60,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.io.File
-
-private val dayHeadingFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault())
-private val clockFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
 
 @Composable
 fun FeedScreen(
@@ -180,6 +178,9 @@ private fun DayFeedCard(
     onClick: () -> Unit,
     onNameStay: (DayStay) -> Unit,
 ) {
+    // Reading LocalConfiguration makes this card recompose after a language/region change.
+    // Do not cache the startup locale in a top-level formatter.
+    val locale = LocalConfiguration.current.locales[0]
     // Lazy cards leave composition while scrolling. Preserve the officer's expansion choice
     // across scrolling, rotation and refreshed visits instead of silently collapsing the day.
     var showAllStays by rememberSaveable(day.date) { mutableStateOf(false) }
@@ -204,7 +205,7 @@ private fun DayFeedCard(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = day.date.format(dayHeadingFormat),
+                    text = formatDayHeading(day.date, locale),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -213,8 +214,9 @@ private fun DayFeedCard(
                 DayRouteThumbnail(
                     route = day.route,
                     modifier = Modifier.padding(horizontal = 12.dp),
-                    contentDescription = stringResource(
-                        R.string.feed_route_content_description,
+                    contentDescription = pluralStringResource(
+                        R.plurals.feed_route_content_description,
+                        day.stayCount,
                         day.stayCount,
                     ),
                 )
@@ -227,7 +229,7 @@ private fun DayFeedCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 StatBlock(
-                    value = formatDistance(day.distanceKm),
+                    value = formatDistance(day.distanceKm, locale),
                     label = stringResource(R.string.feed_stat_distance),
                 )
                 StatBlock(
@@ -251,7 +253,7 @@ private fun DayFeedCard(
                 ) {
                     val shownStays = if (showAllStays) day.stays else day.stays.take(MAX_STAYS_SHOWN)
                     shownStays.forEach { stay ->
-                        StayRow(stay = stay, onNameStay = { onNameStay(stay) })
+                        StayRow(stay = stay, locale = locale, onNameStay = { onNameStay(stay) })
                     }
                     if (day.stays.size > MAX_STAYS_SHOWN) {
                         TextButton(
@@ -262,9 +264,11 @@ private fun DayFeedCard(
                                 text = if (showAllStays) {
                                     stringResource(R.string.feed_show_fewer_stops)
                                 } else {
-                                    stringResource(
-                                        R.string.feed_more_stops,
-                                        day.stays.size - MAX_STAYS_SHOWN,
+                                    val hiddenCount = day.stays.size - MAX_STAYS_SHOWN
+                                    pluralStringResource(
+                                        R.plurals.feed_more_stops,
+                                        hiddenCount,
+                                        hiddenCount,
                                     )
                                 },
                                 style = MaterialTheme.typography.bodySmall,
@@ -291,7 +295,7 @@ private fun DayFeedCard(
 }
 
 @Composable
-private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
+private fun StayRow(stay: DayStay, locale: Locale, onNameStay: () -> Unit) {
     val interactionModifier = if (stay.canBeNamed) {
         Modifier.clickable(onClick = onNameStay)
     } else {
@@ -317,7 +321,7 @@ private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
             )
             Text(
                 text = buildString {
-                    append("${formatClock(stay.startMs)} · ${formatDuration(stay.durationMinutes)}")
+                    append("${formatClock(stay.startMs, locale)} · ${formatDuration(stay.durationMinutes)}")
                     if (!stay.canBeNamed) append(" · ${stringResource(R.string.feed_location_unreliable)}")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -341,10 +345,10 @@ private fun StatBlock(value: String, label: String) {
 
 private const val MAX_STAYS_SHOWN = 5
 
-internal fun formatDistance(km: Double): String = when {
+internal fun formatDistance(km: Double, locale: Locale = Locale.getDefault()): String = when {
     km < 0.1 -> "—"
-    km < 1.0 -> String.format(Locale.getDefault(), "%d m", (km * 1000).toInt())
-    else -> String.format(Locale.getDefault(), "%.1f km", km)
+    km < 1.0 -> String.format(locale, "%d m", (km * 1000).toInt())
+    else -> String.format(locale, "%.1f km", km)
 }
 
 internal fun formatDuration(minutes: Long): String = when {
@@ -354,8 +358,12 @@ internal fun formatDuration(minutes: Long): String = when {
     else -> "${minutes / 60} h ${minutes % 60} min"
 }
 
-private fun formatClock(epochMs: Long): String =
-    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).format(clockFormat)
+internal fun formatDayHeading(date: LocalDate, locale: Locale): String =
+    date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale))
+
+private fun formatClock(epochMs: Long, locale: Locale): String =
+    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("HH:mm", locale))
 
 internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today()): String = when (date) {
     today -> "Today"

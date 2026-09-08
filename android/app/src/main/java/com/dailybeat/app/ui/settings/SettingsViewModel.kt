@@ -160,13 +160,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 app.backupCoordinator.signUp(state.backupEmailDraft, state.backupPasswordDraft)
             }.getOrElse { Result.failure(it) }
             result.fold(
-                onSuccess = { result ->
+                onSuccess = { signUpResult ->
                     _uiState.update {
                         it.copy(
                             backupBusy = false,
-                            backupSignedInEmail = result.session?.email,
+                            backupSignedInEmail = signUpResult.session?.email,
                             backupPasswordDraft = "",
-                            backupMessage = if (result.requiresEmailConfirmation) {
+                            backupMessage = if (signUpResult.requiresEmailConfirmation) {
                                 "Account created. Confirm the email, then sign in."
                             } else {
                                 "Account created. Back up this phone now."

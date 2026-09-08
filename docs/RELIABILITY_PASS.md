@@ -21,6 +21,9 @@ are never reset or replaced by instrumentation.
 - Allow the officer to remove the encrypted cloud API key with explicit confirmation. A failed
   secure-store deletion is reported, and a successful removal cancels scheduled cloud pulses
   without changing local DailyBeat records.
+- Rebuild Feed date/time/distance formatting from the current Android configuration after a
+  language or region change. Route accessibility descriptions and hidden-stop labels now use
+  quantity-aware singular/plural resources.
 
 ## Feature coverage and remaining gates
 
@@ -63,7 +66,7 @@ credentials documented in RELEASE.md; absent credentials must remain an explicit
 ## Actual run results — 2026-09-08
 
 - Debug app and instrumentation APK builds: passed.
-- JVM/unit/integration suite: **172 passed, 0 failed** after DSR-only tests moved repositories.
+- JVM/unit/integration suite: **173 passed, 0 failed** after DSR-only tests moved repositories.
 - Android lint: passed; existing warnings remain (not a zero-warning claim).
 - Python runner/release safety suite: **17 passed, 0 failed**.
 - Hosted fresh-emulator offline suite at `941e604`: **21 passed, 0 failed** in CI run
@@ -75,6 +78,8 @@ credentials documented in RELEASE.md; absent credentials must remain an explicit
   test is the live Supabase backup round trip because dedicated QA credentials are absent.
   Onboarding/navigation, capture lifecycle, Today/notes, diary, Feed, maps, local backup,
   PDF/ZIP export, Settings validation and encrypted API-key removal passed in the disposable app.
+- After the locale/resource fix, all **6 Feed tests** passed again on `ZD2232FCR5` with no skips
+  or failures. Lint no longer reports the Feed constant-locale or plural-candidate warnings.
 - Shared emulator: system/System UI ANRs; not reset or treated as valid phone evidence.
 - Live backup configuration and dedicated account credentials were absent, so live verification
   remains pending. Do not weaken the release gate or use production credentials to bypass this.

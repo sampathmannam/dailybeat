@@ -45,8 +45,9 @@ fun JourneyRoutePreview(
     val orderFractions = remember(model.points.size) { previewFractions(model.points.size) }
     val minLatitude = remember(model.points) { model.points.minOf { it.latitude } }
     val maxLatitude = remember(model.points) { model.points.maxOf { it.latitude } }
-    val previewDescription = stringResource(
-        R.string.journey_preview_content_description,
+    val previewDescription = pluralStringResource(
+        R.plurals.journey_preview_content_description,
+        model.points.size,
         model.points.size,
     )
 

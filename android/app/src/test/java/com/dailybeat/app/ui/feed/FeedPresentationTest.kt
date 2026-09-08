@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.util.Locale
 
 class FeedPresentationTest {
 
@@ -14,6 +15,12 @@ class FeedPresentationTest {
         assertEquals("450 m", formatDistance(0.45))
         assertEquals("1.0 km", formatDistance(1.0))
         assertEquals("12.4 km", formatDistance(12.42))
+    }
+
+    @Test
+    fun `distance and day headings use the current region`() {
+        assertEquals("12,4 km", formatDistance(12.42, Locale.GERMANY))
+        assertEquals("Sonntag, 6 September", formatDayHeading(today, Locale.GERMANY))
     }
 
     @Test
