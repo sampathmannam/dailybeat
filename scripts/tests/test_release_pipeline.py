@@ -141,4 +141,6 @@ def test_ci_requires_a_live_cloud_backup_round_trip():
     assert "backupEmailSha" in runner
     assert "backupPasswordSha" in runner
     assert "backupConfigSha" in runner
+    assert 'adb shell nc -z -w 3 "$1" 443' in runner
+    assert "Cloud backup endpoint did not become reachable from the emulator." in runner
     assert "connectedDebugAndroidTest" in runner

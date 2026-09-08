@@ -52,6 +52,28 @@ if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PA
     "-Pandroid.testInstrumentationRunnerArguments.backupPasswordSha=$(sha256_text "$DAILYBEAT_BACKUP_TEST_PASSWORD")"
     "-Pandroid.testInstrumentationRunnerArguments.backupConfigSha=$(sha256_text "$SUPABASE_URL|$SUPABASE_ANON_KEY")"
   )
+
+  # Android can report boot completion before the emulator has working DNS and TCP. Wait for the
+  # configured backup endpoint so that runner startup cannot masquerade as an application defect.
+  # This remains fail-closed: the live gate stops if the endpoint never becomes reachable.
+  backup_host="${SUPABASE_URL#*://}"
+  backup_host="${backup_host%%/*}"
+  if [ -z "$backup_host" ]; then
+    echo "The configured cloud backup URL has no host."
+    capture_evidence 2
+    exit 2
+  fi
+  timeout --kill-after=5s 2m bash -c '
+    until adb shell nc -z -w 3 "$1" 443 </dev/null >/dev/null 2>&1; do
+      sleep 2
+    done
+  ' _ "$backup_host"
+  backup_network_status=$?
+  if [ "$backup_network_status" -ne 0 ]; then
+    echo "Cloud backup endpoint did not become reachable from the emulator."
+    capture_evidence "$backup_network_status"
+    exit "$backup_network_status"
+  fi
 elif [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
   echo "Live backup verification requires DAILYBEAT_BACKUP_TEST_EMAIL and DAILYBEAT_BACKUP_TEST_PASSWORD."
   capture_evidence 2

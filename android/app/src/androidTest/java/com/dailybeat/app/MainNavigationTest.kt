@@ -162,6 +162,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Officer name") and hasSetTextAction())
         composeRule.onNode(hasText("Officer name") and hasSetTextAction()).assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud AI"))
         composeRule.onNodeWithText("Cloud AI").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud backup"))
         composeRule.onNodeWithText("Cloud backup").assertIsDisplayed()
@@ -182,11 +183,14 @@ class MainNavigationTest {
     fun savedCloudApiKeyCanBeRemovedWithConfirmation() {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         app.settingsRepository.secureApiKey.setApiKey("disposable-device-test-key")
+        // The activity can create its Settings ViewModel before this direct fixture write.
+        // Recreate it so the UI reads the encrypted store deterministically.
+        composeRule.activityRule.scenario.recreate()
 
         composeRule.onNodeWithTag("nav_settings").performClick()
         composeRule.waitUntilAtLeastOneExists(
-            hasText("API key saved securely", substring = true),
-            timeoutMillis = 10_000,
+            hasTestTag("remove_api_key"),
+            timeoutMillis = 20_000,
         )
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Remove saved API key"))

@@ -1,6 +1,7 @@
 package com.dailybeat.app.backup
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -8,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 
 data class RemoteBackup(
     val snapshotJson: String,
@@ -34,6 +36,7 @@ class SupabaseBackupClient(
     private val sessionStore: BackupSessionStore,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
 ) : BackupRemote {
     override val isConfigured: Boolean get() = configuration.isConfigured
 
@@ -51,7 +54,13 @@ class SupabaseBackupClient(
                 val request = requestBuilder("/auth/v1/signup")
                     .post(body.toRequestBody(JSON))
                     .build()
-                val responseBody = execute(request, authRequest = true)
+                // Account creation is not idempotent: a lost success response must not result in
+                // an automatic second sign-up request.
+                val responseBody = execute(
+                    request,
+                    authRequest = true,
+                    retryNetworkFailures = false,
+                )
                 val root = JSONObject(responseBody)
                 if (root.optString("access_token").isNotBlank()) {
                     val session = parseSession(responseBody).also(sessionStore::save)
@@ -172,21 +181,43 @@ class SupabaseBackupClient(
     private fun authorizedRequestBuilder(path: String, session: BackupSession): Request.Builder =
         requestBuilder(path).header("Authorization", "Bearer ${session.accessToken}")
 
-    private fun execute(request: Request, authRequest: Boolean = false): String {
+    private suspend fun execute(
+        request: Request,
+        authRequest: Boolean = false,
+        retryNetworkFailures: Boolean = true,
+    ): String {
+        var retryIndex = 0
+        while (true) {
+            try {
+                return executeOnce(request, authRequest)
+            } catch (error: IOException) {
+                if (!retryNetworkFailures || retryIndex >= networkRetryDelaysMs.size) {
+                    throw IllegalStateException(
+                        "Cloud backup network is unavailable. Check the connection and try again.",
+                        error,
+                    )
+                }
+                delay(networkRetryDelaysMs[retryIndex++].coerceAtLeast(0L))
+            }
+        }
+    }
+
+    private fun executeOnce(request: Request, authRequest: Boolean): String =
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                val message = when {
-                    authRequest && response.code in 400..499 -> "Email or password is incorrect."
-                    response.code == 401 || response.code == 403 ->
-                        "Cloud backup authorization expired. Sign in again."
-                    response.code == 404 -> "No cloud backup was found."
-                    response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
-                    response.code >= 500 -> "Cloud backup service is temporarily unavailable."
-                    else -> "Cloud backup request failed (${response.code})."
-                }
-                throw IllegalStateException(message)
+                throw IllegalStateException(
+                    when {
+                        authRequest && response.code in 400..499 -> "Email or password is incorrect."
+                        response.code == 401 || response.code == 403 ->
+                            "Cloud backup authorization expired. Sign in again."
+                        response.code == 404 -> "No cloud backup was found."
+                        response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
+                        response.code >= 500 -> "Cloud backup service is temporarily unavailable."
+                        else -> "Cloud backup request failed (${response.code})."
+                    },
+                )
             }
-            val body = response.body ?: return ""
+            val body = response.body ?: return@use ""
             if (body.contentLength() > MAX_RESPONSE_BYTES) {
                 throw IllegalStateException("Cloud backup response was too large.")
             }
@@ -194,9 +225,8 @@ class SupabaseBackupClient(
             if (source.request(MAX_RESPONSE_BYTES + 1L)) {
                 throw IllegalStateException("Cloud backup response was too large.")
             }
-            return source.readUtf8()
+            source.readUtf8()
         }
-    }
 
     private fun ensureConfigured() {
         check(configuration.isConfigured) { "Cloud backup is not configured in this build." }
