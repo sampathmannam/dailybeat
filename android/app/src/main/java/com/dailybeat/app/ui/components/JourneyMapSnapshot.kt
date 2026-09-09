@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,38 +35,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.ui.theme.Gold
 import com.dailybeat.app.ui.theme.Navy
-import org.maplibre.android.MapLibre
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.Style
-import org.maplibre.android.snapshotter.MapSnapshotter
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.LineLayer
-import org.maplibre.android.style.layers.Property
-import org.maplibre.android.style.layers.PropertyFactory.circleColor
-import org.maplibre.android.style.layers.PropertyFactory.circleRadius
-import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
-import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
-import org.maplibre.android.style.layers.PropertyFactory.lineCap
-import org.maplibre.android.style.layers.PropertyFactory.lineColor
-import org.maplibre.android.style.layers.PropertyFactory.lineJoin
-import org.maplibre.android.style.layers.PropertyFactory.lineWidth
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.LineString
-import org.maplibre.geojson.Point
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
-import kotlin.math.roundToInt
 import kotlin.math.tan
-
-private const val SNAPSHOT_ROUTE_SOURCE_ID = "dailybeat-snapshot-route-source"
-private const val SNAPSHOT_ROUTE_CASING_LAYER_ID = "dailybeat-snapshot-route-casing-layer"
-private const val SNAPSHOT_ROUTE_LAYER_ID = "dailybeat-snapshot-route-layer"
-private const val SNAPSHOT_STOP_SOURCE_ID = "dailybeat-snapshot-stop-source"
-private const val SNAPSHOT_STOP_LAYER_ID = "dailybeat-snapshot-stop-layer"
 
 /**
  * Renders a non-interactive OpenStreetMap snapshot suitable for scrollable cards. The immediate
@@ -87,56 +62,23 @@ fun JourneyMapSnapshot(
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var snapshotBitmap by remember(model) { mutableStateOf<Bitmap?>(null) }
 
-    DisposableEffect(context, model, viewportSize) {
-        if (viewportSize == IntSize.Zero) {
-            onDispose { }
-        } else {
-            snapshotBitmap = null
-            MapLibre.getInstance(context)
-            val logicalWidth = (viewportSize.width / density).roundToInt().coerceAtLeast(1)
-            val logicalHeight = (viewportSize.height / density).roundToInt().coerceAtLeast(1)
-            val cameraPaddingPx = (40 * density).roundToInt()
-            val options = MapSnapshotter.Options(logicalWidth, logicalHeight)
-                .withPixelRatio(density)
-                .withStyleBuilder(snapshotStyle(model))
-                .withCameraPosition(
-                    CameraPosition.Builder()
-                        .target(
-                            LatLng(
-                                requireNotNull(model.centerLatitude),
-                                requireNotNull(model.centerLongitude),
-                            ),
-                        )
-                        .zoom(
-                            model.cameraZoomForViewport(
-                                widthPx = viewportSize.width,
-                                heightPx = viewportSize.height,
-                                paddingPx = cameraPaddingPx,
-                            ).toDouble(),
-                        )
-                        .build(),
+    LaunchedEffect(context, model, viewportSize) {
+        if (viewportSize == IntSize.Zero) return@LaunchedEffect
+        snapshotBitmap = null
+        try {
+            snapshotBitmap = withContext(Dispatchers.IO) {
+                renderJourneyMapRaster(
+                    context = context.applicationContext,
+                    model = model,
+                    viewportSize = viewportSize,
+                    density = density,
                 )
-                .withLogo(true)
-            val snapshotter = MapSnapshotter(context, options)
-            var disposed = false
-            snapshotter.start(
-                MapSnapshotter.SnapshotReadyCallback { snapshot ->
-                    if (!disposed) snapshotBitmap = snapshot.bitmap
-                },
-                MapSnapshotter.ErrorHandler { error ->
-                    if (!disposed) {
-                        snapshotBitmap = null
-                        onFailure(error)
-                    }
-                },
-            )
-            onDispose {
-                disposed = true
-                // MapSnapshotter.cancel() can race a MapView that is created immediately after
-                // this card leaves composition. On Android 14 x86_64 that native teardown race
-                // can crash libmaplibre during Activity recreation. This is a bounded one-shot
-                // render, so let it finish and discard the callback instead.
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            snapshotBitmap = null
+            onFailure(error.message ?: "Map tiles are unavailable")
         }
     }
 
@@ -170,62 +112,6 @@ fun JourneyMapSnapshot(
             )
         }
     }
-}
-
-private fun snapshotStyle(model: JourneyMapModel): Style.Builder {
-    val builder = Style.Builder().fromUri(JOURNEY_MAP_STYLE_URL)
-    val routeFeatures = model.routeSegments
-        .filter { it.size >= 2 }
-        .map { segment ->
-            Feature.fromGeometry(
-                LineString.fromLngLats(
-                    segment.map { Point.fromLngLat(it.longitude, it.latitude) },
-                ),
-            )
-        }
-    if (routeFeatures.isNotEmpty()) {
-        builder.withSource(
-            GeoJsonSource(
-                SNAPSHOT_ROUTE_SOURCE_ID,
-                FeatureCollection.fromFeatures(routeFeatures),
-            ),
-        )
-        builder.withLayer(
-            LineLayer(SNAPSHOT_ROUTE_CASING_LAYER_ID, SNAPSHOT_ROUTE_SOURCE_ID).withProperties(
-                lineColor(JOURNEY_ROUTE_CASING_COLOR),
-                lineWidth(8f),
-                lineCap(Property.LINE_CAP_ROUND),
-                lineJoin(Property.LINE_JOIN_ROUND),
-            ),
-        )
-        builder.withLayer(
-            LineLayer(SNAPSHOT_ROUTE_LAYER_ID, SNAPSHOT_ROUTE_SOURCE_ID).withProperties(
-                lineColor(JOURNEY_ROUTE_COLOR),
-                lineWidth(5f),
-                lineCap(Property.LINE_CAP_ROUND),
-                lineJoin(Property.LINE_JOIN_ROUND),
-            ),
-        )
-    }
-
-    val stops = model.stopPoints.map { Point.fromLngLat(it.longitude, it.latitude) }
-    if (stops.isNotEmpty()) {
-        builder.withSource(
-            GeoJsonSource(
-                SNAPSHOT_STOP_SOURCE_ID,
-                FeatureCollection.fromFeatures(stops.map(Feature::fromGeometry)),
-            ),
-        )
-        builder.withLayer(
-            CircleLayer(SNAPSHOT_STOP_LAYER_ID, SNAPSHOT_STOP_SOURCE_ID).withProperties(
-                circleColor(JOURNEY_STOP_COLOR),
-                circleRadius(6f),
-                circleStrokeColor(JOURNEY_STOP_STROKE_COLOR),
-                circleStrokeWidth(2f),
-            ),
-        )
-    }
-    return builder
 }
 
 @Composable
