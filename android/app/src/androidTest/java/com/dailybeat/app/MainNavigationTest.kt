@@ -6,6 +6,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -15,6 +16,7 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.dailybeat.app.audit.CaptureAuditLog
 import org.junit.Before
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -35,6 +37,7 @@ class MainNavigationTest {
     fun skipOnboarding() {
         requireDisposableTestApp()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        CaptureAuditLog.clear(context)
         context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE).edit().clear().apply()
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         runBlocking {
@@ -54,11 +57,11 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
         composeRule.onNodeWithText("DSR Command").assertDoesNotExist()
 
-        composeRule.onNodeWithTag("nav_diary").performClick()
-        composeRule.onNodeWithTag("nav_diary").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_days").performClick()
+        composeRule.onNodeWithTag("feed_list").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("nav_history").performClick()
-        composeRule.onNodeWithTag("nav_history").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_insights").performClick()
+        composeRule.onNodeWithTag("insights_list").assertIsDisplayed()
 
         composeRule.onNodeWithTag("nav_settings").performClick()
         composeRule.onNodeWithTag("nav_settings").assertIsDisplayed()
@@ -69,26 +72,30 @@ class MainNavigationTest {
 
     @Test
     fun todayShowsBothMetricsWithoutHorizontalClipping() {
-        composeRule.onNodeWithText("Visits today").assertIsDisplayed()
-        composeRule.onNodeWithText("Events today").assertIsDisplayed()
-        composeRule.onNodeWithText("Record voice note").assertIsDisplayed()
+        composeRule.onNodeWithText("Distance").assertIsDisplayed()
+        composeRule.onNodeWithText("Tracked").assertIsDisplayed()
+        composeRule.onNodeWithText("Stops").assertIsDisplayed()
+        composeRule.onNodeWithText("Add moment").assertIsDisplayed()
     }
 
     @Test
     fun syntheticDayCanBeLoadedRepeatedlyWithoutDuplicatingRecords() {
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Load synthetic demo day"))
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasText("Synthetic day loaded: 7 visits, 5 events."),
-            timeoutMillis = 10_000,
-        )
+        waitForSyntheticAudit("Seeded 7 visits, 5 events")
+        composeRule.onNodeWithTag("today_list")
+            .performScrollToNode(hasText("Synthetic day loaded: 7 visits, 5 events."))
+        composeRule.onNodeWithText("Synthetic day loaded: 7 visits, 5 events.").assertIsDisplayed()
 
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Load synthetic demo day"))
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasText("Synthetic day loaded: 0 visits, 0 events."),
-            timeoutMillis = 10_000,
-        )
+        waitForSyntheticAudit("Seeded 0 visits, 0 events")
+        composeRule.onNodeWithTag("today_list")
+            .performScrollToNode(hasText("Synthetic day loaded: 0 visits, 0 events."))
+        composeRule.onNodeWithText("Synthetic day loaded: 0 visits, 0 events.").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("nav_diary").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
+        composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNodeWithText("5 events logged for this day").assertIsDisplayed()
 
         composeRule.onNodeWithTag("nav_today").performClick()
@@ -96,6 +103,12 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").performClick()
         composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("journey_map_fallback", useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithTag("journey_map_ready", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithTag("journey_map_back").performClick()
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
@@ -106,7 +119,8 @@ class MainNavigationTest {
         runBlocking(Dispatchers.IO) {
             app.eventRepository.addManualEvent("Single test event")
         }
-        composeRule.onNodeWithTag("nav_diary").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
+        composeRule.onNodeWithText("Add diary").performClick()
 
         composeRule.onNodeWithText("1 event logged for this day").assertIsDisplayed()
     }
@@ -131,29 +145,25 @@ class MainNavigationTest {
 
     @Test
     fun customDiaryGenerationExplainsMissingCloudConfiguration() {
-        composeRule.onNodeWithTag("nav_diary").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
+        composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNode(hasText("Raw events") and hasSetTextAction())
             .performTextInput("Briefing completed at headquarters.")
         composeRule.onNodeWithText("Generate from pasted text").performClick()
-
-        composeRule.waitUntilAtLeastOneExists(
-            hasText("Cloud AI is required", substring = true),
-            timeoutMillis = 10_000,
-        )
+        composeRule.onNodeWithTag("diary_list")
+            .performScrollToNode(hasText("Cloud AI is required", substring = true))
+        composeRule.onNodeWithText("Cloud AI is required", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun todayOptionalNoteExpandSaveCollapse() {
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add optional note"))
-        composeRule.onNodeWithText("Add optional note").performClick()
-        composeRule.onNodeWithTag("today_list")
-            .performScrollToNode(hasText("Optional note for today") and hasSetTextAction())
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add moment"))
+        composeRule.onNodeWithText("Add moment").performClick()
         composeRule.onNode(hasText("Optional note for today") and hasSetTextAction())
             .performTextInput("Patrol briefing at HQ.")
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Save note"))
         composeRule.onNodeWithText("Save note").performClick()
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add optional note"))
-        composeRule.onNodeWithText("Add optional note").assertIsDisplayed()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add moment"))
+        composeRule.onNodeWithText("Add moment").assertIsDisplayed()
     }
 
     @Test
@@ -188,12 +198,8 @@ class MainNavigationTest {
         composeRule.activityRule.scenario.recreate()
 
         composeRule.onNodeWithTag("nav_settings").performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasTestTag("remove_api_key"),
-            timeoutMillis = 20_000,
-        )
         composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasText("Remove saved API key"))
+            .performScrollToNode(hasTestTag("remove_api_key"))
         composeRule.onNodeWithTag("remove_api_key").performClick()
         composeRule.onNodeWithText("Remove saved API key?").assertIsDisplayed()
         composeRule.onNodeWithTag("confirm_remove_api_key").performClick()
@@ -239,8 +245,16 @@ class MainNavigationTest {
 
     @Test
     fun diaryCustomEventsSectionVisible() {
-        composeRule.onNodeWithTag("nav_diary").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
+        composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNodeWithText("Custom events (paste)").assertIsDisplayed()
         composeRule.onNodeWithText("Generate from pasted text").assertIsDisplayed()
+    }
+
+    private fun waitForSyntheticAudit(fragment: String) {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.waitUntil(10_000) {
+            runBlocking { CaptureAuditLog.readRecent(context).any { fragment in it } }
+        }
     }
 }

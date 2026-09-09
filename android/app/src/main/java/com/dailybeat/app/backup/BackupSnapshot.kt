@@ -3,6 +3,8 @@ package com.dailybeat.app.backup
 import com.dailybeat.app.data.model.DiaryEntry
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.LocationBreadcrumb
+import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
 
 data class BackupSnapshot(
@@ -13,9 +15,11 @@ data class BackupSnapshot(
     val diaries: List<DiaryEntry>,
     val visits: List<LocationVisit>,
     val settings: BackupSettings,
+    val breadcrumbs: List<LocationBreadcrumb> = emptyList(),
+    val beatReviews: List<BeatReview> = emptyList(),
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 1
+        const val CURRENT_SCHEMA_VERSION = 2
 
         fun empty(createdAtMs: Long) = BackupSnapshot(
             createdAtMs = createdAtMs,
@@ -24,6 +28,8 @@ data class BackupSnapshot(
             diaries = emptyList(),
             visits = emptyList(),
             settings = BackupSettings(),
+            breadcrumbs = emptyList(),
+            beatReviews = emptyList(),
         )
     }
 }

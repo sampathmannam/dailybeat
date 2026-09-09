@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.components
 
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.ui.feed.RoutePoint
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.atan
@@ -17,6 +18,8 @@ data class JourneyPoint(
     val latitude: Double,
     val longitude: Double,
     val visitType: String,
+    val startsAfterGap: Boolean = false,
+    val drawsRoute: Boolean = true,
 )
 
 data class JourneyBounds(
@@ -45,9 +48,14 @@ data class JourneyMapModel(
 
     val routeSegments: List<List<JourneyPoint>>
         get() {
-            if (points.isEmpty()) return emptyList()
-            val segments = mutableListOf(mutableListOf(points.first()))
-            points.zipWithNext().forEach { (previous, next) ->
+            val routePoints = points.filter { it.drawsRoute }
+            if (routePoints.isEmpty()) return emptyList()
+            val segments = mutableListOf(mutableListOf(routePoints.first()))
+            routePoints.zipWithNext().forEach { (previous, next) ->
+                if (next.startsAfterGap) {
+                    segments += mutableListOf(next)
+                    return@forEach
+                }
                 val rawDelta = next.longitude - previous.longitude
                 if (abs(rawDelta) > 180.0) {
                     val adjustedNextLongitude = if (rawDelta < 0) {
@@ -83,6 +91,11 @@ data class JourneyMapModel(
             }
             return segments
         }
+
+    val gapSegments: List<List<JourneyPoint>>
+        get() = points.filter { it.drawsRoute }.zipWithNext()
+            .filter { (_, next) -> next.startsAfterGap }
+            .map { (previous, next) -> listOf(previous, next) }
 
     val cameraZoom: Int
         get() = cameraZoomForViewport(
@@ -141,6 +154,19 @@ data class JourneyMapModel(
                     latitude = it.latitude,
                     longitude = it.longitude,
                     visitType = it.visitType,
+                )
+            },
+        )
+
+        fun fromRoute(route: List<RoutePoint>): JourneyMapModel = fromPoints(
+            route.map {
+                JourneyPoint(
+                    startMs = it.timestampMs,
+                    latitude = it.latitude,
+                    longitude = it.longitude,
+                    visitType = if (it.isStay) "stay" else "transit",
+                    startsAfterGap = it.startsAfterGap,
+                    drawsRoute = it.drawsRoute,
                 )
             },
         )

@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.feed
 
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.LocationBreadcrumb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -167,6 +168,23 @@ class DayFeedBuilderTest {
 
         assertTrue(item.diaryPreview!!.length < 250)
         assertTrue(item.diaryPreview!!.endsWith("…"))
+    }
+
+    @Test
+    fun `breadcrumbs drive route distance and expose capture gaps without inventing distance`() {
+        val points = listOf(
+            LocationBreadcrumb(timestampMs = dayStart, latitude = 11.4557, longitude = 78.1856, accuracyM = 20f),
+            LocationBreadcrumb(timestampMs = dayStart + minutes(2), latitude = 11.4647, longitude = 78.1856, accuracyM = 25f),
+            LocationBreadcrumb(timestampMs = dayStart + minutes(32), latitude = 11.5000, longitude = 78.1856, accuracyM = 30f),
+            LocationBreadcrumb(timestampMs = dayStart + minutes(34), latitude = 11.5090, longitude = 78.1856, accuracyM = 100f, quality = "approximate"),
+        )
+
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertEquals(1, item.captureGapCount)
+        assertTrue(item.route.single { it.timestampMs == dayStart + minutes(32) }.startsAfterGap)
+        assertTrue("Only measured segments should count, got ${item.distanceKm}", item.distanceKm in 1.8..2.2)
+        assertTrue(item.distanceEstimated)
     }
 
     @Test

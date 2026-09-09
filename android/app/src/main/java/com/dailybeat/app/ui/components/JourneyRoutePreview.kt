@@ -19,16 +19,16 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
-import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.ui.feed.RoutePoint
 
 /** A stable Strava-style map card; the dedicated map screen remains interactive. */
 @Composable
 fun JourneyRoutePreview(
-    visits: List<LocationVisit>,
+    route: List<RoutePoint>,
     onOpenMap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val model = remember(visits) { JourneyMapModel.fromVisits(visits) }
+    val model = remember(route) { JourneyMapModel.fromRoute(route) }
     if (model.points.isEmpty()) return
     val previewDescription = pluralStringResource(
         R.plurals.journey_preview_content_description,

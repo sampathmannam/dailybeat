@@ -74,6 +74,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             visits = app.visitRepository.visitsForDate(date),
             diaryText = app.diaryRepository.textForDate(date),
             places = places,
+            breadcrumbs = app.breadcrumbRepository.forDate(date),
+            review = app.beatRepository.get(date),
         )
     }
 

@@ -53,5 +53,5 @@ mac_adb shell am start -n "$PKG/com.dailybeat.app.MainActivity"
 
 echo ""
 echo "DailyBeat QA is running on $ANDROID_SERIAL."
-echo "Tabs: Today | Diary | History | Settings"
+echo "Tabs: Today | Days | Insights | Settings"
 echo "Mirror: brew install scrcpy && scrcpy -s $ANDROID_SERIAL"

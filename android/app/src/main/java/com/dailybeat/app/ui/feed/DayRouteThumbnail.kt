@@ -29,10 +29,12 @@ fun DayRouteThumbnail(
         JourneyMapModel.fromPoints(
             route.mapIndexed { index, point ->
                 JourneyPoint(
-                    startMs = index.toLong(),
+                    startMs = point.timestampMs.takeIf { it > 0 } ?: index.toLong(),
                     latitude = point.latitude,
                     longitude = point.longitude,
                     visitType = if (point.isStay) "dwell" else "transit",
+                    startsAfterGap = point.startsAfterGap,
+                    drawsRoute = point.drawsRoute,
                 )
             },
         )

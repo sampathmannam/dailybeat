@@ -17,6 +17,8 @@ import com.dailybeat.app.data.model.DsrStationSnapshot
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.GeocodeCache
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.LocationBreadcrumb
+import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
 
 // DSR entities are dormant compatibility storage only. Keep their tables and migrations
@@ -40,8 +42,10 @@ import com.dailybeat.app.data.model.Place
         DsrCaseWork::class,
         DsrProcedureCheck::class,
         DsrCaseAudit::class,
+        LocationBreadcrumb::class,
+        BeatReview::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {
@@ -51,4 +55,6 @@ abstract class DailyBeatDb : RoomDatabase() {
     abstract fun visits(): VisitDao
     abstract fun geocodes(): GeocodeDao
     abstract fun dsr(): DsrDao
+    abstract fun breadcrumbs(): BreadcrumbDao
+    abstract fun beatReviews(): BeatReviewDao
 }

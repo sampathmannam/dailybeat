@@ -1,6 +1,6 @@
 # DSR separation and DailyBeat reliability pass
 
-Work remains on `hardening/reliability-pass`. No merge, tag or release is authorized without
+The 3.8.0 candidate is prepared on `feat/whole-day-beat`. No merge, tag or release is authorized without
 the owner's approval. Production `com.dailybeat.app` and regular QA `com.dailybeat.app.qa`
 are never reset or replaced by instrumentation.
 
@@ -64,6 +64,21 @@ pytest -q scripts/tests
 The phone runner removes only its explicitly disposable QA app. Do not target the regular QA
 app: the owner's imported DSR PDF is still there. Live cloud tests require the dedicated QA
 credentials documented in RELEASE.md; absent credentials must remain an explicit validation gap.
+
+## Actual run results — 2026-09-10
+
+- Debug build, Android lint and the complete JVM suite passed: **189 tests, 0 failed**.
+- Disposable Android 14 suite: **30 tests, 0 failed, 2 skipped**; all **28 runnable tests passed**.
+  The skipped checks require physical movement and dedicated live Supabase credentials.
+- Release-mode Kotlin compilation, vital lint analysis and R8 shrinking passed. A permanent
+  signed artifact is intentionally not produced locally without the protected release key.
+- Release/safety Python suite: **25 passed, 0 failed**.
+- Locust loopback cloud-contract run: **6,823 requests, 0 failures**, about 230 requests/second,
+  2 ms mean and 11 ms p99. This is a synthetic compatibility/load result, not a live AI-provider SLA.
+- Emulator visual QA covered Today empty/route states, Days, Review, Insights, Settings, dark mode,
+  130% font scale, the immediate full-map fallback, and the fully rendered interactive map.
+- The physical phone `ZD2232FCR5` was not visible to ADB during this final run. No production
+  package or app data was modified; the current device suite used only `com.dailybeat.app.qa.e2eloop`.
 
 ## Actual run results — 2026-09-08
 

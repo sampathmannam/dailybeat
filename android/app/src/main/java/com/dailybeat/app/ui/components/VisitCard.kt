@@ -12,8 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.data.model.LocationVisit
-import com.dailybeat.app.ui.theme.EventGps
-import com.dailybeat.app.ui.theme.Gold
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -28,7 +26,6 @@ fun VisitCard(visit: LocationVisit, modifier: Modifier = Modifier) {
     val end = Instant.ofEpochMilli(visit.endMs).atZone(zone).format(timeFmt)
     val minutes = ((visit.endMs - visit.startMs) / 60000.0).roundToInt()
     val isTransit = visit.visitType == "transit"
-    val accent = if (isTransit) Gold else EventGps
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -47,7 +44,7 @@ fun VisitCard(visit: LocationVisit, modifier: Modifier = Modifier) {
                 Text(
                     text = if (isTransit) "In transit" else "Stay",
                     style = MaterialTheme.typography.labelMedium,
-                    color = accent,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = "$start – $end · ${minutes}m",

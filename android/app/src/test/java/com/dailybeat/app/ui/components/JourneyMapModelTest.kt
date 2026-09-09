@@ -1,11 +1,26 @@
 package com.dailybeat.app.ui.components
 
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.ui.feed.RoutePoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class JourneyMapModelTest {
+
+    @Test
+    fun fromRoute_drawsBreadcrumbTrailWithoutDetouringThroughStopMarkers() {
+        val model = JourneyMapModel.fromRoute(
+            listOf(
+                RoutePoint(11.45, 78.18, isStay = false, timestampMs = 100),
+                RoutePoint(11.46, 78.19, isStay = true, timestampMs = 150, drawsRoute = false),
+                RoutePoint(11.47, 78.20, isStay = false, timestampMs = 200),
+            ),
+        )
+
+        assertEquals(listOf(100L, 200L), model.routeSegments.flatten().map { it.startMs })
+        assertEquals(listOf(150L), model.stopPoints.map { it.startMs })
+    }
 
     @Test
     fun fromPoints_preservesRouteBreadcrumbsButMarksOnlyStops() {

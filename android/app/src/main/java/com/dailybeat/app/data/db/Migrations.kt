@@ -15,10 +15,47 @@ object DailyBeatMigrations {
         MIGRATION_4_5,
         MIGRATION_5_6,
         MIGRATION_6_7,
+        MIGRATION_7_8,
     )
 
     /** The oldest schema ever shipped to a user (app v1.0.0). */
     const val OLDEST_SHIPPED_VERSION = 2
+}
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE location_visits ADD COLUMN reviewState TEXT NOT NULL DEFAULT 'confirmed'")
+        db.execSQL("ALTER TABLE location_visits ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE location_visits ADD COLUMN manuallyEdited INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE places ADD COLUMN isPrivate INTEGER NOT NULL DEFAULT 0")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS location_breadcrumbs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                timestampMs INTEGER NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                accuracyM REAL NOT NULL,
+                quality TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_location_breadcrumbs_timestampMs " +
+                "ON location_breadcrumbs(timestampMs)",
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS beat_reviews (
+                dateKey TEXT NOT NULL PRIMARY KEY,
+                title TEXT NOT NULL,
+                state TEXT NOT NULL,
+                completedAt INTEGER,
+                updatedAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
 }
 
 val MIGRATION_6_7 = object : Migration(6, 7) {

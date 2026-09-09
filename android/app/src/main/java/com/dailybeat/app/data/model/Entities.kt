@@ -28,4 +28,5 @@ data class Place(
     val latitude: Double,
     val longitude: Double,
     val radiusM: Int = 100,
+    val isPrivate: Boolean = false,
 )

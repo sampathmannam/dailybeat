@@ -69,7 +69,7 @@ device-build, PID, and logcat evidence.
 ./scripts/mac_install_release_apk.sh
 ```
 
-Downloads the latest configured stable release (currently **v3.7.2**) and supports both the old
+Downloads the latest configured stable release (currently **v3.8.0**) and supports both the old
 `app-release.apk` asset name and the versioned name used by newer releases.
 
 ## Cursor on your Mac (local agent)
@@ -81,10 +81,10 @@ Downloads the latest configured stable release (currently **v3.7.2**) and suppor
 ## App tour (on your screen)
 
 1. **Onboarding** → officer name → Get started
-2. **Today** → passive journey, voice note, significant moment, or optional note
-3. **Diary** → Generate → review/edit → Share PDF
-4. **History** → daily journey feed and week export
-5. **Settings** → GPS, named places, Cloud AI, and cloud backup
+2. **Today** → route map, capture health, moments, diary, and Review My Day
+3. **Days** → map-led daily cards; tap a card to correct and complete its Beat
+4. **Insights** → movement, review streak, recurring places, and the next useful action
+5. **Settings** → capture/privacy pause, named places, Cloud AI, and cloud backup
 
 Optional mirror: `brew install scrcpy && scrcpy`
 

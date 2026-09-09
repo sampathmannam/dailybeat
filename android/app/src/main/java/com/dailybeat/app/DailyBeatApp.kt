@@ -19,6 +19,8 @@ import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
+import com.dailybeat.app.data.repo.BreadcrumbRepository
+import com.dailybeat.app.data.repo.BeatRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.cloud.WeeklyReportGenerator
 import com.dailybeat.app.export.PackageExporter
@@ -27,6 +29,7 @@ import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.notify.DailyReminderScheduler
 import com.dailybeat.app.notify.PulseScheduler
+import com.dailybeat.app.capture.CaptureHealthStore
 
 class DailyBeatApp : Application() {
 
@@ -45,6 +48,12 @@ class DailyBeatApp : Application() {
     val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
     val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
+
+    val breadcrumbRepository: BreadcrumbRepository by lazy { BreadcrumbRepository(db.breadcrumbs()) }
+
+    val beatRepository: BeatRepository by lazy { BeatRepository(db.beatReviews()) }
+
+    val captureHealthStore: CaptureHealthStore by lazy { CaptureHealthStore(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 

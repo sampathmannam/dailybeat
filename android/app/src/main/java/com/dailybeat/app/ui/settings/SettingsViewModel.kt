@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.capture.CaptureController
+import com.dailybeat.app.capture.CaptureResumeWorker
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.audit.CaptureAuditLog
@@ -27,6 +28,7 @@ data class SettingsUiState(
     val supervisorName: String = "",
     val gpsEnabled: Boolean = true,
     val captureMessage: String? = null,
+    val capturePausedUntilMs: Long = 0L,
     val batteryUnrestricted: Boolean = true,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
@@ -89,6 +91,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         supervisorName = settings.supervisorName,
                         gpsEnabled = settings.gpsCaptureEnabled,
                         captureMessage = captureStatusMessage(settings.gpsCaptureEnabled),
+                        capturePausedUntilMs = app.settingsRepository.capturePausedUntilMs(),
                         batteryUnrestricted = PermissionHelper.isIgnoringBatteryOptimizations(app),
                         cloudLlmEnabled = settings.cloudLlmEnabled,
                         cloudProvider = settings.cloudProvider,
@@ -351,6 +354,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         CaptureController.applyFromSettings(app)
     }
 
+    fun pauseCaptureForOneHour() {
+        val resumeAt = System.currentTimeMillis() + 60 * 60_000L
+        app.settingsRepository.pauseCaptureUntil(resumeAt)
+        CaptureController.applyFromSettings(app)
+        CaptureResumeWorker.schedule(app, resumeAt)
+        _uiState.update { it.copy(capturePausedUntilMs = resumeAt) }
+    }
+
+    fun resumeCaptureNow() {
+        app.settingsRepository.clearCapturePause()
+        CaptureResumeWorker.cancel(app)
+        CaptureController.applyFromSettings(app)
+        _uiState.update { it.copy(capturePausedUntilMs = 0L) }
+    }
+
     fun setCloudLlmEnabled(enabled: Boolean) {
         app.settingsRepository.setCloudLlmEnabled(enabled)
         _uiState.update { it.copy(cloudLlmEnabled = enabled) }
@@ -578,6 +596,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(placeError = error.message ?: "Unable to delete this place.")
                     }
+                },
+            )
+        }
+    }
+
+    fun setPlacePrivate(place: Place, isPrivate: Boolean) {
+        if (placeMutationInFlight) return
+        placeMutationInFlight = true
+        viewModelScope.launch {
+            runCatching { app.placeRepository.setPrivate(place, isPrivate) }.fold(
+                onSuccess = {
+                    placeMutationInFlight = false
+                    _uiState.update { state ->
+                        state.copy(
+                            places = state.places.map { candidate ->
+                                if (candidate.id == place.id) candidate.copy(isPrivate = isPrivate) else candidate
+                            },
+                            placeError = null,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    placeMutationInFlight = false
+                    _uiState.update { it.copy(placeError = error.message ?: "Unable to update privacy.") }
                 },
             )
         }

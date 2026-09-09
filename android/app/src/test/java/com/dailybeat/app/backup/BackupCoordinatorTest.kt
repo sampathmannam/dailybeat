@@ -20,7 +20,7 @@ class BackupCoordinatorTest {
         val result = coordinator.backupNow()
 
         assertEquals(4_321L, result.getOrThrow())
-        assertTrue(remote.uploaded.orEmpty().contains("\"schemaVersion\":1"))
+        assertTrue(remote.uploaded.orEmpty().contains("\"schemaVersion\":2"))
         assertFalse(remote.uploaded.orEmpty().contains("apiKey", ignoreCase = true))
     }
 

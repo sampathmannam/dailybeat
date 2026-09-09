@@ -61,7 +61,7 @@ class FeedScreenTest {
 
     @Test
     fun feedShowsTodayAsACardWithStopsAndDurations() {
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
 
         composeRule.waitUntilAtLeastOneExists(
             hasTestTag("feed_card_${DateKeys.today()}"),
@@ -81,8 +81,8 @@ class FeedScreenTest {
     }
 
     @Test
-    fun tappingADayOpensThatDaysDiary() {
-        composeRule.onNodeWithTag("nav_history").performClick()
+    fun tappingADayOpensThatDaysReview() {
+        composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(
             hasTestTag("feed_card_${DateKeys.today()}"),
             timeoutMillis = 20_000,
@@ -90,12 +90,12 @@ class FeedScreenTest {
 
         composeRule.onNodeWithTag("feed_card_${DateKeys.today()}").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasText("Custom events (paste)"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("review_day_screen"), timeoutMillis = 10_000)
     }
 
     @Test
     fun feedTabIsReachableAndEmptyStateIsNotShownForACapturedDay() {
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(hasText("Your days"), timeoutMillis = 10_000)
 
         composeRule.onNodeWithText("No days captured yet").assertDoesNotExist()
@@ -123,7 +123,7 @@ class FeedScreenTest {
             }
         }
         composeRule.activityRule.scenario.recreate()
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(hasText("+3 more stops"), timeoutMillis = 20_000)
 
         // A lazy card may exist below the viewport. Scroll the actual control into view
@@ -145,7 +145,7 @@ class FeedScreenTest {
         val dayStart = DayBounds.dayStartEnd(yesterday).first
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
 
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(
             hasTestTag("feed_card_${DateKeys.today()}"),
             timeoutMillis = 20_000,
@@ -167,7 +167,7 @@ class FeedScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
         waitForFeedRefresh()
         // Unseen lazy-list rows are not composed. Waiting for their semantics without
         // scrolling incorrectly reports a missing day on a smaller viewport.
@@ -182,7 +182,7 @@ class FeedScreenTest {
         val dayStart = DayBounds.dayStartEnd(yesterday).first
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
 
-        composeRule.onNodeWithTag("nav_history").performClick()
+        composeRule.onNodeWithTag("nav_days").performClick()
         waitForFeedRefresh()
         // Stop and resume the same Activity, without recreating it or switching tabs.
         composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)

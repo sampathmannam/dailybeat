@@ -8,6 +8,7 @@ import com.dailybeat.app.capture.LocationService
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +29,7 @@ class CaptureLifecycleTest {
         app = ApplicationProvider.getApplicationContext()
         app.settingsRepository.setOnboardingComplete(true)
         app.settingsRepository.setGpsEnabled(true)
+        app.settingsRepository.clearCapturePause()
         OperationalFailureLog.clear(app)
         stopCaptureAndWait()
     }
@@ -39,6 +41,11 @@ class CaptureLifecycleTest {
 
     @Test
     fun openingTheAppReArmsPassiveCapture() {
+        assumeTrue(
+            "This emulator has no Google location provider; the physical-phone gate covers capture.",
+            com.google.android.gms.common.GoogleApiAvailability.getInstance()
+                .isGooglePlayServicesAvailable(app) == com.google.android.gms.common.ConnectionResult.SUCCESS,
+        )
         assertFalse("Precondition: capture must be stopped before launch.", LocationService.isRunning)
 
         ActivityScenario.launch(MainActivity::class.java).use {
@@ -63,6 +70,17 @@ class CaptureLifecycleTest {
             )
         }
         app.settingsRepository.setGpsEnabled(true)
+    }
+
+    @Test
+    fun captureStaysOffDuringAPrivacyPause() {
+        app.settingsRepository.pauseCaptureUntil(System.currentTimeMillis() + 60_000L)
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            Thread.sleep(3_000)
+            assertFalse("Capture started during an active privacy pause.", LocationService.isRunning)
+        }
+        app.settingsRepository.clearCapturePause()
     }
 
     private fun stopCaptureAndWait() {
