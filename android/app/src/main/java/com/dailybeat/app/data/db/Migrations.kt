@@ -23,6 +23,10 @@ object DailyBeatMigrations {
 
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        // Some early installs first shipped at schema 3, so they never ran MIGRATION_2_3.
+        // Repair the missing index here as well; CREATE IF NOT EXISTS is safe for every
+        // other schema-6 variant and preserves all diary rows.
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_diaries_dateKey ON diaries(dateKey)")
         db.execSQL("DROP INDEX IF EXISTS index_dsr_imports_sha256")
         db.execSQL("CREATE INDEX index_dsr_imports_sha256 ON dsr_imports(sha256)")
         db.execSQL("ALTER TABLE dsr_imports ADD COLUMN parserVersion INTEGER NOT NULL DEFAULT 1")

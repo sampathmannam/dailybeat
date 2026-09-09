@@ -1,0 +1,1 @@
+Publish DailyBeat v3.7.1 only after the schema-6 migration regression test, build, instrumentation, live cloud-backup, backend, and CodeQL checks pass on the protected main commit.
