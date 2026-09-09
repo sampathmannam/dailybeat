@@ -35,6 +35,11 @@ data class JourneyMapModel(
     val longitudeSpan: Double = 0.0,
     val crossesAntimeridian: Boolean = false,
 ) {
+    val stopPoints: List<JourneyPoint>
+        get() = points.filter { it.visitType != "transit" }.ifEmpty {
+            points.firstOrNull()?.let(::listOf).orEmpty()
+        }
+
     val bounds: JourneyBounds
         get() = requireNotNull(boundsOrNull)
 
@@ -129,19 +134,22 @@ data class JourneyMapModel(
         private fun latitudeFromMercatorY(y: Double): Double =
             Math.toDegrees(atan(sinh(Math.PI * (1.0 - 2.0 * y))))
 
-        fun fromVisits(visits: List<LocationVisit>): JourneyMapModel {
-            val points = visits
+        fun fromVisits(visits: List<LocationVisit>): JourneyMapModel = fromPoints(
+            visits.map {
+                JourneyPoint(
+                    startMs = it.startMs,
+                    latitude = it.latitude,
+                    longitude = it.longitude,
+                    visitType = it.visitType,
+                )
+            },
+        )
+
+        fun fromPoints(sourcePoints: List<JourneyPoint>): JourneyMapModel {
+            val points = sourcePoints
                 .asSequence()
                 .filter { it.hasMappableCoordinate() }
                 .sortedBy { it.startMs }
-                .map {
-                    JourneyPoint(
-                        startMs = it.startMs,
-                        latitude = it.latitude,
-                        longitude = it.longitude,
-                        visitType = it.visitType,
-                    )
-                }
                 .toList()
 
             if (points.isEmpty()) return JourneyMapModel(points, null)
@@ -176,7 +184,7 @@ data class JourneyMapModel(
             )
         }
 
-        private fun LocationVisit.hasMappableCoordinate(): Boolean =
+        private fun JourneyPoint.hasMappableCoordinate(): Boolean =
             latitude.isFinite() && longitude.isFinite() &&
                 latitude in -WEB_MERCATOR_MAX_LATITUDE..WEB_MERCATOR_MAX_LATITUDE &&
                 longitude in -180.0..180.0 &&

@@ -1,9 +1,10 @@
-# DailyBeat v3.7.1 — install and verify
+# DailyBeat v3.7.2 — install and verify
 
-Version 3.7.1 includes the journey-feed and reliability hardening plus a data-preserving fix for
-older schema-6 databases that do not yet contain the diary-date index. DSR is a separate app in the
-private `sampathmannam/dsr` repository; its old DailyBeat records and PDFs are retained, not deleted.
-Regular QA uses `com.dailybeat.app.qa`. Destructive instrumentation must use
+Version 3.7.2 adds clear OpenStreetMap journey cards to Today and Feed, draws travelled routes in
+DailyBeat yellow, and aligns the GPS and Cloud AI status indicators. It retains the data-preserving
+schema-6 upgrade fix. DSR is a separate app in the private `sampathmannam/dsr` repository; its old
+DailyBeat records and PDFs are retained, not deleted. Regular QA uses `com.dailybeat.app.qa`.
+Destructive instrumentation must use
 `com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
 
 ## Cloud AI configuration
@@ -26,9 +27,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v3.7.1`):
+After every release gate passes, download these assets from GitHub Releases (tag `v3.7.2`):
 
-- `DailyBeat-v3.7.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v3.7.2.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

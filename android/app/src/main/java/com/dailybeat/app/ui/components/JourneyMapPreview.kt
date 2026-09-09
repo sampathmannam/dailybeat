@@ -66,8 +66,8 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlin.math.roundToInt
 
-private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
+private const val ROUTE_CASING_LAYER_ID = "dailybeat-route-casing-layer"
 private const val ROUTE_LAYER_ID = "dailybeat-route-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
@@ -93,7 +93,7 @@ fun JourneyMapPreview(
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
         mapError = false
         mapRendered = false
-        readyMap.setStyle(MAP_STYLE_URL) { style ->
+        readyMap.setStyle(JOURNEY_MAP_STYLE_URL) { style ->
             loadedStyle = style
             mapError = false
         }
@@ -333,7 +333,7 @@ private fun MapLibreMap.renderJourney(
         uiSettings.isAttributionEnabled = true
         uiSettings.isLogoEnabled = true
 
-        val points = model.points.map { Point.fromLngLat(it.longitude, it.latitude) }
+        val points = model.stopPoints.map { Point.fromLngLat(it.longitude, it.latitude) }
         val routeFeatures = model.routeSegments
             .filter { it.size >= 2 }
             .map { segment ->
@@ -354,8 +354,16 @@ private fun MapLibreMap.renderJourney(
                     ),
                 )
                 style.addLayer(
+                    LineLayer(ROUTE_CASING_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
+                        lineColor(JOURNEY_ROUTE_CASING_COLOR),
+                        lineWidth(8f),
+                        lineCap(Property.LINE_CAP_ROUND),
+                        lineJoin(Property.LINE_JOIN_ROUND),
+                    ),
+                )
+                style.addLayer(
                     LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
-                        lineColor("#B7791F"),
+                        lineColor(JOURNEY_ROUTE_COLOR),
                         lineWidth(5f),
                         lineCap(Property.LINE_CAP_ROUND),
                         lineJoin(Property.LINE_JOIN_ROUND),
@@ -366,6 +374,7 @@ private fun MapLibreMap.renderJourney(
             }
         } else if (style.getSource(ROUTE_SOURCE_ID) != null) {
             style.removeLayer(ROUTE_LAYER_ID)
+            style.removeLayer(ROUTE_CASING_LAYER_ID)
             style.removeSource(ROUTE_SOURCE_ID)
         }
 
@@ -380,9 +389,9 @@ private fun MapLibreMap.renderJourney(
             )
             style.addLayer(
                 CircleLayer(STOP_LAYER_ID, STOP_SOURCE_ID).withProperties(
-                    circleColor("#059669"),
+                    circleColor(JOURNEY_STOP_COLOR),
                     circleRadius(6f),
-                    circleStrokeColor("#FFFFFF"),
+                    circleStrokeColor(JOURNEY_STOP_STROKE_COLOR),
                     circleStrokeWidth(2f),
                 ),
             )

@@ -1,0 +1,1 @@
+Publish DailyBeat v3.7.2 only after the journey-map, status-chip, build, instrumentation, live cloud-backup, backend, and CodeQL checks pass on the protected main commit.

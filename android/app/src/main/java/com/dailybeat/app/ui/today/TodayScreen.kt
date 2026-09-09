@@ -4,12 +4,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
@@ -275,21 +279,34 @@ private fun StatusStrip(gpsOn: Boolean, cloudReady: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         StatusChip(
             label = if (gpsOn) stringResource(R.string.status_gps_on) else stringResource(R.string.status_gps_off),
             active = gpsOn,
+            icon = Icons.Default.MyLocation,
+            testTag = "status_gps",
         )
         StatusChip(
             label = if (cloudReady) stringResource(R.string.status_cloud_on) else stringResource(R.string.status_cloud_off),
             active = cloudReady,
+            icon = Icons.Default.AutoAwesome,
+            testTag = "status_cloud",
         )
     }
 }
 
 @Composable
-private fun StatusChip(label: String, active: Boolean) {
+private fun StatusChip(
+    label: String,
+    active: Boolean,
+    icon: ImageVector,
+    testTag: String,
+) {
     Surface(
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .testTag(testTag),
         shape = MaterialTheme.shapes.small,
         color = if (active) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
@@ -302,9 +319,11 @@ private fun StatusChip(label: String, active: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (active && label.contains("Cloud")) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.padding(0.dp))
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,

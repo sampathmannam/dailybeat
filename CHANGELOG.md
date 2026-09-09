@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.7.2 — 2026-09-09
+
+### Improved
+- **Today and Feed now show real OpenStreetMap context** instead of an abstract route sketch.
+  Travel is drawn in DailyBeat yellow with a navy casing and clear stay markers; Today keeps a
+  stable snapshot card and opens the existing interactive full map on demand.
+- **GPS tracking and Cloud AI status indicators now align consistently** with matching icon slots,
+  height, spacing, and vertical position.
+
+### Fixed
+- Feed map verification now scrolls to the map itself, covering compact phone viewports without
+  depending on how the clickable day card merges accessibility semantics.
+
 ## 3.7.1 — 2026-09-09
 
 ### Fixed
