@@ -9,5 +9,5 @@ if [ -f "$ROOT/scripts/mac_sync_and_run.sh" ]; then
 else
   cd "$ROOT/android"
   ./gradlew installDebug
-  adb shell am start -n com.dailybeat.app/.MainActivity
+  adb shell am start -n com.dailybeat.app.qa/com.dailybeat.app.MainActivity
 fi

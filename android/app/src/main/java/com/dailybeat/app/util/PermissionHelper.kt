@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 
 object PermissionHelper {
@@ -32,18 +33,24 @@ object PermissionHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** Foreground location on all APIs; background location on API 29+ when passive GPS is expected. */
-    fun canCaptureLocation(context: Context): Boolean {
-        if (!hasLocation(context)) return false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return hasBackgroundLocation(context)
-        }
-        return true
-    }
+    /**
+     * Whether passive capture can run at all. A foreground service declaring the location type
+     * keeps receiving fixes on API 29+ with only the foreground grant, so requiring
+     * ACCESS_BACKGROUND_LOCATION here disabled capture outright for anyone who chose
+     * "While using the app". Background location still buys better continuity, and
+     * [hasBackgroundLocation] reports that separately.
+     */
+    fun canCaptureLocation(context: Context): Boolean = hasLocation(context)
 
-    fun hasCallLog(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
-            PackageManager.PERMISSION_GRANTED
+    /**
+     * Whether the system will leave passive capture alone. Under battery optimisation an OEM can
+     * stop the foreground service after a while, which is the usual reason tracking dies on a
+     * real phone without anything in the app looking wrong.
+     */
+    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        val power = context.getSystemService(PowerManager::class.java) ?: return true
+        return power.isIgnoringBatteryOptimizations(context.packageName)
+    }
 
     fun hasNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true

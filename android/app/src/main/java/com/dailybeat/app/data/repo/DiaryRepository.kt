@@ -19,7 +19,8 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
 
     suspend fun saveForDate(date: LocalDate, text: String) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty()) return
+        // An empty body is a deliberate clear, not a no-op; dropping it made the old text
+        // reappear the next time the day was opened.
         diaryDao.upsert(
             DiaryEntry(
                 dateKey = DateKeys.format(date),
@@ -37,4 +38,7 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
     suspend fun countNonEmpty(): Int = diaryDao.countNonEmpty()
 
     suspend fun recentSync(limit: Int = 30): List<DiaryEntry> = diaryDao.recent(limit)
+
+    suspend fun weekEnding(date: LocalDate): List<DiaryEntry> =
+        diaryDao.nonEmptyBetween(DateKeys.format(date.minusDays(6)), DateKeys.format(date))
 }

@@ -2,35 +2,36 @@ package com.dailybeat.app.data.settings
 
 import android.content.Context
 
-class SettingsRepository(private val context: Context) {
+class SettingsRepository(
+    private val context: Context,
+    val secureApiKey: SecureApiKeyStore = SecureApiKeyStore(context),
+) {
 
     private val prefs = context.getSharedPreferences("dailybeat_settings", Context.MODE_PRIVATE)
-    val secureApiKey = SecureApiKeyStore(context)
 
     fun get(): AppSettings = AppSettings(
-        officerName = prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer",
+        officerName = (prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer")
+            .take(MAX_NAME_CHARS),
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
-        callLogEnabled = prefs.getBoolean(KEY_CALL_LOG, false),
         cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
-        cloudProvider = prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id) ?: CloudProvider.DEEPSEEK.id,
-        cloudModel = prefs.getString(KEY_CLOUD_MODEL, CloudProvider.DEEPSEEK.defaultModel)
-            ?: CloudProvider.DEEPSEEK.defaultModel,
-        cloudBaseUrl = prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "",
+        cloudProvider = (prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id)
+            ?: CloudProvider.DEEPSEEK.id).let { stored ->
+            CloudProvider.entries.find { it.id == stored }?.id ?: CloudProvider.DEEPSEEK.id
+        },
+        cloudModel = (prefs.getString(KEY_CLOUD_MODEL, CloudProvider.DEEPSEEK.defaultModel)
+            ?: CloudProvider.DEEPSEEK.defaultModel).take(MAX_MODEL_CHARS),
+        cloudBaseUrl = (prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "").take(MAX_URL_CHARS),
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
-        supervisorName = prefs.getString(KEY_SUPERVISOR, "") ?: "",
+        supervisorName = (prefs.getString(KEY_SUPERVISOR, "") ?: "").take(MAX_NAME_CHARS),
     )
 
     fun setOfficerName(name: String) {
-        prefs.edit().putString(KEY_OFFICER, name.trim()).apply()
+        prefs.edit().putString(KEY_OFFICER, name.trim().take(MAX_NAME_CHARS)).apply()
     }
 
     fun setGpsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_GPS, enabled).apply()
-    }
-
-    fun setCallLogEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CALL_LOG, enabled).apply()
     }
 
     fun setCloudLlmEnabled(enabled: Boolean) {
@@ -38,15 +39,17 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun setCloudProvider(providerId: String) {
-        prefs.edit().putString(KEY_CLOUD_PROVIDER, providerId).apply()
+        val safeProvider = CloudProvider.entries.find { it.id == providerId }?.id
+            ?: CloudProvider.DEEPSEEK.id
+        prefs.edit().putString(KEY_CLOUD_PROVIDER, safeProvider).apply()
     }
 
     fun setCloudModel(model: String) {
-        prefs.edit().putString(KEY_CLOUD_MODEL, model.trim()).apply()
+        prefs.edit().putString(KEY_CLOUD_MODEL, model.trim().take(MAX_MODEL_CHARS)).apply()
     }
 
     fun setCloudBaseUrl(url: String) {
-        prefs.edit().putString(KEY_CLOUD_BASE_URL, url.trim()).apply()
+        prefs.edit().putString(KEY_CLOUD_BASE_URL, url.trim().take(MAX_URL_CHARS)).apply()
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
@@ -54,7 +57,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun setSupervisorName(name: String) {
-        prefs.edit().putString(KEY_SUPERVISOR, name.trim()).apply()
+        prefs.edit().putString(KEY_SUPERVISOR, name.trim().take(MAX_NAME_CHARS)).apply()
     }
 
     fun setAutoMiddayPulse(enabled: Boolean) {
@@ -72,7 +75,6 @@ class SettingsRepository(private val context: Context) {
     companion object {
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_GPS = "gps_enabled"
-        private const val KEY_CALL_LOG = "call_log_enabled"
         private const val KEY_ONBOARDING = "onboarding_complete"
         private const val KEY_CLOUD_ENABLED = "cloud_llm_enabled"
         private const val KEY_CLOUD_PROVIDER = "cloud_provider"
@@ -81,5 +83,8 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
         private const val KEY_SUPERVISOR = "supervisor_name"
+        private const val MAX_NAME_CHARS = 120
+        private const val MAX_MODEL_CHARS = 200
+        private const val MAX_URL_CHARS = 2_048
     }
 }

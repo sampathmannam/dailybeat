@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-files-path name="dailybeat_pdfs" path="DailyBeat/" />
+    <!-- Used when external app storage is unavailable; see AppStorage. -->
+    <files-path name="dailybeat_pdfs_internal" path="DailyBeat/" />
 </paths>

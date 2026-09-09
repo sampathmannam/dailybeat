@@ -1,5 +1,106 @@
 # Changelog
 
+## 3.7.0 — 2026-09-07
+
+### Added
+- **A redesigned adaptive “Journey Ledger” app icon** combines the daily record, mapped route,
+  and destination in one small-size-safe mark, with Android monochrome/themed-icon support.
+- **Daily journey feed.** The History tab is now a feed with one card per day: the day's route
+  drawn from its GPS track, distance travelled, time out, stop count, and every stay listed as
+  name, arrival time, and duration ("Rasipuram Police Station · 08:00 · 40 min"). Tapping a day
+  opens its diary. Routes are vector-drawn rather than embedding a map view per card.
+- **Places are named by the map.** Reverse geocoding now requests name details at building zoom
+  and prefers the feature's own name over the street it sits on, so a stay at a police station is
+  labelled as that station. Names are cached with the address (schema 6).
+
+### Removed
+- **Call-log capture.** The permission, worker, Settings toggle, synthetic call events, and the
+  call wording in the AI prompts are gone. Restoring an older cloud backup still works.
+
+### Fixed
+- **Voice notes no longer depend on a successful cloud round trip.** The recognized transcript is
+  always preserved as the source event; cloud metadata extraction is best-effort and can never
+  replace the officer's words with a shortened model summary.
+- **Capture now survives service recreation with an on-device checkpoint**, consumes every fix in
+  a batched Fused Location update, requests sticky service restart, rejects reversed timestamps,
+  and does not wait for reverse geocoding before treating a visit as persistable.
+- **Cross-midnight visits appear on both affected days** with each day's clipped duration instead
+  of disappearing because their start timestamp belonged to the previous day.
+- **Cloud reports fail closed on unknown citations**, retry only typed transient failures, use
+  explicit output budgets and bounded responses, and preserve officer-written text around
+  unattended daily, midday, and weekly generated blocks.
+- **Diary drafts survive process recreation and intentional clearing.** Pending edits are flushed
+  before generation, failed note saves keep the typed text on screen, and PDF/ZIP exports are
+  written atomically and surfaced through Android's share sheet.
+- **Map rendering moved to a dedicated screen.** Today uses a lightweight route preview, keeping
+  normal navigation independent of tile-network and MapLibre idling behavior.
+- **Cloud-backup restore validates bounds, record counts, coordinates, dates, providers, and the
+  complete snapshot before the local Room transaction can replace records.**
+- **The schema-6 upgrade reconciles both schema-5 variants safely.** Existing v3.6 installs retain
+  DSR imports while gaining named geocodes, and reliability QA installs retain their diary and
+  geocode cache while gaining DSR tables.
+- **CI now separates build/unit/lint from Android 14 instrumentation**, bounds emulator execution,
+  captures failure evidence, and gates tagged releases on both successful checks.
+- **A stay's start time was subject to a data race.** The dwell start was read inside the coroutine
+  that recorded the stay, while the field was reset synchronously right after that coroutine was
+  launched, with no synchronisation between them. Losing the race stores the stay at the epoch,
+  where it matches no date and appears nowhere in the app. Tests reproduce the loss reliably; real
+  captures on an Android 17 device happened to win it, so the corruption is intermittent rather
+  than certain. The start time is now read before dispatching.
+- **Stays were lost on a vehicle departure.** A stay ended at the last sample taken inside its
+  radius, and the 75 m update filter produces none when the officer drives off, so the whole stay
+  was discarded. Stays now end when the departure is detected.
+- **Journeys between two places were dropped** when the stay anchor reset mid-trip.
+- **The weekly rollup overwrote the same day's diary**, and the unattended 8 PM report overwrote
+  anything the officer had typed by hand. Both now keep the officer's text and replace only their
+  own block on regeneration.
+- **Passive capture stayed dead after a force-stop or an app update** until the next reboot, while
+  Today still reported "GPS tracking on". Opening the app re-arms capture, and the status now
+  reflects whether the service is genuinely running.
+- **Capture was switched off entirely for anyone who granted location "while using the app"**, even
+  though a foreground service with the location type keeps receiving fixes.
+- **The evening and midday reports ran a cloud round trip inside a broadcast receiver**, which the
+  platform kills long before a 180-second request can finish. Both now run in WorkManager, which
+  also waits for connectivity; the retry worker previously had no network constraint and burned out
+  its attempts while offline.
+- **Clearing a diary did not stick** — an empty body was discarded and the old text reappeared.
+- **PDF export, the week ZIP export, and audit-log reads and writes ran on the UI thread.**
+- Voice capture could hang forever if the recognizer never called back; it now times out.
+- Settings no longer discards a half-typed place or a connection-test result when it refreshes.
+- File output falls back to internal storage when external app storage is unavailable.
+
+### Security and robustness audit
+- **Fixed a crash found by adversarial UI fuzzing.** An Android Monkey run aborted at event 4720
+  with `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true`,
+  raised by Compose's directional focus search inside a LazyColumn. It is reachable from a
+  hardware keyboard, a D-pad, or accessibility navigation. Fixed by moving to Compose BOM
+  2024.09.02 (compileSdk 35, AGP 8.6.1); 14,000 Monkey events across four seeds now run clean.
+- Android Lint: 0 errors.
+- All 122 shipped dependencies checked against the OSV vulnerability database: 0 vulnerable.
+- Release build verified end to end through R8 minification.
+
+### Tests
+- Unit coverage expanded substantially, including adversarial suites that fuzz the capture engine with random,
+  reversed, repeated, and antimeridian-crossing GPS fixes, and drive the cloud client through rate
+  limits, outages, dropped connections, malformed JSON, and oversized answers. The cloud client
+  previously had no tests at all.
+  New coverage for the capture engine (which had none), the real shipped database upgrade paths
+  (2→5, previously untested), geocoding and name extraction, report save semantics, and the feed model.
+- Instrumented: added feed and capture-lifecycle tests; permission granting in tests no longer
+  races the tests that depend on it.
+
+## 3.6.0 — 2026-09-07
+
+### Added
+- **Local-first DSR Command dashboard.** Operational PDF imports are parsed on the device into
+  command cards, forecasts, station snapshots, headline metrics, and review warnings.
+- Corrected reports replace the active snapshot for the same date instead of double-counting it;
+  imported source PDFs remain in app-private storage and are excluded from cloud backup.
+
+### Release
+- Re-established the permanent signed-APK publisher and added the PDFBox optional JPEG-2000
+  shrinker rule required by the release build.
+
 ## 3.4.0 — 2026-08-30
 
 - Replaced the decorative journey sketch with an interactive OpenStreetMap-based map using MapLibre and OpenFreeMap.

@@ -12,6 +12,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.net.UnknownHostException
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 class SupabaseBackupClientTest {
@@ -54,6 +56,36 @@ class SupabaseBackupClientTest {
         val request = server.takeRequest()
         assertEquals("/auth/v1/token?grant_type=password", request.path)
         assertEquals("public-anon-key", request.getHeader("apikey"))
+    }
+
+    @Test
+    fun `sign in retries transient network lookup failures`() = runBlocking {
+        val attempts = AtomicInteger()
+        val retryingClient = SupabaseBackupClient(
+            configuration = BackupConfiguration(server.url("/").toString(), "public-anon-key"),
+            sessionStore = sessions,
+            httpClient = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    if (attempts.incrementAndGet() < 3) {
+                        throw UnknownHostException("synthetic lookup failure")
+                    }
+                    chain.proceed(chain.request())
+                }
+                .build(),
+            clock = { 1_000_000L },
+            networkRetryDelaysMs = listOf(0L, 0L),
+        )
+        server.enqueue(
+            jsonResponse(
+                """{"access_token":"access-one","refresh_token":"refresh-one","expires_in":3600,"user":{"id":"user-1","email":"person@example.com"}}""",
+            ),
+        )
+
+        val result = retryingClient.signIn("person@example.com", "correct horse")
+
+        assertTrue(result.isSuccess)
+        assertEquals(3, attempts.get())
+        assertEquals("user-1", sessions.current?.userId)
     }
 
     @Test

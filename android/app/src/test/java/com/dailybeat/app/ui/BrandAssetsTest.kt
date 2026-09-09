@@ -43,16 +43,18 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun launcherUsesSelectedSmartFieldNoteBrand() {
+    fun launcherUsesSelectedJourneyLedgerBrand() {
         val colors = resource("values/colors.xml")
         val foreground = resource("drawable/ic_launcher_foreground.xml")
 
-        assertTrue("#0B1633" in colors)
-        assertTrue("#FFF7E8" in foreground)
-        assertTrue("#FF6B4A" in foreground)
-        assertTrue("#F4A629" in foreground)
-        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 4)
-        assertFalse("M54,30 L70,54 L54,78 L38,54 Z" in foreground)
+        assertTrue("#1E3A5F" in colors)
+        assertTrue("#FFF8E7" in foreground)
+        assertTrue("#E8A317" in foreground)
+        assertTrue("#E76F51" in foreground)
+        assertTrue("M31,19" in foreground) // daily record page
+        assertTrue("M37,72 C41,66" in foreground) // mapped route
+        assertTrue("M62,27 C53.7" in foreground) // destination pin
+        assertTrue(Regex("<path\\b").findAll(foreground).count() >= 5)
     }
 
     @Test

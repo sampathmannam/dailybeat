@@ -49,14 +49,16 @@ class EventRepository(private val eventDao: EventDao) {
     }
 
     suspend fun addStructuredEvent(structured: StructuredEvent, type: String = "voice") {
+        val rawText = structured.rawText.trim().take(MAX_EVENT_CHARS)
+        if (rawText.isEmpty()) return
         eventDao.insert(
             Event(
                 timestamp = structured.timestamp,
-                type = type,
-                rawText = structured.rawText,
-                placeName = structured.placeName,
-                peopleMentioned = structured.peopleMentioned,
-                caseNumbers = structured.caseNumbers,
+                type = type.trim().take(MAX_TYPE_CHARS).ifBlank { "voice" },
+                rawText = rawText,
+                placeName = structured.placeName.bounded(MAX_PLACE_CHARS),
+                peopleMentioned = structured.peopleMentioned.bounded(MAX_METADATA_CHARS),
+                caseNumbers = structured.caseNumbers.bounded(MAX_METADATA_CHARS),
             ),
         )
     }
@@ -73,5 +75,13 @@ class EventRepository(private val eventDao: EventDao) {
 
     companion object {
         private const val MAX_EVENT_CHARS = 8_000
+        private const val MAX_TYPE_CHARS = 32
+        private const val MAX_PLACE_CHARS = 500
+        private const val MAX_METADATA_CHARS = 1_000
     }
+
+    private fun String?.bounded(maxChars: Int): String? = this
+        ?.trim()
+        ?.take(maxChars)
+        ?.takeIf { it.isNotEmpty() }
 }

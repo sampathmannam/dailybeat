@@ -49,7 +49,6 @@ class BackupSnapshotCodecTest {
             settings = BackupSettings(
                 officerName = "Sampath",
                 gpsCaptureEnabled = true,
-                callLogEnabled = false,
                 cloudLlmEnabled = true,
                 cloudProvider = "deepseek",
                 cloudModel = "deepseek-chat",
@@ -91,5 +90,20 @@ class BackupSnapshotCodecTest {
         }
 
         assertEquals("Backup is not valid JSON.", error.message)
+    }
+
+    @Test
+    fun `invalid coordinates are rejected before restore`() {
+        val invalid = BackupSnapshot.empty(createdAtMs = 123L).copy(
+            places = listOf(
+                Place(id = 1, name = "Impossible", latitude = 91.0, longitude = 0.0, radiusM = 100),
+            ),
+        )
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            BackupSnapshotCodec.encode(invalid)
+        }
+
+        assertEquals("Backup contains an invalid latitude.", error.message)
     }
 }

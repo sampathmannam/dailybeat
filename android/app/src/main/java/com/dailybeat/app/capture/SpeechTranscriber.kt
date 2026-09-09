@@ -9,7 +9,9 @@ import android.speech.SpeechRecognizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /** Captures one voice note using Android's configured speech-recognition service. */
 class SpeechTranscriber(private val context: Context) {
@@ -18,6 +20,11 @@ class SpeechTranscriber(private val context: Context) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             return@withContext ""
         }
+        // A recognizer that never calls back would leave the UI stuck on "recording" forever.
+        withTimeoutOrNull(RECOGNITION_TIMEOUT_MS) { listenOnce() }.orEmpty()
+    }
+
+    private suspend fun listenOnce(): String =
         suspendCancellableCoroutine { cont ->
             val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
             cont.invokeOnCancellation { recognizer.destroy() }
@@ -52,9 +59,17 @@ class SpeechTranscriber(private val context: Context) {
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
 
-            recognizer.startListening(intent)
+            try {
+                recognizer.startListening(intent)
+            } catch (error: Exception) {
+                recognizer.destroy()
+                if (cont.isActive) cont.resumeWithException(error)
+            }
         }
-    }
 
     fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
+
+    private companion object {
+        const val RECOGNITION_TIMEOUT_MS = 30_000L
+    }
 }

@@ -5,6 +5,7 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
 class VisitRepository(private val visitDao: VisitDao) {
@@ -14,12 +15,14 @@ class VisitRepository(private val visitDao: VisitDao) {
 
     fun observeForDate(date: LocalDate): Flow<List<LocationVisit>> {
         val (start, end) = DayBounds.dayStartEnd(date)
-        return visitDao.observeBetween(start, end)
+        return visitDao.observeBetween(start, end).map { visits ->
+            visits.map { it.clippedTo(start, end) }
+        }
     }
 
     suspend fun visitsForDate(date: LocalDate): List<LocationVisit> {
         val (start, end) = DayBounds.dayStartEnd(date)
-        return visitDao.between(start, end)
+        return visitDao.between(start, end).map { it.clippedTo(start, end) }
     }
 
     suspend fun visitsLastDays(days: Int): List<LocationVisit> {
@@ -31,4 +34,9 @@ class VisitRepository(private val visitDao: VisitDao) {
     }
 
     suspend fun insert(visit: LocationVisit) = visitDao.insert(visit)
+
+    private fun LocationVisit.clippedTo(dayStart: Long, dayEnd: Long): LocationVisit = copy(
+        startMs = maxOf(startMs, dayStart),
+        endMs = minOf(endMs, dayEnd),
+    )
 }

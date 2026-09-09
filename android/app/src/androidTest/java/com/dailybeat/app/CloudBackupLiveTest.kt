@@ -18,6 +18,7 @@ class CloudBackupLiveTest {
 
     @Test
     fun phoneBackupAndRestoreRoundTrip() = runBlocking {
+        requireDisposableTestApp()
         val arguments = InstrumentationRegistry.getArguments()
         val email = arguments.getString("backupEmail").orEmpty()
         val password = arguments.getString("backupPassword").orEmpty()

@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -37,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
@@ -76,6 +76,7 @@ private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 fun JourneyMapPreview(
     visits: List<LocationVisit>,
     modifier: Modifier = Modifier,
+    onFailure: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val model = remember(visits) { JourneyMapModel.fromVisits(visits) }
@@ -102,7 +103,10 @@ fun JourneyMapPreview(
             map = readyMap
             loadStyle(readyMap)
         },
-        onMapError = { mapError = true },
+        onMapError = {
+            mapError = true
+            onFailure("MapLibre map loading failed.")
+        },
     )
 
     DisposableEffect(map, loadedStyle, model, mapView, mapViewportSize) {
@@ -135,6 +139,7 @@ fun JourneyMapPreview(
                     mapRendered = false
                     mapView.contentDescription = mapDescription
                     mapError = true
+                    onFailure("MapLibre journey render failed.")
                 },
             )
             onDispose {
@@ -150,12 +155,12 @@ fun JourneyMapPreview(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
-        Column {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (mapError) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .weight(1f)
                         .padding(20.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -176,12 +181,15 @@ fun JourneyMapPreview(
                     }
                 }
             } else {
-                Box {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
                     AndroidView(
                         factory = { mapView },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
+                            .fillMaxSize()
                             .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )
@@ -220,7 +228,7 @@ fun JourneyMapPreview(
                         }
                     },
                 ) {
-                    Text(stringResource(R.string.journey_map_open))
+                    Text(stringResource(R.string.journey_map_open_external))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                         contentDescription = null,

@@ -33,6 +33,9 @@ interface DiaryDao {
     @Query("SELECT * FROM diaries ORDER BY dateKey DESC LIMIT :limit")
     suspend fun recent(limit: Int): List<DiaryEntry>
 
+    @Query("SELECT * FROM diaries WHERE dateKey >= :from AND dateKey <= :through AND TRIM(text) != '' ORDER BY dateKey DESC")
+    suspend fun nonEmptyBetween(from: String, through: String): List<DiaryEntry>
+
     @Query("SELECT COUNT(*) FROM diaries WHERE text != ''")
     suspend fun countNonEmpty(): Int
 }

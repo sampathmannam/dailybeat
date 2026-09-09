@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,8 +16,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
@@ -29,6 +32,7 @@ import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
+import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -39,6 +43,7 @@ fun DiaryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val dateLabel = uiState.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -51,6 +56,8 @@ fun DiaryScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .imePadding()
+            .testTag("diary_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -122,13 +129,15 @@ fun DiaryScreen(
             }
         }
 
-        if (uiState.text.isNotBlank()) {
+        // Keep the editor available after clearing a draft, and allow offline manual diaries.
+        // Hiding it when text becomes blank traps the user with no way to type a replacement.
+        run {
             item {
                 SectionHeader(title = stringResource(R.string.daily_diary_label))
                 OutlinedTextField(
                     value = uiState.text,
                     onValueChange = viewModel::updateDiaryText,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("diary_editor"),
                     label = { Text(stringResource(R.string.edit_dairy_label)) },
                     minLines = 8,
                     shape = RoundedCornerShape(16.dp),
@@ -138,21 +147,23 @@ fun DiaryScreen(
             item {
                 PrimaryButton(
                     text = stringResource(R.string.share_pdf_button),
+                    enabled = uiState.text.isNotBlank() && !uiState.isGenerating,
                     onClick = {
-                        val path = viewModel.exportPdfPath()
-                        if (path != null) {
-                            val file = java.io.File(path)
-                            val uri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                file,
-                            )
-                            val share = Intent(Intent.ACTION_SEND).apply {
-                                type = "application/pdf"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(share, "Share diary PDF"))
+                        scope.launch {
+                            val path = viewModel.exportPdfPath() ?: return@launch
+                            runCatching {
+                                val uri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    java.io.File(path),
+                                )
+                                val share = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(share, "Share diary PDF"))
+                            }.onFailure { viewModel.onShareError() }
                         }
                     },
                 )

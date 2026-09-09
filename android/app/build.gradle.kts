@@ -13,17 +13,22 @@ val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
 val supabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
     .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
     .getOrElse("")
+val debugApplicationIdSuffix = providers.gradleProperty("dailybeatDebugApplicationIdSuffix")
+    .getOrElse(".qa")
+require(Regex("\\.qa(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*").matches(debugApplicationIdSuffix)) {
+    "Debug builds must use .qa or a nested .qa.* package; production data must stay isolated."
+}
 
 android {
     namespace = "com.dailybeat.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "3.6.0"
+        versionCode = 13
+        versionName = "3.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
@@ -40,7 +45,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".qa"
+            applicationIdSuffix = debugApplicationIdSuffix
         }
         release {
             isMinifyEnabled = true
@@ -86,6 +91,30 @@ android {
     }
 }
 
+tasks.withType<Test> {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
+    }
+}
+
+// The regular .qa app can contain the officer's imported PDFs. Instrumentation fixtures
+// are destructive, so neither a default Gradle invocation nor a runner may target it.
+val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {
+    doLast {
+        require(debugApplicationIdSuffix == ".qa.e2eloop") {
+            "Instrumentation requires -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop; keep production and regular QA data intact."
+        }
+    }
+}
+tasks.configureEach {
+    if (name == "connectedDebugAndroidTest" || name == "installDebugAndroidTest") {
+        dependsOn(verifyDisposableTestTarget)
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
@@ -93,7 +122,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation("androidx.fragment:fragment-ktx:1.8.2")
-    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.09.02"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -109,8 +138,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
-    // On-device text extraction keeps operational DSR documents off third-party AI services.
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
@@ -119,7 +146,7 @@ dependencies {
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.02"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.1")

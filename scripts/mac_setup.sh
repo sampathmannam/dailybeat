@@ -10,7 +10,7 @@ BRANCH="${DAILYBEAT_BRANCH:-main}"
 TARGET="${DAILYBEAT_DIR:-$HOME/github/dailybeat}"
 REPO_URL="https://github.com/sampathmannam/dailybeat.git"
 
-echo "=== DailyBeat Mac setup (v2.0.0) ==="
+echo "=== DailyBeat Mac setup ==="
 echo "Target: $TARGET"
 echo "Branch: $BRANCH"
 

@@ -1,10 +1,5 @@
 package com.dailybeat.app.ui.settings
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,17 +14,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +40,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
@@ -56,15 +60,59 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val showQaTools = booleanResource(R.bool.show_qa_tools)
-    val context = LocalContext.current
-    val callLogPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
-            viewModel.setCallLogEnabled(true)
-        } else {
-            viewModel.onCallLogPermissionDenied()
+    val settingsContext = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var placePendingDeletion by remember { mutableStateOf<Place?>(null) }
+
+    if (state.apiKeyRemovalConfirmation) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelApiKeyRemoval,
+            title = { Text(stringResource(R.string.remove_api_key_title)) },
+            text = { Text(stringResource(R.string.remove_api_key_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmApiKeyRemoval,
+                    enabled = !state.apiKeyBusy,
+                    modifier = Modifier.testTag("confirm_remove_api_key"),
+                ) { Text(stringResource(R.string.remove_api_key_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelApiKeyRemoval) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    placePendingDeletion?.let { place ->
+        AlertDialog(
+            onDismissRequest = { placePendingDeletion = null },
+            title = { Text(stringResource(R.string.delete_place_title)) },
+            text = { Text(stringResource(R.string.delete_place_warning, place.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePlace(place)
+                        placePendingDeletion = null
+                    },
+                    modifier = Modifier.testTag("confirm_delete_place"),
+                ) { Text(stringResource(R.string.delete_place_confirm)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { placePendingDeletion = null },
+                    modifier = Modifier.testTag("cancel_delete_place"),
+                ) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    DisposableEffect(lifecycle, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
         }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -237,11 +285,18 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    SecondaryButton(
+                        text = stringResource(R.string.remove_api_key),
+                        onClick = viewModel::requestApiKeyRemoval,
+                        enabled = !state.apiKeyBusy && !state.cloudTesting,
+                        modifier = Modifier.testTag("remove_api_key"),
+                    )
                 }
                 PrimaryButton(
                     text = stringResource(R.string.save_api_key),
                     onClick = viewModel::saveApiKey,
-                    enabled = state.apiKeyDraft.isNotBlank(),
+                    enabled = state.apiKeyDraft.isNotBlank() &&
+                        !state.apiKeyBusy && !state.cloudTesting,
                 )
                 OutlinedTextField(
                     value = state.cloudModel,
@@ -281,7 +336,7 @@ fun SettingsScreen(
                 SecondaryButton(
                     text = stringResource(R.string.test_cloud_connection),
                     onClick = viewModel::testCloudConnection,
-                    enabled = !state.cloudTesting,
+                    enabled = !state.cloudTesting && !state.apiKeyBusy,
                 )
                 state.cloudTestResult?.let { msg ->
                     Text(text = msg, style = MaterialTheme.typography.bodySmall)
@@ -328,27 +383,34 @@ fun SettingsScreen(
                     checked = state.gpsEnabled,
                     onCheckedChange = viewModel::setGpsEnabled,
                 )
-                ToggleRow(
-                    label = stringResource(R.string.call_log_label),
-                    checked = state.callLogEnabled,
-                    onCheckedChange = { enabled ->
-                        if (!enabled) {
-                            viewModel.setCallLogEnabled(false)
-                        } else if (
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) ==
-                            PackageManager.PERMISSION_GRANTED
-                        ) {
-                            viewModel.setCallLogEnabled(true)
-                        } else {
-                            callLogPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
-                        }
+                Text(
+                    text = if (state.batteryUnrestricted) {
+                        stringResource(R.string.battery_unrestricted)
+                    } else {
+                        stringResource(R.string.battery_restricted)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.batteryUnrestricted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
                     },
                 )
+                if (!state.batteryUnrestricted) {
+                    SecondaryButton(
+                        text = stringResource(R.string.battery_open_settings),
+                        onClick = { openBatterySettings(settingsContext) },
+                    )
+                }
                 state.captureMessage?.let { message ->
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.open_app_settings),
+                        onClick = { openAppSettings(settingsContext) },
                     )
                 }
             }
@@ -401,7 +463,7 @@ fun SettingsScreen(
         }
 
         items(state.places, key = { it.id }) { place ->
-            PlaceCard(place = place, onDelete = { viewModel.deletePlace(place) })
+            PlaceCard(place = place, onDelete = { placePendingDeletion = place })
         }
     }
 }
@@ -465,9 +527,41 @@ private fun PlaceCard(place: Place, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onDelete) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.testTag("delete_place_${place.id}"),
+            ) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))
             }
         }
+    }
+}
+
+/**
+ * Sends the officer to the system screen where DailyBeat can be set to Unrestricted. The app
+ * deliberately does not ask for the exemption directly; the system list is the honest route and
+ * needs no extra permission.
+ */
+private fun openBatterySettings(context: android.content.Context) {
+    val intent = android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }.onFailure {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+}
+
+private fun openAppSettings(context: android.content.Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
