@@ -8,6 +8,20 @@ import org.junit.Test
 class JourneyMapModelTest {
 
     @Test
+    fun fromPoints_preservesRouteBreadcrumbsButMarksOnlyStops() {
+        val model = JourneyMapModel.fromPoints(
+            listOf(
+                JourneyPoint(100, 11.45, 78.18, "dwell"),
+                JourneyPoint(200, 11.46, 78.19, "transit"),
+                JourneyPoint(300, 11.47, 78.20, "dwell"),
+            ),
+        )
+
+        assertEquals(3, model.points.size)
+        assertEquals(listOf(100L, 300L), model.stopPoints.map { it.startMs })
+    }
+
+    @Test
     fun fromVisits_filtersInvalidCoordinatesAndOrdersChronologically() {
         val visits = listOf(
             visit(startMs = 300, latitude = 12.98, longitude = 77.61),

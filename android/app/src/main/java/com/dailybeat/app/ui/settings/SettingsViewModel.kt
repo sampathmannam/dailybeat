@@ -562,6 +562,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             runCatching { app.placeRepository.delete(place) }.fold(
                 onSuccess = {
                     placeMutationInFlight = false
+                    // Reflect the completed delete immediately. A full refresh still follows for
+                    // suggestions and other derived state, but the stale row must not remain
+                    // tappable while that second database read is waiting to run.
+                    _uiState.update { state ->
+                        state.copy(
+                            places = state.places.filterNot { candidate -> candidate.id == place.id },
+                            placeError = null,
+                        )
+                    }
                     refresh()
                 },
                 onFailure = { error ->

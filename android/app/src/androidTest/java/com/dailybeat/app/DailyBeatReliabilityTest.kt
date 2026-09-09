@@ -112,6 +112,7 @@ class DailyBeatReliabilityTest {
     @Test fun fullMapReturnsToTodayAndDoesNotRestoreRemovedDsrRoute() {
         runBlocking(Dispatchers.IO) { seedVisit() }
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+        composeRule.onNodeWithTag("today_journey_map").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").performClick()
         composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
         composeRule.activityRule.scenario.recreate()
@@ -119,6 +120,16 @@ class DailyBeatReliabilityTest {
         composeRule.onNodeWithTag("journey_map_back").performClick()
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
+    }
+
+    @Test fun todayStatusChipsUseTheSameTopEdgeAndHeight() {
+        val gpsBounds = composeRule.onNodeWithTag("status_gps")
+            .fetchSemanticsNode().boundsInRoot
+        val cloudBounds = composeRule.onNodeWithTag("status_cloud")
+            .fetchSemanticsNode().boundsInRoot
+
+        assertEquals(gpsBounds.top, cloudBounds.top, 0.5f)
+        assertEquals(gpsBounds.height, cloudBounds.height, 0.5f)
     }
 
     private fun waitForDiary(text: String) {
