@@ -132,7 +132,10 @@ fun JourneyMapSnapshot(
             )
             onDispose {
                 disposed = true
-                snapshotter.cancel()
+                // MapSnapshotter.cancel() can race a MapView that is created immediately after
+                // this card leaves composition. On Android 14 x86_64 that native teardown race
+                // can crash libmaplibre during Activity recreation. This is a bounded one-shot
+                // render, so let it finish and discard the callback instead.
             }
         }
     }
