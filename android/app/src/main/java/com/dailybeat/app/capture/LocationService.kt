@@ -12,6 +12,7 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
 import com.dailybeat.app.audit.CaptureAuditLog
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.util.PermissionHelper
 import com.google.android.gms.location.LocationCallback
@@ -22,6 +23,10 @@ import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class LocationService : Service() {
@@ -31,16 +36,23 @@ class LocationService : Service() {
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
-            val location = result.lastLocation ?: return
-            visitTracker.onLocation(
-                latitude = location.latitude,
-                longitude = location.longitude,
-                timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
-            )
+            // Fused Location may batch several fixes to save battery. Feeding only lastLocation
+            // drops the intermediate path and can turn a real stay into a single point.
+            result.locations
+                .sortedBy { it.time }
+                .forEach { location ->
+                    visitTracker.onLocation(
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                    )
+                }
         }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onCreate() {
         super.onCreate()
@@ -65,20 +77,50 @@ class LocationService : Service() {
                     "transit" -> "Transit: ${visit.address ?: "en route"}"
                     else -> "Stay at ${visit.placeName ?: visit.address ?: "location"}"
                 }
-                app.db.events().insert(
-                    Event(
-                        timestamp = visit.startMs,
-                        type = "visit",
-                        rawText = summary,
-                        placeName = visit.placeName,
-                        latitude = visit.latitude,
-                        longitude = visit.longitude,
-                    ),
+                runCatching {
+                    app.db.events().insert(
+                        Event(
+                            timestamp = visit.startMs,
+                            type = "visit",
+                            rawText = summary,
+                            placeName = visit.placeName,
+                            latitude = visit.latitude,
+                            longitude = visit.longitude,
+                        ),
+                    )
+                }.onFailure { error ->
+                    OperationalFailureLog.record(
+                        context = this,
+                        category = "capture-event-index",
+                        retryable = true,
+                        message = "Visit saved but timeline indexing failed " +
+                            "(${error.javaClass.simpleName}).",
+                    )
+                }
+            },
+            stateStore = SharedPreferencesVisitTrackerStateStore(this),
+            onWriteFailure = { error ->
+                OperationalFailureLog.record(
+                    context = this,
+                    category = "capture-persist",
+                    retryable = true,
+                    message = "Captured visit could not be saved (${error.javaClass.simpleName}).",
                 )
             },
         )
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        } catch (error: Exception) {
+            OperationalFailureLog.record(
+                context = this,
+                category = "capture-foreground",
+                retryable = false,
+                message = "Location foreground service could not start (${error.javaClass.simpleName}).",
+            )
+            stopSelf()
+            return
+        }
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 45_000L)
             .setMinUpdateIntervalMillis(45_000L)
             .setMinUpdateDistanceMeters(75f)
@@ -87,17 +129,41 @@ class LocationService : Service() {
         try {
             LocationServices.getFusedLocationProviderClient(this)
                 .requestLocationUpdates(request, callback, Looper.getMainLooper())
-        } catch (_: SecurityException) {
-            // Permission can be revoked after the guard at the start of onCreate().
+                .addOnSuccessListener { _running.value = true }
+                .addOnFailureListener { error ->
+                    OperationalFailureLog.record(
+                        context = this,
+                        category = "capture-location-updates",
+                        retryable = true,
+                        message = "Location updates failed (${error.javaClass.simpleName}).",
+                    )
+                    stopSelf()
+                }
+        } catch (error: SecurityException) {
+            OperationalFailureLog.record(
+                context = this,
+                category = "capture-permission",
+                retryable = false,
+                message = "Location permission was revoked while capture started.",
+            )
             stopSelf()
         }
     }
 
     override fun onDestroy() {
+        _running.value = false
         if (::visitTracker.isInitialized) {
             visitTracker.flushPending()
+            scope.launch {
+                visitTracker.awaitPendingWrites()
+                scope.cancel()
+            }
+        } else {
+            scope.cancel()
         }
-        LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
+        runCatching {
+            LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
+        }
         super.onDestroy()
     }
 
@@ -121,12 +187,20 @@ class LocationService : Service() {
         const val CHANNEL_ID = "location_capture"
         const val NOTIFICATION_ID = 1002
 
-        fun start(context: Context) {
-            try {
-                context.startForegroundService(Intent(context, LocationService::class.java))
-            } catch (_: IllegalStateException) {
-                // Foreground services unavailable in unit tests or restricted contexts.
-            }
+        private val _running = MutableStateFlow(false)
+
+        /**
+         * Whether capture is genuinely collecting, as opposed to merely being enabled in
+         * Settings. Observable so the status the officer sees changes the moment the service
+         * starts or stops, instead of showing whatever was true when the screen was built.
+         */
+        val running: StateFlow<Boolean> = _running.asStateFlow()
+
+        val isRunning: Boolean get() = _running.value
+
+        fun start(context: Context): Result<Unit> = runCatching {
+            context.startForegroundService(Intent(context, LocationService::class.java))
+            Unit
         }
 
         fun stop(context: Context) {

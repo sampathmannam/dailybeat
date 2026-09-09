@@ -3,6 +3,7 @@ package com.dailybeat.app
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -14,13 +15,10 @@ import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
 import org.junit.Before
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -35,6 +33,7 @@ class MainNavigationTest {
 
     @Before
     fun skipOnboarding() {
+        requireDisposableTestApp()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE).edit().clear().apply()
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
@@ -49,12 +48,11 @@ class MainNavigationTest {
     }
 
     @Test
-    fun bottomNavVisitsAllFiveTabs() {
+    fun bottomNavVisitsAllFourTabsWithoutDsr() {
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
 
-        composeRule.onNodeWithTag("nav_dsr").performClick()
-        composeRule.onNodeWithText("DSR Command").assertIsDisplayed()
-        composeRule.onNodeWithText("No DSR imported").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
+        composeRule.onNodeWithText("DSR Command").assertDoesNotExist()
 
         composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithTag("nav_diary").assertIsDisplayed()
@@ -80,7 +78,7 @@ class MainNavigationTest {
     fun syntheticDayCanBeLoadedRepeatedlyWithoutDuplicatingRecords() {
         composeRule.onNodeWithText("Load synthetic demo day").performClick()
         composeRule.waitUntilAtLeastOneExists(
-            hasText("Synthetic day loaded: 7 visits, 8 events."),
+            hasText("Synthetic day loaded: 7 visits, 5 events."),
             timeoutMillis = 10_000,
         )
 
@@ -91,24 +89,15 @@ class MainNavigationTest {
         )
 
         composeRule.onNodeWithTag("nav_diary").performClick()
-        composeRule.onNodeWithText("8 events logged for this day").assertIsDisplayed()
+        composeRule.onNodeWithText("5 events logged for this day").assertIsDisplayed()
 
-        // MapLibre continuously invalidates frames on the software-rendered CI emulator,
-        // so verify the final accessibility signal with UiAutomator instead of waiting for
-        // Compose's global idling resource after the map enters the viewport.
         composeRule.onNodeWithTag("nav_today").performClick()
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val readyDescription = instrumentation.targetContext
-            .getString(R.string.journey_map_ready_content_description)
-        val device = UiDevice.getInstance(instrumentation)
-        val fullyRendered = device.wait(Until.hasObject(By.desc(readyDescription)), 30_000)
-        if (!fullyRendered) {
-            composeRule.onNodeWithTag("journey_map").assertIsDisplayed()
-            composeRule.onNodeWithText("Map tiles are unavailable").assertDoesNotExist()
-        } else {
-            assertTrue("Live OpenStreetMap did not fully render within 60 seconds", fullyRendered)
-        }
+        composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
+        composeRule.onNodeWithText("Open full map").performClick()
+        composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("journey_map_back").performClick()
+        composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
 
     @Test
@@ -173,6 +162,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Officer name") and hasSetTextAction())
         composeRule.onNode(hasText("Officer name") and hasSetTextAction()).assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud AI"))
         composeRule.onNodeWithText("Cloud AI").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud backup"))
         composeRule.onNodeWithText("Cloud backup").assertIsDisplayed()
@@ -187,6 +177,64 @@ class MainNavigationTest {
         }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun savedCloudApiKeyCanBeRemovedWithConfirmation() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        app.settingsRepository.secureApiKey.setApiKey("disposable-device-test-key")
+        // The activity can create its Settings ViewModel before this direct fixture write.
+        // Recreate it so the UI reads the encrypted store deterministically.
+        composeRule.activityRule.scenario.recreate()
+
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("remove_api_key"),
+            timeoutMillis = 20_000,
+        )
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasText("Remove saved API key"))
+        composeRule.onNodeWithTag("remove_api_key").performClick()
+        composeRule.onNodeWithText("Remove saved API key?").assertIsDisplayed()
+        composeRule.onNodeWithTag("confirm_remove_api_key").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("API key removed from this phone", substring = true),
+            timeoutMillis = 10_000,
+        )
+
+        assertFalse(app.settingsRepository.secureApiKey.hasApiKey())
+        composeRule.onNodeWithText("Remove saved API key").assertDoesNotExist()
+    }
+
+    @Test
+    fun deletingNamedPlaceRequiresConfirmation() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.placeRepository.add("Disposable HQ", 11.4557, 78.1856)
+            }
+        }
+        val place = runBlocking {
+            withContext(Dispatchers.IO) { app.placeRepository.all().single() }
+        }
+
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("settings_list"), timeoutMillis = 10_000)
+        // Named places are below the fold on the physical phone. Ask the lazy list to compose
+        // the target before asserting or tapping it.
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Disposable HQ"))
+        composeRule.onNodeWithText("Disposable HQ").assertIsDisplayed()
+        composeRule.onNodeWithTag("delete_place_${place.id}").performClick()
+        composeRule.onNodeWithText("Delete named place?").assertIsDisplayed()
+        composeRule.onNodeWithTag("cancel_delete_place").performClick()
+        assertFalse(runBlocking { withContext(Dispatchers.IO) { app.placeRepository.all() } }.isEmpty())
+
+        composeRule.onNodeWithTag("delete_place_${place.id}").performClick()
+        composeRule.onNodeWithTag("confirm_delete_place").performClick()
+        composeRule.waitUntil(10_000) {
+            runBlocking { withContext(Dispatchers.IO) { app.placeRepository.all().isEmpty() } }
+        }
+        composeRule.onNodeWithText("Disposable HQ").assertDoesNotExist()
     }
 
     @Test

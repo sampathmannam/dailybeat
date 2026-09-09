@@ -87,19 +87,6 @@ object SyntheticDayGenerator {
             }
         }
 
-        val callTypes = listOf("incoming", "outgoing")
-        repeat(3) { i ->
-            val ts = dayStart + (10 + i * 2) * 60 * 60 * 1000L
-            app.eventRepository.addStructuredEvent(
-                com.dailybeat.app.data.model.StructuredEvent(
-                    rawText = "${callTypes[i % 2]} call to +91-98${random.nextInt(10000000, 99999999)} (${30 + i * 15}s)",
-                    timestamp = ts,
-                ),
-                type = "call",
-            )
-            events++
-        }
-
         app.db.events().insert(
             Event(
                 timestamp = dayStart,

@@ -8,12 +8,10 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Book
-import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Today
@@ -33,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -42,8 +41,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.diary.DiaryScreen
-import com.dailybeat.app.ui.dsr.DsrCommandScreen
-import com.dailybeat.app.ui.history.HistoryScreen
+import com.dailybeat.app.ui.feed.FeedScreen
+import com.dailybeat.app.ui.map.JourneyMapScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
 import com.dailybeat.app.ui.today.TodayViewModel
@@ -52,7 +51,7 @@ import java.time.format.DateTimeFormatter
 
 object Routes {
     const val TODAY = "today"
-    const val DSR = "dsr"
+    const val MAP = "journey-map"
     const val DIARY = "diary/{dateKey}"
     const val HISTORY = "history"
     const val SETTINGS = "settings"
@@ -69,6 +68,7 @@ fun DailyBeatAppScaffold() {
     val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
 
     val todayViewModel: TodayViewModel = viewModel()
+    val todayVisits by todayViewModel.todayVisits.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val voicePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -94,7 +94,7 @@ fun DailyBeatAppScaffold() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
+            if (currentRoute != Routes.MAP) NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
             ) {
@@ -102,27 +102,6 @@ fun DailyBeatAppScaffold() {
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                )
-                NavigationBarItem(
-                    modifier = Modifier.testTag("nav_dsr"),
-                    selected = currentRoute == Routes.DSR,
-                    onClick = {
-                        navController.navigate(Routes.DSR) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            if (currentRoute == Routes.DSR) Icons.Filled.Assessment else Icons.Outlined.Assessment,
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.tab_dsr)) },
-                    colors = colors,
                 )
                 NavigationBarItem(
                     modifier = Modifier.testTag("nav_today"),
@@ -226,10 +205,18 @@ fun DailyBeatAppScaffold() {
                             launchSingleTop = true
                         }
                     },
+                    onOpenMap = {
+                        navController.navigate(Routes.MAP) {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
-            composable(Routes.DSR) {
-                DsrCommandScreen()
+            composable(Routes.MAP) {
+                JourneyMapScreen(
+                    visits = todayVisits,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable(
                 route = Routes.DIARY,
@@ -243,7 +230,7 @@ fun DailyBeatAppScaffold() {
                 DiaryScreen()
             }
             composable(Routes.HISTORY) {
-                HistoryScreen(
+                FeedScreen(
                     onOpenDiary = { dateKey ->
                         navController.navigate(Routes.diary(dateKey)) {
                             launchSingleTop = true

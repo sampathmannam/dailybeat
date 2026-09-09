@@ -1,6 +1,7 @@
 package com.dailybeat.app.backup
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -8,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 
 data class RemoteBackup(
     val snapshotJson: String,
@@ -34,6 +36,7 @@ class SupabaseBackupClient(
     private val sessionStore: BackupSessionStore,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
 ) : BackupRemote {
     override val isConfigured: Boolean get() = configuration.isConfigured
 
@@ -43,7 +46,7 @@ class SupabaseBackupClient(
         withContext(Dispatchers.IO) {
             runCatching {
                 ensureConfigured()
-                require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+                validateCredentials(email, password)
                 val body = JSONObject()
                     .put("email", email.trim())
                     .put("password", password)
@@ -51,7 +54,13 @@ class SupabaseBackupClient(
                 val request = requestBuilder("/auth/v1/signup")
                     .post(body.toRequestBody(JSON))
                     .build()
-                val responseBody = execute(request, authRequest = true)
+                // Account creation is not idempotent: a lost success response must not result in
+                // an automatic second sign-up request.
+                val responseBody = execute(
+                    request,
+                    authRequest = true,
+                    retryNetworkFailures = false,
+                )
                 val root = JSONObject(responseBody)
                 if (root.optString("access_token").isNotBlank()) {
                     val session = parseSession(responseBody).also(sessionStore::save)
@@ -65,7 +74,7 @@ class SupabaseBackupClient(
     override suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
-            require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+            validateCredentials(email, password)
             val body = JSONObject()
                 .put("email", email.trim())
                 .put("password", password)
@@ -147,14 +156,20 @@ class SupabaseBackupClient(
         val user = root.optJSONObject("user")
         val userId = user?.optString("id")?.takeIf(String::isNotBlank) ?: fallback?.userId
         val email = user?.optString("email")?.takeIf(String::isNotBlank) ?: fallback?.email.orEmpty()
+        val accessToken = root.getString("access_token")
+        val refreshToken = root.optString("refresh_token").takeIf(String::isNotBlank)
+            ?: fallback?.refreshToken
+            ?: throw IllegalStateException("Cloud backup sign-in returned an invalid session.")
+        check(accessToken.length <= MAX_TOKEN_CHARS && refreshToken.length <= MAX_TOKEN_CHARS) {
+            "Cloud backup sign-in returned an invalid session."
+        }
+        val expiresInSeconds = root.optLong("expires_in", 3600L).coerceIn(60L, MAX_SESSION_SECONDS)
         return BackupSession(
             userId = requireNotNull(userId) { "Cloud backup sign-in returned an invalid session." },
             email = email,
-            accessToken = root.getString("access_token"),
-            refreshToken = root.optString("refresh_token").takeIf(String::isNotBlank)
-                ?: fallback?.refreshToken
-                ?: throw IllegalStateException("Cloud backup sign-in returned an invalid session."),
-            expiresAtMs = clock() + root.optLong("expires_in", 3600L) * 1_000L,
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            expiresAtMs = clock() + expiresInSeconds * 1_000L,
         )
     }
 
@@ -166,30 +181,69 @@ class SupabaseBackupClient(
     private fun authorizedRequestBuilder(path: String, session: BackupSession): Request.Builder =
         requestBuilder(path).header("Authorization", "Bearer ${session.accessToken}")
 
-    private fun execute(request: Request, authRequest: Boolean = false): String {
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                val message = when {
-                    authRequest && response.code in 400..499 -> "Email or password is incorrect."
-                    response.code == 401 || response.code == 403 ->
-                        "Cloud backup authorization expired. Sign in again."
-                    response.code == 404 -> "No cloud backup was found."
-                    response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
-                    response.code >= 500 -> "Cloud backup service is temporarily unavailable."
-                    else -> "Cloud backup request failed (${response.code})."
+    private suspend fun execute(
+        request: Request,
+        authRequest: Boolean = false,
+        retryNetworkFailures: Boolean = true,
+    ): String {
+        var retryIndex = 0
+        while (true) {
+            try {
+                return executeOnce(request, authRequest)
+            } catch (error: IOException) {
+                if (!retryNetworkFailures || retryIndex >= networkRetryDelaysMs.size) {
+                    throw IllegalStateException(
+                        "Cloud backup network is unavailable. Check the connection and try again.",
+                        error,
+                    )
                 }
-                throw IllegalStateException(message)
+                delay(networkRetryDelaysMs[retryIndex++].coerceAtLeast(0L))
             }
-            return response.body?.string().orEmpty()
         }
     }
+
+    private fun executeOnce(request: Request, authRequest: Boolean): String =
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    when {
+                        authRequest && response.code in 400..499 -> "Email or password is incorrect."
+                        response.code == 401 || response.code == 403 ->
+                            "Cloud backup authorization expired. Sign in again."
+                        response.code == 404 -> "No cloud backup was found."
+                        response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
+                        response.code >= 500 -> "Cloud backup service is temporarily unavailable."
+                        else -> "Cloud backup request failed (${response.code})."
+                    },
+                )
+            }
+            val body = response.body ?: return@use ""
+            if (body.contentLength() > MAX_RESPONSE_BYTES) {
+                throw IllegalStateException("Cloud backup response was too large.")
+            }
+            val source = body.source()
+            if (source.request(MAX_RESPONSE_BYTES + 1L)) {
+                throw IllegalStateException("Cloud backup response was too large.")
+            }
+            source.readUtf8()
+        }
 
     private fun ensureConfigured() {
         check(configuration.isConfigured) { "Cloud backup is not configured in this build." }
     }
 
+    private fun validateCredentials(email: String, password: String) {
+        require(email.isNotBlank() && password.isNotBlank()) { "Email and password are required." }
+        require(email.length <= 320 && password.length <= 1_024) {
+            "Email or password is too long."
+        }
+    }
+
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
         const val REFRESH_EARLY_MS = 60_000L
+        const val MAX_RESPONSE_BYTES = 12L * 1024L * 1024L
+        const val MAX_TOKEN_CHARS = 131_072
+        const val MAX_SESSION_SECONDS = 7L * 24L * 60L * 60L
     }
 }

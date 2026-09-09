@@ -1,8 +1,8 @@
 package com.dailybeat.app.capture
 
 import android.content.Context
-import android.os.Build
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.util.PermissionHelper
 
 object CaptureController {
@@ -11,16 +11,36 @@ object CaptureController {
         val app = context.applicationContext as DailyBeatApp
         val settings = app.settingsRepository.get()
 
-        if (settings.gpsCaptureEnabled && PermissionHelper.canCaptureLocation(context)) {
+        val shouldStart = runCatching {
+            settings.gpsCaptureEnabled && PermissionHelper.canCaptureLocation(context)
+        }.getOrElse { error ->
+            OperationalFailureLog.record(
+                context = context,
+                category = "capture-permission",
+                retryable = false,
+                message = "Unable to evaluate location permission (${error.javaClass.simpleName}).",
+            )
+            false
+        }
+        val operation = if (shouldStart) {
             LocationService.start(context)
         } else {
-            LocationService.stop(context)
+            runCatching {
+                LocationService.stop(context)
+                Unit
+            }
         }
-
-        if (settings.callLogEnabled && PermissionHelper.hasCallLog(context)) {
-            CallLogWorker.schedule(context)
-        } else {
-            CallLogWorker.cancel(context)
+        operation.onFailure { error ->
+            OperationalFailureLog.record(
+                context = context,
+                category = "capture-gps",
+                retryable = false,
+                message = if (shouldStart) {
+                    "GPS capture start failed (${error.javaClass.simpleName})."
+                } else {
+                    "GPS capture stop failed (${error.javaClass.simpleName})."
+                },
+            )
         }
     }
 }

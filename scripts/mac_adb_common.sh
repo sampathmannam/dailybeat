@@ -21,6 +21,7 @@ mac_ensure_java() {
   fi
 
   for candidate in \
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
     "/opt/homebrew/opt/openjdk@17" \
     "/usr/local/opt/openjdk@17" \
     "/opt/homebrew/opt/openjdk@21" \

@@ -24,4 +24,6 @@ data class GeocodeCache(
     @PrimaryKey val key: String,
     val displayName: String,
     val fetchedAt: Long = System.currentTimeMillis(),
+    /** The map's own name for the spot, e.g. "Rasipuram Police Station". Null when unnamed. */
+    val placeName: String? = null,
 )

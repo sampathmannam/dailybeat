@@ -1,0 +1,418 @@
+package com.dailybeat.app.ui.feed
+
+import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.content.FileProvider
+import com.dailybeat.app.R
+import com.dailybeat.app.ui.components.DailyBeatScreenHeader
+import com.dailybeat.app.ui.components.EmptyState
+import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.util.DateKeys
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.io.File
+
+@Composable
+fun FeedScreen(
+    onOpenDiary: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: FeedViewModel = viewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // A destination can stay composed while the app is in the background. Refresh on resume
+    // as well as navigation re-entry so newly captured visits do not leave the Feed stale.
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(state.exportPath) {
+        val path = state.exportPath ?: return@LaunchedEffect
+        viewModel.consumeExport()
+        runCatching {
+            val file = File(path)
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file,
+            )
+            val share = Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(share, "Share DailyBeat export"))
+        }.onFailure {
+            viewModel.onExportShareFailed()
+        }
+    }
+
+    stayBeingNamed?.let { stay ->
+        NamePlaceDialog(
+            stay = stay,
+            onDismiss = { stayBeingNamed = null },
+            onSave = { name ->
+                viewModel.saveNamedPlace(stay, name)
+                stayBeingNamed = null
+            },
+        )
+    }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("feed_list")
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item {
+            DailyBeatScreenHeader(
+                title = stringResource(R.string.feed_title),
+                subtitle = stringResource(R.string.feed_subtitle),
+            )
+        }
+
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.generate_weekly_rollup),
+                onClick = viewModel::generateWeeklyRollup,
+                enabled = !state.isGeneratingWeekly,
+            )
+            SecondaryButton(
+                text = stringResource(R.string.export_week_package),
+                onClick = viewModel::exportPackage,
+                enabled = !state.isExporting,
+            )
+            if (state.isGeneratingWeekly || state.isExporting) {
+                CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+            }
+            state.message?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+            state.error?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            if (state.isLoading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed_loading"))
+            }
+        }
+
+        if (state.days.isEmpty() && !state.isLoading) {
+            item {
+                EmptyState(
+                    title = stringResource(R.string.feed_empty_title),
+                    subtitle = stringResource(R.string.feed_empty_subtitle),
+                )
+            }
+        }
+
+        items(state.days, key = { it.date.toString() }) { day ->
+            DayFeedCard(
+                day = day,
+                onClick = { onOpenDiary(DateKeys.format(day.date)) },
+                onNameStay = { stay -> stayBeingNamed = stay },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayFeedCard(
+    day: DayFeedItem,
+    onClick: () -> Unit,
+    onNameStay: (DayStay) -> Unit,
+) {
+    // Reading LocalConfiguration makes this card recompose after a language/region change.
+    // Do not cache the startup locale in a top-level formatter.
+    val locale = LocalConfiguration.current.locales[0]
+    // Lazy cards leave composition while scrolling. Preserve the officer's expansion choice
+    // across scrolling, rotation and refreshed visits instead of silently collapsing the day.
+    var showAllStays by rememberSaveable(day.date) { mutableStateOf(false) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("feed_card_${day.date}")
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text(
+                    text = relativeDayLabel(day.date),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = formatDayHeading(day.date, locale),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+
+            if (day.hasRoute) {
+                DayRouteThumbnail(
+                    route = day.route,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    contentDescription = pluralStringResource(
+                        R.plurals.feed_route_content_description,
+                        day.stayCount,
+                        day.stayCount,
+                    ),
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                StatBlock(
+                    value = formatDistance(day.distanceKm, locale),
+                    label = stringResource(R.string.feed_stat_distance),
+                )
+                StatBlock(
+                    value = formatDuration(day.activeMinutes),
+                    label = stringResource(R.string.feed_stat_time_out),
+                )
+                StatBlock(
+                    value = day.stayCount.toString(),
+                    label = stringResource(R.string.feed_stat_stops),
+                )
+            }
+
+            if (day.stays.isNotEmpty()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    val shownStays = if (showAllStays) day.stays else day.stays.take(MAX_STAYS_SHOWN)
+                    shownStays.forEach { stay ->
+                        StayRow(stay = stay, locale = locale, onNameStay = { onNameStay(stay) })
+                    }
+                    if (day.stays.size > MAX_STAYS_SHOWN) {
+                        TextButton(
+                            onClick = { showAllStays = !showAllStays },
+                            modifier = Modifier.testTag("feed_toggle_stops_${day.date}"),
+                        ) {
+                            Text(
+                                text = if (showAllStays) {
+                                    stringResource(R.string.feed_show_fewer_stops)
+                                } else {
+                                    val hiddenCount = day.stays.size - MAX_STAYS_SHOWN
+                                    pluralStringResource(
+                                        R.plurals.feed_more_stops,
+                                        hiddenCount,
+                                        hiddenCount,
+                                    )
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            }
+
+            day.diaryPreview?.let { preview ->
+                Text(
+                    text = preview,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StayRow(stay: DayStay, locale: Locale, onNameStay: () -> Unit) {
+    val interactionModifier = if (stay.canBeNamed) {
+        Modifier.clickable(onClick = onNameStay)
+    } else {
+        Modifier
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(interactionModifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape),
+        )
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = stay.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = buildString {
+                    append("${formatClock(stay.startMs, locale)} · ${formatDuration(stay.durationMinutes)}")
+                    if (!stay.canBeNamed) append(" · ${stringResource(R.string.feed_location_unreliable)}")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatBlock(value: String, label: String) {
+    Column {
+        Text(text = value, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private const val MAX_STAYS_SHOWN = 5
+
+internal fun formatDistance(km: Double, locale: Locale = Locale.getDefault()): String = when {
+    km < 0.1 -> "—"
+    km < 1.0 -> String.format(locale, "%d m", (km * 1000).toInt())
+    else -> String.format(locale, "%.1f km", km)
+}
+
+internal fun formatDuration(minutes: Long): String = when {
+    minutes <= 0 -> "—"
+    minutes < 60 -> "$minutes min"
+    minutes % 60 == 0L -> "${minutes / 60} h"
+    else -> "${minutes / 60} h ${minutes % 60} min"
+}
+
+internal fun formatDayHeading(date: LocalDate, locale: Locale): String =
+    date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale))
+
+private fun formatClock(epochMs: Long, locale: Locale): String =
+    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("HH:mm", locale))
+
+internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today()): String = when (date) {
+    today -> "Today"
+    today.minusDays(1) -> "Yesterday"
+    else -> "${java.time.temporal.ChronoUnit.DAYS.between(date, today)} days ago"
+}
+
+/**
+ * Names the place a stay happened at. OpenStreetMap has no point of interest at many real stops,
+ * so the map can only offer the road; naming it once makes every later stay there read correctly.
+ */
+@Composable
+private fun NamePlaceDialog(
+    stay: DayStay,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var draft by remember(stay) { mutableStateOf(stay.name) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.feed_name_place_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.feed_name_place_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .testTag("name_place_field"),
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.feed_name_place_label)) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(draft) },
+                enabled = draft.isNotBlank(),
+                modifier = Modifier.testTag("name_place_save"),
+            ) { Text(stringResource(R.string.feed_name_place_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.feed_name_place_cancel)) }
+        },
+    )
+}

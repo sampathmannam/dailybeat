@@ -12,10 +12,10 @@ interface VisitDao {
     @Query("SELECT * FROM location_visits ORDER BY id ASC")
     suspend fun all(): List<LocationVisit>
 
-    @Query("SELECT * FROM location_visits WHERE startMs BETWEEN :start AND :end ORDER BY startMs ASC")
+    @Query("SELECT * FROM location_visits WHERE endMs >= :start AND startMs <= :end ORDER BY startMs ASC")
     fun observeBetween(start: Long, end: Long): Flow<List<LocationVisit>>
 
-    @Query("SELECT * FROM location_visits WHERE startMs BETWEEN :start AND :end ORDER BY startMs ASC")
+    @Query("SELECT * FROM location_visits WHERE endMs >= :start AND startMs <= :end ORDER BY startMs ASC")
     suspend fun between(start: Long, end: Long): List<LocationVisit>
 
     @Insert

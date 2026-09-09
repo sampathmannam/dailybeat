@@ -42,7 +42,7 @@ adb devices
 
 You should see something like `emulator-5554   device` or your phone ID.
 
-## Run DailyBeat (build on laptop)
+## Run DailyBeat QA (build on laptop)
 
 ```bash
 cd ~/github/dailybeat
@@ -50,7 +50,18 @@ git pull origin main
 ./scripts/mac_sync_and_run.sh
 ```
 
-This pulls **v2.0.0** from `main`, builds, installs, grants permissions, and launches the app.
+This builds and installs `com.dailybeat.app.qa`, which can coexist with the signed stable app.
+
+To run the complete build, unit, lint, and Compose test gate on a physical phone:
+
+```bash
+DAILYBEAT_BRANCH=main \
+  ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
+```
+
+This installs and resets only the disposable `com.dailybeat.app.qa.e2eloop` package, leaves the
+signed stable app and regular QA data untouched, and writes launch, screenshot, package,
+device-build, PID, and logcat evidence.
 
 ## Fast install (no build — download APK)
 
@@ -58,7 +69,8 @@ This pulls **v2.0.0** from `main`, builds, installs, grants permissions, and lau
 ./scripts/mac_install_release_apk.sh
 ```
 
-Downloads `app-release.apk` from GitHub Releases **v2.0.0**.
+Downloads the latest configured stable release (currently **v3.7.0**) and supports both the old
+`app-release.apk` asset name and the versioned name used by newer releases.
 
 ## Cursor on your Mac (local agent)
 
@@ -66,13 +78,13 @@ Downloads `app-release.apk` from GitHub Releases **v2.0.0**.
 2. Use **Agent** with **local** execution (this machine)
 3. Local agent can run `adb` on your emulator; cloud agents cannot
 
-## v2 app tour (on your screen)
+## App tour (on your screen)
 
 1. **Onboarding** → officer name → Get started
-2. **Today** → manual event or mic FAB
-3. **Diary** → Generate → edit → Share PDF
-4. **History** → past days
-5. **Settings** → GPS, places, model import
+2. **Today** → passive journey, voice note, significant moment, or optional note
+3. **Diary** → Generate → review/edit → Share PDF
+4. **History** → daily journey feed and week export
+5. **Settings** → GPS, named places, Cloud AI, and cloud backup
 
 Optional mirror: `brew install scrcpy && scrcpy`
 
@@ -86,9 +98,9 @@ Optional mirror: `brew install scrcpy && scrcpy`
 | `adb: no devices` | Start emulator or check USB cable / debugging |
 | `adb offline` | `adb kill-server && adb start-server` |
 | Gradle fails | `cd android && ./gradlew clean assembleDebug` |
-| Old UI | `git pull origin main` — you need v2.0.0 on `main` |
+| Old UI | Confirm the intended branch with `git branch --show-current`, then pull it with `--ff-only` |
 
 ## GitHub
 
 - Repo: https://github.com/sampathmannam/dailybeat
-- Releases: https://github.com/sampathmannam/dailybeat/releases/tag/v2.0.0
+- Releases: https://github.com/sampathmannam/dailybeat/releases

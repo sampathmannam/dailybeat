@@ -8,8 +8,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$qaPackage = "com.dailybeat.app.qa"
-$testPackage = "com.dailybeat.app.qa.test"
+$qaPackage = "com.dailybeat.app.qa.e2eloop"
+$testPackage = "com.dailybeat.app.qa.e2eloop.test"
 $mainActivity = "$qaPackage/com.dailybeat.app.MainActivity"
 $testRunner = "$testPackage/androidx.test.runner.AndroidJUnitRunner"
 $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -36,8 +36,11 @@ if (-not ((adb devices) -match "^$Serial\s+device$")) {
 ) | Set-Content -Encoding utf8 $reportPath
 
 Push-Location (Join-Path $repoRoot "android")
+$previousAndroidSerial = $env:ANDROID_SERIAL
+$env:ANDROID_SERIAL = $Serial
 try {
-    .\gradlew.bat :app:installDebug :app:installDebugAndroidTest | Tee-Object -FilePath (Join-Path $runDir "build-install.log")
+    .\gradlew.bat :app:installDebug :app:installDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop | Tee-Object -FilePath (Join-Path $runDir "build-install.log")
+    if ($LASTEXITCODE -ne 0) { throw "The test build failed. No instrumentation was started." }
 
     for ($cycle = 1; $cycle -le $cycles; $cycle++) {
         $cyclePrefix = "cycle-$cycle"
@@ -75,6 +78,7 @@ try {
         }
     }
 } finally {
+    $env:ANDROID_SERIAL = $previousAndroidSerial
     "No cleanup was executed." | Add-Content -Encoding utf8 $reportPath
     "- Finished: $(Get-Date -Format o)" | Add-Content -Encoding utf8 $reportPath
     Pop-Location

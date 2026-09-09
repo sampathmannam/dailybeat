@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull latest from GitHub (main / v2.0.0), build, install on Mac emulator or phone.
+# Pull the requested branch, build, and install the isolated QA app on an emulator or phone.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -40,18 +40,18 @@ echo "=== Build & install debug APK on $ANDROID_SERIAL ==="
 cd "$ROOT/android"
 ./gradlew installDebug
 
-PKG=com.dailybeat.app
+PKG=com.dailybeat.app.qa
 echo "=== Grant permissions ==="
 mac_adb shell pm grant "$PKG" android.permission.RECORD_AUDIO 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION 2>/dev/null || true
-mac_adb shell pm grant "$PKG" android.permission.READ_CALL_LOG 2>/dev/null || true
+mac_adb shell pm grant "$PKG" android.permission.ACCESS_BACKGROUND_LOCATION 2>/dev/null || true
 mac_adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
 echo "=== Launch DailyBeat ==="
-mac_adb shell am start -n "$PKG/.MainActivity"
+mac_adb shell am start -n "$PKG/com.dailybeat.app.MainActivity"
 
 echo ""
-echo "DailyBeat v2 is running on $ANDROID_SERIAL."
+echo "DailyBeat QA is running on $ANDROID_SERIAL."
 echo "Tabs: Today | Diary | History | Settings"
 echo "Mirror: brew install scrcpy && scrcpy -s $ANDROID_SERIAL"

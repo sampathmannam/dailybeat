@@ -40,9 +40,9 @@ class SyntheticDayGeneratorTest {
         val second = SyntheticDayGenerator.seedForDate(app, date, seed = 42)
         val (start, end) = DayBounds.dayStartEnd(date)
 
-        assertEquals(SyntheticDayGenerator.Result(7, 8), first)
+        assertEquals(SyntheticDayGenerator.Result(7, 5), first)
         assertEquals(SyntheticDayGenerator.Result(0, 0), second)
         assertEquals(7, app.db.visits().between(start, end).size)
-        assertEquals(8, app.db.events().eventsForDay(start, end).size)
+        assertEquals(5, app.db.events().eventsForDay(start, end).size)
     }
 }

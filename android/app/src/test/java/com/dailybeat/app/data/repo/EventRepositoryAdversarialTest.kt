@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.data.db.DailyBeatDb
+import com.dailybeat.app.data.model.StructuredEvent
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -54,5 +55,25 @@ class EventRepositoryAdversarialTest {
         repo.addMomentMarker()
         val event = repo.eventsForDate(com.dailybeat.app.util.DateKeys.today()).first()
         assertEquals("moment", event.type)
+    }
+
+    @Test
+    fun addStructuredEvent_boundsCloudControlledFields() = runBlocking {
+        repo.addStructuredEvent(
+            StructuredEvent(
+                rawText = "x".repeat(20_000),
+                placeName = "p".repeat(2_000),
+                peopleMentioned = "n".repeat(2_000),
+                caseNumbers = "c".repeat(2_000),
+            ),
+            type = "v".repeat(100),
+        )
+
+        val event = repo.eventsForDate(com.dailybeat.app.util.DateKeys.today()).single()
+        assertEquals(8_000, event.rawText.length)
+        assertEquals(500, event.placeName?.length)
+        assertEquals(1_000, event.peopleMentioned?.length)
+        assertEquals(1_000, event.caseNumbers?.length)
+        assertEquals(32, event.type.length)
     }
 }

@@ -1,73 +1,87 @@
-# DailyBeat v3.6.0 — Install
+# DailyBeat v3.7.0 — install and verify
 
-## DSR Command dashboard
-
-Open **DSR Command** and choose **Import PDF** whenever a new Daily Situation
-Report arrives. DailyBeat extracts supported operational tables on the device,
-adds the report to the cumulative dashboard, and flags fields that need review.
-The source PDF and extracted operational content remain on the device unless
-the user explicitly exports or shares them.
+Version 3.7.0 focuses on journey-feed and reliability hardening. DSR is a separate app in the
+private `sampathmannam/dsr` repository; its old DailyBeat records and PDFs are retained, not deleted.
+Regular QA uses `com.dailybeat.app.qa`. Destructive instrumentation must use
+`com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
 
 ## Cloud AI configuration
 
-This release defaults to DeepSeek (`deepseek-chat`) and also supports the app's
-other cloud-provider options. Configure the provider and API key in Settings →
-Cloud AI after installation. No API key is included in the source code or APK.
-Diary generation requires network access and a valid provider key; it does not
-use an offline fallback.
+This release defaults to DeepSeek (`deepseek-chat`) and supports the other cloud-provider options
+shown in Settings. Configure the provider and API key in Settings → Cloud AI after installation.
+No provider key is included in the source or APK. Diary generation requires network access and a
+valid key; it does not use an offline model fallback.
 
 ## Cloud backup
 
-Cloud backup uses a DailyBeat Supabase project configured at build time with
-`SUPABASE_URL` and `SUPABASE_ANON_KEY`. These are public client configuration;
-the database protects every backup with authenticated owner-only row-level
-security. The release workflow reads both values from GitHub Actions secrets.
+Cloud backup uses a DailyBeat Supabase project configured at build time with `SUPABASE_URL` and
+`SUPABASE_ANON_KEY`. These are public client configuration; authenticated owner-only row-level
+security protects each backup. The Cloud AI provider key is never backed up.
 
-After installation, open Settings → Cloud backup, sign in, and select **Back up
-now**. On a replacement phone, install the same signed DailyBeat package, sign
-in to the same account, and explicitly confirm **Restore from cloud**. Restore
-replaces local records only after the complete remote snapshot validates.
+After installation, open Settings → Cloud backup, sign in, and select **Back up now**. On a
+replacement phone, install the same signed DailyBeat package, sign in to the same account, and
+explicitly confirm **Restore from cloud**. Restore replaces local records only after the complete
+remote snapshot validates.
 
-The Cloud AI provider key is never backed up. Enter it again on a new phone.
+## Signed APK
 
-## APK
+After every release gate passes, download these assets from GitHub Releases (tag `v3.7.0`):
 
-Download from GitHub Releases (tag `v3.6.0`):
+- `DailyBeat-v3.7.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `SHA256SUMS.txt` — checksum for that exact filename
 
-- `DailyBeat-v3.6.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
+for build, Android instrumentation (including a real Supabase backup/restore round trip), backend,
+and CodeQL checks, then verifies the permanent signing-certificate fingerprint before publishing.
+Do not create a tag from a feature branch merely to obtain an APK.
 
-Verify downloads against `SHA256SUMS.txt` in the release assets.
-
-If the release has no APK yet, either wait for the **Release APK** GitHub Action
-on tag `v3.6.0`, or build locally:
-
-```bash
-cd android && ./gradlew assembleRelease
-# → app/build/outputs/apk/release/app-release.apk
-```
-
-## Install on Android phone
-
-1. Copy APK to phone (USB, AirDrop, etc.)
-2. Open file → Install (allow unknown sources if prompted)
-3. Grant permissions when asked: microphone, location, notifications
-4. Open Settings → Cloud AI, enter the DeepSeek API key, and test the connection
-
-## Install on emulator (Mac)
+## Test the candidate on a physical Android phone
 
 ```bash
 git clone https://github.com/sampathmannam/dailybeat.git
 cd dailybeat
-./scripts/mac_sync_and_run.sh
+DAILYBEAT_BRANCH=main \
+  ./scripts/mac_phone_e2e.sh YOUR_ADB_SERIAL
 ```
 
-## Verify cloud AI
+The script rejects emulators, removes and reinstalls only the disposable QA package, runs the
+debug build, JVM tests, lint, and Compose instrumentation, and captures a screenshot, launch
+result, device build, installed-package details, PID, and logcat under
+`android/app/build/outputs/phone-evidence/`. It fails if Android cannot launch the activity, the
+process exits, or the log contains an app crash or ANR.
 
-1. Add a manual event
-2. Generate the diary using the configured DeepSeek account
-3. Review the generated text and share the PDF
-4. With networking disabled, generation must report a clear cloud-connection error; no offline model is used
+To include the mandatory live backup/restore check, set these values in the current shell before
+running the script and set `DAILYBEAT_REQUIRE_LIVE_BACKUP=1`:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `DAILYBEAT_BACKUP_TEST_EMAIL`
+- `DAILYBEAT_BACKUP_TEST_PASSWORD`
+
+Use a dedicated, email-confirmed QA account. The same four names are GitHub Actions secrets used
+by CI; credential values are never committed.
+
+## Install on Android
+
+1. Download only the APK attached to the GitHub Release and verify it with `SHA256SUMS.txt`.
+2. Open the APK and allow installation from the chosen file app if Android asks.
+3. Install over the existing signed DailyBeat app; do not uninstall, because uninstalling deletes
+   the local database.
+4. Grant location and notification permissions. Microphone access is requested only when recording
+   a voice note.
+5. Configure Cloud AI and cloud backup in Settings.
+
+## Verify the core offline path
+
+1. Leave Cloud AI unconfigured and record a voice note; the recognized transcript must still save
+   locally.
+2. Add and then clear an optional diary note; reopen the day and verify it remains cleared.
+3. Turn GPS capture on, background the app, move between two places, and verify the Today count and
+   History feed update after returning.
+4. Verify the four tabs: Today, Diary, Feed and Settings. DSR must not appear.
+5. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
+6. Deny map/network access; the diary, route list, notes, and export must remain usable.
 
 ## Support
 
-Issues: GitHub Issues on `sampathmannam/dailybeat`
+Report issues in the `sampathmannam/dailybeat` GitHub repository.

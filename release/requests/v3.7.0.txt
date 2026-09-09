@@ -1,0 +1,1 @@
+Publish DailyBeat v3.7.0 only after build, instrumentation, live cloud-backup, backend, and CodeQL checks pass on the protected main commit.
