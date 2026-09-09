@@ -133,6 +133,9 @@ class MigrationTest {
     fun migratesSchema6WithoutLosingDsrCaseReferencesOrDiary() {
         createSchema5Variant(keepDsrTables = true, keepGeocodePlaceName = true)
         SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { raw ->
+            // Early v3.x installs could already be at schema 3 before the diary index was
+            // introduced, so they skipped MIGRATION_2_3 and reached schema 6 without it.
+            raw.execSQL("DROP INDEX IF EXISTS index_diaries_dateKey")
             raw.execSQL("""
                 INSERT INTO dsr_cases VALUES ('RASIPURAM|2099|1', 'RASIPURAM', 'Rasipuram', '1', 2099,
                     '1/2099', 'Test head', '194 BNSS', 'HIGH', '2099-01-01', '2099-01-02', 1)

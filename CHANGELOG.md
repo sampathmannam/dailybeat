@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.7.1 — 2026-09-09
+
+### Fixed
+- **Existing installs no longer fail during the schema-6 to schema-7 upgrade.** Early versions
+  could reach schema 6 without the diary-date index because they started after the older migration
+  that created it. The final migration now repairs the missing index idempotently while preserving
+  every diary row, and a regression test reproduces the exact released-device database shape.
+
 ## 3.7.0 — 2026-09-07
 
 ### Added
