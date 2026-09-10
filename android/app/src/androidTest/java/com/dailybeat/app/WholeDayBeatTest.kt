@@ -66,6 +66,12 @@ class WholeDayBeatTest {
         composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasTestTag("review_day_back"))
         composeRule.onNodeWithTag("review_day_back").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("feed_list"), timeoutMillis = 10_000)
+        // Returning to the retained Days destination refreshes asynchronously. Wait for the new
+        // title to reach its semantics tree before asking the lazy list to scroll to it.
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("District rounds and court duty"),
+            timeoutMillis = 10_000,
+        )
         composeRule.onNodeWithTag("feed_list")
             .performScrollToNode(hasText("District rounds and court duty"))
         composeRule.onNodeWithText("District rounds and court duty").assertIsDisplayed()

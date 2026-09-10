@@ -75,6 +75,7 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
         composeRule.onNodeWithText("Tracked").assertIsDisplayed()
         composeRule.onNodeWithText("Stops").assertIsDisplayed()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add moment"))
         composeRule.onNodeWithText("Add moment").assertIsDisplayed()
     }
 
