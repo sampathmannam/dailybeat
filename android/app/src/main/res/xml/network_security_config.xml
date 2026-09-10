@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is denied everywhere. targetSdk 34 already defaults to this, but the default is
+  implicit and would silently revert if the target level were ever lowered; stating it here makes
+  the guarantee explicit and survives that change.
+
+  The loopback exception preserves the existing, deliberate behaviour in CloudLlmClient, which
+  accepts an http:// base URL only for localhost/127.0.0.1 so an OpenAI-compatible model server can
+  be run on the same device or over adb reverse. Every real provider, the Nominatim geocoder, the
+  Supabase backup endpoint and both map tile hosts are HTTPS and get no exception.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

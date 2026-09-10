@@ -154,3 +154,18 @@ dependencies {
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
+// aapt2 is published per platform, and it is the only platform-classified artifact in the graph.
+// Regenerating gradle/verification-metadata.xml on macOS records only the osx variant, while every
+// CI job runs on ubuntu-latest — so dependency verification would pass locally and fail closed on
+// the runner. Running this task in the same generation pass pulls the linux jar in so its checksum
+// is captured too; see docs/RELEASE.md. It contributes nothing to the APK, and
+// test_gradle_supply_chain.py fails the release gate if the linux pin ever goes missing.
+val aapt2LinuxForVerification: Configuration by configurations.creating
+dependencies {
+    aapt2LinuxForVerification("com.android.tools.build:aapt2:8.6.1-11315950:linux@jar")
+}
+tasks.register("resolveAapt2Linux") {
+    val resolved = aapt2LinuxForVerification.incoming.artifactView { lenient(false) }.files
+    doLast { resolved.forEach { println("resolved ${it.name}") } }
+}

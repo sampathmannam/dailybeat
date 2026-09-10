@@ -268,11 +268,16 @@ open class CloudLlmClient(
 
     companion object {
         private const val MAX_RESPONSE_BYTES = 4L * 1024L * 1024L
+        // Provider endpoints are fixed and have no reason to redirect. OkHttp strips
+        // `Authorization` on a cross-host redirect but not the custom `x-api-key` header the
+        // Anthropic path sends, so refuse redirects outright rather than risk replaying a key.
         private fun defaultHttpClient() = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .callTimeout(110, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
             .build()
     }
 }

@@ -54,7 +54,7 @@ jobs:
 
           # The dependency-review check runs on, and is required for, the protected pull request.
           # These checks run again on the resulting main commit.
-          required_checks=(build instrumentation live-backup patrolgrid-backend codeql)
+          required_checks=(build instrumentation live-backup release-policy codeql)
           deadline=$((SECONDS + 1800))
 
           while true; do
@@ -173,3 +173,9 @@ jobs:
               "$release_apk" \
               SHA256SUMS.txt
           fi
+
+      # The runner is ephemeral and no artifact upload includes it, but the permanent signing key
+      # should not outlive the step that needs it.
+      - name: Remove the decoded signing key
+        if: always()
+        run: rm -f android/release.keystore
