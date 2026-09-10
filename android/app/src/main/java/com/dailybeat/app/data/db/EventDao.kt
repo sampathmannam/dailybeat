@@ -5,7 +5,6 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import com.dailybeat.app.data.model.Event
 import kotlinx.coroutines.flow.Flow
 
@@ -28,9 +27,6 @@ interface EventDao {
 
     @Query("DELETE FROM events")
     suspend fun deleteAll()
-
-    @Update
-    suspend fun update(event: Event)
 
     @Delete
     suspend fun delete(event: Event)

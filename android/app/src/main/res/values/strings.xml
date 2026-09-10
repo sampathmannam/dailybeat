@@ -2,8 +2,6 @@
 <resources>
     <string name="app_name">DailyBeat</string>
     <string name="tab_today">Today</string>
-    <string name="tab_diary">Diary</string>
-    <string name="tab_history">Feed</string>
     <string name="tab_days">Days</string>
     <string name="tab_insights">Insights</string>
     <string name="tab_settings">Settings</string>
@@ -71,8 +69,6 @@
     <string name="capture_paused_body">Capture is paused for privacy. It will resume automatically within one hour.</string>
     <string name="generate_ai_report">Generate AI daily report</string>
     <string name="generating_ai_report">Generating your daily report…</string>
-    <string name="cloud_brain_setup_hint">Add your cloud LLM API key in Settings → Cloud AI to enable automatic daily reports.</string>
-    <string name="journey_section">Your journey today</string>
     <plurals name="journey_map_points">
         <item quantity="one">Journey map (%1$d point)</item>
         <item quantity="other">Journey map (%1$d points)</item>
@@ -97,16 +93,12 @@
     <string name="journey_map_open_error">No app is available to open the full map.</string>
     <string name="journey_empty_title">No visits recorded yet</string>
     <string name="journey_empty_subtitle">Keep GPS on and move between places. Stays (8+ min) and transit appear here automatically.</string>
-    <string name="add_optional_note">Add optional note</string>
-    <string name="hide_optional_note">Hide optional note</string>
     <string name="optional_note_label">Optional note for today</string>
     <string name="save_optional_note">Save note</string>
     <string name="status_gps_on">GPS tracking on</string>
     <string name="status_gps_off">GPS off</string>
     <string name="status_cloud_on">Cloud AI ready</string>
     <string name="status_cloud_off">Cloud AI not set up</string>
-    <string name="stat_visits">Visits today</string>
-    <string name="stat_events">Events today</string>
     <string name="mark_significant_moment">Mark significant moment (no typing)</string>
     <string name="record_voice_note">Record voice note</string>
     <string name="load_synthetic_day">Load synthetic demo day</string>
