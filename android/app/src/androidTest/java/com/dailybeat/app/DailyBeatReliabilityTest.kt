@@ -46,7 +46,8 @@ class DailyBeatReliabilityTest {
     }
 
     @Test fun manualDiaryCanBeClearedRewrittenAndRestoredAfterRecreation() {
-        composeRule.onNodeWithTag("nav_diary").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
+        composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNodeWithTag("diary_list").performScrollToNode(hasTestTag("diary_editor"))
         composeRule.onNodeWithTag("diary_editor").performTextReplacement("Synthetic manual diary")
         waitForDiary("Synthetic manual diary")
@@ -55,7 +56,6 @@ class DailyBeatReliabilityTest {
         composeRule.onNodeWithTag("diary_editor").assertExists().performTextInput("Replacement தமிழில் 🙂")
         waitForDiary("Replacement தமிழில் 🙂")
         composeRule.activityRule.scenario.recreate()
-        composeRule.onNodeWithTag("nav_diary").performClick()
         composeRule.onNodeWithTag("diary_list").performScrollToNode(hasTestTag("diary_editor"))
         composeRule.onNodeWithTag("diary_editor").assertTextContains("Replacement தமிழில் 🙂")
     }

@@ -47,10 +47,10 @@ class BrandAssetsTest {
         val colors = resource("values/colors.xml")
         val foreground = resource("drawable/ic_launcher_foreground.xml")
 
-        assertTrue("#1E3A5F" in colors)
-        assertTrue("#FFF8E7" in foreground)
-        assertTrue("#E8A317" in foreground)
-        assertTrue("#E76F51" in foreground)
+        assertTrue("#0B2D5B" in colors)
+        assertTrue("#F8FAFC" in foreground)
+        assertTrue("#FFD60A" in foreground)
+        assertTrue("#0B2D5B" in foreground)
         assertTrue("M31,19" in foreground) // daily record page
         assertTrue("M37,72 C41,66" in foreground) // mapped route
         assertTrue("M62,27 C53.7" in foreground) // destination pin

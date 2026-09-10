@@ -5,13 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,20 +42,18 @@ fun EventCard(
         tonalElevation = 1.dp,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(4.dp)
-                    .height(56.dp)
-                    .clip(MaterialTheme.shapes.extraSmall)
+                    .padding(top = 5.dp)
+                    .size(10.dp)
+                    .clip(CircleShape)
                     .background(accent),
             )
             Column(
                 modifier = Modifier
-                    .padding(vertical = 14.dp, horizontal = 4.dp)
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -95,7 +93,7 @@ private fun TypeChip(label: String, accent: androidx.compose.ui.graphics.Color) 
             text = label.uppercase(Locale.getDefault()),
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = accent,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

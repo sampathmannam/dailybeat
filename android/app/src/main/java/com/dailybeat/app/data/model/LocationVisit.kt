@@ -17,6 +17,31 @@ data class LocationVisit(
     val placeName: String? = null,
     val address: String? = null,
     val visitType: String = "dwell",
+    val reviewState: String = "confirmed",
+    val hidden: Boolean = false,
+    val manuallyEdited: Boolean = false,
+)
+
+@Entity(
+    tableName = "location_breadcrumbs",
+    indices = [Index(value = ["timestampMs"])],
+)
+data class LocationBreadcrumb(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val timestampMs: Long,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyM: Float,
+    val quality: String = "good",
+)
+
+@Entity(tableName = "beat_reviews")
+data class BeatReview(
+    @PrimaryKey val dateKey: String,
+    val title: String = "",
+    val state: String = "live",
+    val completedAt: Long? = null,
+    val updatedAt: Long = System.currentTimeMillis(),
 )
 
 @Entity(tableName = "geocode_cache")

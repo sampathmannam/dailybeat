@@ -2,9 +2,9 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.7.2** — Clear street-map journey cards with the travelled route in DailyBeat yellow,
-aligned Today status indicators, and the existing data-preserving reliability fixes. DSR is a
-separate app.
+**v3.8.0** — A private whole-day activity record: map-first Today, reviewable daily Beats,
+actionable 28-day insights, capture-health and privacy controls, and stronger GPS reliability.
+DSR remains a separate app.
 
 Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
 Configure it at runtime in Settings → Cloud AI. The key is not bundled in the APK.
@@ -14,15 +14,15 @@ Configure it at runtime in Settings → Cloud AI. The key is not bundled in the 
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Current stable release (v3.7.2)
+# Current stable release (v3.8.0)
 ./scripts/mac_install_release_apk.sh YOUR_DEVICE_ID
 
-# Build, test, and install the v3.7 QA candidate without replacing the stable app
-DAILYBEAT_BRANCH=hardening/reliability-pass \
+# Build, test, and install the v3.8 QA candidate without replacing the stable app
+DAILYBEAT_BRANCH=feat/whole-day-beat \
   ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-The signed v3.7.2 APK is published through GitHub Releases only after the build, live cloud-backup
+The signed v3.8.0 APK is published through GitHub Releases only after the build, live cloud-backup
 instrumentation, backend, and security gates all pass. To build an isolated QA APK locally:
 
 ```bash
@@ -51,16 +51,16 @@ each shipped upgrade path against real SQLite. `fallbackToDestructiveMigration` 
 `DatabasePolicyTest` keeps it that way.
 
 Before a risky update you can also take a copy from **Settings → Cloud backup**, and
-**Feed → Export week package (ZIP)** writes diaries and PDFs to app storage.
+**Days → Weekly tools → Export week package (ZIP)** writes diaries and PDFs to app storage.
 
 ## Quick start (cloud AI)
 
 1. Install the app and complete onboarding.
 2. Grant location (including **Allow all the time** on Android 10+) and notifications.
 3. **Settings → Cloud AI** — paste your API key, pick provider/model, tap **Test connection**.
-4. Keep **GPS tracking** on. Move between places; stays and transit appear on **Today**.
-5. Tap **Generate AI daily report** or wait for the 8 PM auto-report.
-6. Review, edit, and share PDF from **Diary**, and browse each day on **Feed**.
+4. Keep **GPS breadcrumbs** on. Move between places; the route and stays appear on **Today**.
+5. Tap **Review my day** to name the Beat, correct stops, and mark it complete.
+6. Add or open the diary from Today/Review, and use **Insights** for the next useful follow-up.
 
 ## DSR is a separate app
 
@@ -73,8 +73,13 @@ and private source files remain untouched for data retention; see [separation no
 | Feature | Status |
 |---------|--------|
 | Passive GPS visits + transit | ✅ |
+| Reliable breadcrumb filtering + capture-gap detection | ✅ |
 | Interactive OpenStreetMap journey | ✅ network required |
+| Immediate route fallback while the interactive map loads | ✅ |
 | Named places from OpenStreetMap ("Rasipuram Police Station") | ✅ |
+| Reviewable daily Beats (rename/hide/restore/complete) | ✅ |
+| Private 28-day insights and review streak | ✅ |
+| One-hour privacy pause with automatic resume | ✅ |
 | Cloud LLM reports (OpenAI / Anthropic / compatible) | ✅ |
 | Encrypted API key storage | ✅ |
 | 8 PM auto evening report | ✅ |

@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -116,8 +117,7 @@ fun JourneyMapSnapshot(
 
 @Composable
 private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = Modifier) {
-    val projected = remember(model.points) { projectPoints(model.points) }
-    val stopTimes = remember(model.stopPoints) { model.stopPoints.map { it.startMs }.toSet() }
+    val projection = remember(model) { JourneyProjection(model) }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = modifier) {
         val gridStep = size.height / 4f
@@ -147,55 +147,78 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
             width = (size.width - padding * 2).coerceAtLeast(1f),
             height = (size.height - padding * 2).coerceAtLeast(1f),
         )
-        val offsets = projected.map { (px, py) ->
-            Offset(padding + px.toFloat() * usable.width, padding + py.toFloat() * usable.height)
+        fun JourneyPoint.toOffset(): Offset {
+            val (px, py) = projection.project(this)
+            return Offset(padding + px.toFloat() * usable.width, padding + py.toFloat() * usable.height)
         }
-        if (offsets.size > 1) {
-            val path = Path().apply {
+
+        model.routeSegments.filter { it.size >= 2 }.forEach { segment ->
+            val offsets = segment.map { it.toOffset() }
+            val routePath = Path().apply {
                 moveTo(offsets.first().x, offsets.first().y)
                 offsets.drop(1).forEach { lineTo(it.x, it.y) }
             }
-            drawPath(path = path, color = Navy, style = Stroke(width = 8.dp.toPx()))
-            drawPath(path = path, color = Gold, style = Stroke(width = 5.dp.toPx()))
+            drawPath(path = routePath, color = Navy, style = Stroke(width = 8.dp.toPx()))
+            drawPath(path = routePath, color = Gold, style = Stroke(width = 5.dp.toPx()))
         }
-        offsets.forEachIndexed { index, offset ->
-            if (model.points[index].startMs !in stopTimes) return@forEachIndexed
+
+        model.gapSegments.forEach { segment ->
+            val offsets = segment.map { it.toOffset() }
+            val gapPath = Path().apply {
+                moveTo(offsets.first().x, offsets.first().y)
+                offsets.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+            drawPath(
+                path = gapPath,
+                color = Color(0xFF64748B),
+                style = Stroke(
+                    width = 4.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(
+                        floatArrayOf(7.dp.toPx(), 6.dp.toPx()),
+                    ),
+                ),
+            )
+        }
+
+        model.stopPoints.forEach { point ->
+            val offset = point.toOffset()
             drawCircle(color = Color.White, radius = 7.dp.toPx(), center = offset)
             drawCircle(color = Gold, radius = 4.5.dp.toPx(), center = offset)
         }
     }
 }
 
-private fun projectPoints(points: List<JourneyPoint>): List<Pair<Double, Double>> {
-    if (points.isEmpty()) return emptyList()
-    val longitudes = buildList<Double> {
-        add(points.first().longitude)
-        points.drop(1).forEach { point ->
-            var longitude = point.longitude
-            while (longitude - last() > 180.0) longitude -= 360.0
-            while (longitude - last() < -180.0) longitude += 360.0
-            add(longitude)
-        }
+private class JourneyProjection(model: JourneyMapModel) {
+    private val centerLongitude = requireNotNull(model.centerLongitude)
+    private val projected = model.points.map { point -> rawX(point.longitude) to rawY(point.latitude) }
+    private val minX = projected.minOf { it.first }
+    private val maxX = projected.maxOf { it.first }
+    private val minY = projected.minOf { it.second }
+    private val maxY = projected.maxOf { it.second }
+    private val spanX = maxX - minX
+    private val spanY = maxY - minY
+    private val span = maxOf(spanX, spanY)
+    private val offsetX = (span - spanX) / 2.0
+    private val offsetY = (span - spanY) / 2.0
+
+    fun project(point: JourneyPoint): Pair<Double, Double> {
+        if (span <= 0.0 || !span.isFinite()) return 0.5 to 0.5
+        return ((rawX(point.longitude) - minX + offsetX) / span) to
+            ((rawY(point.latitude) - minY + offsetY) / span)
     }
-    val xs = longitudes.map { (it + 180.0) / 360.0 }
-    val ys = points.map { point ->
-        val latitude = point.latitude.coerceIn(-MAX_MERCATOR_LATITUDE, MAX_MERCATOR_LATITUDE)
-        val radians = latitude * PI / 180.0
+
+    private fun rawX(longitude: Double): Double {
+        var aligned = longitude
+        while (aligned - centerLongitude > 180.0) aligned -= 360.0
+        while (aligned - centerLongitude < -180.0) aligned += 360.0
+        return (aligned + 180.0) / 360.0
+    }
+
+    private fun rawY(latitude: Double): Double {
+        val safeLatitude = latitude.coerceIn(-MAX_MERCATOR_LATITUDE, MAX_MERCATOR_LATITUDE)
+        val radians = safeLatitude * PI / 180.0
         val mercator = ln(tan(radians) + 1.0 / cos(radians))
-        if (mercator.isFinite()) (1.0 - mercator / PI) / 2.0 else 0.5
-    }
-    val minX = xs.min()
-    val maxX = xs.max()
-    val minY = ys.min()
-    val maxY = ys.max()
-    val spanX = maxX - minX
-    val spanY = maxY - minY
-    val span = maxOf(spanX, spanY)
-    if (span <= 0.0 || !span.isFinite()) return points.map { 0.5 to 0.5 }
-    val offsetX = (span - spanX) / 2.0
-    val offsetY = (span - spanY) / 2.0
-    return xs.indices.map { index ->
-        ((xs[index] - minX + offsetX) / span) to ((ys[index] - minY + offsetY) / span)
+        return if (mercator.isFinite()) (1.0 - mercator / PI) / 2.0 else 0.5
     }
 }
 

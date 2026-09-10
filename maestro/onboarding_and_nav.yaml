@@ -2,7 +2,7 @@
 # Install: https://maestro.mobile.dev
 # Run: maestro test maestro/
 
-appId: com.dailybeat.app
+appId: com.dailybeat.app.qa.e2eloop
 ---
 - launchApp:
     clearState: true
@@ -12,9 +12,14 @@ appId: com.dailybeat.app
 - tapOn: "Continue"
 - tapOn: "Get started"
 - assertVisible: "Today"
+- scrollUntilVisible:
+    element:
+      text: "Load synthetic demo day"
+    direction: DOWN
 - tapOn: "Load synthetic demo day"
-- tapOn: "Diary"
-- assertVisible: "Custom events (paste)"
-- tapOn: "History"
+- tapOn: "Days"
+- assertVisible: "Your days"
+- tapOn: "Insights"
+- assertVisible: "Actionable insight"
 - tapOn: "Settings"
-- assertVisible: "Cloud AI"
+- assertVisible: "Capture"

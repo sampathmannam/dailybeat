@@ -14,6 +14,7 @@ import com.dailybeat.app.R
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.util.PermissionHelper
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -24,15 +25,22 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.joinAll
+import java.util.Collections
 
 class LocationService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var visitTracker: VisitTracker
+    private lateinit var app: DailyBeatApp
+    @Volatile
+    private var previousAccepted: LocationSample? = null
+    private val breadcrumbWrites = Collections.synchronizedSet(mutableSetOf<Job>())
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -41,11 +49,44 @@ class LocationService : Service() {
             result.locations
                 .sortedBy { it.time }
                 .forEach { location ->
-                    visitTracker.onLocation(
+                    val sample = LocationSample(
                         latitude = location.latitude,
                         longitude = location.longitude,
                         timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                        accuracyM = location.accuracy,
+                        isMock = location.isMockLocation(),
                     )
+                    app.captureHealthStore.fixObserved(sample.timestampMs)
+                    val decision = LocationQualityFilter.assess(sample, previousAccepted)
+                    if (!decision.accepted) {
+                        app.captureHealthStore.rejected(sample.timestampMs, decision.reason ?: "unknown")
+                        return@forEach
+                    }
+                    previousAccepted = sample
+                    app.captureHealthStore.accepted(sample, decision.quality)
+                    val write = scope.launch {
+                        runCatching {
+                            app.breadcrumbRepository.insert(
+                                LocationBreadcrumb(
+                                    timestampMs = sample.timestampMs,
+                                    latitude = sample.latitude,
+                                    longitude = sample.longitude,
+                                    accuracyM = sample.accuracyM,
+                                    quality = decision.quality,
+                                ),
+                            )
+                        }.onFailure { error ->
+                            OperationalFailureLog.record(
+                                context = this@LocationService,
+                                category = "capture-breadcrumb",
+                                retryable = true,
+                                message = "Route point could not be saved (${error.javaClass.simpleName}).",
+                            )
+                        }
+                    }
+                    breadcrumbWrites += write
+                    write.invokeOnCompletion { breadcrumbWrites -= write }
+                    visitTracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs)
                 }
         }
     }
@@ -61,7 +102,21 @@ class LocationService : Service() {
             return
         }
 
-        val app = application as DailyBeatApp
+        app = application as DailyBeatApp
+        app.captureHealthStore.serviceStarted()
+        scope.launch {
+            app.breadcrumbRepository.latest()?.let { latest ->
+                val restored = LocationSample(
+                    latitude = latest.latitude,
+                    longitude = latest.longitude,
+                    timestampMs = latest.timestampMs,
+                    accuracyM = latest.accuracyM,
+                )
+                if (previousAccepted == null || restored.timestampMs > previousAccepted!!.timestampMs) {
+                    previousAccepted = restored
+                }
+            }
+        }
         visitTracker = VisitTracker(
             scope = scope,
             placeRepository = app.placeRepository,
@@ -152,17 +207,19 @@ class LocationService : Service() {
 
     override fun onDestroy() {
         _running.value = false
+        if (::app.isInitialized) app.captureHealthStore.serviceStopped()
+        runCatching {
+            LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
+        }
         if (::visitTracker.isInitialized) {
             visitTracker.flushPending()
             scope.launch {
                 visitTracker.awaitPendingWrites()
+                synchronized(breadcrumbWrites) { breadcrumbWrites.toList() }.joinAll()
                 scope.cancel()
             }
         } else {
             scope.cancel()
-        }
-        runCatching {
-            LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
         }
         super.onDestroy()
     }
@@ -208,3 +265,8 @@ class LocationService : Service() {
         }
     }
 }
+
+@Suppress("DEPRECATION")
+private fun android.location.Location.isMockLocation(): Boolean =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) isMock
+    else isFromMockProvider

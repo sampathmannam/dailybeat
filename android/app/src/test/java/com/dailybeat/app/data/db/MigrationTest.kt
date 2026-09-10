@@ -21,7 +21,7 @@ import java.io.File
 /**
  * Exercises the real upgrade paths shipped to users:
  * app v1.0.x wrote schema 2, app v2.x wrote schema 3, app v3.x wrote schema 4, and
- * the two v3.6 development lines wrote different schema-5 shapes. The app now expects 7,
+ * the two v3.6 development lines wrote different schema-5 shapes. The app now expects 8,
  * retaining dormant DSR records even though DSR's active feature has moved to a separate app.
  *
  * Each test builds the legacy database with the exact SQL Room generated for that

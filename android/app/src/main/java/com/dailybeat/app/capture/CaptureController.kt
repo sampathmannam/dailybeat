@@ -12,7 +12,9 @@ object CaptureController {
         val settings = app.settingsRepository.get()
 
         val shouldStart = runCatching {
-            settings.gpsCaptureEnabled && PermissionHelper.canCaptureLocation(context)
+            settings.gpsCaptureEnabled &&
+                !app.settingsRepository.isCapturePaused() &&
+                PermissionHelper.canCaptureLocation(context)
         }.getOrElse { error ->
             OperationalFailureLog.record(
                 context = context,

@@ -7,6 +7,9 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.capture.LocationService
+import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.capture.CaptureHealthLevel
+import com.dailybeat.app.capture.status
 import com.dailybeat.app.capture.VoiceCaptureOrchestrator
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.util.PermissionHelper
@@ -15,6 +18,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import com.dailybeat.app.ui.feed.DayFeedBuilder
+import com.dailybeat.app.ui.feed.DayFeedItem
+import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,6 +41,14 @@ data class TodayUiState(
     val voiceMessage: String? = null,
     val isSavingNote: Boolean = false,
     val error: String? = null,
+    val successMessage: String? = null,
+    val captureStatus: CaptureHealthStatus = CaptureHealthStatus(CaptureHealthLevel.OFF),
+    val beatTitle: String = "Your day in motion",
+    val beatState: String = "live",
+    val distanceMeters: Double = 0.0,
+    val trackedMinutes: Long = 0,
+    val captureGapCount: Int = 0,
+    val distanceEstimated: Boolean = true,
 )
 
 private data class TodayDataState(
@@ -53,6 +69,30 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     val todayEvents = repository.observeTodayEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val todayBreadcrumbs = app.breadcrumbRepository.observeToday()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val todayBeat = combine(
+        todayVisits,
+        todayBreadcrumbs,
+        app.beatRepository.observe(DateKeys.today()),
+        app.placeRepository.observeAll(),
+        diaryRepository.observeToday(),
+    ) { visits, breadcrumbs, review, places, diary ->
+        DayFeedBuilder.build(
+            date = DateKeys.today(),
+            visits = visits,
+            diaryText = diary?.text,
+            places = places,
+            breadcrumbs = breadcrumbs,
+            review = review,
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        DayFeedBuilder.build(DateKeys.today(), emptyList(), null),
+    )
 
     private val _uiState = MutableStateFlow(
         TodayUiState(
@@ -102,6 +142,30 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        viewModelScope.launch {
+            combine(
+                todayBeat,
+                app.captureHealthStore.health,
+                LocationService.running,
+                minuteTicker(),
+            ) { beat, health, running, now ->
+                val enabled = runCatching { app.settingsRepository.get().gpsCaptureEnabled }
+                    .getOrDefault(false)
+                beat to health.copy(serviceRunning = running).status(now, enabled)
+            }.collect { (beat, status) ->
+                _uiState.update {
+                    it.copy(
+                        captureStatus = status,
+                        beatTitle = beat.title,
+                        beatState = beat.state,
+                        distanceMeters = beat.distanceMeters,
+                        trackedMinutes = beat.trackedMinutes,
+                        captureGapCount = beat.captureGapCount,
+                        distanceEstimated = beat.distanceEstimated,
+                    )
+                }
+            }
+        }
     }
 
     fun addOptionalNote(text: String, onSaved: () -> Unit = {}) {
@@ -134,7 +198,9 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 repository.addMomentMarker("Significant moment flagged (passive marker)")
                 CaptureAuditLog.log(getApplication(), "moment", "User flagged significant moment")
             }.fold(
-                onSuccess = { clearError() },
+                onSuccess = {
+                    _uiState.update { it.copy(error = null, successMessage = "Moment saved at the current time.") }
+                },
                 onFailure = { error -> showError(error, "Unable to mark this moment.") },
             )
         }
@@ -203,7 +269,10 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
-                    _uiState.value = _uiState.value.copy(isGeneratingReport = false)
+                    _uiState.value = _uiState.value.copy(
+                        isGeneratingReport = false,
+                        successMessage = "Daily report generated and saved.",
+                    )
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
@@ -213,6 +282,20 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 },
             )
         }
+    }
+
+    fun completeDay() {
+        viewModelScope.launch {
+            runCatching { app.beatRepository.complete(DateKeys.today(), _uiState.value.beatTitle) }
+                .onSuccess {
+                    _uiState.update { it.copy(successMessage = "Day complete. Your Beat is saved.", error = null) }
+                }
+                .onFailure { error -> showError(error, "Unable to complete this day.") }
+        }
+    }
+
+    fun clearMessage() {
+        _uiState.update { it.copy(successMessage = null) }
     }
 
     private fun clearError() {
@@ -241,5 +324,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         return settings.gpsCaptureEnabled &&
             PermissionHelper.canCaptureLocation(getApplication()) &&
             LocationService.isRunning
+    }
+
+    private fun minuteTicker() = flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(60_000L)
+        }
     }
 }

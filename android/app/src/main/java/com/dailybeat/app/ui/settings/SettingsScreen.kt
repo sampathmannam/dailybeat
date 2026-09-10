@@ -133,6 +133,66 @@ fun SettingsScreen(
         }
 
         item {
+            SettingsGroup(title = stringResource(R.string.settings_capture_group)) {
+                ToggleRow(
+                    label = stringResource(R.string.gps_capture_label),
+                    checked = state.gpsEnabled,
+                    onCheckedChange = viewModel::setGpsEnabled,
+                )
+                if (state.capturePausedUntilMs > System.currentTimeMillis()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                    ) {
+                        Text(
+                            stringResource(R.string.capture_paused_body),
+                            Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
+                    PrimaryButton(
+                        text = stringResource(R.string.resume_capture_now),
+                        onClick = viewModel::resumeCaptureNow,
+                    )
+                } else {
+                    SecondaryButton(
+                        text = stringResource(R.string.pause_capture_one_hour),
+                        onClick = viewModel::pauseCaptureForOneHour,
+                        enabled = state.gpsEnabled,
+                    )
+                }
+                Text(
+                    text = if (state.batteryUnrestricted) {
+                        stringResource(R.string.battery_unrestricted)
+                    } else {
+                        stringResource(R.string.battery_restricted)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.batteryUnrestricted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+                if (!state.batteryUnrestricted) {
+                    SecondaryButton(
+                        text = stringResource(R.string.battery_open_settings),
+                        onClick = { openBatterySettings(settingsContext) },
+                    )
+                }
+                state.captureMessage?.let { message ->
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    SecondaryButton(
+                        text = stringResource(R.string.open_app_settings),
+                        onClick = { openAppSettings(settingsContext) },
+                    )
+                }
+            }
+        }
+
+        item {
             SettingsGroup(title = stringResource(R.string.officer_name_label)) {
                 OutlinedTextField(
                     value = state.officerName,
@@ -377,46 +437,6 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup(title = stringResource(R.string.settings_capture_group)) {
-                ToggleRow(
-                    label = stringResource(R.string.gps_capture_label),
-                    checked = state.gpsEnabled,
-                    onCheckedChange = viewModel::setGpsEnabled,
-                )
-                Text(
-                    text = if (state.batteryUnrestricted) {
-                        stringResource(R.string.battery_unrestricted)
-                    } else {
-                        stringResource(R.string.battery_restricted)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (state.batteryUnrestricted) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
-                )
-                if (!state.batteryUnrestricted) {
-                    SecondaryButton(
-                        text = stringResource(R.string.battery_open_settings),
-                        onClick = { openBatterySettings(settingsContext) },
-                    )
-                }
-                state.captureMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    SecondaryButton(
-                        text = stringResource(R.string.open_app_settings),
-                        onClick = { openAppSettings(settingsContext) },
-                    )
-                }
-            }
-        }
-
-        item {
             SettingsGroup(title = stringResource(R.string.places_title)) {
                 if (state.placeSuggestions.isNotEmpty()) {
                     Text(
@@ -463,7 +483,11 @@ fun SettingsScreen(
         }
 
         items(state.places, key = { it.id }) { place ->
-            PlaceCard(place = place, onDelete = { placePendingDeletion = place })
+            PlaceCard(
+                place = place,
+                onPrivateChange = { viewModel.setPlacePrivate(place, it) },
+                onDelete = { placePendingDeletion = place },
+            )
         }
     }
 }
@@ -507,7 +531,7 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 }
 
 @Composable
-private fun PlaceCard(place: Place, onDelete: () -> Unit) {
+private fun PlaceCard(place: Place, onPrivateChange: (Boolean) -> Unit, onDelete: () -> Unit) {
     androidx.compose.material3.Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -519,13 +543,25 @@ private fun PlaceCard(place: Place, onDelete: () -> Unit) {
                 .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(text = place.name, style = MaterialTheme.typography.titleSmall)
                 Text(
                     text = "${place.latitude}, ${place.longitude} (${place.radiusM}m)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.private_place),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Switch(
+                        checked = place.isPrivate,
+                        onCheckedChange = onPrivateChange,
+                        modifier = Modifier.testTag("private_place_${place.id}"),
+                    )
+                }
             }
             IconButton(
                 onClick = onDelete,

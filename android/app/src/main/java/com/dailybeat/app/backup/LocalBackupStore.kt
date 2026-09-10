@@ -23,6 +23,8 @@ class LocalBackupStore(
                 places = db.places().all(),
                 diaries = db.diaries().all(),
                 visits = db.visits().all(),
+                breadcrumbs = db.breadcrumbs().all(),
+                beatReviews = db.beatReviews().all(),
                 settings = BackupSettings(
                     officerName = settings.officerName,
                     gpsCaptureEnabled = settings.gpsCaptureEnabled,
@@ -47,10 +49,14 @@ class LocalBackupStore(
             db.places().deleteAll()
             db.diaries().deleteAll()
             db.visits().deleteAll()
+            db.breadcrumbs().deleteAll()
+            db.beatReviews().deleteAll()
             db.events().insertAll(snapshot.events)
             db.places().insertAll(snapshot.places)
             db.diaries().insertAll(snapshot.diaries)
             db.visits().insertAll(snapshot.visits)
+            db.breadcrumbs().insertAll(snapshot.breadcrumbs)
+            db.beatReviews().insertAll(snapshot.beatReviews)
         }
         applySettings(snapshot.settings)
     }

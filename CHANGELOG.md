@@ -1,5 +1,38 @@
 # Changelog
 
+## 3.8.0 — 2026-09-10
+
+### Added
+- **Whole-day Beats.** Every captured day now has a name and an explicit review state. Review My
+  Day lets the user rename stops, reversibly hide an incorrect stop, restore it, and mark the Beat
+  complete without deleting the underlying capture record.
+- **Private Insights.** A new 28-day view shows weekly movement, review streak, a seven-day chart,
+  recurring places, and one deterministic next action based on capture health or unfinished review.
+- **Reliable GPS breadcrumbs.** High-frequency route points are stored separately from dwell
+  visits. Invalid, mock, inaccurate, and physically impossible fixes are rejected; gaps longer than
+  ten minutes are disclosed and excluded from distance totals.
+- **Privacy pause.** Capture can be paused for one hour and automatically resumes through
+  WorkManager, including after process recreation.
+
+### Improved
+- **Map-first experience.** Today puts the route directly below the date, Days uses one polished
+  map-led card per day, and the full map keeps a visible yellow route fallback until its interactive
+  street tiles are genuinely rendered.
+- **Clearer app structure.** The permanent destinations are Today, Days, Insights, and Settings.
+  Diary and Review stay in the daily flow instead of competing for navigation space.
+- **Production UI.** New navy/yellow identity, launcher icon, dark theme, aligned GPS/cloud status
+  panels, stronger hierarchy, accessible labels, and compact distance formatting.
+- **Cloud backup schema 2.** Breadcrumbs, Beat reviews, reversible review fields, and private-place
+  flags now round-trip while schema-1 backups remain restorable.
+
+### Reliability and tests
+- Database schema 8 uses additive migrations only and retains dormant legacy DSR data.
+- Capture shutdown waits for pending breadcrumb writes and never restores an older fix over a newer
+  callback.
+- Expanded unit, migration, navigation, privacy, review, insight, and end-to-end device coverage.
+- Locust synthetic cloud-report load gate: 6,823 requests, zero failures, approximately 230 req/s,
+  with a 2 ms mean and 11 ms p99 on the local compatible test endpoint.
+
 ## 3.7.2 — 2026-09-09
 
 ### Improved

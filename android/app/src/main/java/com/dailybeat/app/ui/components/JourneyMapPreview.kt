@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,7 +40,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
-import com.dailybeat.app.data.model.LocationVisit
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -57,6 +57,7 @@ import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.lineCap
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineDasharray
 import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -69,17 +70,18 @@ import kotlin.math.roundToInt
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
 private const val ROUTE_CASING_LAYER_ID = "dailybeat-route-casing-layer"
 private const val ROUTE_LAYER_ID = "dailybeat-route-layer"
+private const val GAP_SOURCE_ID = "dailybeat-gap-source"
+private const val GAP_LAYER_ID = "dailybeat-gap-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
 
 @Composable
 fun JourneyMapPreview(
-    visits: List<LocationVisit>,
+    model: JourneyMapModel,
     modifier: Modifier = Modifier,
     onFailure: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val model = remember(visits) { JourneyMapModel.fromVisits(visits) }
     if (model.points.isEmpty()) return
 
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -156,36 +158,12 @@ fun JourneyMapPreview(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (mapError) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(R.string.journey_map_unavailable),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(
-                        onClick = {
-                            loadedStyle = null
-                            mapView.contentDescription = mapDescription
-                            map?.let(loadStyle)
-                        },
-                    ) {
-                        Text(stringResource(R.string.journey_map_retry))
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                if (!mapError) {
                     AndroidView(
                         factory = { mapView },
                         modifier = Modifier
@@ -193,13 +171,67 @@ fun JourneyMapPreview(
                             .onSizeChanged { mapViewportSize = it }
                             .testTag("journey_map"),
                     )
-                    if (mapRendered) {
-                        Spacer(
-                            modifier = Modifier
-                                .size(1.dp)
-                                .testTag("journey_map_ready"),
-                        )
+                }
+                if (!mapRendered || mapError) {
+                    JourneyMapSnapshot(
+                        model = model,
+                        modifier = Modifier.fillMaxSize(),
+                        testTag = "journey_map_fallback",
+                        readyTestTag = "journey_map_fallback_ready",
+                        onFailure = onFailure,
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(12.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    ) {
+                        if (mapError) {
+                            Row(
+                                modifier = Modifier.padding(start = 14.dp, end = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.journey_map_unavailable),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                TextButton(
+                                    onClick = {
+                                        loadedStyle = null
+                                        mapView.contentDescription = mapDescription
+                                        map?.let(loadStyle)
+                                    },
+                                ) {
+                                    Text(stringResource(R.string.journey_map_retry))
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                Text(
+                                    text = stringResource(R.string.journey_map_loading_interactive),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
+                }
+                if (mapRendered) {
+                    Spacer(
+                        modifier = Modifier
+                            .size(1.dp)
+                            .testTag("journey_map_ready"),
+                    )
                 }
             }
 
@@ -376,6 +408,34 @@ private fun MapLibreMap.renderJourney(
             style.removeLayer(ROUTE_LAYER_ID)
             style.removeLayer(ROUTE_CASING_LAYER_ID)
             style.removeSource(ROUTE_SOURCE_ID)
+        }
+
+        val gapFeatures = model.gapSegments.map { segment ->
+            Feature.fromGeometry(
+                LineString.fromLngLats(
+                    segment.map { Point.fromLngLat(it.longitude, it.latitude) },
+                ),
+            )
+        }
+        if (gapFeatures.isNotEmpty()) {
+            val gaps = FeatureCollection.fromFeatures(gapFeatures)
+            val gapSource = style.getSourceAs<GeoJsonSource>(GAP_SOURCE_ID)
+            if (gapSource == null) {
+                style.addSource(GeoJsonSource(GAP_SOURCE_ID, gaps))
+                style.addLayer(
+                    LineLayer(GAP_LAYER_ID, GAP_SOURCE_ID).withProperties(
+                        lineColor("#64748B"),
+                        lineWidth(3f),
+                        lineDasharray(arrayOf(1.5f, 1.5f)),
+                        lineCap(Property.LINE_CAP_ROUND),
+                    ),
+                )
+            } else {
+                gapSource.setGeoJson(gaps)
+            }
+        } else if (style.getSource(GAP_SOURCE_ID) != null) {
+            style.removeLayer(GAP_LAYER_ID)
+            style.removeSource(GAP_SOURCE_ID)
         }
 
         val stops = FeatureCollection.fromFeatures(points.map(Feature::fromGeometry))

@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.dailybeat.app.data.model.Place
 import kotlinx.coroutines.flow.Flow
 
@@ -27,4 +28,7 @@ interface PlaceDao {
 
     @Delete
     suspend fun delete(place: Place)
+
+    @Update
+    suspend fun update(place: Place)
 }

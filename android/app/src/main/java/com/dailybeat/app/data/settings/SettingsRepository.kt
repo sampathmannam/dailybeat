@@ -34,6 +34,26 @@ class SettingsRepository(
         prefs.edit().putBoolean(KEY_GPS, enabled).apply()
     }
 
+    fun capturePausedUntilMs(nowMs: Long = System.currentTimeMillis()): Long {
+        val until = prefs.getLong(KEY_CAPTURE_PAUSED_UNTIL, 0L)
+        if (until in 1..nowMs) {
+            prefs.edit().remove(KEY_CAPTURE_PAUSED_UNTIL).apply()
+            return 0L
+        }
+        return until
+    }
+
+    fun pauseCaptureUntil(timestampMs: Long) {
+        prefs.edit().putLong(KEY_CAPTURE_PAUSED_UNTIL, timestampMs.coerceAtLeast(0L)).apply()
+    }
+
+    fun clearCapturePause() {
+        prefs.edit().remove(KEY_CAPTURE_PAUSED_UNTIL).apply()
+    }
+
+    fun isCapturePaused(nowMs: Long = System.currentTimeMillis()): Boolean =
+        capturePausedUntilMs(nowMs) > nowMs
+
     fun setCloudLlmEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_CLOUD_ENABLED, enabled).apply()
     }
@@ -75,6 +95,7 @@ class SettingsRepository(
     companion object {
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_GPS = "gps_enabled"
+        private const val KEY_CAPTURE_PAUSED_UNTIL = "capture_paused_until"
         private const val KEY_ONBOARDING = "onboarding_complete"
         private const val KEY_CLOUD_ENABLED = "cloud_llm_enabled"
         private const val KEY_CLOUD_PROVIDER = "cloud_provider"

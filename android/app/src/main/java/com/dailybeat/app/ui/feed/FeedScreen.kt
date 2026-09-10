@@ -63,7 +63,7 @@ import java.io.File
 
 @Composable
 fun FeedScreen(
-    onOpenDiary: (String) -> Unit,
+    onOpenDay: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: FeedViewModel = viewModel(),
 ) {
@@ -129,25 +129,6 @@ fun FeedScreen(
         }
 
         item {
-            PrimaryButton(
-                text = stringResource(R.string.generate_weekly_rollup),
-                onClick = viewModel::generateWeeklyRollup,
-                enabled = !state.isGeneratingWeekly,
-            )
-            SecondaryButton(
-                text = stringResource(R.string.export_week_package),
-                onClick = viewModel::exportPackage,
-                enabled = !state.isExporting,
-            )
-            if (state.isGeneratingWeekly || state.isExporting) {
-                CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
-            }
-            state.message?.let {
-                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            }
-            state.error?.let {
-                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
             if (state.isLoading) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed_loading"))
             }
@@ -165,9 +146,47 @@ fun FeedScreen(
         items(state.days, key = { it.date.toString() }) { day ->
             DayFeedCard(
                 day = day,
-                onClick = { onOpenDiary(DateKeys.format(day.date)) },
+                onClick = { onOpenDay(DateKeys.format(day.date)) },
                 onNameStay = { stay -> stayBeingNamed = stay },
             )
+        }
+
+        if (state.days.isNotEmpty()) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.weekly_tools), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.weekly_tools_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        PrimaryButton(
+                            text = stringResource(R.string.generate_weekly_rollup),
+                            onClick = viewModel::generateWeeklyRollup,
+                            enabled = !state.isGeneratingWeekly,
+                        )
+                        SecondaryButton(
+                            text = stringResource(R.string.export_week_package),
+                            onClick = viewModel::exportPackage,
+                            enabled = !state.isExporting,
+                        )
+                        if (state.isGeneratingWeekly || state.isExporting) {
+                            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                        }
+                        state.message?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        state.error?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -197,16 +216,25 @@ private fun DayFeedCard(
             modifier = Modifier.padding(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        text = relativeDayLabel(day.date),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    DayStateBadge(day.state)
+                }
                 Text(
-                    text = relativeDayLabel(day.date),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = day.title,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = formatDayHeading(day.date, locale),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -239,6 +267,15 @@ private fun DayFeedCard(
                 StatBlock(
                     value = day.stayCount.toString(),
                     label = stringResource(R.string.feed_stat_stops),
+                )
+            }
+
+            if (day.captureGapCount > 0) {
+                Text(
+                    text = stringResource(R.string.day_gap_summary, day.captureGapCount),
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
                 )
             }
 
@@ -291,6 +328,22 @@ private fun DayFeedCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DayStateBadge(state: String) {
+    Surface(
+        shape = CircleShape,
+        color = if (state == "complete") MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Text(
+            text = if (state == "complete") stringResource(R.string.complete_label)
+            else stringResource(R.string.needs_review_label),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
 }
 

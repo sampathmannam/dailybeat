@@ -35,6 +35,8 @@ class VisitRepository(private val visitDao: VisitDao) {
 
     suspend fun insert(visit: LocationVisit) = visitDao.insert(visit)
 
+    suspend fun update(visit: LocationVisit) = visitDao.update(visit)
+
     private fun LocationVisit.clippedTo(dayStart: Long, dayEnd: Long): LocationVisit = copy(
         startMs = maxOf(startMs, dayStart),
         endMs = minOf(endMs, dayEnd),

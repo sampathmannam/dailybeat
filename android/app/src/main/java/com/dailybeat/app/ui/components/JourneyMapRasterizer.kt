@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.DashPathEffect
 import android.graphics.RectF
 import androidx.compose.ui.unit.IntSize
 import com.dailybeat.app.BuildConfig
@@ -133,6 +134,18 @@ private fun drawRoute(
         }
         canvas.drawPath(path, casingPaint)
         canvas.drawPath(path, routePaint)
+    }
+    val gapPaint = routePaint("#64748B", 4f * density).apply {
+        pathEffect = DashPathEffect(floatArrayOf(7f * density, 6f * density), 0f)
+    }
+    model.gapSegments.forEach { segment ->
+        val path = Path()
+        segment.forEachIndexed { index, point ->
+            val x = alignedWorldX(point.longitude, centerX, worldSizePx) - viewportLeft
+            val y = worldY(point.latitude, worldSizePx) - viewportTop
+            if (index == 0) path.moveTo(x.toFloat(), y.toFloat()) else path.lineTo(x.toFloat(), y.toFloat())
+        }
+        canvas.drawPath(path, gapPaint)
     }
 
     val stopOuterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

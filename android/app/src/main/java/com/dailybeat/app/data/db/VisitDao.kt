@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.dailybeat.app.data.model.LocationVisit
 import kotlinx.coroutines.flow.Flow
 
@@ -23,6 +24,9 @@ interface VisitDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(visits: List<LocationVisit>)
+
+    @Update
+    suspend fun update(visit: LocationVisit)
 
     @Query("DELETE FROM location_visits")
     suspend fun deleteAll()

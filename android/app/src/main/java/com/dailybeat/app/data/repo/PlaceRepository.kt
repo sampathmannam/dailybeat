@@ -17,4 +17,7 @@ class PlaceRepository(private val placeDao: PlaceDao) {
     }
 
     suspend fun delete(place: Place) = placeDao.delete(place)
+
+    suspend fun setPrivate(place: Place, isPrivate: Boolean) =
+        placeDao.update(place.copy(isPrivate = isPrivate))
 }
