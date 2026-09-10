@@ -66,7 +66,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val app = application as DailyBeatApp
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(themePreference = app.settingsRepository.themePreference.value),
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private var placeMutationInFlight = false
 
@@ -77,7 +79,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun refresh() {
         viewModelScope.launch {
             try {
-                val settings = app.settingsRepository.get()
                 val places = app.placeRepository.all()
                 val recentVisits = app.visitRepository.visitsLastDays(14)
                 val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
@@ -85,6 +86,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     app.settingsRepository.secureApiKey.hasApiKey()
                 }
                 val auditLines = CaptureAuditLog.readRecent(app)
+                // Read preferences after the slower database and secure-store work. Because this
+                // coroutine and UI setters resume on the main thread, no tap can interleave
+                // between this read and the state update and be replaced by stale settings.
+                val settings = app.settingsRepository.get()
                 // Copy rather than rebuild: a rebuild threw away whatever the officer was in the
                 // middle of, such as a half-typed place or the result of a connection test.
                 _uiState.update { current ->
