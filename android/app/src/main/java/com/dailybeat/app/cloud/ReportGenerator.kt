@@ -4,6 +4,7 @@ import android.content.Context
 import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.util.DateKeys
@@ -16,12 +17,14 @@ class ReportGenerator(
     private val visitRepository: VisitRepository,
     private val eventRepository: EventRepository,
     private val diaryRepository: DiaryRepository,
+    private val placeRepository: PlaceRepository,
 ) {
 
     suspend fun generateForDate(date: LocalDate): Result<String> {
         val settings = settingsRepository.get()
         val visits = visitRepository.visitsForDate(date)
         val events = eventRepository.eventsForDate(date)
+        val places = placeRepository.all()
 
         if (visits.isEmpty() && events.isEmpty()) {
             return Result.failure(
@@ -36,6 +39,7 @@ class ReportGenerator(
             officerName = settings.officerName,
             visits = visits,
             events = events,
+            places = places,
         )
         val limitedText = ContextLimiter.trimForLlm(source.text)
         // ContextLimiter keeps the start of the timeline, so only allow citations that survived

@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.8.2 — 2026-09-10
+
+### Fixed
+- **"Private zone" now actually works.** The switch was saved and shown but never consulted, so a
+  place marked private was still described to the cloud AI provider, still written into shared
+  exports, and still looked up by name against OpenStreetMap. Stays inside a private zone are now
+  excluded from every outbound path, and their coordinates are never sent to the geocoder at all.
+- **"Hide stop" now applies beyond the screen.** A stop hidden in Review my day disappeared from
+  the day card but was still sent to the cloud provider and included in the backup. It is now
+  excluded from reports and exports as well.
+- **Daily, midday and weekly reports no longer include raw GPS coordinates.** Reports identify
+  places by name and time; the roughly 11-metre positions that used to accompany every stay served
+  no purpose in the generated diary.
+- The weekly rollup counts only the stays it actually sends, so the number no longer reveals how
+  many were withheld.
+
+### Notes
+- Private zones and hidden stops remain in your own cloud backup. Dropping them would lose the
+  private flag itself on a restore and silently re-expose those places.
+- No screen, layout or navigation changed. The Settings wording for a private zone now describes
+  what it does.
+
 ## Unreleased
 
 Repository and pipeline work only. No user-visible behaviour, screen or wording changed, and

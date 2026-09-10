@@ -2,6 +2,8 @@ package com.dailybeat.app.cloud
 
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.domain.OutboundVisitFilter
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -24,17 +26,28 @@ object DayContextBuilder {
         officerName: String,
         visits: List<LocationVisit>,
         events: List<Event>,
+        places: List<Place>,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): String = buildDetailed(date, officerName, visits, events, zone).text
+    ): String = buildDetailed(date, officerName, visits, events, places, zone).text
 
+    /**
+     * [places] is required rather than defaulted: everything built here is sent to a cloud
+     * provider, and a caller that forgot to supply the officer's saved places would silently
+     * transmit their private zones. Passing an empty list is a deliberate statement that no
+     * private zones exist, not an oversight.
+     */
     fun buildDetailed(
         date: LocalDate,
         officerName: String,
         visits: List<LocationVisit>,
         events: List<Event>,
+        places: List<Place>,
         zone: ZoneId = ZoneId.systemDefault(),
     ): BuiltContext {
         val sections = mutableListOf<String>()
+        // Private zones and stops the officer hid during review never leave the device.
+        @Suppress("NAME_SHADOWING")
+        val visits = OutboundVisitFilter.forOutbound(visits, places)
         sections += "OFFICER: ${safeInline(officerName, 120)}"
         sections += "DATE: ${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}"
         sections += "CITATION RULE: Reference items as [V#] for visits and [E#] for events in your report."
@@ -73,8 +86,9 @@ object DayContextBuilder {
             "transit" -> "Transit near ${visit.address ?: "route"}"
             else -> visit.placeName ?: visit.address ?: "Unknown place"
         }
-        val coords = String.format(Locale.US, "(%.4f, %.4f)", visit.latitude, visit.longitude)
-        return "[V$ref] $start–$end (${durationMin} min): ${safeInline(label, 240)} $coords"
+        // No coordinates. The model cites sources as [V#] and never needs the numbers, so sending
+        // them was pure leakage of ~11 m positions for a police officer's whole day.
+        return "[V$ref] $start–$end (${durationMin} min): ${safeInline(label, 240)}"
     }
 
     private fun formatEventRef(ref: Int, event: Event, zone: ZoneId): String {

@@ -2,6 +2,7 @@ package com.dailybeat.app.cloud
 
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.util.DateKeys
@@ -12,6 +13,7 @@ class PulseReportGenerator(
     private val visitRepository: VisitRepository,
     private val eventRepository: EventRepository,
     private val diaryRepository: DiaryRepository,
+    private val placeRepository: PlaceRepository,
 ) {
 
     suspend fun generateAndSavePulse(): Result<String> {
@@ -19,6 +21,7 @@ class PulseReportGenerator(
         val settings = settingsRepository.get()
         val visits = visitRepository.visitsForDate(date)
         val events = eventRepository.eventsForDate(date)
+        val places = placeRepository.all()
 
         if (visits.isEmpty() && events.isEmpty()) {
             return Result.failure(IllegalStateException("No activity yet for midday pulse."))
@@ -30,6 +33,7 @@ class PulseReportGenerator(
                 officerName = settings.officerName,
                 visits = visits,
                 events = events,
+                places = places,
             ),
         )
 

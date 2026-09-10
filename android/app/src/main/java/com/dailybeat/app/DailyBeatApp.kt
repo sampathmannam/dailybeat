@@ -86,6 +86,7 @@ class DailyBeatApp : Application() {
             visitRepository = visitRepository,
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
+            placeRepository = placeRepository,
         )
     }
 
@@ -96,6 +97,7 @@ class DailyBeatApp : Application() {
             visitRepository = visitRepository,
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
+            placeRepository = placeRepository,
         )
     }
 
@@ -106,6 +108,7 @@ class DailyBeatApp : Application() {
             visitRepository = visitRepository,
             eventRepository = eventRepository,
             diaryRepository = diaryRepository,
+            placeRepository = placeRepository,
         )
     }
 

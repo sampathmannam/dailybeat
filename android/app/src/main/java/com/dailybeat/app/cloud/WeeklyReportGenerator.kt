@@ -2,8 +2,10 @@ package com.dailybeat.app.cloud
 
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.domain.OutboundVisitFilter
 import com.dailybeat.app.util.DateKeys
 import java.time.LocalDate
 
@@ -13,6 +15,7 @@ class WeeklyReportGenerator(
     private val visitRepository: VisitRepository,
     private val eventRepository: EventRepository,
     private val diaryRepository: DiaryRepository,
+    private val placeRepository: PlaceRepository,
 ) {
 
     suspend fun generateAndSave(): Result<String> {
@@ -23,13 +26,16 @@ class WeeklyReportGenerator(
         val end = DateKeys.today()
         val start = end.minusDays(6)
         val settings = settingsRepository.get()
+        val places = placeRepository.all()
         val sections = mutableListOf<String>()
         sections += "WEEKLY ROLLUP: ${DateKeys.format(start)} to ${DateKeys.format(end)}"
         sections += "OFFICER: ${settings.officerName}"
 
         var day = start
         while (!day.isAfter(end)) {
-            val visits = visitRepository.visitsForDate(day)
+            // Count what is actually sent, not what was captured. Reporting the raw total would
+            // tell the provider how many stays were withheld, which is itself a disclosure.
+            val visits = OutboundVisitFilter.forOutbound(visitRepository.visitsForDate(day), places)
             val events = eventRepository.eventsForDate(day)
             val diary = diaryRepository.textForDate(day)
             sections += "--- ${DateKeys.format(day)} ---"
@@ -38,7 +44,7 @@ class WeeklyReportGenerator(
                 sections += diary.take(500)
             } else if (visits.isNotEmpty() || events.isNotEmpty()) {
                 sections += ContextLimiter.trimForLlm(
-                    DayContextBuilder.build(day, settings.officerName, visits, events),
+                    DayContextBuilder.build(day, settings.officerName, visits, events, places),
                 ).take(800)
             } else {
                 sections += "No captured activity."

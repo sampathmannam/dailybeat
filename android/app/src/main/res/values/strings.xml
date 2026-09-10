@@ -63,7 +63,7 @@
     <string name="last_seven_days">Distance by day</string>
     <string name="weekly_tools">Weekly tools</string>
     <string name="weekly_tools_body">Create an official roll-up or export only when you need it.</string>
-    <string name="private_place">Private zone: hide this place from future shared cards</string>
+    <string name="private_place">Private zone: keep this place out of cloud reports, exports and map lookups</string>
     <string name="pause_capture_one_hour">Pause capture for 1 hour</string>
     <string name="resume_capture_now">Resume capture now</string>
     <string name="capture_paused_body">Capture is paused for privacy. It will resume automatically within one hour.</string>

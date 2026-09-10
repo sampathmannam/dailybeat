@@ -73,9 +73,11 @@ Confirmed by source audit at `v3.8.1`:
    drain with battery optimisation both enabled and exempted. OEM task killers remain the largest
    unmeasured risk to passive capture.
 2. A formal end-to-end privacy review of exactly what leaves the device during diary generation and
-   cloud backup, and of how the place-level and stop-level privacy controls are enforced along every
-   outbound path. **This is the most important open item and should be closed before the app is
-   used with genuinely sensitive locations.**
+   cloud backup. **Partly addressed in 3.8.2**: the place-level and stop-level controls are now
+   enforced on every outbound path, raw coordinates were removed from the cloud payload, and
+   `PrivatePlaceExclusionTest` and `PrivateZoneGeocoderGateTest` assert both. What remains is a
+   review of the rest of the payload — event text, officer and supervisor names, diary content —
+   and of the backup snapshot, which is still stored as plaintext JSON (see item 4).
 3. Encryption at rest. The Room database is plaintext, protected only by Android file-based
    encryption and the disabled-backup settings. Exports are deliberately readable files and still
    need a retention policy.

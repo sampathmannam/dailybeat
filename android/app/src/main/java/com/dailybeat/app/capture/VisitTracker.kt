@@ -3,6 +3,7 @@ package com.dailybeat.app.capture
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.domain.GeofenceMatcher
+import com.dailybeat.app.domain.OutboundVisitFilter
 import com.dailybeat.app.geo.OsmGeocoder
 import com.dailybeat.app.geo.ResolvedPlace
 import kotlinx.coroutines.CoroutineScope
@@ -170,7 +171,11 @@ class VisitTracker(
     private suspend fun recordDwell(startMs: Long, endMs: Long, lat: Double, lon: Double) {
         val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
         val matched = GeofenceMatcher.matchPlace(lat, lon, places)
-        val resolved = resolveSafely(lat, lon)
+        // A private zone is never sent to the geocoder. Resolving it would hand the officer's
+        // home, or an informant's meeting point, to a third-party service at capture time —
+        // before any outbound filter downstream ever gets a say. Their own saved name is the
+        // label, and no third-party address is stored for it.
+        val resolved = if (matched?.isPrivate == true) null else resolveSafely(lat, lon)
         onVisitRecorded(
             LocationVisit(
                 startMs = startMs,
@@ -178,15 +183,21 @@ class VisitTracker(
                 latitude = lat,
                 longitude = lon,
                 // A place the officer saved themselves outranks whatever the map calls it.
-                placeName = matched?.name ?: resolved.label,
-                address = resolved.address,
+                placeName = matched?.name ?: resolved?.label,
+                address = resolved?.address,
                 visitType = "dwell",
             ),
         )
     }
 
     private suspend fun recordTransit(startMs: Long, endMs: Long, lat: Double, lon: Double) {
-        val resolved = resolveSafely(lat, lon)
+        val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
+        // Same rule for a transit sample that happens to fall inside a private zone.
+        val resolved = if (OutboundVisitFilter.isPrivateLocation(lat, lon, places)) {
+            null
+        } else {
+            resolveSafely(lat, lon)
+        }
         onVisitRecorded(
             LocationVisit(
                 startMs = startMs,
@@ -194,7 +205,7 @@ class VisitTracker(
                 latitude = lat,
                 longitude = lon,
                 placeName = null,
-                address = resolved.address,
+                address = resolved?.address,
                 visitType = "transit",
             ),
         )
