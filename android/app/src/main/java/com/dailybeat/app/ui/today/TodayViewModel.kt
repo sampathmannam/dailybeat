@@ -284,16 +284,6 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun completeDay() {
-        viewModelScope.launch {
-            runCatching { app.beatRepository.complete(DateKeys.today(), _uiState.value.beatTitle) }
-                .onSuccess {
-                    _uiState.update { it.copy(successMessage = "Day complete. Your Beat is saved.", error = null) }
-                }
-                .onFailure { error -> showError(error, "Unable to complete this day.") }
-        }
-    }
-
     fun clearMessage() {
         _uiState.update { it.copy(successMessage = null) }
     }

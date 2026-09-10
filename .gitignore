@@ -71,12 +71,6 @@ temp/
 .cache/
 supabase/.temp/
 
-# Aider chat history
-.aider.chat.history.md
-.aider.input.history
-.aider.tags.cache.json
-.aider.model.metadata.json
-
 # Env / secrets
 .env
 .env.local

@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+Repository and pipeline work only. No user-visible behaviour, screen or wording changed, and
+3.8.1 remains the published release.
+
+### Removed
+- The dead local-model era: the Aider PowerShell tooling, an unused load-test harness, Cursor
+  editor configuration, completed design plans, the v1 UI preview mock, and `PLAN.md` — a spec for
+  an offline fine-tuned model that the cloud-only app has not matched for many versions.
+- Unreachable app code, each verified to have no caller: a superseded visit card, an unused diary
+  formatter, 34 dormant DSR query methods that were still being packaged into the APK, several
+  orphaned repository and DAO methods, and 8 strings left over from the move to four tabs.
+- The dormant DSR tables, entities and migration chain are untouched, so existing records still
+  survive every upgrade.
+
+### Security
+- Gradle dependency verification now pins every build dependency by SHA-256, with a policy test
+  that fails the release gate if signature verification or a trusted-key bypass is ever introduced.
+- Release tags are immutable and the branch ruleset no longer refers to an unrelated product.
+- An explicit network security configuration denies cleartext traffic instead of relying on the
+  implicit platform default.
+- The cloud and backup HTTP clients refuse redirects, so a custom authentication header cannot be
+  replayed to a redirect target, and the backup client now has bounded timeouts rather than none.
+- Release builds strip `android.util.Log` calls; CodeQL now also analyses the Python release
+  tooling; Dependabot version updates are enabled; and CI removes the decoded signing key when the
+  release job finishes.
+
 ## 3.8.1 — 2026-09-10
 
 ### Added

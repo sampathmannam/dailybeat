@@ -99,11 +99,17 @@ and private source files remain untouched for data retention; see [separation no
 - API keys are stored encrypted on device.
 - Retained legacy DSR records are not included in the cloud backup snapshot.
 
-## Training (your machine)
+## Release policy checks
+
+The release gate runs a Python suite that pins the build, signing, QA-isolation and cloud-backup
+policies. Run it the same way CI does:
 
 ```bash
 pip install -e ".[dev]"
-python scripts/parse_diaries.py --merge data/samples/diary_train.sample.jsonl
+python3 -m pytest scripts/tests/ -q
 ```
 
-Full spec: [PLAN.md](PLAN.md) · UI design: [docs/DESIGN.md](docs/DESIGN.md)
+`scripts/parse_diaries.py` and `scripts/split_eval.py` are retained as fixtures for that suite.
+DailyBeat generates diaries through the cloud provider only; there is no local training pipeline.
+
+Product doctrine: [PRODUCT.md](PRODUCT.md) · UI design: [docs/DESIGN.md](docs/DESIGN.md) · Baseline: [docs/AUDIT_RATING.md](docs/AUDIT_RATING.md)

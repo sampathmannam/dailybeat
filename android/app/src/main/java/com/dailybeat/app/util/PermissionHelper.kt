@@ -9,10 +9,6 @@ import androidx.core.content.ContextCompat
 
 object PermissionHelper {
 
-    fun hasRecordAudio(context: Context): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-
     fun hasLocation(context: Context): Boolean {
         val fine = ContextCompat.checkSelfPermission(
             context,

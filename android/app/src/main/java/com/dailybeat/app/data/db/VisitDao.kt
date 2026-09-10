@@ -30,7 +30,4 @@ interface VisitDao {
 
     @Query("DELETE FROM location_visits")
     suspend fun deleteAll()
-
-    @Query("SELECT * FROM location_visits WHERE endMs = 0 LIMIT 1")
-    suspend fun openVisit(): LocationVisit?
 }

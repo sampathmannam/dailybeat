@@ -10,6 +10,22 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/**
+ * A bare OkHttpClient has callTimeout 0 — unbounded — so a stalled connection could pin a backup
+ * coroutine forever behind the retry loop. Redirects are refused outright: these are fixed Supabase
+ * endpoints with no reason to redirect, and OkHttp only strips `Authorization` across hosts, not the
+ * custom `apikey` header this client sends.
+ */
+private fun defaultBackupHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .connectTimeout(30, TimeUnit.SECONDS)
+    .readTimeout(60, TimeUnit.SECONDS)
+    .writeTimeout(60, TimeUnit.SECONDS)
+    .callTimeout(120, TimeUnit.SECONDS)
+    .followRedirects(false)
+    .followSslRedirects(false)
+    .build()
 
 data class RemoteBackup(
     val snapshotJson: String,
@@ -34,7 +50,7 @@ interface BackupRemote {
 class SupabaseBackupClient(
     private val configuration: BackupConfiguration,
     private val sessionStore: BackupSessionStore,
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    private val httpClient: OkHttpClient = defaultBackupHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
 ) : BackupRemote {

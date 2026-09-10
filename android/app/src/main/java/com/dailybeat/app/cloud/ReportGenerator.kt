@@ -18,8 +18,6 @@ class ReportGenerator(
     private val diaryRepository: DiaryRepository,
 ) {
 
-    suspend fun generateForToday(): Result<String> = generateForDate(LocalDate.now())
-
     suspend fun generateForDate(date: LocalDate): Result<String> {
         val settings = settingsRepository.get()
         val visits = visitRepository.visitsForDate(date)

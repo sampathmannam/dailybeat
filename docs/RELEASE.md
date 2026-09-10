@@ -88,6 +88,41 @@ by CI; credential values are never committed.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.
 9. Confirm that capture gaps do not ask for manual review; uncertain segments stay out of distance totals.
 
+## Dependency verification
+
+`android/gradle/verification-metadata.xml` pins every Gradle dependency by SHA-256, so a
+substituted or typosquatted artifact cannot be linked into a signed release. The policy is
+**checksum-only** and `scripts/tests/test_gradle_supply_chain.py` enforces it inside the
+`release-policy` gate.
+
+After any dependency or plugin change, regenerate it:
+
+```bash
+cd android
+./gradlew resolveAapt2Linux assembleDebug assembleDebugAndroidTest testDebugUnitTest \
+          lintDebug assembleRelease testReleaseUnitTest \
+          --write-verification-metadata sha256 --no-daemon
+```
+
+Three things go wrong if this is done casually:
+
+1. **Always regenerate with `sha256` alone.** Adding `,pgp` silently flips `verify-signatures` to
+   true, and the build then fails closed on plugin-marker POMs whose keys cannot be fetched from any
+   key server. The policy test catches this.
+2. **The task list must cover every variant CI builds** — debug, androidTest, unit tests, lint and
+   release. Omitting one leaves its artifacts unpinned and that job fails on the runner.
+3. **aapt2 is published per platform.** Regenerating on macOS records only the `osx` jar while
+   every CI job runs on `ubuntu-latest`. The `resolveAapt2Linux` helper task exists solely to pull
+   the linux variant into the same generation pass; the policy test fails if it is missing.
+
+Verify against a cold cache before pushing, because a warm cache always passes:
+
+```bash
+cd android
+GRADLE_USER_HOME=$(mktemp -d) ./gradlew assembleDebug \
+  --refresh-dependencies --dependency-verification strict --no-daemon
+```
+
 ## Support
 
 Report issues in the `sampathmannam/dailybeat` GitHub repository.
