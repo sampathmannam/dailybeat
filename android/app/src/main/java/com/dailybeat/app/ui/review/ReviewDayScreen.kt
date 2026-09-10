@@ -141,23 +141,6 @@ fun ReviewDayScreen(
             }
         }
 
-        if (day.captureGapCount > 0) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                ) {
-                    Text(
-                        stringResource(R.string.review_gap_detail, day.captureGapCount),
-                        Modifier.padding(14.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                }
-            }
-        }
-
         item {
             Text(
                 stringResource(R.string.review_timeline),

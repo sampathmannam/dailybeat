@@ -12,7 +12,7 @@ class ActionableInsightTest {
 
     @Test
     fun `today's unfinished Beat is the first review action`() {
-        val action = actionableInsightFor(today, 0, beat(today), 0)
+        val action = actionableInsightFor(today, beat(today), 0)
 
         assertEquals("Close today’s loop", action.title)
         assertEquals(InsightAction.OPEN_DAY, action.action)
@@ -23,7 +23,7 @@ class ActionableInsightTest {
     fun `an older unfinished Beat opens that date instead of a completed today`() {
         val yesterday = today.minusDays(1)
 
-        val action = actionableInsightFor(today, 0, beat(yesterday), 1)
+        val action = actionableInsightFor(today, beat(yesterday), 1)
 
         assertEquals("Review your latest open Beat", action.title)
         assertEquals(InsightAction.OPEN_DAY, action.action)
@@ -31,16 +31,8 @@ class ActionableInsightTest {
     }
 
     @Test
-    fun `capture gaps take priority and open recovery settings`() {
-        val action = actionableInsightFor(today, 2, beat(today), 0)
-
-        assertEquals(InsightAction.OPEN_SETTINGS, action.action)
-        assertNull(action.date)
-    }
-
-    @Test
     fun `all reviewed Beats lead back to today instead of reopening a completed day`() {
-        val action = actionableInsightFor(today, 0, null, 3)
+        val action = actionableInsightFor(today, null, 3)
 
         assertEquals("Keep the review habit", action.title)
         assertEquals(InsightAction.OPEN_TODAY, action.action)

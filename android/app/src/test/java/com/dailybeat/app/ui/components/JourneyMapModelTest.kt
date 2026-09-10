@@ -213,6 +213,51 @@ class JourneyMapModelTest {
         assertEquals(180.0, model.routeSegments[1].first().longitude, 0.0)
     }
 
+    @Test
+    fun playbackProgress_revealsTheRouteFromStartToFinish() {
+        val model = JourneyMapModel.fromPoints(
+            listOf(
+                JourneyPoint(100, 10.0, 20.0, "transit"),
+                JourneyPoint(200, 12.0, 22.0, "transit"),
+                JourneyPoint(300, 14.0, 24.0, "transit"),
+            ),
+        )
+
+        val start = model.atPlaybackProgress(0f)
+        val halfway = model.atPlaybackProgress(0.25f)
+        val finish = model.atPlaybackProgress(1f)
+
+        assertEquals(listOf(100L), start.points.map { it.startMs })
+        assertEquals(2, halfway.points.size)
+        assertEquals(11.0, halfway.points.last().latitude, 0.0000001)
+        assertEquals(21.0, halfway.points.last().longitude, 0.0000001)
+        assertEquals(model, finish)
+    }
+
+    @Test
+    fun playbackProgress_skipsMissingCaptureSectionsWithoutDrawingAnInventedRoute() {
+        val model = JourneyMapModel.fromPoints(
+            listOf(
+                JourneyPoint(100, 10.0, 20.0, "transit"),
+                JourneyPoint(200, 12.0, 22.0, "transit", startsAfterGap = true),
+                JourneyPoint(300, 14.0, 24.0, "transit"),
+            ),
+        )
+
+        val beforeJump = model.atPlaybackProgress(0.49f)
+        val afterJump = model.atPlaybackProgress(0.5f)
+
+        assertEquals(listOf(100L), beforeJump.points.map { it.startMs })
+        assertEquals(listOf(100L, 200L), afterJump.points.map { it.startMs })
+        assertEquals(2, afterJump.routeSegments.size)
+    }
+
+    @Test
+    fun playbackDuration_isBoundedForShortAndVeryLongRoutes() {
+        assertEquals(4_000, journeyPlaybackDurationMillis(2))
+        assertEquals(18_000, journeyPlaybackDurationMillis(10_000))
+    }
+
     private fun visit(
         startMs: Long,
         latitude: Double,

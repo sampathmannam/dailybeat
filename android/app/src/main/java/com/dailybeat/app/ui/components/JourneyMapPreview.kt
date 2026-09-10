@@ -3,6 +3,9 @@ package com.dailybeat.app.ui.components
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,17 +17,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +76,8 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val ROUTE_SOURCE_ID = "dailybeat-route-source"
@@ -74,6 +87,8 @@ private const val GAP_SOURCE_ID = "dailybeat-gap-source"
 private const val GAP_LAYER_ID = "dailybeat-gap-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
+private const val PLAYBACK_SOURCE_ID = "dailybeat-playback-source"
+private const val PLAYBACK_LAYER_ID = "dailybeat-playback-layer"
 
 @Composable
 fun JourneyMapPreview(
@@ -90,6 +105,11 @@ fun JourneyMapPreview(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
+    val playbackProgress = remember(model.points) { Animatable(1f) }
+    var isPlaying by remember(model.points) { mutableStateOf(false) }
+    val playbackScope = rememberCoroutineScope()
+    val replayablePointCount = model.points.count { it.drawsRoute }
+    val canReplay = mapRendered && replayablePointCount >= 2
     val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
@@ -110,6 +130,27 @@ fun JourneyMapPreview(
             onFailure("MapLibre map loading failed.")
         },
     )
+
+    LaunchedEffect(model.points) {
+        isPlaying = false
+        playbackProgress.snapTo(1f)
+    }
+
+    LaunchedEffect(isPlaying, model.points) {
+        if (!isPlaying) {
+            playbackProgress.stop()
+            return@LaunchedEffect
+        }
+        val remainingDuration = (
+            journeyPlaybackDurationMillis(replayablePointCount) *
+                (1f - playbackProgress.value)
+            ).roundToInt().coerceAtLeast(1)
+        playbackProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(remainingDuration, easing = LinearEasing),
+        )
+        isPlaying = false
+    }
 
     DisposableEffect(map, loadedStyle, model, mapView, mapViewportSize) {
         val readyMap = map
@@ -146,6 +187,33 @@ fun JourneyMapPreview(
             )
             onDispose {
                 mapView.removeOnDidFinishRenderingMapListener(renderListener)
+            }
+        }
+    }
+
+    LaunchedEffect(map, loadedStyle, model) {
+        val readyMap = map ?: return@LaunchedEffect
+        val style = loadedStyle ?: return@LaunchedEffect
+        var lastRenderedProgress = Float.NaN
+        var lastRenderedPlaying = false
+        snapshotFlow { playbackProgress.value to isPlaying }.collect { (progress, playing) ->
+            val shouldRender = lastRenderedProgress.isNaN() ||
+                playing != lastRenderedPlaying ||
+                !playing ||
+                progress >= 0.999f ||
+                abs(progress - lastRenderedProgress) >= 0.015f
+            if (shouldRender) {
+                readyMap.renderPlaybackFrame(
+                    style = style,
+                    model = model.atPlaybackProgress(progress),
+                    showPosition = playing || progress < 0.999f,
+                    onError = {
+                        mapError = true
+                        onFailure("MapLibre route replay failed.")
+                    },
+                )
+                lastRenderedProgress = progress
+                lastRenderedPlaying = playing
             }
         }
     }
@@ -235,6 +303,67 @@ fun JourneyMapPreview(
                 }
             }
 
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = { playbackProgress.value },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("route_replay_progress"),
+                    color = MaterialTheme.colorScheme.secondary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledTonalButton(
+                        onClick = {
+                            when {
+                                isPlaying -> isPlaying = false
+                                playbackProgress.value >= 0.999f -> playbackScope.launch {
+                                    playbackProgress.snapTo(0f)
+                                    isPlaying = true
+                                }
+                                else -> isPlaying = true
+                            }
+                        },
+                        enabled = canReplay,
+                        modifier = Modifier.testTag("replay_route"),
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                isPlaying -> Icons.Filled.Pause
+                                playbackProgress.value >= 0.999f -> Icons.Filled.Replay
+                                else -> Icons.Filled.PlayArrow
+                            },
+                            contentDescription = null,
+                        )
+                        Text(
+                            text = when {
+                                isPlaying -> stringResource(R.string.journey_map_pause_replay)
+                                playbackProgress.value >= 0.999f -> stringResource(R.string.journey_map_replay)
+                                else -> stringResource(R.string.journey_map_resume_replay)
+                            },
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(
+                            R.string.journey_map_replay_progress,
+                            (playbackProgress.value * 100).roundToInt(),
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -278,6 +407,63 @@ fun JourneyMapPreview(
             }
         }
     }
+}
+
+private fun MapLibreMap.renderPlaybackFrame(
+    style: Style,
+    model: JourneyMapModel,
+    showPosition: Boolean,
+    onError: () -> Unit,
+) {
+    runCatching {
+        val routeFeatures = model.routeSegments
+            .filter { it.size >= 2 }
+            .map { segment ->
+                Feature.fromGeometry(
+                    LineString.fromLngLats(
+                        segment.map { Point.fromLngLat(it.longitude, it.latitude) },
+                    ),
+                )
+            }
+        style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(
+            FeatureCollection.fromFeatures(routeFeatures),
+        )
+
+        val gapFeatures = model.gapSegments.map { segment ->
+            Feature.fromGeometry(
+                LineString.fromLngLats(
+                    segment.map { Point.fromLngLat(it.longitude, it.latitude) },
+                ),
+            )
+        }
+        style.getSourceAs<GeoJsonSource>(GAP_SOURCE_ID)?.setGeoJson(
+            FeatureCollection.fromFeatures(gapFeatures),
+        )
+
+        val current = model.points.lastOrNull { it.drawsRoute }
+        if (showPosition && current != null) {
+            val position = FeatureCollection.fromFeatures(
+                listOf(Feature.fromGeometry(Point.fromLngLat(current.longitude, current.latitude))),
+            )
+            val source = style.getSourceAs<GeoJsonSource>(PLAYBACK_SOURCE_ID)
+            if (source == null) {
+                style.addSource(GeoJsonSource(PLAYBACK_SOURCE_ID, position))
+                style.addLayer(
+                    CircleLayer(PLAYBACK_LAYER_ID, PLAYBACK_SOURCE_ID).withProperties(
+                        circleColor(JOURNEY_ROUTE_CASING_COLOR),
+                        circleRadius(7f),
+                        circleStrokeColor(JOURNEY_ROUTE_COLOR),
+                        circleStrokeWidth(3f),
+                    ),
+                )
+            } else {
+                source.setGeoJson(position)
+            }
+        } else if (style.getSource(PLAYBACK_SOURCE_ID) != null) {
+            style.removeLayer(PLAYBACK_LAYER_ID)
+            style.removeSource(PLAYBACK_SOURCE_ID)
+        }
+    }.onFailure { onError() }
 }
 
 @Composable

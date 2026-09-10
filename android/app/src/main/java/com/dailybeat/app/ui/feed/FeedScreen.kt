@@ -270,15 +270,6 @@ private fun DayFeedCard(
                 )
             }
 
-            if (day.captureGapCount > 0) {
-                Text(
-                    text = stringResource(R.string.day_gap_summary, day.captureGapCount),
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
-            }
-
             if (day.stays.isNotEmpty()) {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),

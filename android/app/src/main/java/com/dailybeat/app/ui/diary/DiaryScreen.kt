@@ -117,16 +117,17 @@ fun DiaryScreen(
                 onClick = viewModel::generateFromCustomEvents,
                 enabled = !uiState.isGenerating && uiState.customEvents.isNotBlank(),
             )
+            uiState.error?.let { error ->
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
 
         if (uiState.isGenerating) {
             item { CircularProgressIndicator() }
-        }
-
-        uiState.error?.let { error ->
-            item {
-                Text(text = error, color = MaterialTheme.colorScheme.error)
-            }
         }
 
         // Keep the editor available after clearing a draft, and allow offline manual diaries.

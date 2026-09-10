@@ -33,9 +33,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 16" in gradle
-    assert 'versionName = "3.8.0"' in gradle
-    assert release_marker == "3.8.0"
+    assert "versionCode = 17" in gradle
+    assert 'versionName = "3.8.1"' in gradle
+    assert release_marker == "3.8.1"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -106,7 +106,7 @@ def test_phone_installer_defaults_to_the_current_signed_stable_release():
         encoding="utf-8"
     )
 
-    assert "DAILYBEAT_RELEASE_TAG:-v3.8.0" in installer
+    assert "DAILYBEAT_RELEASE_TAG:-v3.8.1" in installer
 
 
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():
@@ -160,6 +160,29 @@ def test_release_injects_public_supabase_configuration_from_github_secrets():
     assert "SUPABASE_ANON_KEY" in gradle
     assert "supabase.co" not in gradle
     assert "eyJ" not in gradle
+
+
+def test_capture_gaps_are_handled_without_user_review_prompts():
+    strings = (ROOT / "android/app/src/main/res/values/strings.xml").read_text(
+        encoding="utf-8"
+    )
+    today = (
+        ROOT / "android/app/src/main/java/com/dailybeat/app/ui/today/TodayScreen.kt"
+    ).read_text(encoding="utf-8")
+    feed = (
+        ROOT / "android/app/src/main/java/com/dailybeat/app/ui/feed/FeedScreen.kt"
+    ).read_text(encoding="utf-8")
+    review = (
+        ROOT / "android/app/src/main/java/com/dailybeat/app/ui/review/ReviewDayScreen.kt"
+    ).read_text(encoding="utf-8")
+    insights = (
+        ROOT / "android/app/src/main/java/com/dailybeat/app/ui/insights/InsightsViewModel.kt"
+    ).read_text(encoding="utf-8")
+
+    assert "capture_gap_notice" not in strings + today
+    assert "day_gap_summary" not in strings + feed
+    assert "review_gap_detail" not in strings + review
+    assert "Protect route continuity" not in insights
 
 
 def test_ci_requires_a_live_cloud_backup_round_trip():

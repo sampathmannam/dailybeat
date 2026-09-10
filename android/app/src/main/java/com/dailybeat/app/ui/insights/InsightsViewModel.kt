@@ -86,7 +86,7 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
             .filter { it.visits > 1 }
             .sortedByDescending { it.visits }
             .take(4)
-        val insight = actionableInsightFor(today, gaps, nextReviewDay, reviewedDays)
+        val insight = actionableInsightFor(today, nextReviewDay, reviewedDays)
         return InsightsUiState(
             isLoading = false,
             days = activeDays,
@@ -123,15 +123,9 @@ internal data class ActionableInsight(
 
 internal fun actionableInsightFor(
     today: LocalDate,
-    captureGapCount: Int,
     nextReviewDay: DayFeedItem?,
     reviewedDays: Int,
 ): ActionableInsight = when {
-    captureGapCount > 0 -> ActionableInsight(
-        "Protect route continuity",
-        "$captureGapCount capture gap(s) appeared this week. Set battery use to Unrestricted and confirm Precise location before tomorrow’s rounds.",
-        InsightAction.OPEN_SETTINGS,
-    )
     nextReviewDay?.date == today -> ActionableInsight(
         title = "Close today’s loop",
         body = "Review today’s stops while they are fresh. Completing a Beat turns raw tracking into a record you can trust.",

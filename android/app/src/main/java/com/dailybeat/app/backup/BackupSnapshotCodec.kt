@@ -182,6 +182,7 @@ object BackupSnapshotCodec {
 
     private fun settingsJson(value: BackupSettings) = JSONObject().apply {
         put("officerName", value.officerName)
+        put("themePreference", value.themePreference)
         put("gpsCaptureEnabled", value.gpsCaptureEnabled)
         // Retired in 3.6.0. Still written because releases before it read this key strictly and
         // would fail to restore a backup taken on a newer phone.
@@ -202,8 +203,12 @@ object BackupSnapshotCodec {
      */
     private fun settings(value: JSONObject): BackupSettings {
         val defaults = BackupSettings()
+        val storedThemePreference = value.optString("themePreference")
         return BackupSettings(
             officerName = value.optString("officerName").ifBlank { defaults.officerName },
+            themePreference = storedThemePreference
+                .takeIf { it in SUPPORTED_THEME_PREFERENCES }
+                ?: defaults.themePreference,
             gpsCaptureEnabled = value.optBoolean("gpsCaptureEnabled", defaults.gpsCaptureEnabled),
             cloudLlmEnabled = value.optBoolean("cloudLlmEnabled", defaults.cloudLlmEnabled),
             cloudProvider = value.optString("cloudProvider").ifBlank { defaults.cloudProvider },
@@ -334,4 +339,5 @@ object BackupSnapshotCodec {
     private const val MAX_LONG_TEXT = 100_000
     private const val MAX_DIARY_TEXT = 500_000
     private const val MAX_URL_TEXT = 4_096
+    private val SUPPORTED_THEME_PREFERENCES = setOf("system", "light", "dark")
 }

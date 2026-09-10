@@ -2,6 +2,7 @@ package com.dailybeat.app.data.settings
 
 data class AppSettings(
     val officerName: String = "IPS Officer",
+    val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val gpsCaptureEnabled: Boolean = true,
     val cloudLlmEnabled: Boolean = true,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
@@ -11,6 +12,17 @@ data class AppSettings(
     val autoMiddayPulse: Boolean = false,
     val supervisorName: String = "",
 )
+
+enum class ThemePreference(val id: String) {
+    SYSTEM("system"),
+    LIGHT("light"),
+    DARK("dark"),
+    ;
+
+    companion object {
+        fun fromId(id: String?): ThemePreference = entries.find { it.id == id } ?: SYSTEM
+    }
+}
 
 enum class CloudProvider(val id: String, val displayName: String, val defaultModel: String) {
     DEEPSEEK("deepseek", "DeepSeek", "deepseek-chat"),

@@ -14,6 +14,7 @@ import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
+import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.withContext
 data class SettingsUiState(
     val officerName: String = "",
     val supervisorName: String = "",
+    val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val gpsEnabled: Boolean = true,
     val captureMessage: String? = null,
     val capturePausedUntilMs: Long = 0L,
@@ -64,7 +66,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val app = application as DailyBeatApp
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(themePreference = app.settingsRepository.themePreference.value),
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     private var placeMutationInFlight = false
 
@@ -75,7 +79,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun refresh() {
         viewModelScope.launch {
             try {
-                val settings = app.settingsRepository.get()
                 val places = app.placeRepository.all()
                 val recentVisits = app.visitRepository.visitsLastDays(14)
                 val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
@@ -83,12 +86,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     app.settingsRepository.secureApiKey.hasApiKey()
                 }
                 val auditLines = CaptureAuditLog.readRecent(app)
+                // Read preferences after the slower database and secure-store work. Because this
+                // coroutine and UI setters resume on the main thread, no tap can interleave
+                // between this read and the state update and be replaced by stale settings.
+                val settings = app.settingsRepository.get()
                 // Copy rather than rebuild: a rebuild threw away whatever the officer was in the
                 // middle of, such as a half-typed place or the result of a connection test.
                 _uiState.update { current ->
                     current.copy(
                         officerName = settings.officerName,
                         supervisorName = settings.supervisorName,
+                        themePreference = settings.themePreference,
                         gpsEnabled = settings.gpsCaptureEnabled,
                         captureMessage = captureStatusMessage(settings.gpsCaptureEnabled),
                         capturePausedUntilMs = app.settingsRepository.capturePausedUntilMs(),
@@ -274,6 +282,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setSupervisorName(name: String) {
         app.settingsRepository.setSupervisorName(name)
         _uiState.update { it.copy(supervisorName = name) }
+    }
+
+    fun setThemePreference(preference: ThemePreference) {
+        app.settingsRepository.setThemePreference(preference)
+        _uiState.update { it.copy(themePreference = preference) }
     }
 
     fun addSuggestedPlace(suggestion: PlaceSuggestion) {

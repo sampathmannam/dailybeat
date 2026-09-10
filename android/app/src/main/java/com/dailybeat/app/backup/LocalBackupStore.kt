@@ -3,6 +3,7 @@ package com.dailybeat.app.backup
 import androidx.room.withTransaction
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.data.settings.ThemePreference
 
 interface SnapshotStore {
     suspend fun createSnapshot(): BackupSnapshot
@@ -27,6 +28,7 @@ class LocalBackupStore(
                 beatReviews = db.beatReviews().all(),
                 settings = BackupSettings(
                     officerName = settings.officerName,
+                    themePreference = settings.themePreference.id,
                     gpsCaptureEnabled = settings.gpsCaptureEnabled,
                     cloudLlmEnabled = settings.cloudLlmEnabled,
                     cloudProvider = settings.cloudProvider,
@@ -63,6 +65,7 @@ class LocalBackupStore(
 
     private fun applySettings(settings: BackupSettings) {
         settingsRepository.setOfficerName(settings.officerName)
+        settingsRepository.setThemePreference(ThemePreference.fromId(settings.themePreference))
         settingsRepository.setGpsEnabled(settings.gpsCaptureEnabled)
         settingsRepository.setCloudLlmEnabled(settings.cloudLlmEnabled)
         settingsRepository.setCloudProvider(settings.cloudProvider)

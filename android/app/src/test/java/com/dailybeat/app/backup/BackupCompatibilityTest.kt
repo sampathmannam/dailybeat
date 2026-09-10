@@ -42,6 +42,20 @@ class BackupCompatibilityTest {
         assertEquals("Rao", settings.officerName)
         assertEquals(BackupSettings().cloudProvider, settings.cloudProvider)
         assertEquals(BackupSettings().autoEveningReport, settings.autoEveningReport)
+        assertEquals(BackupSettings().themePreference, settings.themePreference)
+    }
+
+    @Test
+    fun `a future theme preference falls back without losing the backup`() {
+        val future = """
+            {"schemaVersion":2,"createdAtMs":42,"events":[],"places":[],"diaries":[],"visits":[],
+             "settings":{"officerName":"Rao","themePreference":"midnight-blue"}}
+        """.trimIndent()
+
+        val settings = BackupSnapshotCodec.decode(future).settings
+
+        assertEquals("Rao", settings.officerName)
+        assertEquals(BackupSettings().themePreference, settings.themePreference)
     }
 
     @Test

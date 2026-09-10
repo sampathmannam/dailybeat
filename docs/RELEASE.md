@@ -1,8 +1,8 @@
-# DailyBeat v3.8.0 — install and verify
+# DailyBeat v3.8.1 — install and verify
 
-Version 3.8.0 turns passive location capture into a trustworthy whole-day Beat: map-first Today,
-map-led daily cards, correction/completion review, private Insights, capture-gap disclosure, and a
-one-hour privacy pause. DSR is a separate app in the private `sampathmannam/dsr` repository; its old
+Version 3.8.1 adds a prominent persistent System/Light/Dark selector to the whole-day Beat:
+map-first Today, map-led daily cards, correction/completion review, private Insights, capture-gap
+disclosure, and a one-hour privacy pause. DSR is a separate app in the private `sampathmannam/dsr` repository; its old
 DailyBeat records and PDFs are retained, not deleted. Regular QA uses `com.dailybeat.app.qa`.
 Destructive instrumentation must use
 `com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
@@ -27,9 +27,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v3.8.0`):
+After every release gate passes, download these assets from GitHub Releases (tag `v3.8.1`):
 
-- `DailyBeat-v3.8.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v3.8.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
@@ -82,9 +82,11 @@ by CI; credential values are never committed.
    Days card update after returning.
 4. Verify the four tabs: Today, Days, Insights and Settings. DSR must not appear.
 5. Open Review My Day, rename one stop, hide and restore it, name the Beat, and mark it complete.
-6. Open the full map and verify a yellow route appears immediately while interactive tiles load.
+6. Open the full map and verify a yellow route appears immediately while interactive tiles load;
+   when the street map is ready, tap **Replay route** and verify the route draws from start to finish.
 7. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.
+9. Confirm that capture gaps do not ask for manual review; uncertain segments stay out of distance totals.
 
 ## Support
 

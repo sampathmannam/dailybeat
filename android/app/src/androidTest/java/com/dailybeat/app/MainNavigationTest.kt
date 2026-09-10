@@ -1,10 +1,13 @@
 package com.dailybeat.app
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +20,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dailybeat.app.audit.CaptureAuditLog
+import com.dailybeat.app.data.settings.ThemePreference
 import org.junit.Before
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -44,6 +48,7 @@ class MainNavigationTest {
             withContext(Dispatchers.IO) { app.db.clearAllTables() }
         }
         app.settingsRepository.secureApiKey.clearApiKey()
+        app.settingsRepository.setThemePreference(ThemePreference.SYSTEM)
         app.settingsRepository.setOnboardingComplete(true)
         app.settingsRepository.setOfficerName("IPS Test")
         grantCorePermissions()
@@ -104,6 +109,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").performClick()
         composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("replay_route").assertIsDisplayed()
         composeRule.waitUntil(10_000) {
             composeRule.onAllNodesWithTag("journey_map_fallback", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty() ||
@@ -150,7 +156,23 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNode(hasText("Raw events") and hasSetTextAction())
             .performTextInput("Briefing completed at headquarters.")
-        composeRule.onNodeWithText("Generate from pasted text").performClick()
+        // The multiline editor keeps the software keyboard open. On slower devices the IME can
+        // still cover the button and consume the injected tap even though Compose has composed it.
+        composeRule.activityRule.scenario.onActivity { activity ->
+            val inputMethodManager = activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            val windowToken = activity.currentFocus?.windowToken ?: activity.window.decorView.windowToken
+            inputMethodManager.hideSoftInputFromWindow(windowToken, 0)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("diary_list")
+            .performScrollToNode(hasText("Generate from pasted text"))
+        composeRule.onNodeWithText("Generate from pasted text")
+            .assertIsEnabled()
+            .performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("Cloud AI is required", substring = true),
+            timeoutMillis = 10_000,
+        )
         composeRule.onNodeWithTag("diary_list")
             .performScrollToNode(hasText("Cloud AI is required", substring = true))
         composeRule.onNodeWithText("Cloud AI is required", substring = true).assertIsDisplayed()
@@ -188,6 +210,37 @@ class MainNavigationTest {
         }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun appearanceSelectorChangesThemeAndSurvivesActivityRecreation() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        composeRule.onNodeWithTag("nav_settings").performClick()
+
+        composeRule.onNodeWithText("Appearance").assertIsDisplayed()
+        composeRule.onNodeWithTag("theme_dark").performClick()
+        composeRule.waitUntil(5_000) {
+            app.settingsRepository.themePreference.value == ThemePreference.DARK
+        }
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("theme_dark") and isSelected(),
+            timeoutMillis = 5_000,
+        )
+        composeRule.onNodeWithTag("theme_dark").assertIsSelected()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("theme_dark").assertIsSelected()
+
+        composeRule.onNodeWithTag("theme_light").performClick()
+        composeRule.waitUntil(5_000) {
+            app.settingsRepository.themePreference.value == ThemePreference.LIGHT
+        }
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("theme_light") and isSelected(),
+            timeoutMillis = 5_000,
+        )
+        composeRule.onNodeWithTag("theme_light").assertIsSelected()
     }
 
     @Test

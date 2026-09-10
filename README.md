@@ -2,8 +2,9 @@
 
 IPS daily diary app for Android. Passive GPS journey tracking + DeepSeek cloud LLM reports.
 
-**v3.8.0** — A private whole-day activity record: map-first Today, reviewable daily Beats,
-actionable 28-day insights, capture-health and privacy controls, and stronger GPS reliability.
+**v3.8.1** — A private whole-day activity record with a persistent System/Light/Dark appearance
+selector, map-first Today, reviewable daily Beats, actionable 28-day insights, capture-health and
+privacy controls, and stronger GPS reliability.
 DSR remains a separate app.
 
 Diary generation requires Cloud AI, network access, and a valid DeepSeek API key.
@@ -14,7 +15,7 @@ Configure it at runtime in Settings → Cloud AI. The key is not bundled in the 
 See [docs/RELEASE.md](docs/RELEASE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-# Current stable release (v3.8.0)
+# Current stable release (v3.8.1)
 ./scripts/mac_install_release_apk.sh YOUR_DEVICE_ID
 
 # Build, test, and install the v3.8 QA candidate without replacing the stable app
@@ -22,7 +23,7 @@ DAILYBEAT_BRANCH=feat/whole-day-beat \
   ./scripts/mac_phone_e2e.sh YOUR_DEVICE_ID
 ```
 
-The signed v3.8.0 APK is published through GitHub Releases only after the build, live cloud-backup
+The signed v3.8.1 APK is published through GitHub Releases only after the build, live cloud-backup
 instrumentation, backend, and security gates all pass. To build an isolated QA APK locally:
 
 ```bash
@@ -59,7 +60,7 @@ Before a risky update you can also take a copy from **Settings → Cloud backup*
 2. Grant location (including **Allow all the time** on Android 10+) and notifications.
 3. **Settings → Cloud AI** — paste your API key, pick provider/model, tap **Test connection**.
 4. Keep **GPS breadcrumbs** on. Move between places; the route and stays appear on **Today**.
-5. Tap **Review my day** to name the Beat, correct stops, and mark it complete.
+5. Optionally open **Review my day** to name the Beat or correct a stop; capture gaps require no action.
 6. Add or open the diary from Today/Review, and use **Insights** for the next useful follow-up.
 
 ## DSR is a separate app
@@ -76,6 +77,7 @@ and private source files remain untouched for data retention; see [separation no
 | Reliable breadcrumb filtering + capture-gap detection | ✅ |
 | Interactive OpenStreetMap journey | ✅ network required |
 | Immediate route fallback while the interactive map loads | ✅ |
+| Animated full-map route replay | ✅ |
 | Named places from OpenStreetMap ("Rasipuram Police Station") | ✅ |
 | Reviewable daily Beats (rename/hide/restore/complete) | ✅ |
 | Private 28-day insights and review streak | ✅ |

@@ -271,6 +271,55 @@ data class JourneyMapModel(
     }
 }
 
+/**
+ * Builds the route frame shown by the full-map replay. Progress follows the captured point order,
+ * not wall-clock time, so a long stay does not make playback appear frozen. Missing capture
+ * sections are skipped rather than inventing a route between their endpoints.
+ */
+internal fun JourneyMapModel.atPlaybackProgress(progress: Float): JourneyMapModel {
+    val routePoints = points.filter { it.drawsRoute }
+    if (routePoints.size < 2 || progress >= 1f) return this
+
+    val clamped = progress.coerceIn(0f, 1f)
+    val segmentPosition = clamped * routePoints.lastIndex
+    val leftIndex = floor(segmentPosition).toInt().coerceAtMost(routePoints.lastIndex)
+    val framePoints = routePoints.take(leftIndex + 1).toMutableList()
+    val right = routePoints.getOrNull(leftIndex + 1)
+    val fraction = segmentPosition - leftIndex
+    if (right != null && fraction > 0f && !right.startsAfterGap) {
+        framePoints += interpolateJourneyPoint(routePoints[leftIndex], right, fraction.toDouble())
+    }
+
+    val frameTime = framePoints.last().startMs
+    framePoints += points.filter { !it.drawsRoute && it.startMs <= frameTime }
+    return JourneyMapModel.fromPoints(framePoints)
+}
+
+internal fun journeyPlaybackDurationMillis(pointCount: Int): Int =
+    (pointCount * 75).coerceIn(4_000, 18_000)
+
+private fun interpolateJourneyPoint(
+    from: JourneyPoint,
+    to: JourneyPoint,
+    fraction: Double,
+): JourneyPoint {
+    val rawLongitudeDelta = to.longitude - from.longitude
+    val longitudeDelta = when {
+        rawLongitudeDelta > 180.0 -> rawLongitudeDelta - 360.0
+        rawLongitudeDelta < -180.0 -> rawLongitudeDelta + 360.0
+        else -> rawLongitudeDelta
+    }
+    var longitude = from.longitude + longitudeDelta * fraction
+    if (longitude > 180.0) longitude -= 360.0
+    if (longitude < -180.0) longitude += 360.0
+    return JourneyPoint(
+        startMs = from.startMs + ((to.startMs - from.startMs) * fraction).toLong(),
+        latitude = from.latitude + (to.latitude - from.latitude) * fraction,
+        longitude = longitude,
+        visitType = "transit",
+    )
+}
+
 private data class LongitudeBounds(
     val west: Double,
     val east: Double,
