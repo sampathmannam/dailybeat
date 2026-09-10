@@ -109,6 +109,7 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("journey_route_preview").assertIsDisplayed()
         composeRule.onNodeWithText("Open full map").performClick()
         composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("replay_route").assertIsDisplayed()
         composeRule.waitUntil(10_000) {
             composeRule.onAllNodesWithTag("journey_map_fallback", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty() ||

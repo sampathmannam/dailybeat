@@ -180,23 +180,6 @@ fun TodayScreen(
             }
         }
 
-        if (uiState.captureGapCount > 0) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().testTag("capture_gap_notice"),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                ) {
-                    Text(
-                        text = stringResource(R.string.capture_gap_notice, uiState.captureGapCount),
-                        modifier = Modifier.padding(14.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                }
-            }
-        }
-
         item {
             PrimaryButton(
                 text = if (uiState.beatState == "complete") {

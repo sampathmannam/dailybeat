@@ -1,0 +1,1 @@
+Publish DailyBeat v3.8.1 only after the appearance selector, automatic capture-gap handling, animated route replay, persistence race regression, build, instrumentation, live cloud-backup, backend, and CodeQL checks pass on the protected main commit.

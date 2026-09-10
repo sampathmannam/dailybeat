@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.8.1 — 2026-09-10
+
+### Added
+- **Visible theme control.** Settings now starts with an Appearance selector for System, Light,
+  and Dark modes. The choice persists across restarts and is included in cloud backup snapshots.
+- **Route replay.** The full map can animate the yellow journey from its first captured point to
+  its last, with a moving position marker and accessible play, pause, and resume controls.
+
+### Fixed
+- Theme changes now update the app and Android system-bar contrast immediately.
+- A slow Settings refresh can no longer undo a theme choice made while the screen is loading.
+- Cloud AI errors remain visible when diary generation is attempted with the keyboard open.
+- Capture gaps remain safely excluded from measured distance, but no longer create review prompts
+  on Today, Days, Review, or Insights. DailyBeat simply keeps the reliable points it captured.
+
 ## 3.8.0 — 2026-09-10
 
 ### Added
