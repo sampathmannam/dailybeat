@@ -25,6 +25,7 @@ class DayContextBuilderTest {
             officerName = "IPS Officer",
             visits = listOf(visit),
             events = listOf(event),
+            places = emptyList(),
             zone = ZoneId.of("UTC"),
         )
         assertTrue(built.text.contains("[V1]"))

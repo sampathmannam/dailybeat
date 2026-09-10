@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
+import com.dailybeat.app.data.repo.PlaceRepository
 import com.dailybeat.app.data.repo.VisitRepository
 import com.dailybeat.app.data.settings.AppSettings
 import com.dailybeat.app.data.settings.InMemoryApiKeyStore
@@ -61,6 +62,7 @@ class ReportGeneratorTest {
             visitRepository = VisitRepository(db.visits()),
             eventRepository = events,
             diaryRepository = diaries,
+            placeRepository = PlaceRepository(db.places()),
         )
     }
 

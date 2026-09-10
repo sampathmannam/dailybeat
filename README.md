@@ -94,7 +94,9 @@ and private source files remain untouched for data retention; see [separation no
 ## Privacy
 
 - GPS breadcrumbs, visits, and notes stay on your device.
-- **Cloud reports** send a text summary of that day's activity to your chosen LLM provider when you generate (or at 8 PM auto-report).
+- **Cloud reports** send a text summary of that day's activity to your chosen LLM provider when you generate (or at 8 PM auto-report). The summary carries times, durations and place names — **never raw coordinates**.
+- **Private zones** are enforced, not cosmetic. Mark a saved place private in Settings and any stay inside it is excluded from cloud reports and shared exports, and is never sent to the OpenStreetMap geocoder either — so its address is not looked up at all. The same applies to any stop you hide in **Review my day**.
+- Private zones stay in your own cloud backup so a restored phone still knows which places are private. Excluding them would silently lose the flag and re-expose those places after a restore.
 - **Voice notes** use Android's configured speech-recognition service. When Cloud AI is ready, the transcript is sent to the chosen provider for structuring; if that step is unavailable, DailyBeat still saves the transcript locally.
 - API keys are stored encrypted on device.
 - Retained legacy DSR records are not included in the cloud backup snapshot.
