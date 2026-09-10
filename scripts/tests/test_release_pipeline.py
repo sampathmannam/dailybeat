@@ -106,7 +106,7 @@ def test_phone_installer_defaults_to_the_current_signed_stable_release():
         encoding="utf-8"
     )
 
-    assert "DAILYBEAT_RELEASE_TAG:-v3.8.1" in installer
+    assert "DAILYBEAT_RELEASE_TAG:-v3.8.2" in installer
 
 
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():

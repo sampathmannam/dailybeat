@@ -22,11 +22,6 @@
 - No screen, layout or navigation changed. The Settings wording for a private zone now describes
   what it does.
 
-## Unreleased
-
-Repository and pipeline work only. No user-visible behaviour, screen or wording changed, and
-3.8.1 remains the published release.
-
 ### Removed
 - The dead local-model era: the Aider PowerShell tooling, an unused load-test harness, Cursor
   editor configuration, completed design plans, the v1 UI preview mock, and `PLAN.md` — a spec for
