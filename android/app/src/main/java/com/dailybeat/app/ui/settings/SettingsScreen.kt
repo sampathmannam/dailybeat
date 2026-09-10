@@ -18,6 +18,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +48,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
+import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
@@ -130,6 +134,41 @@ fun SettingsScreen(
     ) {
         item {
             DailyBeatScreenHeader(title = stringResource(R.string.settings_title))
+        }
+
+        item {
+            SettingsGroup(title = stringResource(R.string.settings_appearance_group)) {
+                Text(
+                    text = stringResource(R.string.settings_theme_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("theme_selector"),
+                ) {
+                    ThemePreference.entries.forEachIndexed { index, preference ->
+                        SegmentedButton(
+                            selected = state.themePreference == preference,
+                            onClick = { viewModel.setThemePreference(preference) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = ThemePreference.entries.size,
+                            ),
+                            modifier = Modifier.testTag("theme_${preference.id}"),
+                        ) {
+                            Text(
+                                text = when (preference) {
+                                    ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                                    ThemePreference.LIGHT -> stringResource(R.string.theme_light)
+                                    ThemePreference.DARK -> stringResource(R.string.theme_dark)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         item {

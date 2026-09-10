@@ -14,6 +14,7 @@ import com.dailybeat.app.domain.PlaceSuggestion
 import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
+import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.withContext
 data class SettingsUiState(
     val officerName: String = "",
     val supervisorName: String = "",
+    val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val gpsEnabled: Boolean = true,
     val captureMessage: String? = null,
     val capturePausedUntilMs: Long = 0L,
@@ -89,6 +91,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     current.copy(
                         officerName = settings.officerName,
                         supervisorName = settings.supervisorName,
+                        themePreference = settings.themePreference,
                         gpsEnabled = settings.gpsCaptureEnabled,
                         captureMessage = captureStatusMessage(settings.gpsCaptureEnabled),
                         capturePausedUntilMs = app.settingsRepository.capturePausedUntilMs(),
@@ -274,6 +277,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setSupervisorName(name: String) {
         app.settingsRepository.setSupervisorName(name)
         _uiState.update { it.copy(supervisorName = name) }
+    }
+
+    fun setThemePreference(preference: ThemePreference) {
+        app.settingsRepository.setThemePreference(preference)
+        _uiState.update { it.copy(themePreference = preference) }
     }
 
     fun addSuggestedPlace(suggestion: PlaceSuggestion) {

@@ -8,12 +8,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.ui.DailyBeatAppScaffold
 import com.dailybeat.app.ui.onboarding.OnboardingScreen
@@ -47,7 +50,13 @@ class MainActivity : ComponentActivity() {
         val showOnboarding = !app.settingsRepository.isOnboardingComplete()
 
         setContent {
-            DailyBeatTheme {
+            val themePreference by app.settingsRepository.themePreference.collectAsStateWithLifecycle()
+            val useDarkTheme = when (themePreference) {
+                ThemePreference.SYSTEM -> isSystemInDarkTheme()
+                ThemePreference.LIGHT -> false
+                ThemePreference.DARK -> true
+            }
+            DailyBeatTheme(darkTheme = useDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var onboardingDone by remember { mutableStateOf(!showOnboarding) }
 

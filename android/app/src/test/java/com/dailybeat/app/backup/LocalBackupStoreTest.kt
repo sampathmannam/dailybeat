@@ -9,6 +9,7 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.data.settings.ThemePreference
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -52,10 +53,12 @@ class LocalBackupStoreTest {
         assertEquals(9_999L, snapshot.createdAtMs)
         assertEquals(listOf(1L), snapshot.events.map { it.id })
         assertEquals("Sampath", snapshot.settings.officerName)
+        assertEquals(ThemePreference.DARK.id, snapshot.settings.themePreference)
 
         db.events().deleteAll()
         db.events().insert(Event(id = 2, timestamp = 8_000L, type = "manual", rawText = "replacement"))
         settings.setOfficerName("Changed")
+        settings.setThemePreference(ThemePreference.LIGHT)
 
         store.restore(snapshot)
 
@@ -64,6 +67,7 @@ class LocalBackupStoreTest {
         assertEquals(listOf("2026-08-31"), db.diaries().all().map { it.dateKey })
         assertEquals(listOf(3L), db.visits().all().map { it.id })
         assertEquals("Sampath", settings.get().officerName)
+        assertEquals(ThemePreference.DARK, settings.get().themePreference)
     }
 
     @Test
@@ -90,6 +94,7 @@ class LocalBackupStoreTest {
         db.diaries().upsert(DiaryEntry("2026-08-31", "Original diary", 2_000L))
         db.visits().insert(LocationVisit(id = 3, startMs = 3_000L, endMs = 4_000L, latitude = 17.4, longitude = 78.5))
         settings.setOfficerName("Sampath")
+        settings.setThemePreference(ThemePreference.DARK)
         settings.setGpsEnabled(false)
     }
 }

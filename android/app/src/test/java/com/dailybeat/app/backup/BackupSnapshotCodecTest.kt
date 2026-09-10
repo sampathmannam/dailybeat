@@ -62,6 +62,7 @@ class BackupSnapshotCodecTest {
             ),
             settings = BackupSettings(
                 officerName = "Sampath",
+                themePreference = "dark",
                 gpsCaptureEnabled = true,
                 cloudLlmEnabled = true,
                 cloudProvider = "deepseek",

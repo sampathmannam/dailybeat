@@ -1,6 +1,9 @@
 package com.dailybeat.app.data.settings
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsRepository(
     private val context: Context,
@@ -8,10 +11,13 @@ class SettingsRepository(
 ) {
 
     private val prefs = context.getSharedPreferences("dailybeat_settings", Context.MODE_PRIVATE)
+    private val _themePreference = MutableStateFlow(readThemePreference())
+    val themePreference: StateFlow<ThemePreference> = _themePreference.asStateFlow()
 
     fun get(): AppSettings = AppSettings(
         officerName = (prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer")
             .take(MAX_NAME_CHARS),
+        themePreference = readThemePreference(),
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
         cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
         cloudProvider = (prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id)
@@ -28,6 +34,11 @@ class SettingsRepository(
 
     fun setOfficerName(name: String) {
         prefs.edit().putString(KEY_OFFICER, name.trim().take(MAX_NAME_CHARS)).apply()
+    }
+
+    fun setThemePreference(preference: ThemePreference) {
+        prefs.edit().putString(KEY_THEME_PREFERENCE, preference.id).apply()
+        _themePreference.value = preference
     }
 
     fun setGpsEnabled(enabled: Boolean) {
@@ -92,8 +103,13 @@ class SettingsRepository(
         prefs.edit().putBoolean(KEY_ONBOARDING, complete).apply()
     }
 
+    private fun readThemePreference(): ThemePreference = ThemePreference.fromId(
+        prefs.getString(KEY_THEME_PREFERENCE, ThemePreference.SYSTEM.id),
+    )
+
     companion object {
         private const val KEY_OFFICER = "officer_name"
+        private const val KEY_THEME_PREFERENCE = "theme_preference"
         private const val KEY_GPS = "gps_enabled"
         private const val KEY_CAPTURE_PAUSED_UNTIL = "capture_paused_until"
         private const val KEY_ONBOARDING = "onboarding_complete"

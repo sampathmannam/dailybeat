@@ -155,6 +155,11 @@
     <string name="share_pdf_button">Share PDF</string>
     <string name="recording_label">Listening… stop speaking to save</string>
     <string name="settings_title">Settings</string>
+    <string name="settings_appearance_group">Appearance</string>
+    <string name="settings_theme_description">Choose how DailyBeat looks. System follows your phone’s appearance setting.</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
     <string name="settings_capture_group">Capture</string>
     <string name="officer_name_label">Officer name</string>
     <string name="gps_capture_label">GPS breadcrumbs (every 45s / 75m)</string>
