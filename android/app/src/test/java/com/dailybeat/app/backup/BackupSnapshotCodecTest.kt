@@ -194,4 +194,31 @@ class BackupSnapshotCodecTest {
 
         assertEquals("Backup contains an invalid day review time.", error.message)
     }
+
+    @Test
+    fun `jsonByteSize counts utf-8 bytes, not utf-16 chars`() {
+        // A Tamil letter is one UTF-16 char but three UTF-8 bytes. The server cap and the download
+        // ceiling both count bytes, so the guard must too.
+        val tamil = "த"
+        assertEquals(1, tamil.length)
+        assertEquals(3, BackupSnapshotCodec.jsonByteSize(tamil))
+    }
+
+    @Test
+    fun `a snapshot under the char count but over the byte cap is rejected before upload`() {
+        // 9 diaries of half a million Tamil characters: 4.5M chars — well under the old 10M-char
+        // guard that used to gate uploads — but ~13.5M UTF-8 bytes, past the 12 MiB server cap.
+        // Under the char-based guard this encoded silently and the server rejected it with a bare
+        // 400; the byte-based guard now refuses it here with a message the officer can act on.
+        val tamilBlock = "த".repeat(500_000)
+        val diaries = (1..9).map { day ->
+            DiaryEntry(dateKey = "2026-02-%02d".format(day), text = tamilBlock, updatedAt = day.toLong())
+        }
+        val snapshot = BackupSnapshot.empty(createdAtMs = 1L).copy(diaries = diaries)
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            BackupSnapshotCodec.encode(snapshot)
+        }
+        assertEquals("Backup is too large to upload safely.", error.message)
+    }
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **"Use current location" can no longer hang.** If a GPS fix never arrived — location off,
+  indoors, or a wedged provider — the button's spinner ran forever and, because that same state
+  guarded the button, it could never be tapped again. The fix now times out after 15 seconds and
+  shows the retry message instead.
+- **Cloud backup no longer fails with a bare error when a diary is written in a regional script.**
+  The client's "too large" guard counted characters while the server counts bytes; a Tamil diary
+  (three bytes per character) could slip past the client and be rejected by the server with an
+  unexplained failure. Both now measure the same 12 MiB in bytes, so an over-size backup is caught
+  on the device with a message that says what to do.
+
+### Internal
+- Removed an unused capture-health threshold constant left over from the old alarming status.
+
 ## 3.8.2 — 2026-09-10
 
 ### Fixed

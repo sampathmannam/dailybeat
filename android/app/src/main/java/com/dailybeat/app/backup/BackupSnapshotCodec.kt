@@ -13,6 +13,9 @@ import java.time.LocalDate
 
 object BackupSnapshotCodec {
 
+    /** UTF-8 byte size — the unit the server size cap and the download ceiling both use. */
+    internal fun jsonByteSize(json: String): Int = json.toByteArray(Charsets.UTF_8).size
+
     fun encode(snapshot: BackupSnapshot): String {
         validate(snapshot)
         return JSONObject().apply {
@@ -26,12 +29,12 @@ object BackupSnapshotCodec {
             put("beatReviews", JSONArray(snapshot.beatReviews.map(::beatReviewJson)))
             put("settings", settingsJson(snapshot.settings))
         }.toString().also { encoded ->
-            require(encoded.length <= MAX_JSON_CHARS) { "Backup is too large to upload safely." }
+            require(jsonByteSize(encoded) <= MAX_JSON_BYTES) { "Backup is too large to upload safely." }
         }
     }
 
     fun decode(json: String): BackupSnapshot {
-        require(json.length <= MAX_JSON_CHARS) { "Backup is too large to restore safely." }
+        require(jsonByteSize(json) <= MAX_JSON_BYTES) { "Backup is too large to restore safely." }
         val root = try {
             JSONObject(json)
         } catch (_: JSONException) {
@@ -330,7 +333,12 @@ object BackupSnapshotCodec {
         }
     }
 
-    private const val MAX_JSON_CHARS = 10_000_000
+    // Measured in UTF-8 BYTES, not chars: the server CHECK on dailybeat_backups and the
+    // MAX_RESPONSE_BYTES download ceiling both count bytes, and String.length counts UTF-16
+    // code units. In a regional script (Tamil place names, diary text) one char is up to 3
+    // bytes, so a char-based guard could pass a snapshot the server then rejects with a bare
+    // 400. 12 MiB, matching supabase/migrations/202609110001_dailybeat_backups_hardening.sql.
+    internal const val MAX_JSON_BYTES = 12_582_912
     private const val MAX_RECORDS_PER_TABLE = 100_000
     private const val MAX_BREADCRUMBS = 500_000
     private const val MAX_PLACES = 10_000
