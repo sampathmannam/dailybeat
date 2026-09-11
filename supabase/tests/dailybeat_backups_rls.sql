@@ -29,14 +29,21 @@ select table_privs_are(
     array['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
     'authenticated users have the required backup privileges'
 );
-select ok(row_security_active('public.dailybeat_backups'::regclass), 'row-level security is active');
+-- Check the table property, not row_security_active(): the latter reports whether RLS is
+-- active for the *current* role, and the owner running this suite bypasses RLS, so it is false.
+select is(
+    (select relrowsecurity from pg_class where oid = 'public.dailybeat_backups'::regclass),
+    true,
+    'row-level security is enabled on the table'
+);
 select col_has_check('public', 'dailybeat_backups', 'snapshot', 'snapshot has a size/shape check');
 
 -- ---- two real users, exercised through RLS -----------------------------------------------------
 -- Seed two auth users and a backup owned by each, as the privileged role (bypasses RLS for setup).
 insert into auth.users (id, email) values
     ('11111111-1111-1111-1111-111111111111', 'alice@example.com'),
-    ('22222222-2222-2222-2222-222222222222', 'mallory@example.com')
+    ('22222222-2222-2222-2222-222222222222', 'mallory@example.com'),
+    ('33333333-3333-3333-3333-333333333333', 'carol@example.com')
 on conflict (id) do nothing;
 
 insert into public.dailybeat_backups (user_id, snapshot) values
