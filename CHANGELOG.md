@@ -16,6 +16,30 @@
 - The weekly rollup counts only the stays it actually sends, so the number no longer reveals how
   many were withheld.
 
+### Polished
+- **Numbers read the same on every screen.** The same day used to show "~4 km · 3h 34m" on Today
+  and "4.0 km · 3 h 34 min" on Days; a short day was "50 m", "0.1 km" or "—" depending on where
+  you looked. Distance, duration, times and counts now come from one place. The "~" that marks an
+  estimated distance is explained, and no longer disappears on the Days card.
+- **Real icons instead of emoji** on the onboarding steps, the empty states and event notes, and
+  the app's own mark in the status-bar notification instead of a generic system glyph.
+- **Onboarding tells you what Android is about to ask.** Both permissions are named with one
+  reason each, and the two-step "While using the app → Allow all the time" location flow is
+  spelled out before it starts. Rotating the phone mid-onboarding no longer restarts it.
+- **Contrast fixed where it failed.** Text-field borders were nearly invisible; stop markers had
+  no visible edge on the light map; the Insights chart bars and route-replay progress were yellow
+  on white. Hidden stops now say "Hidden from this Beat" instead of relying on a faint tint, and
+  the cloud-provider choice shows a check mark rather than a shade.
+- **Dark theme and large text.** Cold starts in dark mode no longer flash a white screen; the
+  system bars follow the appearance you chose in Settings; the bottom bar keeps one line per tab
+  at 200% font size; the splash icon's ring is even.
+- **Clearer feedback.** A failure loading Days now shows an error with Try again instead of "No
+  days captured yet"; saving a voice note confirms it; error messages say what went wrong in
+  plain words rather than showing raw technical text; the keyboard no longer covers the field
+  you are typing into on Settings and Review; the full map titles a past day by its date.
+- Wording: "Cloud AI" throughout, "Review my day" for both the button and its screen, and the
+  route-recording switch no longer shows internal sampling parameters.
+
 ### Notes
 - Private zones and hidden stops remain in your own cloud backup. Dropping them would lose the
   private flag itself on a restore and silently re-expose those places.
