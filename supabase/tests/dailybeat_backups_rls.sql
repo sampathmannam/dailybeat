@@ -29,7 +29,7 @@ select table_privs_are(
     array['DELETE', 'INSERT', 'SELECT', 'UPDATE'],
     'authenticated users have the required backup privileges'
 );
-select row_security_active('public.dailybeat_backups'::regclass, 'row-level security is active');
+select ok(row_security_active('public.dailybeat_backups'::regclass), 'row-level security is active');
 select col_has_check('public', 'dailybeat_backups', 'snapshot', 'snapshot has a size/shape check');
 
 -- ---- two real users, exercised through RLS -----------------------------------------------------
