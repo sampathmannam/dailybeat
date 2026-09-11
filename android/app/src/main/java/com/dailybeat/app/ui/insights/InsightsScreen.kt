@@ -41,6 +41,13 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 
 @Composable
 fun InsightsScreen(
@@ -174,31 +181,75 @@ fun InsightsScreen(
 
 @Composable
 private fun WeeklyBars(days: List<com.dailybeat.app.ui.feed.DayFeedItem>) {
-    val maximum = days.maxOfOrNull { it.distanceKm }?.takeIf { it > 0 } ?: 1.0
+    // Oldest on the left, most recent on the right — the direction people read a week.
+    val ordered = days.reversed()
+    val maximum = ordered.maxOfOrNull { it.distanceKm }?.takeIf { it > 0 } ?: 1.0
+    // Tapping a bar selects that day; the readout above the chart names it. Start on the most
+    // recent day so the chart says something before it is touched.
+    var selected by rememberSaveable(ordered.size) { mutableIntStateOf(ordered.lastIndex.coerceAtLeast(0)) }
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("weekly_bars"),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.last_seven_days), style = MaterialTheme.typography.titleMedium)
+
+            val chosen = ordered.getOrNull(selected)
+            Text(
+                text = if (chosen == null) {
+                    stringResource(R.string.insights_tap_a_day)
+                } else {
+                    "${Formatters.dayHeading(chosen.date)} · ${Formatters.distanceKm(chosen.distanceKm, chosen.distanceEstimated)}"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("weekly_bars_readout"),
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth().height(132.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.Bottom,
             ) {
-                days.reversed().forEach { day ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val height = (88 * (day.distanceKm / maximum)).roundToInt().coerceAtLeast(4)
+                ordered.forEachIndexed { index, day ->
+                    val isSelected = index == selected
+                    val label = "${Formatters.dayHeading(day.date)}, ${Formatters.distanceKm(day.distanceKm, day.distanceEstimated)}"
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(1f)
+                            .selectable(
+                                selected = isSelected,
+                                role = Role.Button,
+                                onClick = { selected = index },
+                            )
+                            .semantics { contentDescription = label },
+                    ) {
+                        val height = (72 * (day.distanceKm / maximum)).roundToInt().coerceAtLeast(4)
                         Box(
-                            Modifier.width(22.dp).height(height.dp)
-                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+                            Modifier
+                                .width(if (isSelected) 26.dp else 22.dp)
+                                .height(height.dp)
+                                .background(
+                                    if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
+                                    },
+                                    RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp),
+                                ),
                         )
                         Text(
                             day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
                             Modifier.padding(top = 6.dp),
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

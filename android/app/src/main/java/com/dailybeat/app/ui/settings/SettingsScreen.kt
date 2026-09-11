@@ -66,6 +66,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.semantics.Role
 import java.util.Locale
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -458,11 +459,6 @@ fun SettingsScreen(
                     checked = state.autoEveningReport,
                     onCheckedChange = viewModel::setAutoEveningReport,
                 )
-                ToggleRow(
-                    label = stringResource(R.string.auto_midday_pulse),
-                    checked = state.autoMiddayPulse,
-                    onCheckedChange = viewModel::setAutoMiddayPulse,
-                )
             }
         }
 
@@ -511,23 +507,44 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
-                OutlinedTextField(
-                    value = state.placeLat,
-                    onValueChange = { viewModel.updatePlaceDraft(state.placeName, it, state.placeLon) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.place_lat_label)) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors,
+                // The officer no longer types coordinates: one tap reads the current GPS fix.
+                val locationCaptured = state.placeLat.isNotBlank() && state.placeLon.isNotBlank()
+                SecondaryButton(
+                    text = if (locationCaptured) {
+                        stringResource(R.string.use_current_location_again)
+                    } else {
+                        stringResource(R.string.use_current_location)
+                    },
+                    onClick = viewModel::captureCurrentLocationForPlace,
+                    enabled = !state.placeLocating,
                 )
-                OutlinedTextField(
-                    value = state.placeLon,
-                    onValueChange = { viewModel.updatePlaceDraft(state.placeName, state.placeLat, it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.place_lon_label)) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors,
+                if (state.placeLocating) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(
+                            stringResource(R.string.place_locating),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (locationCaptured) {
+                    val coords = String.format(
+                        Locale.US, "%.5f, %.5f",
+                        state.placeLat.toDoubleOrNull() ?: 0.0,
+                        state.placeLon.toDoubleOrNull() ?: 0.0,
+                    )
+                    Text(
+                        stringResource(R.string.place_location_captured, coords),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("place_captured_readout"),
+                    )
+                }
+                PrimaryButton(
+                    text = stringResource(R.string.add_place_button),
+                    onClick = viewModel::addPlace,
+                    enabled = state.placeName.isNotBlank() && locationCaptured && !state.placeLocating,
                 )
-                PrimaryButton(text = stringResource(R.string.add_place_button), onClick = viewModel::addPlace)
                 state.placeError?.let { error ->
                     Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }

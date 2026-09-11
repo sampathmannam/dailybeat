@@ -308,15 +308,13 @@ private fun CaptureHealthCard(status: CaptureHealthStatus) {
             stringResource(R.string.capture_waiting_detail)
         CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
             stringResource(R.string.capture_degraded_detail)
-        CaptureHealthLevel.CRITICAL -> stringResource(R.string.capture_critical) to
-            stringResource(R.string.capture_critical_detail)
         CaptureHealthLevel.OFF -> stringResource(R.string.capture_off) to
             stringResource(R.string.capture_off_detail)
     }
     val color = when (status.level) {
         CaptureHealthLevel.HEALTHY -> MaterialTheme.colorScheme.primary
         CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED -> MaterialTheme.colorScheme.tertiary
-        CaptureHealthLevel.CRITICAL, CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
+        CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
     }
     Surface(
         modifier = Modifier.fillMaxWidth().testTag("capture_health"),

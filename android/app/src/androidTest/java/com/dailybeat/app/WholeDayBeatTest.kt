@@ -65,6 +65,8 @@ class WholeDayBeatTest {
 
         composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasTestTag("review_day_back"))
         composeRule.onNodeWithTag("review_day_back").performClick()
+        // Back from Review lands on Today (Review opens from Today now); go to Days to see the card.
+        composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("feed_list"), timeoutMillis = 10_000)
         // Returning to the retained Days destination refreshes asynchronously. Wait for the new
         // title to reach its semantics tree before asking the lazy list to scroll to it.
@@ -110,12 +112,10 @@ class WholeDayBeatTest {
     }
 
     private fun openTodayReview() {
-        composeRule.onNodeWithTag("nav_days").performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasTestTag("feed_card_${DateKeys.today()}"),
-            timeoutMillis = 20_000,
-        )
-        composeRule.onNodeWithTag("feed_card_${DateKeys.today()}").performClick()
+        // Review is reached from Today now that a Days card opens the day's map instead.
+        composeRule.onNodeWithTag("nav_today").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Review my day"))
+        composeRule.onNodeWithText("Review my day").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("review_day_screen"), timeoutMillis = 10_000)
     }
 }

@@ -16,6 +16,7 @@ import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.util.PermissionHelper
+import com.dailybeat.app.util.fetchCurrentLocation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +49,7 @@ data class SettingsUiState(
     val placeName: String = "",
     val placeLat: String = "",
     val placeLon: String = "",
+    val placeLocating: Boolean = false,
     val places: List<Place> = emptyList(),
     val placeError: String? = null,
     val auditLines: List<String> = emptyList(),
@@ -551,6 +553,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Fill the new-place coordinates from one fresh GPS fix, so the officer never types them. */
+    fun captureCurrentLocationForPlace() {
+        if (_uiState.value.placeLocating) return
+        _uiState.update { it.copy(placeLocating = true, placeError = null) }
+        viewModelScope.launch {
+            val location = fetchCurrentLocation(app)
+            _uiState.update {
+                if (location == null) {
+                    it.copy(
+                        placeLocating = false,
+                        placeError = "Couldn't get your location. Turn location on and try again outdoors.",
+                    )
+                } else {
+                    it.copy(
+                        placeLocating = false,
+                        placeLat = location.latitude.toString(),
+                        placeLon = location.longitude.toString(),
+                        placeError = null,
+                    )
+                }
+            }
+        }
+    }
+
     fun updatePlaceDraft(name: String, lat: String, lon: String) {
         _uiState.update { it.copy(placeName = name, placeLat = lat, placeLon = lon) }
     }
@@ -559,6 +585,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (placeMutationInFlight) return
         val state = _uiState.value
         val name = state.placeName.trim()
+        if (state.placeLat.isBlank() || state.placeLon.isBlank()) {
+            _uiState.update { it.copy(placeError = "Use current location to set the spot.") }
+            return
+        }
         val validationError = PlaceInputValidator.errorFor(name, state.placeLat, state.placeLon)
         if (validationError != null) {
             _uiState.update { it.copy(placeError = validationError) }
@@ -573,7 +603,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 onSuccess = {
                     placeMutationInFlight = false
                     _uiState.update {
-                        it.copy(placeName = "", placeLat = "", placeLon = "", placeError = null)
+                        it.copy(placeName = "", placeLat = "", placeLon = "", placeLocating = false, placeError = null)
                     }
                     refresh()
                 },

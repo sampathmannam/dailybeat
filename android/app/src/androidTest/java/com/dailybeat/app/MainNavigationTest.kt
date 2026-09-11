@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.test.assertIsNotEnabled
 
 @RunWith(AndroidJUnit4::class)
 @OptIn(ExperimentalTestApi::class)
@@ -132,22 +133,19 @@ class MainNavigationTest {
         composeRule.onNodeWithText("1 event logged for this day").assertIsDisplayed()
     }
 
-    @Test
-    fun settingsRejectsCoordinatesOutsideEarthRanges() {
+        @Test
+    fun settingsAddPlaceNeedsANameAndACapturedLocation() {
         composeRule.onNodeWithTag("nav_settings").performClick()
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Place name") and hasSetTextAction())
-        composeRule.onNode(hasText("Place name") and hasSetTextAction()).performTextInput("Impossible")
-        composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasText("Latitude") and hasSetTextAction())
-        composeRule.onNode(hasText("Latitude") and hasSetTextAction()).performTextInput("91")
-        composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasText("Longitude") and hasSetTextAction())
-        composeRule.onNode(hasText("Longitude") and hasSetTextAction()).performTextInput("181")
-        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Add place"))
-        composeRule.onNodeWithText("Add place").performClick()
+        composeRule.onNode(hasText("Place name") and hasSetTextAction()).performTextInput("Command HQ")
 
-        composeRule.onNodeWithText("Latitude must be between -90 and 90.").assertIsDisplayed()
+        // Coordinates are captured from GPS now, not typed. Without a captured fix, Add place
+        // stays disabled and the "Use current location" action is offered instead.
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Use current location"))
+        composeRule.onNodeWithText("Use current location").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Add place"))
+        composeRule.onNodeWithText("Add place").assertIsNotEnabled()
     }
 
     @Test

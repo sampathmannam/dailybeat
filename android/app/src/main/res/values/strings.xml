@@ -23,10 +23,8 @@
     <string name="capture_accuracy">Last point accurate to about %1$d m</string>
     <string name="capture_waiting">Waiting for GPS</string>
     <string name="capture_waiting_detail">Keep moving outdoors while DailyBeat finds a reliable point.</string>
-    <string name="capture_degraded">Capture may be delayed</string>
-    <string name="capture_degraded_detail">No reliable point for several minutes. Check battery and location settings.</string>
-    <string name="capture_critical">Capture needs attention</string>
-    <string name="capture_critical_detail">The route has not updated recently. Open Settings to troubleshoot.</string>
+    <string name="capture_degraded">No recent movement</string>
+    <string name="capture_degraded_detail">No new GPS point for a while. DailyBeat is still watching and keeps everything it captured.</string>
     <string name="capture_off">Capture is off</string>
     <string name="capture_off_detail">DailyBeat is not recording your route.</string>
     <string name="dismiss">Dismiss</string>
@@ -169,8 +167,6 @@
     <string name="open_app_settings">Open app settings</string>
     <string name="places_title">Named places</string>
     <string name="place_name_label">Place name</string>
-    <string name="place_lat_label">Latitude</string>
-    <string name="place_lon_label">Longitude</string>
     <string name="add_place_button">Add place</string>
     <string name="delete_place">Delete place</string>
     <string name="delete_place_title">Delete named place?</string>
@@ -229,4 +225,9 @@
     <string name="hidden_stop_label">Hidden from this Beat</string>
     <string name="feed_load_retry">Try again</string>
     <string name="journey_map_title_for_day">Journey · %1$s</string>
+    <string name="use_current_location">Use current location</string>
+    <string name="use_current_location_again">Update to current location</string>
+    <string name="place_locating">Getting your location…</string>
+    <string name="place_location_captured">Location set (%1$s)</string>
+    <string name="insights_tap_a_day">Tap a bar to see that day.</string>
 </resources>

@@ -263,7 +263,9 @@ fun DailyBeatAppScaffold() {
             composable(Routes.DAYS) {
                 FeedScreen(
                     onOpenDay = { dateKey ->
-                        navController.navigate(Routes.review(dateKey)) {
+                        // Tapping a day opens its map to look at, not the rename/hide/complete
+                        // review flow. Review stays reachable from Today's "Review my day".
+                        navController.navigate(Routes.map(dateKey)) {
                             launchSingleTop = true
                         }
                     },

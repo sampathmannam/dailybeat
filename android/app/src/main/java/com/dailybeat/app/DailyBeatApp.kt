@@ -121,7 +121,10 @@ class DailyBeatApp : Application() {
         createNotificationChannels()
         DailyReminderScheduler.createChannel(this)
         DailyReminderScheduler.scheduleNext(this)
-        PulseScheduler.scheduleNext(this)
+        // The 1 PM midday pulse was removed. Force the setting off and cancel any alarm a
+        // previous version may have scheduled, so it can never fire again.
+        settingsRepository.setAutoMiddayPulse(false)
+        PulseScheduler.cancel(this)
     }
 
     private fun createNotificationChannels() {
