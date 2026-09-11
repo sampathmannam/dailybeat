@@ -6,10 +6,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+
+/**
+ * Whether the colour scheme currently in force is the dark one. `isSystemInDarkTheme()` is the
+ * wrong question for this app: the officer can pin Light or Dark in Settings regardless of the
+ * phone, and anything that picks a colour outside `MaterialTheme.colorScheme` has to follow that
+ * choice, not the system's.
+ */
+val LocalDarkTheme = staticCompositionLocalOf { false }
 
 private val LightColorScheme = lightColorScheme(
     primary = Navy,
@@ -20,6 +30,12 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = Ink,
     secondaryContainer = GoldSoft,
     onSecondaryContainer = Ink,
+    // Attention states — "Needs review", "Waiting for GPS". Left at Material's default this role is
+    // a mauve-pink that has nothing to do with the navy-and-gold identity.
+    tertiary = WarningAmber,
+    onTertiary = Color.White,
+    tertiaryContainer = WarningAmberSoft,
+    onTertiaryContainer = WarningAmberInk,
     background = Canvas,
     onBackground = Ink,
     surface = SurfaceCard,
@@ -39,6 +55,10 @@ private val DarkColorScheme = darkColorScheme(
     onSecondary = Ink,
     secondaryContainer = Color(0xFF514600),
     onSecondaryContainer = Color(0xFFFFF4B8),
+    tertiary = NightAmber,
+    onTertiary = Color(0xFF3B2300),
+    tertiaryContainer = NightAmberSoft,
+    onTertiaryContainer = NightAmberInk,
     background = NightCanvas,
     onBackground = NightInk,
     surface = NightSurface,
@@ -65,10 +85,12 @@ fun DailyBeatTheme(
             }
         }
     }
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        typography = DailyBeatTypography,
-        shapes = DailyBeatShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+            typography = DailyBeatTypography,
+            shapes = DailyBeatShapes,
+            content = content,
+        )
+    }
 }

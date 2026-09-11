@@ -54,12 +54,10 @@ import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.util.DateKeys
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.io.File
+import com.dailybeat.app.util.Formatters
 
 @Composable
 fun FeedScreen(
@@ -134,7 +132,11 @@ fun FeedScreen(
             }
         }
 
-        if (state.days.isEmpty() && !state.isLoading) {
+        state.error?.let { error ->
+            item { FeedErrorNotice(message = error, onRetry = viewModel::refresh) }
+        }
+
+        if (state.days.isEmpty() && !state.isLoading && state.error == null) {
             item {
                 EmptyState(
                     title = stringResource(R.string.feed_empty_title),
@@ -180,9 +182,6 @@ fun FeedScreen(
                         }
                         state.message?.let {
                             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                        }
-                        state.error?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -232,7 +231,7 @@ private fun DayFeedCard(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = formatDayHeading(day.date, locale),
+                    text = Formatters.dayHeading(day.date, locale),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -257,15 +256,15 @@ private fun DayFeedCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 StatBlock(
-                    value = formatDistance(day.distanceKm, locale),
+                    value = Formatters.distanceKm(day.distanceKm, day.distanceEstimated, locale),
                     label = stringResource(R.string.feed_stat_distance),
                 )
                 StatBlock(
-                    value = formatDuration(day.activeMinutes),
+                    value = Formatters.durationCompact(day.activeMinutes),
                     label = stringResource(R.string.feed_stat_time_out),
                 )
                 StatBlock(
-                    value = day.stayCount.toString(),
+                    value = Formatters.count(day.stayCount),
                     label = stringResource(R.string.feed_stat_stops),
                 )
             }
@@ -365,7 +364,7 @@ private fun StayRow(stay: DayStay, locale: Locale, onNameStay: () -> Unit) {
             )
             Text(
                 text = buildString {
-                    append("${formatClock(stay.startMs, locale)} · ${formatDuration(stay.durationMinutes)}")
+                    append("${Formatters.clock(stay.startMs)} · ${Formatters.duration(stay.durationMinutes)}")
                     if (!stay.canBeNamed) append(" · ${stringResource(R.string.feed_location_unreliable)}")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -389,30 +388,34 @@ private fun StatBlock(value: String, label: String) {
 
 private const val MAX_STAYS_SHOWN = 5
 
-internal fun formatDistance(km: Double, locale: Locale = Locale.getDefault()): String = when {
-    km < 0.1 -> "—"
-    km < 1.0 -> String.format(locale, "%d m", (km * 1000).toInt())
-    else -> String.format(locale, "%.1f km", km)
-}
+@Composable
+internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today()): String =
+    when (val relative = Formatters.relativeDay(date, today)) {
+        Formatters.RelativeDay.Today -> stringResource(R.string.relative_today)
+        Formatters.RelativeDay.Yesterday -> stringResource(R.string.relative_yesterday)
+        is Formatters.RelativeDay.DaysAgo ->
+            pluralStringResource(R.plurals.relative_days_ago, relative.days, relative.days)
+        is Formatters.RelativeDay.OnDate -> Formatters.dayHeading(relative.date)
+    }
 
-internal fun formatDuration(minutes: Long): String = when {
-    minutes <= 0 -> "—"
-    minutes < 60 -> "$minutes min"
-    minutes % 60 == 0L -> "${minutes / 60} h"
-    else -> "${minutes / 60} h ${minutes % 60} min"
-}
-
-internal fun formatDayHeading(date: LocalDate, locale: Locale): String =
-    date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale))
-
-private fun formatClock(epochMs: Long, locale: Locale): String =
-    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("HH:mm", locale))
-
-internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today()): String = when (date) {
-    today -> "Today"
-    today.minusDays(1) -> "Yesterday"
-    else -> "${java.time.temporal.ChronoUnit.DAYS.between(date, today)} days ago"
+@Composable
+private fun FeedErrorNotice(message: String, onRetry: (() -> Unit)?) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("feed_error"),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            onRetry?.let { retry ->
+                TextButton(onClick = retry) { Text(stringResource(R.string.feed_load_retry)) }
+            }
+        }
+    }
 }
 
 /**

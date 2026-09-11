@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.DailyBeat" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- The starting window is the framework's, not Compose's. Without an explicit background it
+         paints the platform light default, which flashed a white rectangle on every cold start in
+         dark mode before the app's own canvas took over. -->
+    <style name="Theme.DailyBeat" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

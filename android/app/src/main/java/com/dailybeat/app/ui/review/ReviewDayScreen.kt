@@ -39,11 +39,8 @@ import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.roundToInt
+import com.dailybeat.app.util.Formatters
+import androidx.compose.foundation.layout.imePadding
 
 @Composable
 fun ReviewDayScreen(
@@ -70,7 +67,7 @@ fun ReviewDayScreen(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().testTag("review_day_screen"),
+        modifier = modifier.fillMaxSize().imePadding().testTag("review_day_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -84,7 +81,7 @@ fun ReviewDayScreen(
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.review_day_title), style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        viewModel.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                        Formatters.dayHeading(viewModel.date),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -125,17 +122,17 @@ fun ReviewDayScreen(
             ) {
                 MetricPill(
                     label = stringResource(R.string.feed_stat_distance),
-                    value = reviewDistanceLabel(day.distanceKm, day.distanceEstimated),
+                    value = Formatters.distanceKm(day.distanceKm, day.distanceEstimated),
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
                     label = stringResource(R.string.feed_stat_stops),
-                    value = day.stayCount.toString(),
+                    value = Formatters.count(day.stayCount),
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
                     label = stringResource(R.string.notes),
-                    value = state.eventCount.toString(),
+                    value = Formatters.count(state.eventCount),
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -202,16 +199,6 @@ fun ReviewDayScreen(
     }
 }
 
-private fun reviewDistanceLabel(kilometers: Double, estimated: Boolean): String {
-    val roundedTenth = (kilometers * 10).roundToInt() / 10.0
-    val value = if (roundedTenth % 1.0 == 0.0) {
-        String.format(Locale.US, "%.0f km", roundedTenth)
-    } else {
-        String.format(Locale.US, "%.1f km", roundedTenth)
-    }
-    return if (estimated && kilometers > 0) "~$value" else value
-}
-
 @Composable
 private fun ReviewVisitRow(
     visit: LocationVisit,
@@ -219,7 +206,6 @@ private fun ReviewVisitRow(
     onToggleHidden: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val formatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
     Surface(
         modifier = modifier.fillMaxWidth().testTag("review_visit_${visit.id}"),
         shape = MaterialTheme.shapes.medium,
@@ -231,7 +217,10 @@ private fun ReviewVisitRow(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondary) {
+            Surface(
+                shape = CircleShape,
+                color = if (visit.hidden) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.secondary,
+            ) {
                 androidx.compose.foundation.layout.Box(Modifier.size(12.dp))
             }
             Column(Modifier.weight(1f)) {
@@ -243,10 +232,20 @@ private fun ReviewVisitRow(
                     color = if (visit.hidden) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    "${formatter.format(Instant.ofEpochMilli(visit.startMs))} – ${formatter.format(Instant.ofEpochMilli(visit.endMs))}",
+                    Formatters.clockRange(visit.startMs, visit.endMs),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // A hidden stop used to differ from a visible one by a 1.12:1 background tint and
+                // nothing else. Say it.
+                if (visit.hidden) {
+                    Text(
+                        stringResource(R.string.hidden_stop_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
                 Row {
                     TextButton(onClick = onRename) { Text(stringResource(R.string.rename_stop)) }
                     TextButton(

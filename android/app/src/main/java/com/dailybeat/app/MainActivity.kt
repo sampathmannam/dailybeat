@@ -22,6 +22,8 @@ import com.dailybeat.app.ui.DailyBeatAppScaffold
 import com.dailybeat.app.ui.onboarding.OnboardingScreen
 import com.dailybeat.app.ui.theme.DailyBeatTheme
 import com.dailybeat.app.util.PermissionHelper
+import androidx.activity.SystemBarStyle
+import androidx.compose.runtime.SideEffect
 
 class MainActivity : ComponentActivity() {
 
@@ -55,6 +57,13 @@ class MainActivity : ComponentActivity() {
                 ThemePreference.SYSTEM -> isSystemInDarkTheme()
                 ThemePreference.LIGHT -> false
                 ThemePreference.DARK -> true
+            }
+            // enableEdgeToEdge() resolves its scrims from the *system* night mode. The officer can pin
+            // Light or Dark in Settings regardless of the phone, so re-resolve whenever that changes.
+            SideEffect {
+                val transparent = android.graphics.Color.TRANSPARENT
+                val style = if (useDarkTheme) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             DailyBeatTheme(darkTheme = useDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {

@@ -81,7 +81,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun tappingADayOpensThatDaysReview() {
+    fun tappingADayOpensThatDaysMap() {
         composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(
             hasTestTag("feed_card_${DateKeys.today()}"),
@@ -90,7 +90,7 @@ class FeedScreenTest {
 
         composeRule.onNodeWithTag("feed_card_${DateKeys.today()}").performClick()
 
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("review_day_screen"), timeoutMillis = 10_000)
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("journey_map_screen"), timeoutMillis = 10_000)
     }
 
     @Test

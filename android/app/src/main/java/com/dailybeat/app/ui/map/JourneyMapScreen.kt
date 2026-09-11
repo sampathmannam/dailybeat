@@ -27,6 +27,8 @@ import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.JourneyMapModel
 import com.dailybeat.app.ui.components.JourneyMapPreview
+import com.dailybeat.app.util.DateKeys
+import com.dailybeat.app.util.Formatters
 
 @Composable
 fun JourneyMapScreen(
@@ -54,7 +56,11 @@ fun JourneyMapScreen(
                 )
             }
             Text(
-                text = stringResource(R.string.journey_map_title),
+                text = if (viewModel.date == DateKeys.today()) {
+                    stringResource(R.string.journey_map_title)
+                } else {
+                    stringResource(R.string.journey_map_title_for_day, Formatters.dayHeading(viewModel.date))
+                },
                 style = MaterialTheme.typography.headlineSmall,
             )
         }

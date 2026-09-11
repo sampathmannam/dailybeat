@@ -6,10 +6,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -19,7 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,8 +43,10 @@ fun OnboardingScreen(
     onComplete: (officerName: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var step by remember { mutableIntStateOf(0) }
-    var officerName by remember { mutableStateOf("") }
+    // Saveable, not plain remember: rotating the phone on the name step used to throw the user
+    // back to the welcome screen with the name they had typed gone.
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var officerName by rememberSaveable { mutableStateOf("") }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -45,18 +55,32 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(28.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // A real mark for each step. The emoji this replaced was announced by TalkBack as
+            // "notebook with decorative cover" and is one of PRODUCT.md's named anti-references.
+            val icon = when (step) {
+                0 -> Icons.Outlined.Map
+                1 -> Icons.Outlined.Person
+                else -> Icons.Outlined.Lock
+            }
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f)),
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("📔", style = MaterialTheme.typography.headlineLarge)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(36.dp),
+                )
             }
 
             when (step) {
@@ -81,6 +105,13 @@ fun OnboardingScreen(
                     Text(
                         text = stringResource(R.string.onboarding_officer_title),
                         style = MaterialTheme.typography.headlineMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(R.string.onboarding_officer_body),
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedTextField(
                         value = officerName,
@@ -104,12 +135,16 @@ fun OnboardingScreen(
                     Text(
                         text = stringResource(R.string.onboarding_privacy_title),
                         style = MaterialTheme.typography.headlineMedium,
+                        textAlign = TextAlign.Center,
                     )
+                    // Left-aligned on purpose: this is three short paragraphs the officer needs to
+                    // actually read before Android starts asking, and centred prose fights that.
                     Text(
                         text = stringResource(R.string.onboarding_privacy_body),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_get_started),
