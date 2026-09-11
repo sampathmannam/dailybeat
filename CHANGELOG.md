@@ -16,6 +16,23 @@
 - The weekly rollup counts only the stays it actually sends, so the number no longer reveals how
   many were withheld.
 
+### Changed
+- **Add a place by its current location, not by typing coordinates.** The add-place form asked
+  for latitude and longitude — numbers nobody carries in their head. A **Use current location**
+  button now captures one GPS fix and fills the spot; Add place stays disabled until there is both
+  a name and a captured location.
+- **The 1 PM automatic midday pulse is gone.** It no longer runs, the Settings toggle is removed,
+  and any pulse a previous version had scheduled is cancelled on first launch. The evening report
+  is unchanged.
+- **Insights is interactive.** Tap any bar to see that day's date and distance above the chart;
+  each bar is reachable and announced with TalkBack. It starts on the most recent day.
+- **Tapping a day opens its map.** A day in the Days list now opens that day's journey to look at,
+  instead of dropping you into the rename/hide/complete flow. Review my day stays on Today.
+- **The Today capture status no longer alarms.** The red "route has not updated recently — open
+  Settings to troubleshoot" message is removed. A long quiet stretch now reads calmly: "No recent
+  movement — DailyBeat is still watching and keeps everything it captured." Only capture being
+  switched off is flagged as something to act on.
+
 ### Polished
 - **Numbers read the same on every screen.** The same day used to show "~4 km · 3h 34m" on Today
   and "4.0 km · 3 h 34 min" on Days; a short day was "50 m", "0.1 km" or "—" depending on where
