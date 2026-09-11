@@ -1,6 +1,6 @@
-# DailyBeat v3.8.2 — install and verify
+# DailyBeat v3.8.3 — install and verify
 
-Version 3.8.2 makes the privacy controls real. A place marked **Private zone** in Settings, and any
+Version 3.8.3 carries the v3.8.2 privacy and UX work and adds two reliability fixes: the "Use current location" button can no longer hang, and cloud backup handles regional-script diaries correctly. v3.8.2 made the privacy controls real. A place marked **Private zone** in Settings, and any
 stop hidden in **Review my day**, are now excluded from cloud reports and shared exports; a private
 zone is never sent to the OpenStreetMap geocoder at all, so its address is not looked up. Reports no
 longer carry raw GPS coordinates. Everything v3.8.1 shipped is unchanged: the System/Light/Dark
@@ -35,9 +35,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v3.8.2`):
+After every release gate passes, download these assets from GitHub Releases (tag `v3.8.3`):
 
-- `DailyBeat-v3.8.2.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v3.8.3.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

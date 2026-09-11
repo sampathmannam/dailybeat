@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.8.3 — 2026-09-11
 
 ### Fixed
 - **"Use current location" can no longer hang.** If a GPS fix never arrived — location off,

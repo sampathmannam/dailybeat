@@ -1,7 +1,7 @@
-# DailyBeat — v3.8.2 baseline record
+# DailyBeat — v3.8.3 baseline record
 
-This is the frozen reference point for DailyBeat. Version **3.8.2** (`versionCode 18`, tag
-`v3.8.2`) is the shipped release: map-first Today, reviewable whole-day Beats, private 28-day
+This is the frozen reference point for DailyBeat. Version **3.8.3** (`versionCode 19`, tag
+`v3.8.3`) is the shipped release: map-first Today, reviewable whole-day Beats, private 28-day
 Insights, reliable GPS breadcrumbs with capture-gap disclosure, a one-hour privacy pause, cloud
 backup, a persistent System/Light/Dark appearance selector, and **enforced private zones** — a
 place marked private, or a stop hidden during review, is excluded from every path that leaves the
@@ -17,7 +17,7 @@ version matches `release/version.txt`:
 
 | Gate | Scope |
 |---|---|
-| `build` | `assembleDebug`, 194 JVM unit tests, Android Lint |
+| `build` | `assembleDebug`, 205 JVM unit tests, Android Lint |
 | `instrumentation` | 31 Compose/Android tests on an API 34 emulator, with screenshot and logcat evidence |
 | `offline-instrumentation` | the same suite with the live-backup test excluded, so an outage cannot mask an app defect |
 | `live-backup` | a real Supabase upload → download → restore round trip against a dedicated QA account |
@@ -32,7 +32,7 @@ the build if a schema version is raised without a migration, and `DatabasePolicy
 
 ## Verified security posture
 
-Confirmed by source audit at `v3.8.2`:
+Confirmed by source audit at `v3.8.3`:
 
 - **Keys.** The provider API key is held in `EncryptedSharedPreferences` under an AES256-GCM master
   key with no plaintext fallback. It is never logged, never placed in an exception message or URL,
@@ -68,6 +68,37 @@ Confirmed by source audit at `v3.8.2`:
 - **QA isolation.** Debug builds are forced to a `.qa` package by a `require()` guard, and
   destructive instrumentation can only target the disposable `.qa.e2eloop` package, so neither
   production nor regular QA data can be cleared by a test run.
+
+## Reliability rating — 8 / 10
+
+Reliability here means: does the app keep its promise to capture the day, preserve what it
+captured, and never lose or corrupt the record — including across updates, process death and
+restore.
+
+**What earns the 8.** Every commit runs 205 JVM unit tests and 31 Compose/Android tests on a
+fresh API-34 emulator, plus a real Supabase upload → download → restore round trip, before a signed
+APK can publish. Data crosses updates through additive Room migrations only, enforced by
+`MigrationChainTest` and `DatabasePolicyTest`. Restore validates the whole snapshot before it
+deletes anything and applies it in a single transaction, so a bad or partial snapshot cannot leave
+a half-restored database. Capture rejects mock, non-finite, out-of-range, stale, inaccurate and
+physically impossible fixes rather than storing them, and discloses gaps instead of inventing
+distance. Every network client now has bounded timeouts and size-capped responses, and the two
+open-ended waits found in the v3.8.3 debug pass — a location fetch that could hang the "add place"
+button, and a byte/char size-guard mismatch that failed regional-script backups — are fixed and
+regression-tested.
+
+**What holds it back from 9–10, and none of it is theoretical:**
+
+- **No multi-day physical-device capture trial.** The load-bearing reliability question — does
+  passive capture survive days on real OEM hardware under battery optimisation and task killers —
+  is measured by no test. This is the single largest unknown.
+- **No field telemetry.** There is no privacy-preserving crash/ANR reporting, so a regression that
+  only appears on a real device is invisible until the officer notices.
+- **No staged rollout.** Every release reaches every device at once through Obtainium; a bad build
+  has no canary to catch it first.
+
+Moving to 9 would need the device trial and crash/ANR visibility; 10 would need those plus a staged
+rollout. The score is deliberately about field reliability, not code quality, which is higher.
 
 ## What this baseline does not establish
 
