@@ -221,10 +221,11 @@ fun SettingsScreen(
                         stringResource(R.string.battery_restricted)
                     },
                     style = MaterialTheme.typography.bodySmall,
+                    // Amber, not red: this is advice about a phone setting, not a failure.
                     color = if (state.batteryUnrestricted) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
-                        MaterialTheme.colorScheme.error
+                        MaterialTheme.colorScheme.tertiary
                     },
                 )
                 if (!state.batteryUnrestricted) {
