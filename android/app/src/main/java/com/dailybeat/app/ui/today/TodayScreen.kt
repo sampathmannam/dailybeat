@@ -1,6 +1,8 @@
 package com.dailybeat.app.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +55,6 @@ import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
-import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import kotlin.math.roundToInt
@@ -112,13 +115,16 @@ fun TodayScreen(
         }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("today_list")
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .widthIn(max = 840.dp)
+                .fillMaxSize()
+                .align(Alignment.TopCenter)
+                .testTag("today_list")
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
         item {
             DailyBeatScreenHeader(
                 title = stringResource(R.string.today_passive_title),
@@ -134,50 +140,29 @@ fun TodayScreen(
             }
         }
 
-        item { CaptureHealthCard(uiState.captureStatus) }
-
-        item { StatusStrip(gpsOn = uiState.gpsActive, cloudReady = uiState.cloudBrainReady) }
-
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = beat.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = if (uiState.beatState == "complete") {
-                        stringResource(R.string.beat_complete_status)
-                    } else {
-                        stringResource(R.string.beat_live_status)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            CaptureOverview(
+                status = uiState.captureStatus,
+                gpsOn = uiState.gpsActive,
+                cloudReady = uiState.cloudBrainReady,
+            )
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MetricPill(
-                    label = stringResource(R.string.feed_stat_distance),
-                    value = Formatters.distance(uiState.distanceMeters, uiState.distanceEstimated),
-                    modifier = Modifier.weight(1f),
-                )
-                MetricPill(
-                    label = stringResource(R.string.beat_tracked_time),
-                    value = Formatters.durationCompact(uiState.trackedMinutes),
-                    modifier = Modifier.weight(1f),
-                )
-                MetricPill(
-                    label = stringResource(R.string.feed_stat_stops),
-                    value = Formatters.count(visits.count { it.visitType != "transit" }),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            BeatSummary(
+                title = beat.title,
+                status = if (uiState.beatState == "complete") {
+                    stringResource(R.string.beat_complete_status)
+                } else {
+                    stringResource(R.string.beat_live_status)
+                },
+                distanceLabel = stringResource(R.string.feed_stat_distance),
+                distanceValue = Formatters.distance(uiState.distanceMeters, uiState.distanceEstimated),
+                timeLabel = stringResource(R.string.beat_tracked_time),
+                timeValue = Formatters.durationCompact(uiState.trackedMinutes),
+                stopsLabel = stringResource(R.string.feed_stat_stops),
+                stopsValue = Formatters.count(visits.count { it.visitType != "transit" }),
+            )
         }
 
         if (uiState.distanceEstimated) {
@@ -256,7 +241,8 @@ fun TodayScreen(
             }
         }
 
-        item { Spacer(Modifier.height(12.dp)) }
+            item { Spacer(Modifier.height(12.dp)) }
+        }
     }
 }
 
@@ -300,7 +286,11 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
 }
 
 @Composable
-private fun CaptureHealthCard(status: CaptureHealthStatus) {
+private fun CaptureOverview(
+    status: CaptureHealthStatus,
+    gpsOn: Boolean,
+    cloudReady: Boolean,
+) {
     val (title, detail) = when (status.level) {
         CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
             status.accuracyM?.let { stringResource(R.string.capture_accuracy, it.roundToInt()) }
@@ -322,22 +312,111 @@ private fun CaptureHealthCard(status: CaptureHealthStatus) {
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = color) {}
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = color) {}
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = detail ?: stringResource(R.string.capture_healthy_detail),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            StatusStrip(gpsOn = gpsOn, cloudReady = cloudReady)
+        }
+    }
+}
+
+@Composable
+private fun BeatSummary(
+    title: String,
+    status: String,
+    distanceLabel: String,
+    distanceValue: String,
+    timeLabel: String,
+    timeValue: String,
+    stopsLabel: String,
+    stopsValue: String,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    text = detail ?: stringResource(R.string.capture_healthy_detail),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
+                MetricDivider()
+                SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
+                MetricDivider()
+                SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+            }
         }
     }
+}
+
+@Composable
+private fun SummaryMetric(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun MetricDivider() {
+    Box(
+        modifier = Modifier.width(1.dp).height(36.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
 }
 
 @Composable
@@ -472,4 +551,3 @@ private fun FeedbackMessage(message: String, error: Boolean, onDismiss: (() -> U
         }
     }
 }
-
