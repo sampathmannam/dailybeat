@@ -1,9 +1,11 @@
-# DailyBeat — v3.8.1 baseline record
+# DailyBeat — v3.8.2 baseline record
 
-This is the frozen reference point for DailyBeat. Version **3.8.1** (`versionCode 17`, tag
-`v3.8.1`) is the shipped release: map-first Today, reviewable whole-day Beats, private 28-day
+This is the frozen reference point for DailyBeat. Version **3.8.2** (`versionCode 18`, tag
+`v3.8.2`) is the shipped release: map-first Today, reviewable whole-day Beats, private 28-day
 Insights, reliable GPS breadcrumbs with capture-gap disclosure, a one-hour privacy pause, cloud
-backup, and a persistent System/Light/Dark appearance selector.
+backup, a persistent System/Light/Dark appearance selector, and **enforced private zones** — a
+place marked private, or a stop hidden during review, is excluded from every path that leaves the
+device, and a private zone is never sent to the geocoder.
 
 It is a baseline, not a claim of perfection. Everything below is what was actually verified, plus
 an honest list of what still is not.
@@ -30,7 +32,7 @@ the build if a schema version is raised without a migration, and `DatabasePolicy
 
 ## Verified security posture
 
-Confirmed by source audit at `v3.8.1`:
+Confirmed by source audit at `v3.8.2`:
 
 - **Keys.** The provider API key is held in `EncryptedSharedPreferences` under an AES256-GCM master
   key with no plaintext fallback. It is never logged, never placed in an exception message or URL,

@@ -1,8 +1,16 @@
-# DailyBeat v3.8.1 — install and verify
+# DailyBeat v3.8.2 — install and verify
 
-Version 3.8.1 adds a prominent persistent System/Light/Dark selector to the whole-day Beat:
-map-first Today, map-led daily cards, correction/completion review, private Insights, capture-gap
-disclosure, and a one-hour privacy pause. DSR is a separate app in the private `sampathmannam/dsr` repository; its old
+Version 3.8.2 makes the privacy controls real. A place marked **Private zone** in Settings, and any
+stop hidden in **Review my day**, are now excluded from cloud reports and shared exports; a private
+zone is never sent to the OpenStreetMap geocoder at all, so its address is not looked up. Reports no
+longer carry raw GPS coordinates. Everything v3.8.1 shipped is unchanged: the System/Light/Dark
+selector, map-first Today, map-led daily cards, correction/completion review, private Insights,
+capture-gap disclosure and the one-hour privacy pause.
+
+Private zones and hidden stops remain in your own cloud backup, so a restored phone still knows
+which places are private.
+
+DSR is a separate app in the private `sampathmannam/dsr` repository; its old
 DailyBeat records and PDFs are retained, not deleted. Regular QA uses `com.dailybeat.app.qa`.
 Destructive instrumentation must use
 `com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
@@ -27,14 +35,14 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v3.8.1`):
+After every release gate passes, download these assets from GitHub Releases (tag `v3.8.2`):
 
-- `DailyBeat-v3.8.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v3.8.2.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
-for build, Android instrumentation (including a real Supabase backup/restore round trip), backend,
-and CodeQL checks, then verifies the permanent signing-certificate fingerprint before publishing.
+for build, Android instrumentation, a real Supabase backup/restore round trip, the release-policy
+suite, and CodeQL, then verifies the permanent signing-certificate fingerprint before publishing.
 Do not create a tag from a feature branch merely to obtain an APK.
 
 ## Test the candidate on a physical Android phone
@@ -87,6 +95,10 @@ by CI; credential values are never committed.
 7. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.
 9. Confirm that capture gaps do not ask for manual review; uncertain segments stay out of distance totals.
+10. In **Settings → Places**, mark a saved place as a **Private zone**, then generate a report for a
+    day that includes a stay there. The generated diary must not mention that place. Do the same for
+    a stop hidden in **Review my day**. Both must still be visible on your own Today and Days
+    screens — they are withheld from the cloud, not deleted.
 
 ## Dependency verification
 

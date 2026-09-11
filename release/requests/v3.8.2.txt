@@ -1,0 +1,1 @@
+Publish DailyBeat v3.8.2 only after the private-zone and hidden-stop enforcement, the removal of raw coordinates from cloud reports, dependency verification, build, instrumentation, live cloud-backup, release-policy and CodeQL checks all pass on the protected main commit.
