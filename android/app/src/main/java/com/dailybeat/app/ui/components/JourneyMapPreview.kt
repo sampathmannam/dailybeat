@@ -314,7 +314,7 @@ fun JourneyMapPreview(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("route_replay_progress"),
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
                 Row(

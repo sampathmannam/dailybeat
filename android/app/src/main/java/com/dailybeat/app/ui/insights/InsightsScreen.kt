@@ -39,6 +39,8 @@ import com.dailybeat.app.ui.components.PrimaryButton
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.dailybeat.app.util.Formatters
+import androidx.compose.ui.res.pluralStringResource
 
 @Composable
 fun InsightsScreen(
@@ -89,12 +91,12 @@ fun InsightsScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MetricPill(
                         label = stringResource(R.string.this_week_distance),
-                        value = String.format(Locale.US, "%.1f km", state.weeklyDistanceKm),
+                        value = Formatters.distanceKm(state.weeklyDistanceKm),
                         modifier = Modifier.weight(1f),
                     )
                     MetricPill(
                         label = stringResource(R.string.review_streak),
-                        value = stringResource(R.string.days_count, state.reviewStreak),
+                        value = pluralStringResource(R.plurals.days_count, state.reviewStreak, state.reviewStreak),
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -149,7 +151,7 @@ fun InsightsScreen(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(pattern.name, Modifier.weight(1f))
                                     Text(
-                                        stringResource(R.string.visits_count, pattern.visits),
+                                        pluralStringResource(R.plurals.visits_count, pattern.visits, pattern.visits),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -191,7 +193,7 @@ private fun WeeklyBars(days: List<com.dailybeat.app.ui.feed.DayFeedItem>) {
                         val height = (88 * (day.distanceKm / maximum)).roundToInt().coerceAtLeast(4)
                         Box(
                             Modifier.width(22.dp).height(height.dp)
-                                .background(MaterialTheme.colorScheme.secondary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
+                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)),
                         )
                         Text(
                             day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),

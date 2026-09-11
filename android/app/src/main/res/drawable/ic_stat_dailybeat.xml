@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon: the launcher's monochrome mark. Notification small icons must be a single
+     white shape on transparent; the framework tints it. Replaces the generic system glyphs that
+     used to sit in the status bar all day. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M31,19 C26,19 23,23 23,28 L23,79 C23,85 27,89 33,89 L67,89 85,70 85,28 C85,23 81,19 76,19 Z M62,27 C53.7,27 47,33.2 47,41 C47,51.5 62,63 62,63 C62,63 77,51.5 77,41 C77,33.2 70.3,27 62,27 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M62,34.5 A6.5,6.5 0,1 0,62,47.5 A6.5,6.5 0,1 0,62,34.5" />
+</vector>

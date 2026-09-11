@@ -18,7 +18,8 @@ class JourneyMapViewModel(
     savedStateHandle: SavedStateHandle,
 ) : AndroidViewModel(application) {
     private val app = application as DailyBeatApp
-    private val date = DateKeys.parseOrToday(savedStateHandle["dateKey"])
+    // Exposed so the screen can title a past day honestly instead of always saying "Today".
+    val date = DateKeys.parseOrToday(savedStateHandle["dateKey"])
 
     val model = combine(
         app.visitRepository.observeForDate(date),

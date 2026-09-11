@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.dailybeat.app.util.userMessage
 
 data class ReviewDayUiState(
     val title: String = "",
@@ -128,7 +129,7 @@ class ReviewDayViewModel(
                 onSuccess = { _uiState.update { it.copy(isSaving = false, message = success) } },
                 onFailure = { cause ->
                     if (cause is CancellationException) throw cause
-                    _uiState.update { it.copy(isSaving = false, error = cause.message ?: failure) }
+                    _uiState.update { it.copy(isSaving = false, error = cause.userMessage(failure)) }
                 },
             )
         }

@@ -43,6 +43,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.tan
+import com.dailybeat.app.util.userMessage
 
 /**
  * Renders a non-interactive OpenStreetMap snapshot suitable for scrollable cards. The immediate
@@ -79,7 +80,7 @@ fun JourneyMapSnapshot(
             throw cancelled
         } catch (error: Exception) {
             snapshotBitmap = null
-            onFailure(error.message ?: "Map tiles are unavailable")
+            onFailure(error.userMessage("Map tiles are unavailable"))
         }
     }
 
@@ -182,7 +183,7 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
 
         model.stopPoints.forEach { point ->
             val offset = point.toOffset()
-            drawCircle(color = Color.White, radius = 7.dp.toPx(), center = offset)
+            drawCircle(color = Navy, radius = 7.dp.toPx(), center = offset)
             drawCircle(color = Gold, radius = 4.5.dp.toPx(), center = offset)
         }
     }

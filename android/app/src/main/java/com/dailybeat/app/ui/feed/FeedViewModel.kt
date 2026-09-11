@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.dailybeat.app.util.userMessage
 
 data class FeedUiState(
     val days: List<DayFeedItem> = emptyList(),
@@ -52,7 +53,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     if (error is CancellationException) throw error
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = error.message ?: "Unable to load captured days.",
+                        error = error.userMessage("Unable to load captured days."),
                     )
                 },
             )
@@ -96,7 +97,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isGeneratingWeekly = false,
-                        error = error.message ?: "Weekly report failed.",
+                        error = error.userMessage("Weekly report failed."),
                     )
                 },
             )
@@ -127,7 +128,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isExporting = false,
-                        error = error.message ?: "Export failed.",
+                        error = error.userMessage("Export failed."),
                     )
                 },
             )
@@ -162,7 +163,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
-                        error = error.message ?: "Unable to save this place.",
+                        error = error.userMessage("Unable to save this place."),
                     )
                 },
             )

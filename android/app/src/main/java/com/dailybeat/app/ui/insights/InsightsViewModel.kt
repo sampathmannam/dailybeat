@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.dailybeat.app.util.userMessage
 
 data class PlacePattern(val name: String, val visits: Int)
 
@@ -52,7 +53,7 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
                     if (cause is CancellationException) throw cause
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = cause.message ?: "Unable to calculate insights.",
+                        error = cause.userMessage("Unable to calculate insights."),
                     )
                 },
             )

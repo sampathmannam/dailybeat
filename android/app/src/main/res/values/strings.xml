@@ -30,7 +30,7 @@
     <string name="capture_off">Capture is off</string>
     <string name="capture_off_detail">DailyBeat is not recording your route.</string>
     <string name="dismiss">Dismiss</string>
-    <string name="review_day_title">Review your day</string>
+    <string name="review_day_title">Review my day</string>
     <string name="review_back">Back</string>
     <string name="beat_title_label">Name this Beat</string>
     <string name="save_title">Save</string>
@@ -52,18 +52,25 @@
     <string name="insights_empty_body">Use DailyBeat normally. After your first route, this page will show useful patterns—not a score for being busy.</string>
     <string name="this_week_distance">This week</string>
     <string name="review_streak">Review streak</string>
-    <string name="days_count">%1$d days</string>
-    <string name="actionable_insight">ACTIONABLE INSIGHT</string>
+    <plurals name="days_count">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="actionable_insight">Actionable insight</string>
     <string name="open_capture_settings">Check capture settings</string>
     <string name="open_today">Open Today</string>
     <string name="recurring_places">Recurring places</string>
     <string name="recurring_places_empty">More repeated visits are needed before a pattern is useful.</string>
-    <string name="visits_count">%1$d visits</string>
+    <plurals name="visits_count">
+        <item quantity="one">%1$d visit</item>
+        <item quantity="other">%1$d visits</item>
+    </plurals>
     <string name="insights_privacy_note">Calculated on this phone from your DailyBeat history. Your location patterns are not published.</string>
     <string name="last_seven_days">Distance by day</string>
     <string name="weekly_tools">Weekly tools</string>
-    <string name="weekly_tools_body">Create an official roll-up or export only when you need it.</string>
-    <string name="private_place">Private zone: keep this place out of cloud reports, exports and map lookups</string>
+    <string name="weekly_tools_body">Create an official weekly rollup or export only when you need it.</string>
+    <string name="private_place">Private zone</string>
+    <string name="private_place_hint">Kept out of cloud reports, exports and map lookups.</string>
     <string name="pause_capture_one_hour">Pause capture for 1 hour</string>
     <string name="resume_capture_now">Resume capture now</string>
     <string name="capture_paused_body">Capture is paused for privacy. It will resume automatically within one hour.</string>
@@ -155,12 +162,12 @@
     <string name="theme_dark">Dark</string>
     <string name="settings_capture_group">Capture</string>
     <string name="officer_name_label">Officer name</string>
-    <string name="gps_capture_label">GPS breadcrumbs (every 45s / 75m)</string>
+    <string name="gps_capture_label">Record my route (GPS)</string>
     <string name="battery_unrestricted">Battery: unrestricted. Passive tracking can run all day.</string>
     <string name="battery_restricted">Battery optimisation is on for DailyBeat. Android may stop tracking in the background. Set DailyBeat to Unrestricted.</string>
     <string name="battery_open_settings">Open battery settings</string>
     <string name="open_app_settings">Open app settings</string>
-    <string name="places_title">Named places (geofences)</string>
+    <string name="places_title">Named places</string>
     <string name="place_name_label">Place name</string>
     <string name="place_lat_label">Latitude</string>
     <string name="place_lon_label">Longitude</string>
@@ -190,7 +197,7 @@
     <string name="backup_api_key_excluded">For safety, cloud AI API keys are never included. Enter the key again on a new phone.</string>
     <string name="cancel">Cancel</string>
     <string name="settings_cloud_desc">Your API key is stored encrypted on this device. Activity summaries are sent to your chosen provider for reports; voice transcripts are sent for optional structuring when Cloud AI is ready.</string>
-    <string name="cloud_llm_enabled">Use cloud LLM for daily reports</string>
+    <string name="cloud_llm_enabled">Use Cloud AI for daily reports</string>
     <string name="cloud_api_key_label">API key</string>
     <string name="cloud_api_key_saved_hint">API key saved securely. Enter a new key only to replace it.</string>
     <string name="save_api_key">Save API key</string>
@@ -205,10 +212,21 @@
     <string name="diary_cloud_hint">Cloud AI turns your GPS journey and notes into your official diary.</string>
     <string name="diary_local_hint">Add a cloud API key in Settings to generate AI reports.</string>
     <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
-    <string name="onboarding_welcome_body">Passive GPS tracks your day. Add a cloud API key in Settings for AI daily reports and optional voice-note structuring. Report generation and cloud-enabled voice structuring send text to your chosen provider.</string>
-    <string name="onboarding_officer_title">Your name for PDF headers</string>
-    <string name="onboarding_privacy_title">Privacy first</string>
-    <string name="onboarding_privacy_body">Grant location (all the time for passive tracking) and notifications when prompted. You control capture in Settings.</string>
+    <string name="onboarding_welcome_body">DailyBeat quietly records where you go and turns each day into a record you can check in the evening. Your route stays on this phone. If you turn on Cloud AI in Settings it can also draft your official diary — that step sends a text summary of the day, never your location points.</string>
+    <string name="onboarding_officer_title">Your name</string>
+    <string name="onboarding_officer_body">It appears on the diary PDFs you export. Nothing else uses it.</string>
+    <string name="onboarding_privacy_title">Two permissions</string>
+    <string name="onboarding_privacy_body">Location — DailyBeat records your route while the phone is in your pocket, so Android will ask twice. Choose While using the app, then Allow all the time on the screen that follows.\n\nNotifications — a small notice while capture is running, and a reminder to review your day.\n\nNothing appears on Today until you move between places. You can pause or switch capture off any time in Settings.</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_get_started">Get started</string>
+    <string name="distance_estimated_note">~ means some GPS points were unreliable and were left out of the total.</string>
+    <string name="relative_today">Today</string>
+    <string name="relative_yesterday">Yesterday</string>
+    <plurals name="relative_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <string name="hidden_stop_label">Hidden from this Beat</string>
+    <string name="feed_load_retry">Try again</string>
+    <string name="journey_map_title_for_day">Journey · %1$s</string>
 </resources>

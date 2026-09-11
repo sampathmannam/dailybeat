@@ -54,8 +54,8 @@ import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
-import java.util.Locale
 import kotlin.math.roundToInt
+import com.dailybeat.app.util.Formatters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,18 +164,28 @@ fun TodayScreen(
             ) {
                 MetricPill(
                     label = stringResource(R.string.feed_stat_distance),
-                    value = distanceLabel(uiState.distanceMeters, uiState.distanceEstimated),
+                    value = Formatters.distance(uiState.distanceMeters, uiState.distanceEstimated),
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
                     label = stringResource(R.string.beat_tracked_time),
-                    value = durationLabel(uiState.trackedMinutes),
+                    value = Formatters.durationCompact(uiState.trackedMinutes),
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
                     label = stringResource(R.string.feed_stat_stops),
-                    value = visits.count { it.visitType != "transit" }.toString(),
+                    value = Formatters.count(visits.count { it.visitType != "transit" }),
                     modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        if (uiState.distanceEstimated) {
+            item {
+                Text(
+                    stringResource(R.string.distance_estimated_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -253,7 +263,7 @@ fun TodayScreen(
 @Composable
 private fun WaitingForRouteCard(status: CaptureHealthStatus) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(188.dp).testTag("today_map_empty"),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 188.dp).testTag("today_map_empty"),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
     ) {
@@ -465,22 +475,3 @@ private fun FeedbackMessage(message: String, error: Boolean, onDismiss: (() -> U
     }
 }
 
-private fun distanceLabel(meters: Double, estimated: Boolean): String {
-    val value = if (meters < 1_000) {
-        "${meters.roundToInt()} m"
-    } else {
-        val kilometers = meters / 1_000
-        val roundedTenth = (kilometers * 10).roundToInt() / 10.0
-        if (roundedTenth % 1.0 == 0.0) {
-            String.format(Locale.US, "%.0f km", roundedTenth)
-        } else {
-            String.format(Locale.US, "%.1f km", roundedTenth)
-        }
-    }
-    return if (estimated && meters > 0) "~$value" else value
-}
-
-private fun durationLabel(minutes: Long): String = when {
-    minutes < 60 -> "${minutes}m"
-    else -> "${minutes / 60}h ${minutes % 60}m"
-}

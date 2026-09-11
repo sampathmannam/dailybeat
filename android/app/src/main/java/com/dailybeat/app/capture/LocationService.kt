@@ -234,7 +234,7 @@ class LocationService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.location_service_title))
             .setContentText(getString(R.string.location_service_passive))
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.ic_stat_dailybeat)
             .setContentIntent(openIntent)
             .setOngoing(true)
             .build()
