@@ -156,8 +156,12 @@ object DayFeedBuilder {
         val inferredState = when {
             review?.state != null -> review.state
             date == com.dailybeat.app.util.DateKeys.today() -> "live"
+            // Only a genuine reason — a capture gap, or a stay the officer flagged — asks for
+            // review. An ordinary captured day is just "captured" and carries no badge, so Days
+            // does not nag review on every past day. (The previous else also returned
+            // "needs_review", which labelled every day.)
             gapStarts.isNotEmpty() || ordered.any { it.reviewState == "needs_review" } -> "needs_review"
-            else -> "needs_review"
+            else -> "captured"
         }
 
         return DayFeedItem(
