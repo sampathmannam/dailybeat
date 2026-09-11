@@ -6,4 +6,6 @@ internal const val JOURNEY_RASTER_TILE_URL_TEMPLATE = "https://tile.openstreetma
 internal const val JOURNEY_ROUTE_COLOR = "#FFD60A"
 internal const val JOURNEY_ROUTE_CASING_COLOR = "#0B2D5B"
 internal const val JOURNEY_STOP_COLOR = "#FFD60A"
-internal const val JOURNEY_STOP_STROKE_COLOR = "#FFFFFF"
+// Navy, not white: a white ring on a light basemap measured 1.15:1 — the stops were not
+// perceivable. The route already wears this casing; the stops now match it.
+internal const val JOURNEY_STOP_STROKE_COLOR = "#0B2D5B"

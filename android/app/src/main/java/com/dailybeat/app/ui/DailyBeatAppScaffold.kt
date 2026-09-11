@@ -49,7 +49,8 @@ import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
 import com.dailybeat.app.ui.today.TodayViewModel
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import androidx.compose.ui.text.style.TextOverflow
+import com.dailybeat.app.util.Formatters
 
 object Routes {
     const val TODAY = "today"
@@ -71,7 +72,7 @@ fun DailyBeatAppScaffold() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Routes.TODAY
-    val todayLabel = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM"))
+    val todayLabel = Formatters.dayHeading(LocalDate.now())
 
     val todayViewModel: TodayViewModel = viewModel()
     val context = LocalContext.current
@@ -129,7 +130,7 @@ fun DailyBeatAppScaffold() {
                             contentDescription = null,
                         )
                     },
-                    label = { Text(stringResource(R.string.tab_today)) },
+                    label = { Text(stringResource(R.string.tab_today), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = colors,
                 )
                 NavigationBarItem(
@@ -154,7 +155,7 @@ fun DailyBeatAppScaffold() {
                             contentDescription = null,
                         )
                     },
-                    label = { Text(stringResource(R.string.tab_days)) },
+                    label = { Text(stringResource(R.string.tab_days), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = colors,
                 )
                 NavigationBarItem(
@@ -175,7 +176,7 @@ fun DailyBeatAppScaffold() {
                             contentDescription = null,
                         )
                     },
-                    label = { Text(stringResource(R.string.tab_insights)) },
+                    label = { Text(stringResource(R.string.tab_insights), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = colors,
                 )
                 NavigationBarItem(
@@ -196,7 +197,7 @@ fun DailyBeatAppScaffold() {
                             contentDescription = null,
                         )
                     },
-                    label = { Text(stringResource(R.string.tab_settings)) },
+                    label = { Text(stringResource(R.string.tab_settings), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = colors,
                 )
             }
@@ -262,7 +263,9 @@ fun DailyBeatAppScaffold() {
             composable(Routes.DAYS) {
                 FeedScreen(
                     onOpenDay = { dateKey ->
-                        navController.navigate(Routes.review(dateKey)) {
+                        // Tapping a day opens its map to look at, not the rename/hide/complete
+                        // review flow. Review stays reachable from Today's "Review my day".
+                        navController.navigate(Routes.map(dateKey)) {
                             launchSingleTop = true
                         }
                     },

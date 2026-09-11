@@ -32,7 +32,7 @@ class DailyReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = NotificationCompat.Builder(context, DailyReminderScheduler.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_dailybeat)
             .setContentTitle(context.getString(R.string.reminder_title))
             .setContentText(context.getString(R.string.reminder_body_report))
             .setContentIntent(open)

@@ -26,6 +26,7 @@ import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.dailybeat.app.util.userMessage
 
 data class TodayUiState(
     val visitCount: Int = 0,
@@ -38,7 +39,6 @@ data class TodayUiState(
     val isSeeding: Boolean = false,
     val seedMessage: String? = null,
     val isRecordingVoice: Boolean = false,
-    val voiceMessage: String? = null,
     val isSavingNote: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
@@ -208,7 +208,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     fun recordVoiceNote() {
         if (_uiState.value.isRecordingVoice) return
-        _uiState.value = _uiState.value.copy(isRecordingVoice = true, voiceMessage = null, error = null)
+        _uiState.value = _uiState.value.copy(isRecordingVoice = true, error = null)
         viewModelScope.launch {
             val result = runCatching { VoiceCaptureOrchestrator(app).captureAndSave() }
                 .getOrElse { Result.failure(it) }
@@ -216,13 +216,13 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess = { transcript ->
                     _uiState.value = _uiState.value.copy(
                         isRecordingVoice = false,
-                        voiceMessage = "Voice saved: ${transcript.take(80)}",
+                        successMessage = "Voice note saved.",
                     )
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isRecordingVoice = false,
-                        error = error.message ?: "Voice capture failed.",
+                        error = error.userMessage("Voice capture failed."),
                     )
                 },
             )
@@ -277,7 +277,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isGeneratingReport = false,
-                        error = error.message ?: "Report failed.",
+                        error = error.userMessage("Report failed."),
                     )
                 },
             )
@@ -306,7 +306,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun showError(error: Throwable, fallback: String) {
-        _uiState.update { it.copy(error = error.message ?: fallback) }
+        _uiState.update { it.copy(error = error.userMessage(fallback)) }
     }
 
     private fun isGpsCaptureActive(): Boolean {

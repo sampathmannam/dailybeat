@@ -33,7 +33,7 @@ import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
 import kotlinx.coroutines.launch
-import java.time.format.DateTimeFormatter
+import com.dailybeat.app.util.Formatters
 
 @Composable
 fun DiaryScreen(
@@ -44,7 +44,7 @@ fun DiaryScreen(
     val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dateLabel = uiState.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"))
+    val dateLabel = Formatters.dayHeadingWithYear(uiState.date)
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,

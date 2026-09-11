@@ -16,7 +16,7 @@ data class CaptureHealth(
     val rejectedCountToday: Int = 0,
 )
 
-enum class CaptureHealthLevel { OFF, WAITING, HEALTHY, DEGRADED, CRITICAL }
+enum class CaptureHealthLevel { OFF, WAITING, HEALTHY, DEGRADED }
 
 data class CaptureHealthStatus(
     val level: CaptureHealthLevel,
@@ -34,10 +34,13 @@ fun CaptureHealth.status(nowMs: Long, enabled: Boolean): CaptureHealthStatus {
         return CaptureHealthStatus(CaptureHealthLevel.WAITING, rejectedCount = rejectedCountToday)
     }
     val age = (nowMs - lastStoredAtMs).coerceAtLeast(0)
-    val level = when {
-        age <= CaptureHealthStore.HEALTHY_AGE_MS -> CaptureHealthLevel.HEALTHY
-        age <= CaptureHealthStore.DEGRADED_AGE_MS -> CaptureHealthLevel.DEGRADED
-        else -> CaptureHealthLevel.CRITICAL
+    // A long gap is still just "no recent point", never an alarm telling the officer to go
+    // troubleshoot: DailyBeat keeps everything it captured and keeps watching. OFF (below) is the
+    // only state that legitimately calls for action, because capture genuinely is not running.
+    val level = if (age <= CaptureHealthStore.HEALTHY_AGE_MS) {
+        CaptureHealthLevel.HEALTHY
+    } else {
+        CaptureHealthLevel.DEGRADED
     }
     return CaptureHealthStatus(
         level = level,

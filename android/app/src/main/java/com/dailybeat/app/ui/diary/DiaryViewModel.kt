@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.dailybeat.app.util.userMessage
 
 data class DiaryUiState(
     val date: LocalDate = DateKeys.today(),
@@ -118,7 +119,7 @@ class DiaryViewModel(
             runCatching { app.diaryRepository.saveForDate(date, boundedText) }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(
-                        error = error.message ?: "Unable to save the diary draft.",
+                        error = error.userMessage("Unable to save the diary draft."),
                     )
                 }
         }
@@ -152,7 +153,7 @@ class DiaryViewModel(
                     onFailure = { error ->
                         _uiState.value = _uiState.value.copy(
                             isGenerating = false,
-                            error = error.message ?: "Generated report could not be saved.",
+                            error = error.userMessage("Generated report could not be saved."),
                         )
                     },
                 )
@@ -160,7 +161,7 @@ class DiaryViewModel(
             onFailure = { error ->
                 _uiState.value = _uiState.value.copy(
                     isGenerating = false,
-                    error = error.message ?: "Report generation failed.",
+                    error = error.userMessage("Report generation failed."),
                 )
             },
         )
@@ -209,7 +210,7 @@ class DiaryViewModel(
                         onFailure = { error ->
                             _uiState.value = _uiState.value.copy(
                                 isGenerating = false,
-                                error = error.message ?: "Generated text could not be saved.",
+                                error = error.userMessage("Generated text could not be saved."),
                             )
                         },
                     )
@@ -217,7 +218,7 @@ class DiaryViewModel(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
-                        error = error.message ?: "Generation failed.",
+                        error = error.userMessage("Generation failed."),
                     )
                 },
             )
@@ -244,7 +245,7 @@ class DiaryViewModel(
         }
         result.onFailure { error ->
             _uiState.value = _uiState.value.copy(
-                error = error.message ?: "Unable to create the diary PDF.",
+                error = error.userMessage("Unable to create the diary PDF."),
             )
         }
         return result.getOrNull()

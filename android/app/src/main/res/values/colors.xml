@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#0B2D5B</color>
+    <!-- Painted by the system before Compose draws a single frame; must match the theme canvas. -->
+    <color name="window_background">#F8FAFC</color>
 </resources>

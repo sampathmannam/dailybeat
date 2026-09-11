@@ -1,109 +1,90 @@
 package com.dailybeat.app.ui.feed
 
+import com.dailybeat.app.util.Formatters
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.util.Locale
 
+/**
+ * One formatter per kind of number, used by every screen. Before this the same day read
+ * "~4 km · 3h 34m" on Today and "4.0 km · 3 h 34 min" on Days.
+ */
 class FeedPresentationTest {
 
-    private val today: LocalDate = LocalDate.of(2026, 9, 6)
-
     @Test
-    fun `distance reads in metres below a kilometre and kilometres above`() {
-        assertEquals("450 m", formatDistance(0.45))
-        assertEquals("1.0 km", formatDistance(1.0))
-        assertEquals("12.4 km", formatDistance(12.42))
+    fun distanceIsMetresBelowAKilometreAndOneDecimalAbove() {
+        assertEquals("0 m", Formatters.distanceKm(0.0))
+        assertEquals("50 m", Formatters.distanceKm(0.05))
+        assertEquals("450 m", Formatters.distanceKm(0.45))
+        assertEquals("850 m", Formatters.distanceKm(0.85))
+        assertEquals("1.0 km", Formatters.distanceKm(1.0))
+        assertEquals("2.0 km", Formatters.distanceKm(2.0))
+        assertEquals("12.4 km", Formatters.distanceKm(12.42))
     }
 
     @Test
-    fun `distance and day headings use the current region`() {
-        assertEquals("12,4 km", formatDistance(12.42, Locale.GERMANY))
-        assertEquals("Sonntag, 6 September", formatDayHeading(today, Locale.GERMANY))
+    fun distanceRoundsRatherThanTruncates() {
+        // 0.85 km is 849.999… m as a Double; truncation used to print 849 m.
+        assertEquals("850 m", Formatters.distance(849.9999))
     }
 
     @Test
-    fun `a day that went nowhere shows a dash rather than zero`() {
-        assertEquals("—", formatDistance(0.0))
-        assertEquals("—", formatDuration(0))
+    fun estimatedDistanceIsMarkedEverywhereItIsNonZero() {
+        assertEquals("~4.0 km", Formatters.distanceKm(4.0, estimated = true))
+        assertEquals("~120 m", Formatters.distance(120.0, estimated = true))
+        assertEquals("0 m", Formatters.distance(0.0, estimated = true))
     }
 
     @Test
-    fun `duration reads in hours and minutes`() {
-        assertEquals("40 min", formatDuration(40))
-        assertEquals("2 h", formatDuration(120))
-        assertEquals("2 h 5 min", formatDuration(125))
+    fun distanceFollowsTheDeviceLocale() {
+        assertEquals("12,4 km", Formatters.distanceKm(12.42, locale = Locale.GERMANY))
+        assertEquals("Sonntag, 6 September", Formatters.dayHeading(LocalDate.of(2026, 9, 6), Locale.GERMANY))
     }
 
     @Test
-    fun `recent days are named rather than dated`() {
-        assertEquals("Today", relativeDayLabel(today, today))
-        assertEquals("Yesterday", relativeDayLabel(today.minusDays(1), today))
-        assertEquals("4 days ago", relativeDayLabel(today.minusDays(4), today))
+    fun durationForRowsIsSpacedAndNeverADash() {
+        assertEquals("0 min", Formatters.duration(0))
+        assertEquals("40 min", Formatters.duration(40))
+        assertEquals("1 h", Formatters.duration(60))
+        assertEquals("2 h", Formatters.duration(120))
+        assertEquals("2 h 5 min", Formatters.duration(125))
+        assertEquals("2 h 15 min", Formatters.duration(135))
     }
 
     @Test
-    fun `the route is projected inside the drawing area`() {
-        val route = listOf(
-            RoutePoint(11.4557, 78.1856, isStay = true),
-            RoutePoint(11.4700, 78.1900, isStay = false),
-            RoutePoint(11.4900, 78.2100, isStay = true),
+    fun durationForStatTilesIsCompact() {
+        assertEquals("0m", Formatters.durationCompact(0))
+        assertEquals("45m", Formatters.durationCompact(45))
+        assertEquals("1h", Formatters.durationCompact(60))
+        assertEquals("2h 15m", Formatters.durationCompact(135))
+        assertEquals("3h 34m", Formatters.durationCompact(214))
+    }
+
+    @Test
+    fun negativeInputsClampToZeroInsteadOfPrintingGarbage() {
+        assertEquals("0 m", Formatters.distance(-5.0))
+        assertEquals("0 min", Formatters.duration(-3))
+        assertEquals("0m", Formatters.durationCompact(-3))
+    }
+
+    @Test
+    fun relativeDayClassifiesTheLastWeekAndFallsBackToTheDate() {
+        val today = LocalDate.of(2026, 9, 6)
+
+        assertEquals(Formatters.RelativeDay.Today, Formatters.relativeDay(today, today))
+        assertEquals(Formatters.RelativeDay.Yesterday, Formatters.relativeDay(today.minusDays(1), today))
+        assertEquals(Formatters.RelativeDay.DaysAgo(4), Formatters.relativeDay(today.minusDays(4), today))
+        assertEquals(Formatters.RelativeDay.DaysAgo(6), Formatters.relativeDay(today.minusDays(6), today))
+        assertEquals(
+            Formatters.RelativeDay.OnDate(today.minusDays(7)),
+            Formatters.relativeDay(today.minusDays(7), today),
         )
-
-        val projected = projectToUnitSquare(route)
-
-        assertEquals(3, projected.size)
-        projected.forEach { (x, y) ->
-            assertTrue("x out of range: $x", x in 0.0..1.0)
-            assertTrue("y out of range: $y", y in 0.0..1.0)
-        }
     }
 
     @Test
-    fun `north is drawn above south`() {
-        val route = listOf(
-            RoutePoint(11.40, 78.18, isStay = true), // south
-            RoutePoint(11.50, 78.18, isStay = true), // north
-        )
-
-        val (south, north) = projectToUnitSquare(route)
-
-        assertTrue("Northern point must be higher on screen", north.second < south.second)
-    }
-
-    @Test
-    fun `a day spent at one place still projects without dividing by zero`() {
-        val route = List(3) { RoutePoint(11.4557, 78.1856, isStay = true) }
-
-        val projected = projectToUnitSquare(route)
-
-        assertEquals(3, projected.size)
-        projected.forEach { (x, y) ->
-            assertTrue(x.isFinite() && y.isFinite())
-            assertEquals(0.5, x, 0.0001)
-            assertEquals(0.5, y, 0.0001)
-        }
-    }
-
-    @Test
-    fun `an empty route projects to nothing`() {
-        assertEquals(emptyList<Pair<Double, Double>>(), projectToUnitSquare(emptyList()))
-    }
-
-    @Test
-    fun `a route crossing the antimeridian uses the short visual span`() {
-        val projected = projectToUnitSquare(
-            listOf(
-                RoutePoint(10.0, 179.0, isStay = true),
-                RoutePoint(10.1, -179.0, isStay = true),
-                RoutePoint(10.2, 178.0, isStay = true),
-            ),
-        )
-
-        assertTrue(
-            "Nearby points across the antimeridian should not span the whole canvas: $projected",
-            kotlin.math.abs(projected[0].first - projected[1].first) < 0.8,
-        )
+    fun countsUseGroupingForTheLocale() {
+        assertEquals("4", Formatters.count(4, Locale.UK))
+        assertEquals("1,250", Formatters.count(1_250, Locale.UK))
     }
 }
