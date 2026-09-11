@@ -129,7 +129,6 @@ class CaptureHealthStore(context: Context) {
 
     companion object {
         const val HEALTHY_AGE_MS = 5 * 60_000L
-        const val DEGRADED_AGE_MS = 20 * 60_000L
         private const val PREFS_NAME = "capture_health"
         private const val KEY_RUNNING = "service_running"
         private const val KEY_STARTED = "service_started_at"
