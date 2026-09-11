@@ -323,14 +323,17 @@ private fun DayFeedCard(
 
 @Composable
 private fun DayStateBadge(state: String) {
-    Surface(
-        shape = CircleShape,
-        color = if (state == "complete") MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.tertiaryContainer,
-    ) {
+    // Only the two states worth surfacing on Days get a badge: a genuine review prompt and a
+    // completed Beat. Ordinary captured days — and today — carry no chip, so the list does not
+    // tell the officer to review every day they ever had.
+    val (label, color) = when (state) {
+        "complete" -> stringResource(R.string.complete_label) to MaterialTheme.colorScheme.primaryContainer
+        "needs_review" -> stringResource(R.string.needs_review_label) to MaterialTheme.colorScheme.tertiaryContainer
+        else -> return
+    }
+    Surface(shape = CircleShape, color = color) {
         Text(
-            text = if (state == "complete") stringResource(R.string.complete_label)
-            else stringResource(R.string.needs_review_label),
+            text = label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
         )

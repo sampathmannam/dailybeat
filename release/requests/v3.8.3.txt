@@ -1,0 +1,1 @@
+Publish DailyBeat v3.8.3 only after the current-location hang fix, the backup byte/char size-guard fix, dependency verification, build, instrumentation, live cloud-backup, release-policy and CodeQL checks all pass on the protected main commit.

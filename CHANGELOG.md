@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 3.8.3 — 2026-09-11
+
+### Changed
+- **Days no longer labels every day "Needs review".** The badge appeared on every past day and on
+  today regardless of whether anything needed attention. It now shows only when a day has a real
+  capture gap or a stop you flagged, and "Complete" once you finish a Beat; an ordinary captured
+  day carries no badge.
 
 ### Fixed
 - **"Use current location" can no longer hang.** If a GPS fix never arrived — location off,
