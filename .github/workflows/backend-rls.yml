@@ -1,0 +1,54 @@
+name: Backend RLS
+
+# The cloud-backup table holds a police officer's whole location history. Its only protection is
+# Postgres row-level security, and until now nothing executed those policies — the release-policy
+# suite only reads the migration text. This job stands up the real Postgres + auth stack and runs
+# the pgTAP suite, which signs in as two users and proves one cannot read, overwrite, delete or
+# forge the other's backup, and that the snapshot size cap rejects an oversized upload.
+#
+# The CLI is installed with a version-pinned npx rather than a marketplace action, so the only
+# `uses:` is the checkout this repo already allows, and no action-allowlist change is needed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/backend-rls.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/backend-rls.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-rls-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rls-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_CLI_VERSION: "2.109.1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Start Postgres and Auth
+        run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" start
+          --exclude studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta
+
+      - name: Apply migrations from an empty database
+        run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" db reset --no-seed
+
+      - name: Run row-level-security pgTAP suite
+        run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" test db
+
+      - name: Stop the stack
+        if: always()
+        run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" stop --no-backup
