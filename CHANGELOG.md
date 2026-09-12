@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.9.0 — 2026-09-12
+
+### Redesigned
+- **DailyBeat now adapts cleanly from phones to larger screens.** Compact devices keep the familiar
+  bottom navigation; displays 600dp and wider use a navigation rail, and Today stays centered at a
+  readable width instead of stretching across a tablet.
+- **Today reads as one coherent journey ledger.** Capture health, GPS, and Cloud AI readiness now
+  share one operational overview. Distance, tracked time, and stops share one Beat summary instead
+  of competing metric cards, while **Review my day** remains the single primary completion action.
+- **The visual hierarchy is calmer and more accessible.** Screen titles expose heading semantics,
+  primary and secondary actions retain 48dp minimum targets, edge-to-edge insets behave consistently,
+  and the navy/yellow identity is preserved across compact and expanded layouts.
+
+### Fixed
+- **Onboarding no longer opens a redundant permission activity.** When location and notification
+  access are already granted, DailyBeat proceeds directly to Today and applies capture settings.
+- **The onboarding device test no longer races the final frame.** It waits for Today to become
+  visibly settled, keeping both connected and offline emulator gates deterministic.
+
+### Documentation
+- Replaced the loose visual notes with a v3.9 journey-ledger design direction covering information
+  architecture, adaptive behavior, tokens, accessibility, motion, and explicit UI anti-patterns.
+
 ## 3.8.3 — 2026-09-11
 
 ### Changed

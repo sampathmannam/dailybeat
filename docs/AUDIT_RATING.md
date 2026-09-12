@@ -1,11 +1,12 @@
-# DailyBeat — v3.8.3 baseline record
+# DailyBeat — v3.9.0 baseline record
 
-This is the frozen reference point for DailyBeat. Version **3.8.3** (`versionCode 19`, tag
-`v3.8.3`) is the shipped release: map-first Today, reviewable whole-day Beats, private 28-day
-Insights, reliable GPS breadcrumbs with capture-gap disclosure, a one-hour privacy pause, cloud
-backup, a persistent System/Light/Dark appearance selector, and **enforced private zones** — a
-place marked private, or a stop hidden during review, is excluded from every path that leaves the
-device, and a private zone is never sent to the geocoder.
+This is the frozen reference point for DailyBeat. Version **3.9.0** (`versionCode 20`, tag
+`v3.9.0`) is the shipped release: an adaptive journey-ledger interface, map-first Today,
+reviewable whole-day Beats, private 28-day Insights, reliable GPS breadcrumbs with capture-gap
+disclosure, a one-hour privacy pause, cloud backup, a persistent System/Light/Dark appearance
+selector, and **enforced private zones** — a place marked private, or a stop hidden during review,
+is excluded from every path that leaves the device, and a private zone is never sent to the
+geocoder.
 
 It is a baseline, not a claim of perfection. Everything below is what was actually verified, plus
 an honest list of what still is not.
@@ -18,7 +19,7 @@ version matches `release/version.txt`:
 | Gate | Scope |
 |---|---|
 | `build` | `assembleDebug`, 205 JVM unit tests, Android Lint |
-| `instrumentation` | 31 Compose/Android tests on an API 34 emulator, with screenshot and logcat evidence |
+| `instrumentation` | 30 Compose/Android tests on an API 34 emulator, with screenshot and logcat evidence |
 | `offline-instrumentation` | the same suite with the live-backup test excluded, so an outage cannot mask an app defect |
 | `live-backup` | a real Supabase upload → download → restore round trip against a dedicated QA account |
 | `release-policy` | 31 Python tests pinning build, signing, QA-isolation, supply-chain and backup policy |
@@ -32,7 +33,7 @@ the build if a schema version is raised without a migration, and `DatabasePolicy
 
 ## Verified security posture
 
-Confirmed by source audit at `v3.8.3`:
+Confirmed by source audit at `v3.9.0`:
 
 - **Keys.** The provider API key is held in `EncryptedSharedPreferences` under an AES256-GCM master
   key with no plaintext fallback. It is never logged, never placed in an exception message or URL,
@@ -75,7 +76,7 @@ Reliability here means: does the app keep its promise to capture the day, preser
 captured, and never lose or corrupt the record — including across updates, process death and
 restore.
 
-**What earns the 8.** Every commit runs 205 JVM unit tests and 31 Compose/Android tests on a
+**What earns the 8.** Every commit runs 205 JVM unit tests and 30 Compose/Android tests on a
 fresh API-34 emulator, plus a real Supabase upload → download → restore round trip, before a signed
 APK can publish. Data crosses updates through additive Room migrations only, enforced by
 `MigrationChainTest` and `DatabasePolicyTest`. Restore validates the whole snapshot before it
@@ -83,7 +84,7 @@ deletes anything and applies it in a single transaction, so a bad or partial sna
 a half-restored database. Capture rejects mock, non-finite, out-of-range, stale, inaccurate and
 physically impossible fixes rather than storing them, and discloses gaps instead of inventing
 distance. Every network client now has bounded timeouts and size-capped responses, and the two
-open-ended waits found in the v3.8.3 debug pass — a location fetch that could hang the "add place"
+open-ended waits found in the earlier debug pass — a location fetch that could hang the "add place"
 button, and a byte/char size-guard mismatch that failed regional-script backups — are fixed and
 regression-tested.
 
