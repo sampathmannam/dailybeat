@@ -92,10 +92,10 @@ class PdfExporter(private val context: Context) {
                 temp.outputStream().use { document.writeTo(it) }
                 if (!temp.renameTo(out)) {
                     temp.copyTo(out, overwrite = true)
-                    temp.delete()
+                    AppStorage.clearSensitiveFile(temp)
                 }
             } finally {
-                if (temp.exists()) temp.delete()
+                AppStorage.clearSensitiveFile(temp)
             }
             return out
         } finally {

@@ -22,12 +22,88 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
+
+  oss-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download verified security scanner binaries
+        env:
+          GITLEAKS_URL: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          TRUFFLEHOG_URL: https://github.com/trufflesecurity/trufflehog/releases/download/v3.97.4/trufflehog_3.97.4_linux_amd64.tar.gz
+          TRUFFLEHOG_SHA256: dc24007c2f233bd61c05beabeb44aa27ea9b43288166279209abe0458c5ce76b
+          TRIVY_URL: https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          TRIVY_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+        run: |
+          mkdir -p "$RUNNER_TEMP/security-bin"
+          curl --fail --location --silent --show-error "$GITLEAKS_URL" --output "$RUNNER_TEMP/gitleaks.tgz"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/gitleaks.tgz" --directory "$RUNNER_TEMP/security-bin" gitleaks
+
+          curl --fail --location --silent --show-error "$TRUFFLEHOG_URL" --output "$RUNNER_TEMP/trufflehog.tgz"
+          echo "$TRUFFLEHOG_SHA256  $RUNNER_TEMP/trufflehog.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/trufflehog.tgz" --directory "$RUNNER_TEMP/security-bin" trufflehog
+
+          curl --fail --location --silent --show-error "$TRIVY_URL" --output "$RUNNER_TEMP/trivy.tgz"
+          echo "$TRIVY_SHA256  $RUNNER_TEMP/trivy.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/trivy.tgz" --directory "$RUNNER_TEMP/security-bin" trivy
+          chmod 0755 "$RUNNER_TEMP/security-bin/gitleaks" "$RUNNER_TEMP/security-bin/trufflehog" "$RUNNER_TEMP/security-bin/trivy"
+      - name: Scan Git history for exposed secrets with Gitleaks
+        run: |
+          "$RUNNER_TEMP/security-bin/gitleaks" detect --source . --redact --verbose --exit-code 1
+      - name: Scan verified secrets with TruffleHog
+        run: |
+          "$RUNNER_TEMP/security-bin/trufflehog" git "file://$GITHUB_WORKSPACE" --only-verified --fail --no-update
+      - name: Scan code with Semgrep OSS
+        # Android requires the MAIN/LAUNCHER activity to be exported. PermissionPolicyTest proves
+        # that it is the only exported component, so suppress only that generic rule.
+        run: |
+          pipx run --spec semgrep==1.177.0 semgrep scan \
+            --config p/kotlin \
+            --config p/python \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --exclude-rule java.android.security.exported_activity.exported_activity \
+            --error .
+      - name: Download verified OpenGrep binary
+        env:
+          OPENGREP_SHA256: 35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c
+          OPENGREP_URL: https://github.com/opengrep/opengrep/releases/download/v1.30.0/opengrep_manylinux_x86
+        run: |
+          curl --fail --location --silent --show-error "$OPENGREP_URL" \
+            --output "$RUNNER_TEMP/opengrep"
+          echo "$OPENGREP_SHA256  $RUNNER_TEMP/opengrep" | sha256sum --check --strict
+          chmod 0755 "$RUNNER_TEMP/opengrep"
+      - name: Scan code with OpenGrep
+        run: |
+          "$RUNNER_TEMP/opengrep" scan \
+            --config p/kotlin \
+            --config p/python \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --exclude-rule java.android.security.exported_activity.exported_activity \
+            --error .
+      - name: Scan dependencies, configuration, and secrets with Trivy
+        run: |
+          "$RUNNER_TEMP/security-bin/trivy" fs \
+            --scanners vuln,misconfig,secret \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress .
 
   codeql:
     runs-on: ubuntu-latest
@@ -37,22 +113,22 @@ jobs:
       security-events: write
       packages: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
-      - uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3.37.9
+      - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
         with:
           # Python matters here too: scripts/ holds the release-policy gate and the live cloud
           # backup round trip, so a defect there can let a bad release through.
           languages: java-kotlin, python
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
-      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build analyzed Android bytecode
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
-      - uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3.37.9
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4

@@ -114,4 +114,4 @@ python3 -m pytest scripts/tests/ -q
 `scripts/parse_diaries.py` and `scripts/split_eval.py` are retained as fixtures for that suite.
 DailyBeat generates diaries through the cloud provider only; there is no local training pipeline.
 
-Product doctrine: [PRODUCT.md](PRODUCT.md) · UI design: [docs/DESIGN.md](docs/DESIGN.md) · Baseline: [docs/AUDIT_RATING.md](docs/AUDIT_RATING.md)
+Product doctrine: [PRODUCT.md](PRODUCT.md) · UI design: [docs/DESIGN.md](docs/DESIGN.md) · Baseline: [docs/AUDIT_RATING.md](docs/AUDIT_RATING.md) · Security: [docs/SECURITY_HARDENING.md](docs/SECURITY_HARDENING.md)

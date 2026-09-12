@@ -54,17 +54,17 @@ class PackageExporter(
                         pdf.inputStream().use { input -> input.copyTo(zip) }
                         zip.closeEntry()
                     } finally {
-                        pdf.delete()
+                        AppStorage.clearSensitiveFile(pdf)
                     }
                 }
             }
             if (!tempZip.renameTo(zipFile)) {
                 tempZip.copyTo(zipFile, overwrite = true)
-                tempZip.delete()
+                AppStorage.clearSensitiveFile(tempZip)
             }
             return zipFile
         } finally {
-            if (tempZip.exists()) tempZip.delete()
+            AppStorage.clearSensitiveFile(tempZip)
         }
     }
 }

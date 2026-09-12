@@ -124,12 +124,16 @@ def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     assert "assembleDebug" not in workflow
     assert "app-debug.apk" not in workflow
     assert "DAILYBEAT_KEYSTORE_BASE64" in workflow
-    assert "apksigner verify --print-certs" in workflow
+    assert '"$apksigner" verify --print-certs' in workflow
+    assert 'find "$ANDROID_HOME/build-tools"' in workflow
     assert "app-release.apk" in workflow
     assert "release/version.txt" in workflow
     assert "release/requests/*.txt" in workflow
     assert "workflow_dispatch:" in workflow
-    assert "build instrumentation live-backup release-policy codeql" in workflow
+    assert (
+        "build offline-instrumentation instrumentation live-backup release-policy codeql oss-security"
+        in workflow
+    )
     assert 'if existing_tag_sha="$(gh api' in workflow
     assert "2>/dev/null || true" not in workflow
 
