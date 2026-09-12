@@ -31,14 +31,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = ROOT / "data" / "raw"
 DEFAULT_OUTPUT = ROOT / "data" / "diary_train.jsonl"
 
-DATE_HEADER = re.compile(
-    r"^={3,}\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\s*={3,}\s*$",
-    re.MULTILINE,
-)
-ALT_DATE_HEADER = re.compile(
-    r"^(?:Date|DATE|Dated)\s*[:.]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\s*$",
-    re.MULTILINE,
-)
+# Header detection is intentionally line-based. The previous nested, unbounded regular expression
+# could take super-linear time on a hostile imported line containing a long run of '=' characters.
+DATE_VALUE = re.compile(r"(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\Z")
 SECTION_EVENTS = re.compile(r"^EVENTS?\s*:\s*$", re.IGNORECASE | re.MULTILINE)
 SECTION_DAIRY = re.compile(r"^DAIR(Y|IES)\s*:\s*$", re.IGNORECASE | re.MULTILINE)
 
@@ -67,19 +62,41 @@ def parse_jsonl_file(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+def _is_date_header(line: str) -> bool:
+    stripped = line.strip()
+    if stripped.startswith("===") and stripped.endswith("==="):
+        return DATE_VALUE.fullmatch(stripped.strip("=").strip()) is not None
+
+    lowered = stripped.casefold()
+    for prefix in ("dated", "date"):
+        if lowered.startswith(prefix):
+            value = stripped[len(prefix):].lstrip().removeprefix(":").removeprefix(".").strip()
+            return DATE_VALUE.fullmatch(value) is not None
+    return False
+
+
 def split_day_blocks(text: str) -> list[str]:
-    markers = list(DATE_HEADER.finditer(text)) + list(ALT_DATE_HEADER.finditer(text))
-    if not markers:
+    blocks: list[str] = []
+    current: list[str] = []
+    found_header = False
+
+    for line in text.splitlines():
+        if _is_date_header(line):
+            if found_header:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+            found_header = True
+            current = []
+        elif found_header:
+            current.append(line)
+
+    if not found_header:
         return [text.strip()] if text.strip() else []
 
-    markers.sort(key=lambda m: m.start())
-    blocks: list[str] = []
-    for idx, match in enumerate(markers):
-        start = match.end()
-        end = markers[idx + 1].start() if idx + 1 < len(markers) else len(text)
-        block = text[start:end].strip()
-        if block:
-            blocks.append(block)
+    block = "\n".join(current).strip()
+    if block:
+        blocks.append(block)
     return blocks
 
 

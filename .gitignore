@@ -11,6 +11,7 @@ ENV/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.scannerwork/
 .coverage
 htmlcov/
 dist/
@@ -70,6 +71,7 @@ tmp/
 temp/
 .cache/
 supabase/.temp/
+outputs/security-hardening/
 
 # Env / secrets
 .env

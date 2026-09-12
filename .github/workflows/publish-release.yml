@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -54,7 +54,9 @@ jobs:
 
           # The dependency-review check runs on, and is required for, the protected pull request.
           # These checks run again on the resulting main commit.
-          required_checks=(build instrumentation live-backup release-policy codeql)
+          # A release must not outrun either emulator lane. The offline lane catches navigation,
+          # storage and permission regressions without depending on third-party availability.
+          required_checks=(build offline-instrumentation instrumentation live-backup release-policy codeql oss-security)
           deadline=$((SECONDS + 1800))
 
           while true; do

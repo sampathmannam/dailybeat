@@ -22,12 +22,72 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           fail-on-severity: high
+
+  oss-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan Git history for exposed secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_VERSION: 8.30.1
+      - name: Scan verified secrets with TruffleHog
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
+        with:
+          path: ./
+          extra_args: --only-verified --no-update
+      - name: Scan code with Semgrep OSS
+        run: |
+          pipx run --spec semgrep==1.177.0 semgrep scan \
+            --config p/kotlin \
+            --config p/python \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --exclude-rule java.android.security.exported_activity.exported_activity \
+            --error .
+      - name: Download verified OpenGrep binary
+        env:
+          OPENGREP_SHA256: 35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c
+          OPENGREP_URL: https://github.com/opengrep/opengrep/releases/download/v1.30.0/opengrep_manylinux_x86
+        run: |
+          curl --fail --location --silent --show-error "$OPENGREP_URL" \
+            --output "$RUNNER_TEMP/opengrep"
+          echo "$OPENGREP_SHA256  $RUNNER_TEMP/opengrep" | sha256sum --check --strict
+          chmod 0755 "$RUNNER_TEMP/opengrep"
+      - name: Scan code with OpenGrep
+        run: |
+          "$RUNNER_TEMP/opengrep" scan \
+            --config p/kotlin \
+            --config p/python \
+            --config p/secrets \
+            --config p/owasp-top-ten \
+            --exclude-rule java.android.security.exported_activity.exported_activity \
+            --error .
+      - name: Scan dependencies, configuration, and secrets with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
 
   codeql:
     runs-on: ubuntu-latest
@@ -37,7 +97,7 @@ jobs:
       security-events: write
       packages: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3

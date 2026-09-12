@@ -2,6 +2,7 @@ package com.dailybeat.app.audit
 
 import android.content.Context
 import com.dailybeat.app.BuildConfig
+import com.dailybeat.app.util.AppStorage
 import java.io.File
 import java.time.Instant
 import java.util.ArrayDeque
@@ -66,11 +67,7 @@ object OperationalFailureLog {
 
     @Synchronized
     fun clear(context: Context) {
-        try {
-            logFile(context).delete()
-        } catch (_: Exception) {
-            // Diagnostics cleanup is best effort.
-        }
+        AppStorage.clearSensitiveFile(logFile(context))
     }
 
     private fun sanitizeCategory(category: String): String = category

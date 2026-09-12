@@ -3,7 +3,10 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+from scripts.parse_diaries import split_day_blocks
 
 ROOT = Path(__file__).resolve().parents[2]
 PARSE_SCRIPT = ROOT / "scripts" / "parse_diaries.py"
@@ -53,3 +56,11 @@ def test_merge_sample_jsonl(tmp_path: Path):
 
     lines = output.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) >= 30
+
+
+def test_date_header_parser_is_linear_for_hostile_long_lines():
+    hostile = "=" * 250_000 + " definitely-not-a-date " + "=" * 250_000
+    started = time.monotonic()
+
+    assert split_day_blocks(hostile) == [hostile]
+    assert time.monotonic() - started < 1.0
