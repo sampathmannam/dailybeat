@@ -26,6 +26,9 @@
     <string name="capture_degraded">No recent movement</string>
     <string name="capture_degraded_detail">No new GPS point for a while. DailyBeat is still watching and keeps everything it captured.</string>
     <string name="capture_off">Capture is off</string>
+    <string name="capture_paused">Capture paused for privacy</string>
+    <string name="capture_paused_until">Resumes automatically at %1$s</string>
+    <string name="map_paused_body">Capture is paused for privacy. Today\'s route continues when it resumes.</string>
     <string name="capture_off_detail">DailyBeat is not recording your route.</string>
     <string name="dismiss">Dismiss</string>
     <string name="review_day_title">Review my day</string>

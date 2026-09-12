@@ -143,6 +143,7 @@ fun TodayScreen(
                 status = uiState.captureStatus,
                 gpsOn = uiState.gpsActive,
                 cloudReady = uiState.cloudBrainReady,
+                onResumeCapture = viewModel::resumeCaptureNow,
             )
         }
 
@@ -269,10 +270,10 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = if (status.level == CaptureHealthLevel.OFF) {
-                    stringResource(R.string.map_tracking_off_body)
-                } else {
-                    stringResource(R.string.map_waiting_body)
+                text = when (status.level) {
+                    CaptureHealthLevel.OFF -> stringResource(R.string.map_tracking_off_body)
+                    CaptureHealthLevel.PAUSED -> stringResource(R.string.map_paused_body)
+                    else -> stringResource(R.string.map_waiting_body)
                 },
                 modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.bodyMedium,
@@ -287,6 +288,7 @@ private fun CaptureOverview(
     status: CaptureHealthStatus,
     gpsOn: Boolean,
     cloudReady: Boolean,
+    onResumeCapture: () -> Unit,
 ) {
     val (title, detail) = when (status.level) {
         CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
@@ -295,12 +297,20 @@ private fun CaptureOverview(
             stringResource(R.string.capture_waiting_detail)
         CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
             stringResource(R.string.capture_degraded_detail)
+        // Name the clock time capture comes back, not a vague "within one hour". The single most
+        // reassuring fact about a privacy pause is exactly when it ends.
+        CaptureHealthLevel.PAUSED -> stringResource(R.string.capture_paused) to
+            status.resumesAtMs?.let {
+                stringResource(R.string.capture_paused_until, Formatters.clock(it))
+            }
         CaptureHealthLevel.OFF -> stringResource(R.string.capture_off) to
             stringResource(R.string.capture_off_detail)
     }
     val color = when (status.level) {
         CaptureHealthLevel.HEALTHY -> MaterialTheme.colorScheme.primary
-        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED -> MaterialTheme.colorScheme.tertiary
+        // Tertiary, never error: a pause is a state the officer chose, not a fault to fix.
+        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
+            MaterialTheme.colorScheme.tertiary
         CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
     }
     Surface(
@@ -326,6 +336,15 @@ private fun CaptureOverview(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (status.level == CaptureHealthLevel.PAUSED) {
+                // The undo lives next to the state it undoes. Previously the only way back was to
+                // go find the Settings row that started the pause.
+                SecondaryButton(
+                    text = stringResource(R.string.resume_capture_now),
+                    onClick = onResumeCapture,
+                    modifier = Modifier.testTag("resume_capture"),
+                )
             }
             StatusStrip(gpsOn = gpsOn, cloudReady = cloudReady)
         }

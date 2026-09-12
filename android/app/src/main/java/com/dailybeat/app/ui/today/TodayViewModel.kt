@@ -7,7 +7,9 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.capture.LocationService
+import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.capture.CaptureResumeWorker
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.status
 import com.dailybeat.app.capture.VoiceCaptureOrchestrator
@@ -151,7 +153,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             ) { beat, health, running, now ->
                 val enabled = runCatching { app.settingsRepository.get().gpsCaptureEnabled }
                     .getOrDefault(false)
-                beat to health.copy(serviceRunning = running).status(now, enabled)
+                // The privacy pause is real state on disk, not a UI flag: read it every tick so
+                // Today stops calling a chosen pause "Capture is off", and so the card flips back
+                // to the live state by itself the minute the deadline passes.
+                val pausedUntil = runCatching { app.settingsRepository.capturePausedUntilMs(now) }
+                    .getOrDefault(0L)
+                beat to health.copy(serviceRunning = running).status(now, enabled, pausedUntil)
             }.collect { (beat, status) ->
                 _uiState.update {
                     it.copy(
@@ -282,6 +289,20 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 },
             )
         }
+    }
+
+    /**
+     * Undoes the one-hour privacy pause from Today, so the officer does not have to go find the
+     * Settings row that started it. Mirrors SettingsViewModel.resumeCaptureNow exactly: clear the
+     * deadline, cancel the scheduled resume, restart capture.
+     */
+    fun resumeCaptureNow() {
+        runCatching {
+            app.settingsRepository.clearCapturePause()
+            CaptureResumeWorker.cancel(getApplication())
+            CaptureController.applyFromSettings(getApplication())
+        }.onFailure { error -> showError(error, "Unable to resume capture.") }
+        refreshStatus()
     }
 
     fun clearMessage() {

@@ -16,7 +16,12 @@ data class CaptureHealth(
     val rejectedCountToday: Int = 0,
 )
 
-enum class CaptureHealthLevel { OFF, WAITING, HEALTHY, DEGRADED }
+/**
+ * PAUSED is deliberately not a flavour of OFF. A privacy pause is something the officer chose, it
+ * undoes itself, and it has a known end time — reporting it as "Capture is off" turned a chosen,
+ * temporary, self-reversing state into what reads as a failure.
+ */
+enum class CaptureHealthLevel { OFF, PAUSED, WAITING, HEALTHY, DEGRADED }
 
 data class CaptureHealthStatus(
     val level: CaptureHealthLevel,
@@ -24,10 +29,29 @@ data class CaptureHealthStatus(
     val accuracyM: Float? = null,
     val rejectedCount: Int = 0,
     val reason: String? = null,
+    /** When a [CaptureHealthLevel.PAUSED] capture resumes by itself. Null for every other level. */
+    val resumesAtMs: Long? = null,
 )
 
-fun CaptureHealth.status(nowMs: Long, enabled: Boolean): CaptureHealthStatus {
-    if (!enabled || !serviceRunning) {
+/**
+ * [pausedUntilMs] is the officer's one-hour privacy pause deadline, 0 when there is none.
+ *
+ * Order matters. A GPS toggle switched off is genuinely OFF even if a stale pause deadline is
+ * still on disk, so `enabled` is checked first. Otherwise a live pause wins over `serviceRunning`,
+ * because a pause is exactly the case where the service is stopped on purpose.
+ */
+fun CaptureHealth.status(
+    nowMs: Long,
+    enabled: Boolean,
+    pausedUntilMs: Long = 0L,
+): CaptureHealthStatus {
+    if (!enabled) {
+        return CaptureHealthStatus(CaptureHealthLevel.OFF, reason = "Tracking is off")
+    }
+    if (pausedUntilMs > nowMs) {
+        return CaptureHealthStatus(CaptureHealthLevel.PAUSED, resumesAtMs = pausedUntilMs)
+    }
+    if (!serviceRunning) {
         return CaptureHealthStatus(CaptureHealthLevel.OFF, reason = "Tracking is off")
     }
     if (lastStoredAtMs <= 0L) {
