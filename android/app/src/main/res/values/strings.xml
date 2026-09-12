@@ -21,10 +21,15 @@
     <string name="capture_healthy">Capture is healthy</string>
     <string name="capture_healthy_detail">DailyBeat is recording reliable points.</string>
     <string name="capture_accuracy">Last point accurate to about %1$d m</string>
+    <string name="capture_fix_just_now">Last reliable fix just now</string>
+    <string name="capture_fix_ago">Last reliable fix %1$s ago</string>
+    <string name="capture_accuracy_suffix">accurate to about %1$d m</string>
+    <string name="capture_detail_join">%1$s \u00b7 %2$s</string>
     <string name="capture_waiting">Waiting for GPS</string>
     <string name="capture_waiting_detail">Keep moving outdoors while DailyBeat finds a reliable point.</string>
     <string name="capture_degraded">No recent movement</string>
     <string name="capture_degraded_detail">No new GPS point for a while. DailyBeat is still watching and keeps everything it captured.</string>
+    <string name="capture_degraded_reassurance">DailyBeat is still watching and keeps everything it captured.</string>
     <string name="capture_off">Capture is off</string>
     <string name="capture_paused">Capture paused for privacy</string>
     <string name="capture_paused_until">Resumes automatically at %1$s</string>

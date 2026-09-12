@@ -283,6 +283,37 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
     }
 }
 
+/**
+ * "Last reliable fix 4 min ago · accurate to about 6 m". Either half can be missing: the age is
+ * absent until a point has been stored, and accuracy is absent when the provider did not report
+ * it. Returns null only when neither is known, so the caller can fall back.
+ */
+@Composable
+private fun captureFixAgeText(status: CaptureHealthStatus): String? =
+    status.lastPointAgeMs?.let { ageMs ->
+        when (val classified = Formatters.fixAge(ageMs)) {
+            Formatters.FixAge.JustNow -> stringResource(R.string.capture_fix_just_now)
+            is Formatters.FixAge.Ago -> stringResource(
+                R.string.capture_fix_ago,
+                Formatters.duration(classified.minutes),
+            )
+        }
+    }
+
+@Composable
+private fun captureFreshnessDetail(status: CaptureHealthStatus): String? {
+    val age = captureFixAgeText(status)
+    val accuracy = status.accuracyM?.let {
+        stringResource(R.string.capture_accuracy_suffix, it.roundToInt())
+    }
+    return when {
+        age != null && accuracy != null -> stringResource(R.string.capture_detail_join, age, accuracy)
+        age != null -> age
+        accuracy != null -> stringResource(R.string.capture_accuracy, status.accuracyM.roundToInt())
+        else -> null
+    }
+}
+
 @Composable
 private fun CaptureOverview(
     status: CaptureHealthStatus,
@@ -291,12 +322,24 @@ private fun CaptureOverview(
     onResumeCapture: () -> Unit,
 ) {
     val (title, detail) = when (status.level) {
+        // Lead with how current the fix is, then how precise it was. Accuracy alone cannot tell
+        // the officer whether what they are looking at is live.
         CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
-            status.accuracyM?.let { stringResource(R.string.capture_accuracy, it.roundToInt()) }
+            captureFreshnessDetail(status)
         CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
             stringResource(R.string.capture_waiting_detail)
+        // Say how stale it is, but keep the reassurance: nothing captured is ever lost, and
+        // DailyBeat has not stopped watching. A number without that reads as an alarm.
         CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
-            stringResource(R.string.capture_degraded_detail)
+            (
+                captureFixAgeText(status)?.let {
+                    stringResource(
+                        R.string.capture_detail_join,
+                        it,
+                        stringResource(R.string.capture_degraded_reassurance),
+                    )
+                } ?: stringResource(R.string.capture_degraded_detail)
+                )
         // Name the clock time capture comes back, not a vague "within one hour". The single most
         // reassuring fact about a privacy pause is exactly when it ends.
         CaptureHealthLevel.PAUSED -> stringResource(R.string.capture_paused) to
