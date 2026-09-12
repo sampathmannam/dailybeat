@@ -152,41 +152,6 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup(title = stringResource(R.string.settings_appearance_group)) {
-                Text(
-                    text = stringResource(R.string.settings_theme_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("theme_selector"),
-                ) {
-                    ThemePreference.entries.forEachIndexed { index, preference ->
-                        SegmentedButton(
-                            selected = state.themePreference == preference,
-                            onClick = { viewModel.setThemePreference(preference) },
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = ThemePreference.entries.size,
-                            ),
-                            modifier = Modifier.testTag("theme_${preference.id}"),
-                        ) {
-                            Text(
-                                text = when (preference) {
-                                    ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
-                                    ThemePreference.LIGHT -> stringResource(R.string.theme_light)
-                                    ThemePreference.DARK -> stringResource(R.string.theme_dark)
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
             SettingsGroup(title = stringResource(R.string.settings_capture_group)) {
                 ToggleRow(
                     label = stringResource(R.string.gps_capture_label),
@@ -243,6 +208,116 @@ fun SettingsScreen(
                         text = stringResource(R.string.open_app_settings),
                         onClick = { openAppSettings(settingsContext) },
                     )
+                }
+            }
+        }
+
+        item {
+            SettingsGroup(title = stringResource(R.string.places_title)) {
+                if (state.placeSuggestions.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.suggested_places_label),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    state.placeSuggestions.forEach { suggestion ->
+                        SecondaryButton(
+                            text = "${suggestion.name} (${suggestion.visitCount} visits)",
+                            onClick = { viewModel.addSuggestedPlace(suggestion) },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = state.placeName,
+                    onValueChange = { viewModel.updatePlaceDraft(it, state.placeLat, state.placeLon) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.place_name_label)) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                )
+                // The officer no longer types coordinates: one tap reads the current GPS fix.
+                val locationCaptured = state.placeLat.isNotBlank() && state.placeLon.isNotBlank()
+                SecondaryButton(
+                    text = if (locationCaptured) {
+                        stringResource(R.string.use_current_location_again)
+                    } else {
+                        stringResource(R.string.use_current_location)
+                    },
+                    onClick = viewModel::captureCurrentLocationForPlace,
+                    enabled = !state.placeLocating,
+                )
+                if (state.placeLocating) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(
+                            stringResource(R.string.place_locating),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (locationCaptured) {
+                    val coords = String.format(
+                        Locale.US, "%.5f, %.5f",
+                        state.placeLat.toDoubleOrNull() ?: 0.0,
+                        state.placeLon.toDoubleOrNull() ?: 0.0,
+                    )
+                    Text(
+                        stringResource(R.string.place_location_captured, coords),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("place_captured_readout"),
+                    )
+                }
+                PrimaryButton(
+                    text = stringResource(R.string.add_place_button),
+                    onClick = viewModel::addPlace,
+                    enabled = state.placeName.isNotBlank() && locationCaptured && !state.placeLocating,
+                )
+                state.placeError?.let { error ->
+                    Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        items(state.places, key = { it.id }) { place ->
+            PlaceCard(
+                place = place,
+                onPrivateChange = { viewModel.setPlacePrivate(place, it) },
+                onDelete = { placePendingDeletion = place },
+            )
+        }
+
+        item {
+            SettingsGroup(title = stringResource(R.string.settings_appearance_group)) {
+                Text(
+                    text = stringResource(R.string.settings_theme_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("theme_selector"),
+                ) {
+                    ThemePreference.entries.forEachIndexed { index, preference ->
+                        SegmentedButton(
+                            selected = state.themePreference == preference,
+                            onClick = { viewModel.setThemePreference(preference) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = ThemePreference.entries.size,
+                            ),
+                            modifier = Modifier.testTag("theme_${preference.id}"),
+                        ) {
+                            Text(
+                                text = when (preference) {
+                                    ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                                    ThemePreference.LIGHT -> stringResource(R.string.theme_light)
+                                    ThemePreference.DARK -> stringResource(R.string.theme_dark)
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -484,81 +559,6 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
-
-        item {
-            SettingsGroup(title = stringResource(R.string.places_title)) {
-                if (state.placeSuggestions.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.suggested_places_label),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    state.placeSuggestions.forEach { suggestion ->
-                        SecondaryButton(
-                            text = "${suggestion.name} (${suggestion.visitCount} visits)",
-                            onClick = { viewModel.addSuggestedPlace(suggestion) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = state.placeName,
-                    onValueChange = { viewModel.updatePlaceDraft(it, state.placeLat, state.placeLon) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.place_name_label)) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = fieldColors,
-                )
-                // The officer no longer types coordinates: one tap reads the current GPS fix.
-                val locationCaptured = state.placeLat.isNotBlank() && state.placeLon.isNotBlank()
-                SecondaryButton(
-                    text = if (locationCaptured) {
-                        stringResource(R.string.use_current_location_again)
-                    } else {
-                        stringResource(R.string.use_current_location)
-                    },
-                    onClick = viewModel::captureCurrentLocationForPlace,
-                    enabled = !state.placeLocating,
-                )
-                if (state.placeLocating) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text(
-                            stringResource(R.string.place_locating),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else if (locationCaptured) {
-                    val coords = String.format(
-                        Locale.US, "%.5f, %.5f",
-                        state.placeLat.toDoubleOrNull() ?: 0.0,
-                        state.placeLon.toDoubleOrNull() ?: 0.0,
-                    )
-                    Text(
-                        stringResource(R.string.place_location_captured, coords),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.testTag("place_captured_readout"),
-                    )
-                }
-                PrimaryButton(
-                    text = stringResource(R.string.add_place_button),
-                    onClick = viewModel::addPlace,
-                    enabled = state.placeName.isNotBlank() && locationCaptured && !state.placeLocating,
-                )
-                state.placeError?.let { error ->
-                    Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        items(state.places, key = { it.id }) { place ->
-            PlaceCard(
-                place = place,
-                onPrivateChange = { viewModel.setPlacePrivate(place, it) },
-                onDelete = { placePendingDeletion = place },
-            )
         }
     }
 }
