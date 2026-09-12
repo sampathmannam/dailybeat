@@ -64,6 +64,9 @@
     </plurals>
     <string name="capture_gaps_note">%1$s. Distance and tracked time may be incomplete.</string>
     <string name="capture_no_gaps">No capture gaps.</string>
+    <string name="today_moments_title">Today\'s moments</string>
+    <string name="today_moments_provenance">Local to this phone</string>
+    <string name="today_moments_empty">Nothing noted yet. Anything you add from \"Add moment\" appears here.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

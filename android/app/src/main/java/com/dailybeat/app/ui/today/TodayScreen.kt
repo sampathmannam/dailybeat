@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -53,6 +56,7 @@ import com.dailybeat.app.R
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
 import com.dailybeat.app.ui.components.CaptureCoverageNote
+import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
@@ -73,6 +77,7 @@ fun TodayScreen(
     viewModel: TodayViewModel = viewModel(),
 ) {
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
+    val events by viewModel.todayEvents.collectAsStateWithLifecycle()
     val beat by viewModel.todayBeat.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
@@ -212,6 +217,25 @@ fun TodayScreen(
             }
         }
 
+        item {
+            TodayMomentsHeader()
+        }
+
+        if (events.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.today_moments_empty),
+                    modifier = Modifier.testTag("today_moments_empty"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(todayMomentsOrder(events), key = { it.id }) { event ->
+                EventCard(event = event)
+            }
+        }
+
         if (showQaTools) {
             item {
                 SecondaryButton(
@@ -249,6 +273,32 @@ fun TodayScreen(
         }
 
         item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+/**
+ * "Today's moments · Local to this phone". The provenance half is not decoration: this list is the
+ * one place the officer sees raw personal notes, and the app's whole promise is that they stay on
+ * the device unless a deliberate backup, AI, export or share action says otherwise.
+ */
+@Composable
+private fun TodayMomentsHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = stringResource(R.string.today_moments_title),
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.today_moments_provenance),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
