@@ -39,19 +39,37 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Scan Git history for exposed secrets with Gitleaks
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+      - name: Download verified security scanner binaries
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: "false"
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_URL: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          TRUFFLEHOG_URL: https://github.com/trufflesecurity/trufflehog/releases/download/v3.97.4/trufflehog_3.97.4_linux_amd64.tar.gz
+          TRUFFLEHOG_SHA256: dc24007c2f233bd61c05beabeb44aa27ea9b43288166279209abe0458c5ce76b
+          TRIVY_URL: https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz
+          TRIVY_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+        run: |
+          mkdir -p "$RUNNER_TEMP/security-bin"
+          curl --fail --location --silent --show-error "$GITLEAKS_URL" --output "$RUNNER_TEMP/gitleaks.tgz"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/gitleaks.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/gitleaks.tgz" --directory "$RUNNER_TEMP/security-bin" gitleaks
+
+          curl --fail --location --silent --show-error "$TRUFFLEHOG_URL" --output "$RUNNER_TEMP/trufflehog.tgz"
+          echo "$TRUFFLEHOG_SHA256  $RUNNER_TEMP/trufflehog.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/trufflehog.tgz" --directory "$RUNNER_TEMP/security-bin" trufflehog
+
+          curl --fail --location --silent --show-error "$TRIVY_URL" --output "$RUNNER_TEMP/trivy.tgz"
+          echo "$TRIVY_SHA256  $RUNNER_TEMP/trivy.tgz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/trivy.tgz" --directory "$RUNNER_TEMP/security-bin" trivy
+          chmod 0755 "$RUNNER_TEMP/security-bin/gitleaks" "$RUNNER_TEMP/security-bin/trufflehog" "$RUNNER_TEMP/security-bin/trivy"
+      - name: Scan Git history for exposed secrets with Gitleaks
+        run: |
+          "$RUNNER_TEMP/security-bin/gitleaks" detect --source . --redact --verbose --exit-code 1
       - name: Scan verified secrets with TruffleHog
-        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
-        with:
-          path: ./
-          extra_args: --only-verified --no-update
+        run: |
+          "$RUNNER_TEMP/security-bin/trufflehog" git "file://$GITHUB_WORKSPACE" --only-verified --fail --no-update
       - name: Scan code with Semgrep OSS
+        # Android requires the MAIN/LAUNCHER activity to be exported. PermissionPolicyTest proves
+        # that it is the only exported component, so suppress only that generic rule.
         run: |
           pipx run --spec semgrep==1.177.0 semgrep scan \
             --config p/kotlin \
@@ -79,15 +97,13 @@ jobs:
             --exclude-rule java.android.security.exported_activity.exported_activity \
             --error .
       - name: Scan dependencies, configuration, and secrets with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,misconfig,secret
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          format: table
+        run: |
+          "$RUNNER_TEMP/security-bin/trivy" fs \
+            --scanners vuln,misconfig,secret \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress .
 
   codeql:
     runs-on: ubuntu-latest

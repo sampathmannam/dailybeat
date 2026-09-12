@@ -10,8 +10,8 @@ small attack surface rather than adding servers solely because a tool appears on
 ## Implemented controls
 
 - GitHub Actions now runs Gitleaks, TruffleHog, Semgrep OSS, OpenGrep, Trivy, dependency review,
-  and CodeQL. Third-party actions are pinned to immutable commit SHAs; the OpenGrep executable is
-  checksum verified before use.
+  and CodeQL. Every referenced action is pinned to an immutable commit SHA, and every downloaded
+  standalone scanner binary is version pinned and SHA-256 verified before use.
 - Release publication waits for both emulator lanes, the live backup/RLS lane, CodeQL, and the new
   `oss-security` gate. A security scan cannot be bypassed by publishing faster than CI finishes.
 - Dependabot covers Gradle, GitHub Actions, and Python with a seven-day cooldown. Gradle artifacts

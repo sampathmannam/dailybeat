@@ -17,14 +17,14 @@ def test_oss_security_gate_keeps_all_scanner_layers():
 
     for required in (
         "oss-security:",
-        "gitleaks/gitleaks-action@",
-        "trufflesecurity/trufflehog@",
+        "gitleaks_8.30.1_linux_x64.tar.gz",
+        "trufflehog_3.97.4_linux_amd64.tar.gz",
         "semgrep==",
         "opengrep_manylinux_x86",
-        "aquasecurity/trivy-action@",
+        "trivy_0.74.0_Linux-64bit.tar.gz",
         "--only-verified",
         "--error .",
-        'exit-code: "1"',
+        "--exit-code 1",
     ):
         assert required in workflow, f"security workflow lost required control: {required}"
 
@@ -37,8 +37,11 @@ def test_third_party_actions_are_immutable_commit_pins():
     assert all(re.fullmatch(r"[0-9a-f]{40}", pin) for pin in pins)
 
 
-def test_opengrep_download_is_checksum_verified():
+def test_scanner_downloads_are_checksum_verified():
     workflow = _workflow()
 
     assert "OPENGREP_SHA256:" in workflow
-    assert "sha256sum --check --strict" in workflow
+    assert "GITLEAKS_SHA256:" in workflow
+    assert "TRUFFLEHOG_SHA256:" in workflow
+    assert "TRIVY_SHA256:" in workflow
+    assert workflow.count("sha256sum --check --strict") == 4
