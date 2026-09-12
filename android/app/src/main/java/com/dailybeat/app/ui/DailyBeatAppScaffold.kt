@@ -5,6 +5,13 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -21,6 +28,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +49,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.NavHostController
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.diary.DiaryScreen
 import com.dailybeat.app.ui.feed.FeedScreen
@@ -64,6 +75,26 @@ object Routes {
     fun diary(dateKey: String = "today"): String = "diary/$dateKey"
     fun map(dateKey: String = "today"): String = "journey-map/$dateKey"
     fun review(dateKey: String = "today"): String = "review/$dateKey"
+}
+
+private data class TopLevelDestination(
+    val route: String,
+    val labelRes: Int,
+    val testTag: String,
+    val selectedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    val unselectedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+)
+
+private val topLevelDestinations = listOf(
+    TopLevelDestination(Routes.TODAY, R.string.tab_today, "nav_today", Icons.Filled.Today, Icons.Outlined.Today),
+    TopLevelDestination(Routes.DAYS, R.string.tab_days, "nav_days", Icons.Filled.DateRange, Icons.Outlined.DateRange),
+    TopLevelDestination(Routes.INSIGHTS, R.string.tab_insights, "nav_insights", Icons.Filled.Insights, Icons.Outlined.Insights),
+    TopLevelDestination(Routes.SETTINGS, R.string.tab_settings, "nav_settings", Icons.Filled.Settings, Icons.Outlined.Settings),
+)
+
+private fun TopLevelDestination.isSelected(currentRoute: String): Boolean = when (route) {
+    Routes.DAYS -> currentRoute == Routes.DAYS || currentRoute == Routes.DIARY
+    else -> currentRoute == route
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,122 +128,163 @@ fun DailyBeatAppScaffold() {
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (currentRoute != Routes.MAP && currentRoute != Routes.REVIEW) NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-            ) {
-                val colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                )
-                NavigationBarItem(
-                    modifier = Modifier.testTag("nav_today"),
-                    selected = currentRoute == Routes.TODAY,
-                    onClick = {
-                        navController.navigate(Routes.TODAY) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                // Today is the start destination. Restoring the stack saved while
-                                // a nested Diary was open can put the user straight back in Diary.
-                                // Clearing detail state makes this tab an unambiguous home action.
-                                saveState = false
-                            }
-                            launchSingleTop = true
-                            restoreState = false
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            if (currentRoute == Routes.TODAY) Icons.Filled.Today else Icons.Outlined.Today,
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.tab_today), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = colors,
-                )
-                NavigationBarItem(
-                    modifier = Modifier.testTag("nav_days"),
-                    selected = currentRoute == Routes.DAYS || currentRoute == Routes.DIARY,
-                    onClick = {
-                        navController.navigate(Routes.DAYS) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            if (currentRoute == Routes.DAYS || currentRoute == Routes.DIARY) {
-                                Icons.Filled.DateRange
-                            } else {
-                                Icons.Outlined.DateRange
-                            },
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.tab_days), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = colors,
-                )
-                NavigationBarItem(
-                    modifier = Modifier.testTag("nav_insights"),
-                    selected = currentRoute == Routes.INSIGHTS,
-                    onClick = {
-                        navController.navigate(Routes.INSIGHTS) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            if (currentRoute == Routes.INSIGHTS) Icons.Filled.Insights else Icons.Outlined.Insights,
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.tab_insights), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = colors,
-                )
-                NavigationBarItem(
-                    modifier = Modifier.testTag("nav_settings"),
-                    selected = currentRoute == Routes.SETTINGS,
-                    onClick = {
-                        navController.navigate(Routes.SETTINGS) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            if (currentRoute == Routes.SETTINGS) Icons.Filled.Settings else Icons.Outlined.Settings,
-                            contentDescription = null,
-                        )
-                    },
-                    label = { Text(stringResource(R.string.tab_settings), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = colors,
+    fun navigateTo(destination: TopLevelDestination) {
+        val isToday = destination.route == Routes.TODAY
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                // Today is an unambiguous home action: never restore a nested Diary.
+                saveState = !isToday
+            }
+            launchSingleTop = true
+            restoreState = !isToday
+        }
+    }
+
+    val showTopLevelNavigation = currentRoute != Routes.MAP && currentRoute != Routes.REVIEW
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useNavigationRail = showTopLevelNavigation && maxWidth >= 600.dp
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                if (showTopLevelNavigation && !useNavigationRail) {
+                    DailyBeatNavigationBar(
+                        currentRoute = currentRoute,
+                        onDestinationSelected = ::navigateTo,
+                    )
+                }
+            },
+        ) { innerPadding ->
+            if (useNavigationRail) {
+                Row(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .consumeWindowInsets(innerPadding),
+                ) {
+                    DailyBeatNavigationRail(
+                        currentRoute = currentRoute,
+                        onDestinationSelected = ::navigateTo,
+                    )
+                    DailyBeatNavHost(
+                        navController = navController,
+                        todayViewModel = todayViewModel,
+                        todayLabel = todayLabel,
+                        onStartVoiceCapture = ::startVoiceCapture,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
+                DailyBeatNavHost(
+                    navController = navController,
+                    todayViewModel = todayViewModel,
+                    todayLabel = todayLabel,
+                    onStartVoiceCapture = ::startVoiceCapture,
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Routes.TODAY,
-            modifier = Modifier.padding(innerPadding),
-        ) {
+        }
+    }
+}
+
+@Composable
+private fun DailyBeatNavigationBar(
+    currentRoute: String,
+    onDestinationSelected: (TopLevelDestination) -> Unit,
+) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+    ) {
+        val colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        )
+        topLevelDestinations.forEach { destination ->
+            val selected = destination.isSelected(currentRoute)
+            NavigationBarItem(
+                modifier = Modifier.testTag(destination.testTag),
+                selected = selected,
+                onClick = { onDestinationSelected(destination) },
+                icon = {
+                    Icon(
+                        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = null,
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(destination.labelRes),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                colors = colors,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DailyBeatNavigationRail(
+    currentRoute: String,
+    onDestinationSelected: (TopLevelDestination) -> Unit,
+) {
+    NavigationRail(
+        modifier = Modifier.fillMaxHeight().testTag("navigation_rail"),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Spacer(Modifier.height(12.dp))
+        val colors = NavigationRailItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        )
+        topLevelDestinations.forEach { destination ->
+            val selected = destination.isSelected(currentRoute)
+            NavigationRailItem(
+                modifier = Modifier.testTag(destination.testTag),
+                selected = selected,
+                onClick = { onDestinationSelected(destination) },
+                icon = {
+                    Icon(
+                        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                        contentDescription = null,
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(destination.labelRes),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                colors = colors,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DailyBeatNavHost(
+    navController: NavHostController,
+    todayViewModel: TodayViewModel,
+    todayLabel: String,
+    onStartVoiceCapture: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.TODAY,
+        modifier = modifier.fillMaxSize(),
+    ) {
             composable(Routes.TODAY) {
                 TodayScreen(
                     headerSubtitle = todayLabel,
                     viewModel = todayViewModel,
-                    onRecordVoice = ::startVoiceCapture,
+                    onRecordVoice = onStartVoiceCapture,
                     onOpenDiary = {
                         navController.navigate(Routes.diary()) {
                             launchSingleTop = true
@@ -286,6 +358,5 @@ fun DailyBeatAppScaffold() {
             composable(Routes.SETTINGS) {
                 SettingsScreen()
             }
-        }
     }
 }

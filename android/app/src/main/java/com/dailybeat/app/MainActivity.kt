@@ -29,10 +29,8 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { results ->
-        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (fineGranted || coarseGranted) {
+    ) {
+        if (PermissionHelper.hasLocation(this)) {
             requestBackgroundLocationIfNeeded()
         } else {
             CaptureController.applyFromSettings(this)
@@ -99,14 +97,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestRuntimePermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissions = mutableListOf<String>()
+        if (!PermissionHelper.hasLocation(this)) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (!PermissionHelper.hasNotifications(this)) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        permissionLauncher.launch(permissions.toTypedArray())
+        if (permissions.isEmpty()) {
+            requestBackgroundLocationIfNeeded()
+        } else {
+            permissionLauncher.launch(permissions.toTypedArray())
+        }
     }
 
     private fun requestBackgroundLocationIfNeeded() {
