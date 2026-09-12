@@ -33,9 +33,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 20" in gradle
-    assert 'versionName = "3.9.0"' in gradle
-    assert release_marker == "3.9.0"
+    assert "versionCode = 21" in gradle
+    assert 'versionName = "4.0.0"' in gradle
+    assert release_marker == "4.0.0"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -106,7 +106,7 @@ def test_phone_installer_defaults_to_the_current_signed_stable_release():
         encoding="utf-8"
     )
 
-    assert "DAILYBEAT_RELEASE_TAG:-v3.9.0" in installer
+    assert "DAILYBEAT_RELEASE_TAG:-v4.0.0" in installer
 
 
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():

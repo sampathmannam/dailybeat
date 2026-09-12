@@ -1,4 +1,4 @@
-# DailyBeat implementation matrix — prototype v3.9 → production Compose
+# DailyBeat implementation matrix — Penpot v4 → production Compose
 
 Audit date: 2026-09-12
 Branch: `claude/end-to-end-ui`
@@ -6,9 +6,8 @@ Baseline commit: `2cc9784` (on top of released `v3.9.0` / `103f903`)
 
 ## How to read this
 
-The browser prototype
-(`outputs/dailybeat-product-prototype.html`) is authoritative for **design intent, hierarchy,
-adaptive composition, and interaction direction**. The released Compose app is authoritative for
+The phone-only Penpot v4 architecture is authoritative for **design intent, hierarchy,
+phone composition, and interaction direction**. The released Compose app is authoritative for
 **real behavior, privacy, storage, and Android semantics**.
 
 Every row is classified as one of:
@@ -31,10 +30,10 @@ Gaps carry the exact change and the test that proves it.
 | G2 | Capture — paused is indistinguishable from off | **Gap** | High |
 | G3 | Today / Review — capture gaps never surfaced | **Gap** | High |
 | G4 | Today — recent-fix age never shown | **Gap** | Medium |
-| G5 | Adaptive shell — content not width-constrained on 5 of 6 screens | **Gap** | Medium |
+| G5 | Phone landscape — content not width-constrained on 5 of 6 screens | **Gap** | Medium |
 | G6 | Settings — group order contradicts the product brief | **Gap** | Medium |
 | — | Foundations (color/type/shape/motion tokens) | Matched | — |
-| — | Adaptive navigation (bottom bar / rail at 600dp) | Matched | — |
+| — | Phone navigation (bottom bar at every width) | **Gap, fixed for v4.0** | High |
 | — | Days, Insights, Review, Add Moment, Diary, Map | Matched or production wins | — |
 
 Six gaps, all of them real and all of them backed by data the app already computes and then
@@ -64,27 +63,27 @@ surface; production does. Production is the superset and stays authoritative.
 
 ---
 
-## Adaptive shell — `ui/DailyBeatAppScaffold.kt`
+## Phone shell — `ui/DailyBeatAppScaffold.kt`
 
 | Prototype intent | Production | Status |
 |---|---|---|
-| Compact: bottom navigation, 4 destinations | `NavigationBar` when `maxWidth < 600.dp` | Matched |
-| Expanded (≥600dp): navigation rail | `NavigationRail` when `maxWidth >= 600.dp`, via `BoxWithConstraints` | Matched |
-| Rail/bar hidden on Review and full Map | `showTopLevelNavigation` excludes `MAP` and `REVIEW` | Matched |
+| Bottom navigation, 4 destinations | `NavigationBar` at every phone width | Matched in v4.0 |
+| No tablet navigation mode | Width-triggered `NavigationRail` removed | Matched in v4.0 |
+| Bar hidden on Review and full Map | `showTopLevelNavigation` excludes `MAP` and `REVIEW` | Matched |
 | Selected destination indicated | Filled vs outlined icon **and** indicator **and** label — not colour alone | Matched |
 | `screen-inner { width: min(100%, 840px); margin: 0 auto }` — centred readable content at every width | **Only `TodayScreen` applied `widthIn(max = 840.dp)`** | **G5 — Gap, fixed** |
-| Prototype has a decorative `DB` brand pin atop the rail | Production has none | Production wins — a brand chip is not a navigation target and would add an unlabelled element to the rail's TalkBack traversal |
+| Stable reach and muscle memory in portrait/landscape | Same four bottom destinations at every width | Matched in v4.0 |
 
 ### G5 — content is not width-constrained outside Today
 
 - **Observed:** `grep -c widthIn` → `TodayScreen` 2, and `FeedScreen` / `InsightsScreen` /
   `SettingsScreen` / `ReviewDayScreen` / `DiaryScreen` / `JourneyMapScreen` / `OnboardingScreen`
   all **0**.
-- **Effect:** on a tablet the rail appears correctly, but Days/Insights/Settings/Review then stretch
-  their text to the full remaining width. Line lengths run far past a readable measure, and
+- **Effect:** on a landscape or externally resized phone window, Days/Insights/Settings/Review can stretch
+  their text to the full width. Line lengths run far past a readable measure, and
   `SpaceBetween` stat rows fling their three numbers to opposite edges of the screen.
-- **Why it matters:** `CLAUDE.md` product-quality bar — "widths at 600dp and above use a navigation
-  rail *with centered readable content*". Half of that requirement is unimplemented.
+- **Why it matters:** phone landscape still needs readable line lengths even though the navigation
+  model must stay unchanged.
 - **Change:** add one shared `Modifier.readableContentWidth()` in `ui/components/` (max 840dp,
   centred) and apply it to every top-level screen's scroll container, replacing Today's inline
   `widthIn`. One definition, so the constant cannot drift per screen.
@@ -326,11 +325,11 @@ section records only what the audit above got wrong or left incomplete.
 
 | Gap | Unit / policy test | Seen rendered on a device |
 |---|---|---|
-| G1 Today moments | `TodayMomentsTest` | Yes — `evidence/06-tablet-today-rail-centred-moments.png` |
+| G1 Today moments | `TodayMomentsTest` | Yes — retained from the earlier wide-window evidence and covered on phone by instrumentation |
 | G2 paused capture | `CapturePausedStatusTest` | Not directly (needs a live pause); `CaptureLifecycleTest.captureStaysOffDuringAPrivacyPause` passes |
 | G3 capture gaps | `CaptureCoverageTest` | Not directly (needs a day with a real gap) |
 | G4 fix age | `FixAgeTest` | Not directly (needs a live GPS fix) |
-| G5 readable width | `ReadableContentWidthTest` | Yes — `evidence/06`, `07`, `08` at 1066dp |
+| G5 readable width | `ReadableContentWidthTest` | Yes — wide-window evidence; v4 keeps the measure but removes the rail |
 | G6 settings order | `scripts/tests/test_settings_order.py` | Yes — `evidence/07`, `08` |
 
 ### Two things this audit missed

@@ -12,7 +12,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/mac_adb_common.sh"
 
 DEVICE_ARG="${1:-}"
-TAG="${DAILYBEAT_RELEASE_TAG:-v3.9.0}"
+TAG="${DAILYBEAT_RELEASE_TAG:-v4.0.0}"
 APK_NAME="DailyBeat-${TAG}.apk"
 TMP="${TMPDIR:-/tmp}/dailybeat-${TAG}.apk"
 URL="https://github.com/sampathmannam/dailybeat/releases/download/${TAG}/${APK_NAME}"

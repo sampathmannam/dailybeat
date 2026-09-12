@@ -1,12 +1,12 @@
-# DailyBeat v3.9.0 — install and verify
+# DailyBeat v4.0.0 — install and verify
 
-Version 3.9.0 introduces DailyBeat's adaptive journey-ledger interface. Compact phones retain the
-bottom navigation bar, while wider displays use a navigation rail and a centered, readable Today
-column. Capture health, GPS, and Cloud AI readiness now form one operational overview; distance,
-tracked time, and stops form one coherent Beat summary; and **Review my day** remains the clear
-primary completion action. Screen headings and action targets were strengthened for accessibility.
+Version 4.0.0 establishes DailyBeat as a phone-only journey ledger. Today, Days, Insights, and
+Settings keep the same bottom navigation in portrait and landscape, while content remains readable
+on wider phone windows. Capture health, GPS freshness, capture gaps, and privacy pauses now form one
+truthful operational overview; saved moments remain visible on Today; and **Review my day** remains
+the clear primary completion action.
 
-The privacy and reliability guarantees from v3.8.3 remain intact. A place marked **Private zone**
+The privacy and reliability guarantees from v3.9.0 remain intact. A place marked **Private zone**
 in Settings, and any stop hidden in **Review my day**, are excluded from cloud reports and shared
 exports; a private zone is never sent to the OpenStreetMap geocoder. Reports do not carry raw GPS
 coordinates. The System/Light/Dark selector, map-led daily cards, correction/completion review,
@@ -40,9 +40,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v3.9.0`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.0.0`):
 
-- `DailyBeat-v3.9.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.0.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

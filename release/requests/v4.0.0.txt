@@ -1,0 +1,1 @@
+Publish DailyBeat v4.0.0 only after the phone-only Penpot v4 hierarchy, truthful capture-state feedback, visible local moments, capture-gap disclosure, GPS-fix freshness, privacy-first Settings order, build, instrumentation, live cloud-backup, release-policy and CodeQL checks all pass on the protected main commit.

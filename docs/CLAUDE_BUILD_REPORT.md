@@ -1,5 +1,9 @@
 # DailyBeat end-to-end build report
 
+> Historical QA report for the pre-release implementation pass. DailyBeat v4.0.0 is phone-only;
+> its final release evidence and the removal of the tablet navigation rail are recorded in
+> [`V4_RELEASE_REPORT.md`](V4_RELEASE_REPORT.md).
+
 Date: 2026-09-12
 Branch: `claude/end-to-end-ui`
 Code head: `7cbf8d6` — the commit every gate result and the QA APK below were produced from.

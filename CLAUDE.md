@@ -26,7 +26,7 @@ These artifacts are outside the Git repository but available on this machine. Re
 - Interactive prototype: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/dailybeat-product-prototype.html`
 - Product design board: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/dailybeat-product-design-board.png`
 - Phone reference: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/dailybeat-prototype-phone.png`
-- Tablet reference: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/dailybeat-prototype-tablet.png`
+- Phone-only Penpot architecture: `https://design.penpot.app/#/workspace?team-id=d8ac01df-6646-81d2-8008-a07dc599b336&file-id=c514c1fb-1cda-8125-8008-a07dc599b336&page-id=c514c1fb-1cda-8125-8008-a07dc599b337`
 - Portable tokens: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/dailybeat-design-tokens.json`
 - Design handoff: `/Users/sujithsampath/Documents/Codex/2026-09-12/see-daily-beat-is-developing-by/outputs/DAILYBEAT_DESIGN_ALTERNATIVE.md`
 
@@ -59,7 +59,7 @@ The released Compose implementation remains authoritative for real behavior, pri
 - Deep navy structure, signal-yellow journey language, quiet light/dark surfaces, and Android system sans/Roboto.
 - One obvious next action on Today: `Review my day`.
 - The map is proof. Never fabricate a connected route; honest empty/loading/offline states are mandatory.
-- Compact widths use bottom navigation; widths at 600dp and above use a navigation rail with centered readable content.
+- DailyBeat is phone-only. Portrait and landscape keep bottom navigation; do not add a tablet navigation rail.
 - Minimum 48dp interactive targets, TalkBack labels and headings, predictable Android Back, system insets, 200% font scaling, dark theme, landscape behavior, and reduced-motion compatibility.
 - Never communicate health, reliability, privacy, or completion by color alone.
 - Use restrained motion only to explain sheet entry, selection, route replay, or review progression.
@@ -82,7 +82,7 @@ The released Compose implementation remains authoritative for real behavior, pri
 
 ### Phase 1 — audit before implementation
 
-Create `docs/IMPLEMENTATION_MATRIX.md`. For every prototype state—Today, Days, Insights, Settings, Review, Add Moment, capture pause/resume, phone/tablet, and light/dark—map:
+Create `docs/IMPLEMENTATION_MATRIX.md`. For every prototype state—Today, Days, Insights, Settings, Review, Add Moment, capture pause/resume, phone portrait/landscape, and light/dark—map:
 
 - prototype behavior and visual intent;
 - current Compose implementation and owning file;
@@ -109,11 +109,11 @@ Do not create code churn for prototype elements the real app already implements 
 
 1. Reconcile `dailybeat-design-tokens.json` with `Color.kt`, `Theme.kt`, `Type.kt`, and `Shape.kt`. Prefer semantic tokens over screen-local magic values.
 2. Preserve Material 3 behavior and Android system typography. Do not introduce a web font.
-3. Make the responsive shell deterministic at compact and expanded widths. Retain bottom navigation below 600dp and the navigation rail at/above 600dp.
+3. Keep the phone shell deterministic in portrait and landscape. Retain bottom navigation at every width.
 4. Verify edge-to-edge system insets, gesture/navigation-bar clearance, keyboard/IME behavior, and Android Back.
 5. Keep motion short, interruptible, and disabled when the platform animator scale is disabled.
 
-Tests: theme preference persistence, navigation route semantics, compact/expanded behavior, minimum target sizes, and no overlap at 200% font scaling.
+Tests: theme preference persistence, navigation route semantics, phone portrait/landscape behavior, minimum target sizes, and no overlap at 200% font scaling.
 
 ### Phase 3 — implement the core journey-ledger screens
 
@@ -197,7 +197,7 @@ Visual/device matrix:
 - compact phone, normal text, light and dark;
 - compact phone, 200% text;
 - landscape/short viewport;
-- expanded tablet width with navigation rail;
+- phone landscape and short-height layouts with bottom navigation;
 - onboarding, Today states, Days, Insights, Settings, Review, Add Moment/keyboard, map loading/offline/populated;
 - TalkBack headings, labels, traversal order, state announcements, and 48dp targets;
 - system Back from sheets, Review, full map, and keyboard-visible states.
@@ -234,7 +234,7 @@ If and only if the user asks for a new release after QA approval:
 
 - `docs/IMPLEMENTATION_MATRIX.md` explains every prototype/production decision.
 - The production Compose UI is coherent across all top-level screens and the Review/Add Moment flows.
-- Phone/tablet, light/dark, large-text, insets, keyboard, TalkBack, and Back behavior are verified proportionally to available devices.
+- Phone portrait/landscape, light/dark, large-text, insets, keyboard, TalkBack, and Back behavior are verified proportionally to available devices.
 - Real data/state drives every status and route; no fake precision or simulated capture is shipped.
 - Privacy invariants, private-zone enforcement, migrations, backup validation, and QA package isolation remain tested.
 - Python policy tests, Android debug build, JVM tests, lint, and instrumentation compilation pass.
@@ -246,4 +246,3 @@ If and only if the user asks for a new release after QA approval:
 ## First action
 
 Begin with Phase 0 and Phase 1. Do not start by rewriting screens. Establish the green baseline, inspect the prototype and current Compose UI, create the implementation matrix, then execute the smallest high-value vertical slice.
-
