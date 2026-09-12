@@ -81,6 +81,28 @@ class FeedScreenTest {
     }
 
     @Test
+    fun feedCardDoesNotExposeDiaryOrLegacyMiddayPulseText() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                app.diaryRepository.saveForDate(
+                    DateKeys.today(),
+                    "— Midday pulse 13:00 —\nSensitive diary summary that belongs in Diary only.",
+                )
+            }
+        }
+        composeRule.activityRule.scenario.recreate()
+        composeRule.onNodeWithTag("nav_days").performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_card_${DateKeys.today()}"),
+            timeoutMillis = 20_000,
+        )
+
+        composeRule.onNodeWithText("Midday pulse", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("Sensitive diary summary", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun tappingADayOpensThatDaysMap() {
         composeRule.onNodeWithTag("nav_days").performClick()
         composeRule.waitUntilAtLeastOneExists(

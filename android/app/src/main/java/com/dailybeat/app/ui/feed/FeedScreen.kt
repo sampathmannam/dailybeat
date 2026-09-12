@@ -9,12 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -56,7 +57,6 @@ import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.DateKeys
 import java.time.LocalDate
-import java.util.Locale
 import java.io.File
 import com.dailybeat.app.util.Formatters
 
@@ -209,40 +209,47 @@ private fun DayFeedCard(
             .fillMaxWidth()
             .testTag("feed_card_${day.date}")
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Column {
+            Row(
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
                     Text(
                         text = relativeDayLabel(day.date),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    DayStateBadge(day.state)
+                    Text(
+                        text = Formatters.dayHeading(day.date, locale),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = day.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                Text(
-                    text = day.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = Formatters.dayHeading(day.date, locale),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                DayStateBadge(day.state)
             }
 
             if (day.hasRoute) {
                 DayRouteThumbnail(
                     route = day.route,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    height = 136.dp,
                     contentDescription = pluralStringResource(
                         R.plurals.feed_route_content_description,
                         day.stayCount,
@@ -251,38 +258,49 @@ private fun DayFeedCard(
                 )
             }
 
+            HorizontalDivider(
+                modifier = Modifier.padding(top = if (day.hasRoute) 14.dp else 0.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 StatBlock(
                     value = Formatters.distanceKm(day.distanceKm, day.distanceEstimated, locale),
                     label = stringResource(R.string.feed_stat_distance),
+                    modifier = Modifier.weight(1f),
+                    alignment = Alignment.Start,
                 )
+                StatDivider()
                 StatBlock(
                     value = Formatters.durationCompact(day.activeMinutes),
                     label = stringResource(R.string.feed_stat_time_out),
+                    modifier = Modifier.weight(1f),
+                    alignment = Alignment.CenterHorizontally,
                 )
+                StatDivider()
                 StatBlock(
                     value = Formatters.count(day.stayCount),
                     label = stringResource(R.string.feed_stat_stops),
+                    modifier = Modifier.weight(1f),
+                    alignment = Alignment.End,
                 )
             }
 
             if (day.stays.isNotEmpty()) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.outlineVariant,
                 )
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     val shownStays = if (showAllStays) day.stays else day.stays.take(MAX_STAYS_SHOWN)
                     shownStays.forEach { stay ->
-                        StayRow(stay = stay, locale = locale, onNameStay = { onNameStay(stay) })
+                        StayRow(stay = stay, onNameStay = { onNameStay(stay) })
                     }
                     if (day.stays.size > MAX_STAYS_SHOWN) {
                         TextButton(
@@ -308,17 +326,6 @@ private fun DayFeedCard(
                     }
                 }
             }
-
-            day.diaryPreview?.let { preview ->
-                Text(
-                    text = preview,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }
@@ -343,7 +350,7 @@ private fun DayStateBadge(state: String) {
 }
 
 @Composable
-private fun StayRow(stay: DayStay, locale: Locale, onNameStay: () -> Unit) {
+private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
     val interactionModifier = if (stay.canBeNamed) {
         Modifier.clickable(onClick = onNameStay)
     } else {
@@ -380,15 +387,34 @@ private fun StayRow(stay: DayStay, locale: Locale, onNameStay: () -> Unit) {
 }
 
 @Composable
-private fun StatBlock(value: String, label: String) {
-    Column {
-        Text(text = value, style = MaterialTheme.typography.titleMedium)
+private fun StatBlock(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    alignment: Alignment.Horizontal = Alignment.Start,
+) {
+    Column(modifier = modifier, horizontalAlignment = alignment) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+private fun StatDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(34.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
 }
 
 private const val MAX_STAYS_SHOWN = 5
