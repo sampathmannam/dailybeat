@@ -72,7 +72,7 @@ surface; production does. Production is the superset and stays authoritative.
 | Expanded (≥600dp): navigation rail | `NavigationRail` when `maxWidth >= 600.dp`, via `BoxWithConstraints` | Matched |
 | Rail/bar hidden on Review and full Map | `showTopLevelNavigation` excludes `MAP` and `REVIEW` | Matched |
 | Selected destination indicated | Filled vs outlined icon **and** indicator **and** label — not colour alone | Matched |
-| `screen-inner { width: min(100%, 840px); margin: 0 auto }` — centred readable content at every width | **Only `TodayScreen` applies `widthIn(max = 840.dp)`** | **G5 — Gap** |
+| `screen-inner { width: min(100%, 840px); margin: 0 auto }` — centred readable content at every width | **Only `TodayScreen` applied `widthIn(max = 840.dp)`** | **G5 — Gap, fixed** |
 | Prototype has a decorative `DB` brand pin atop the rail | Production has none | Production wins — a brand chip is not a navigation target and would add an unlabelled element to the rail's TalkBack traversal |
 
 ### G5 — content is not width-constrained outside Today
@@ -315,3 +315,47 @@ every surface unconditionally. Production's refusal to do so is the "map is proo
   already computes.
 - Figma round-trip (workspace quota exhausted; documented in `DAILYBEAT_DESIGN_ALTERNATIVE.md`).
 - Any production release, tag, merge, or push.
+
+
+---
+
+## Verification status — updated 2026-09-12, head `7cbf8d6`
+
+All six gaps are implemented and gated. Full evidence is in `docs/CLAUDE_BUILD_REPORT.md`; this
+section records only what the audit above got wrong or left incomplete.
+
+| Gap | Unit / policy test | Seen rendered on a device |
+|---|---|---|
+| G1 Today moments | `TodayMomentsTest` | Yes — `evidence/06-tablet-today-rail-centred-moments.png` |
+| G2 paused capture | `CapturePausedStatusTest` | Not directly (needs a live pause); `CaptureLifecycleTest.captureStaysOffDuringAPrivacyPause` passes |
+| G3 capture gaps | `CaptureCoverageTest` | Not directly (needs a day with a real gap) |
+| G4 fix age | `FixAgeTest` | Not directly (needs a live GPS fix) |
+| G5 readable width | `ReadableContentWidthTest` | Yes — `evidence/06`, `07`, `08` at 1066dp |
+| G6 settings order | `scripts/tests/test_settings_order.py` | Yes — `evidence/07`, `08` |
+
+### Two things this audit missed
+
+**G5 was scoped too narrowly.** The coverage check above correctly reported `OnboardingScreen: 0`
+`widthIn` occurrences, and the fix was still scoped to the six screens inside the navigation shell.
+Onboarding has the same readable-measure problem and is the first screen a new user sees; at 1066dp
+its welcome paragraph ran the full width as a single line. Fixed in `7cbf8d6`. The grep that built
+this matrix found it; the reading of that grep did not. Compare
+`evidence/04-tablet-onboarding-BEFORE-full-width.png` with `05-…-AFTER-readable-measure.png`.
+
+`JourneyMapScreen` also has no width constraint and was likewise not changed — deliberately, this
+time: it is a full-bleed map surface where a capped measure would be wrong.
+
+**G6 had an instrumentation consequence the audit did not predict.** Moving Appearance from first
+to third group pushed the theme selector below the fold on a 393dp phone, breaking
+`MainNavigationTest.appearanceSelectorChangesThemeAndSurvivesActivityRecreation`, which clicked
+`theme_dark` without scrolling. Fixed in `723e9fc` by scrolling first, matching every other Settings
+test in that file. The reorder itself is correct and unchanged; only the test's navigation was
+adapted. Confirmed by screenshot, not by assumption — `evidence/03-…` shows the clipped heading.
+
+### Environment limits found while verifying
+
+- Instrumentation must run on **API 34**. An API-37 (Android 17) emulator fails 27 of 31 tests in
+  the Espresso harness (`NoSuchMethodException: android.hardware.input.InputManager…`) because the
+  project pins `androidx.test:runner:1.6.1`. Upgrading is out of scope per constraint 10.
+- An AOSP image skips `CaptureLifecycleTest.openingTheAppReArmsPassiveCapture` (no Play Services,
+  so no fused location provider). Use a Play-Services API 34 image to cover it.
