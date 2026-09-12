@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
@@ -137,6 +138,14 @@ fun ReviewDayScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+
+        item {
+            CaptureCoverageNote(
+                gapCount = day.captureGapCount,
+                hasCapture = day.hasRoute || visits.isNotEmpty(),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
         }
 
         item {

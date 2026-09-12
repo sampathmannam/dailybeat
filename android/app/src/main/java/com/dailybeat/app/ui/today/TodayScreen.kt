@@ -52,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
@@ -161,6 +162,13 @@ fun TodayScreen(
                 timeValue = Formatters.durationCompact(uiState.trackedMinutes),
                 stopsLabel = stringResource(R.string.feed_stat_stops),
                 stopsValue = Formatters.count(visits.count { it.visitType != "transit" }),
+            )
+        }
+
+        item {
+            CaptureCoverageNote(
+                gapCount = uiState.captureGapCount,
+                hasCapture = beat.hasRoute || visits.isNotEmpty(),
             )
         }
 

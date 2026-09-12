@@ -58,6 +58,12 @@
     <string name="insights_empty_body">Use DailyBeat normally. After your first route, this page will show useful patterns—not a score for being busy.</string>
     <string name="this_week_distance">This week</string>
     <string name="review_streak">Review streak</string>
+    <plurals name="capture_gaps_count">
+        <item quantity="one">%1$d capture gap</item>
+        <item quantity="other">%1$d capture gaps</item>
+    </plurals>
+    <string name="capture_gaps_note">%1$s. Distance and tracked time may be incomplete.</string>
+    <string name="capture_no_gaps">No capture gaps.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

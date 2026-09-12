@@ -29,6 +29,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.dailybeat.app.R
 
 @Composable
 fun DailyBeatScreenHeader(
@@ -217,4 +220,57 @@ fun SecondaryButton(
     ) {
         Text(text)
     }
+}
+
+/**
+ * Says out loud whether the day's record has holes in it.
+ *
+ * `DayFeedBuilder` has always detected capture gaps and the count reached the UI state and stopped
+ * there, so a day with a 40-minute hole presented its distance and tracked time with exactly the
+ * same confidence as a fully captured one. Silence is not neutral here — it reads as "complete".
+ *
+ * Both branches are stated: "no capture gaps" is a positive claim the officer can rely on, not an
+ * absence of warning. [hasCapture] guards against making that claim about a day with nothing in it.
+ */
+@Composable
+fun CaptureCoverageNote(
+    gapCount: Int,
+    hasCapture: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val coverage = captureCoverage(gapCount, hasCapture)
+    if (coverage == CaptureCoverage.Unknown) return
+    Text(
+        text = when (coverage) {
+            is CaptureCoverage.Gaps -> stringResource(
+                R.string.capture_gaps_note,
+                pluralStringResource(R.plurals.capture_gaps_count, coverage.count, coverage.count),
+            )
+            else -> stringResource(R.string.capture_no_gaps)
+        },
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        // Gaps are reported in the same quiet voice as the rest of the card. They are a fact about
+        // the record, not a fault the officer has to go and fix.
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * What can honestly be said about a day's capture coverage. Split from the composable so the
+ * decision — including the refusal to claim anything about a day with nothing in it — is provable
+ * on the JVM. Follows the same shape as `Formatters.RelativeDay`: classify here, word it in
+ * string resources.
+ */
+internal sealed interface CaptureCoverage {
+    /** Nothing was captured, so neither "complete" nor "has gaps" would be a true statement. */
+    data object Unknown : CaptureCoverage
+    data object Complete : CaptureCoverage
+    data class Gaps(val count: Int) : CaptureCoverage
+}
+
+internal fun captureCoverage(gapCount: Int, hasCapture: Boolean): CaptureCoverage = when {
+    !hasCapture -> CaptureCoverage.Unknown
+    gapCount > 0 -> CaptureCoverage.Gaps(gapCount)
+    else -> CaptureCoverage.Complete
 }
