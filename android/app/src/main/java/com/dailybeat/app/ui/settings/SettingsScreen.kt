@@ -53,6 +53,7 @@ import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SettingsGroup
+import com.dailybeat.app.ui.components.readableContentWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.BorderStroke
@@ -140,6 +141,7 @@ fun SettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .readableContentWidth()
             .imePadding()
             .testTag("settings_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),

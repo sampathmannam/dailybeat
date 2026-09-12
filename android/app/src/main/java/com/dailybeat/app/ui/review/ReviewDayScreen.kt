@@ -39,6 +39,7 @@ import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.Formatters
 import androidx.compose.foundation.layout.imePadding
 
@@ -67,7 +68,7 @@ fun ReviewDayScreen(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().imePadding().testTag("review_day_screen"),
+        modifier = modifier.fillMaxSize().readableContentWidth().imePadding().testTag("review_day_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

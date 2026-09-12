@@ -53,6 +53,7 @@ import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.DateKeys
 import java.time.LocalDate
 import java.util.Locale
@@ -115,6 +116,7 @@ fun FeedScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .readableContentWidth()
             .testTag("feed_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),

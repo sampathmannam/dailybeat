@@ -36,6 +36,7 @@ import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -68,7 +69,7 @@ fun InsightsScreen(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().testTag("insights_list").padding(horizontal = 20.dp, vertical = 8.dp),
+        modifier = modifier.fillMaxSize().readableContentWidth().testTag("insights_list").padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {

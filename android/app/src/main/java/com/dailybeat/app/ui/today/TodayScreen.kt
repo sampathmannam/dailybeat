@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,6 +55,7 @@ import com.dailybeat.app.capture.CaptureHealthStatus
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
 import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
@@ -115,16 +115,14 @@ fun TodayScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .widthIn(max = 840.dp)
-                .fillMaxSize()
-                .align(Alignment.TopCenter)
-                .testTag("today_list")
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .readableContentWidth()
+            .testTag("today_list")
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         item {
             DailyBeatScreenHeader(
                 title = stringResource(R.string.today_passive_title),
@@ -241,8 +239,7 @@ fun TodayScreen(
             }
         }
 
-            item { Spacer(Modifier.height(12.dp)) }
-        }
+        item { Spacer(Modifier.height(12.dp)) }
     }
 }
 
