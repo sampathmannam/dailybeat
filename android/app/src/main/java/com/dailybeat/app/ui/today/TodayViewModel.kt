@@ -313,14 +313,26 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    /**
+     * Recomputes the capture card now rather than waiting for the next minute tick.
+     *
+     * The tick alone is too slow for the two moments that matter: tapping "Resume capture now"
+     * here, and coming back from the Settings row that started the pause. Both would otherwise
+     * leave Today insisting capture was still paused for up to a minute after it was not.
+     */
     fun refreshStatus() {
         runCatching {
             val settings = app.settingsRepository.get()
+            val now = System.currentTimeMillis()
+            val status = app.captureHealthStore.health.value
+                .copy(serviceRunning = LocationService.isRunning)
+                .status(now, settings.gpsCaptureEnabled, app.settingsRepository.capturePausedUntilMs(now))
             _uiState.update { current ->
                 current.copy(
                     cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
                     gpsEnabled = settings.gpsCaptureEnabled,
                     gpsActive = isGpsCaptureActive(),
+                    captureStatus = status,
                 )
             }
         }.onFailure { error -> showError(error, "Unable to refresh capture status.") }
