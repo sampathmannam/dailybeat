@@ -40,6 +40,13 @@ class OnboardingFlowTest {
         composeRule.onNodeWithText("Continue").performClick()
         composeRule.onNodeWithText("Get started").performClick()
 
+        // Offline emulator runners can need an extra frame to replace the onboarding surface.
+        // Wait for the destination to be visible instead of racing that transition.
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+            }.isSuccess
+        }
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
 }
