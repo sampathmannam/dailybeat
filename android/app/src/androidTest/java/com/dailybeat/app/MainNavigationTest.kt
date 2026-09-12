@@ -215,7 +215,13 @@ class MainNavigationTest {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         composeRule.onNodeWithTag("nav_settings").performClick()
 
+        // Appearance is deliberately no longer the first group: capture and named places come
+        // first, because that is where the privacy contract lives. So scroll to it the same way
+        // every other Settings test in this file reaches its target, instead of assuming the
+        // theme selector is on the first screenful.
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Appearance"))
         composeRule.onNodeWithText("Appearance").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").performClick()
         composeRule.waitUntil(5_000) {
             app.settingsRepository.themePreference.value == ThemePreference.DARK
@@ -228,8 +234,10 @@ class MainNavigationTest {
 
         composeRule.activityRule.scenario.recreate()
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").assertIsSelected()
 
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_light"))
         composeRule.onNodeWithTag("theme_light").performClick()
         composeRule.waitUntil(5_000) {
             app.settingsRepository.themePreference.value == ThemePreference.LIGHT

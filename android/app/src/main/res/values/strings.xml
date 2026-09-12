@@ -21,11 +21,19 @@
     <string name="capture_healthy">Capture is healthy</string>
     <string name="capture_healthy_detail">DailyBeat is recording reliable points.</string>
     <string name="capture_accuracy">Last point accurate to about %1$d m</string>
+    <string name="capture_fix_just_now">Last reliable fix just now</string>
+    <string name="capture_fix_ago">Last reliable fix %1$s ago</string>
+    <string name="capture_accuracy_suffix">accurate to about %1$d m</string>
+    <string name="capture_detail_join">%1$s \u00b7 %2$s</string>
     <string name="capture_waiting">Waiting for GPS</string>
     <string name="capture_waiting_detail">Keep moving outdoors while DailyBeat finds a reliable point.</string>
     <string name="capture_degraded">No recent movement</string>
     <string name="capture_degraded_detail">No new GPS point for a while. DailyBeat is still watching and keeps everything it captured.</string>
+    <string name="capture_degraded_reassurance">DailyBeat is still watching and keeps everything it captured.</string>
     <string name="capture_off">Capture is off</string>
+    <string name="capture_paused">Capture paused for privacy</string>
+    <string name="capture_paused_until">Resumes automatically at %1$s</string>
+    <string name="map_paused_body">Capture is paused for privacy. Today\'s route continues when it resumes.</string>
     <string name="capture_off_detail">DailyBeat is not recording your route.</string>
     <string name="dismiss">Dismiss</string>
     <string name="review_day_title">Review my day</string>
@@ -50,6 +58,15 @@
     <string name="insights_empty_body">Use DailyBeat normally. After your first route, this page will show useful patterns—not a score for being busy.</string>
     <string name="this_week_distance">This week</string>
     <string name="review_streak">Review streak</string>
+    <plurals name="capture_gaps_count">
+        <item quantity="one">%1$d capture gap</item>
+        <item quantity="other">%1$d capture gaps</item>
+    </plurals>
+    <string name="capture_gaps_note">%1$s. Distance and tracked time may be incomplete.</string>
+    <string name="capture_no_gaps">No capture gaps.</string>
+    <string name="today_moments_title">Today\'s moments</string>
+    <string name="today_moments_provenance">Local to this phone</string>
+    <string name="today_moments_empty">Nothing noted yet. Anything you add from \"Add moment\" appears here.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>

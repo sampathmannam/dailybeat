@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 
 @Composable
 fun OnboardingScreen(
@@ -55,6 +56,7 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .readableContentWidth()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(28.dp),

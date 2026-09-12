@@ -100,6 +100,24 @@ object Formatters {
         data class OnDate(val date: LocalDate) : RelativeDay
     }
 
+    /**
+     * How long ago the last reliable GPS point was stored. Follows [RelativeDay]'s shape: the
+     * classification lives here, the wording lives in string resources.
+     *
+     * Accuracy answers "how precise was that point", which is a different question from "is this
+     * current" — a 6 m fix from three hours ago reads identically to a 6 m fix from one minute ago
+     * unless the age is said out loud.
+     */
+    sealed interface FixAge {
+        data object JustNow : FixAge
+        data class Ago(val minutes: Long) : FixAge
+    }
+
+    fun fixAge(ageMs: Long): FixAge {
+        val minutes = ageMs.coerceAtLeast(0) / 60_000
+        return if (minutes < 1) FixAge.JustNow else FixAge.Ago(minutes)
+    }
+
     fun relativeDay(date: LocalDate, today: LocalDate): RelativeDay {
         val days = ChronoUnit.DAYS.between(date, today)
         return when {

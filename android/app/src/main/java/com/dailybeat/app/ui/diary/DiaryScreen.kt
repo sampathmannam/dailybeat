@@ -32,6 +32,7 @@ import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
+import com.dailybeat.app.ui.components.readableContentWidth
 import kotlinx.coroutines.launch
 import com.dailybeat.app.util.Formatters
 
@@ -56,6 +57,7 @@ fun DiaryScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .readableContentWidth()
             .imePadding()
             .testTag("diary_list")
             .padding(horizontal = 20.dp, vertical = 8.dp),

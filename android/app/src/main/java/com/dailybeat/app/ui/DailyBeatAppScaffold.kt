@@ -5,13 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -28,9 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,9 +51,8 @@ import com.dailybeat.app.ui.review.ReviewDayScreen
 import com.dailybeat.app.ui.settings.SettingsScreen
 import com.dailybeat.app.ui.today.TodayScreen
 import com.dailybeat.app.ui.today.TodayViewModel
-import java.time.LocalDate
-import androidx.compose.ui.text.style.TextOverflow
 import com.dailybeat.app.util.Formatters
+import java.time.LocalDate
 
 object Routes {
     const val TODAY = "today"
@@ -142,49 +133,24 @@ fun DailyBeatAppScaffold() {
 
     val showTopLevelNavigation = currentRoute != Routes.MAP && currentRoute != Routes.REVIEW
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val useNavigationRail = showTopLevelNavigation && maxWidth >= 600.dp
-
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            bottomBar = {
-                if (showTopLevelNavigation && !useNavigationRail) {
-                    DailyBeatNavigationBar(
-                        currentRoute = currentRoute,
-                        onDestinationSelected = ::navigateTo,
-                    )
-                }
-            },
-        ) { innerPadding ->
-            if (useNavigationRail) {
-                Row(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .consumeWindowInsets(innerPadding),
-                ) {
-                    DailyBeatNavigationRail(
-                        currentRoute = currentRoute,
-                        onDestinationSelected = ::navigateTo,
-                    )
-                    DailyBeatNavHost(
-                        navController = navController,
-                        todayViewModel = todayViewModel,
-                        todayLabel = todayLabel,
-                        onStartVoiceCapture = ::startVoiceCapture,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            } else {
-                DailyBeatNavHost(
-                    navController = navController,
-                    todayViewModel = todayViewModel,
-                    todayLabel = todayLabel,
-                    onStartVoiceCapture = ::startVoiceCapture,
-                    modifier = Modifier.padding(innerPadding),
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (showTopLevelNavigation) {
+                DailyBeatNavigationBar(
+                    currentRoute = currentRoute,
+                    onDestinationSelected = ::navigateTo,
                 )
             }
-        }
+        },
+    ) { innerPadding ->
+        DailyBeatNavHost(
+            navController = navController,
+            todayViewModel = todayViewModel,
+            todayLabel = todayLabel,
+            onStartVoiceCapture = ::startVoiceCapture,
+            modifier = Modifier.padding(innerPadding),
+        )
     }
 }
 
@@ -205,46 +171,6 @@ private fun DailyBeatNavigationBar(
         topLevelDestinations.forEach { destination ->
             val selected = destination.isSelected(currentRoute)
             NavigationBarItem(
-                modifier = Modifier.testTag(destination.testTag),
-                selected = selected,
-                onClick = { onDestinationSelected(destination) },
-                icon = {
-                    Icon(
-                        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
-                        contentDescription = null,
-                    )
-                },
-                label = {
-                    Text(
-                        text = stringResource(destination.labelRes),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                colors = colors,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DailyBeatNavigationRail(
-    currentRoute: String,
-    onDestinationSelected: (TopLevelDestination) -> Unit,
-) {
-    NavigationRail(
-        modifier = Modifier.fillMaxHeight().testTag("navigation_rail"),
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Spacer(Modifier.height(12.dp))
-        val colors = NavigationRailItemDefaults.colors(
-            selectedIconColor = MaterialTheme.colorScheme.primary,
-            selectedTextColor = MaterialTheme.colorScheme.primary,
-            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-        )
-        topLevelDestinations.forEach { destination ->
-            val selected = destination.isSelected(currentRoute)
-            NavigationRailItem(
                 modifier = Modifier.testTag(destination.testTag),
                 selected = selected,
                 onClick = { onDestinationSelected(destination) },

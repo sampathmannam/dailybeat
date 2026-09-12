@@ -7,7 +7,9 @@ import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.capture.LocationService
+import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.capture.CaptureResumeWorker
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.status
 import com.dailybeat.app.capture.VoiceCaptureOrchestrator
@@ -151,7 +153,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             ) { beat, health, running, now ->
                 val enabled = runCatching { app.settingsRepository.get().gpsCaptureEnabled }
                     .getOrDefault(false)
-                beat to health.copy(serviceRunning = running).status(now, enabled)
+                // The privacy pause is real state on disk, not a UI flag: read it every tick so
+                // Today stops calling a chosen pause "Capture is off", and so the card flips back
+                // to the live state by itself the minute the deadline passes.
+                val pausedUntil = runCatching { app.settingsRepository.capturePausedUntilMs(now) }
+                    .getOrDefault(0L)
+                beat to health.copy(serviceRunning = running).status(now, enabled, pausedUntil)
             }.collect { (beat, status) ->
                 _uiState.update {
                     it.copy(
@@ -284,6 +291,20 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Undoes the one-hour privacy pause from Today, so the officer does not have to go find the
+     * Settings row that started it. Mirrors SettingsViewModel.resumeCaptureNow exactly: clear the
+     * deadline, cancel the scheduled resume, restart capture.
+     */
+    fun resumeCaptureNow() {
+        runCatching {
+            app.settingsRepository.clearCapturePause()
+            CaptureResumeWorker.cancel(getApplication())
+            CaptureController.applyFromSettings(getApplication())
+        }.onFailure { error -> showError(error, "Unable to resume capture.") }
+        refreshStatus()
+    }
+
     fun clearMessage() {
         _uiState.update { it.copy(successMessage = null) }
     }
@@ -292,14 +313,26 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    /**
+     * Recomputes the capture card now rather than waiting for the next minute tick.
+     *
+     * The tick alone is too slow for the two moments that matter: tapping "Resume capture now"
+     * here, and coming back from the Settings row that started the pause. Both would otherwise
+     * leave Today insisting capture was still paused for up to a minute after it was not.
+     */
     fun refreshStatus() {
         runCatching {
             val settings = app.settingsRepository.get()
+            val now = System.currentTimeMillis()
+            val status = app.captureHealthStore.health.value
+                .copy(serviceRunning = LocationService.isRunning)
+                .status(now, settings.gpsCaptureEnabled, app.settingsRepository.capturePausedUntilMs(now))
             _uiState.update { current ->
                 current.copy(
                     cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
                     gpsEnabled = settings.gpsCaptureEnabled,
                     gpsActive = isGpsCaptureActive(),
+                    captureStatus = status,
                 )
             }
         }.onFailure { error -> showError(error, "Unable to refresh capture status.") }

@@ -35,10 +35,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.Formatters
 import androidx.compose.foundation.layout.imePadding
 
@@ -67,7 +69,7 @@ fun ReviewDayScreen(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().imePadding().testTag("review_day_screen"),
+        modifier = modifier.fillMaxSize().readableContentWidth().imePadding().testTag("review_day_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -136,6 +138,14 @@ fun ReviewDayScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+
+        item {
+            CaptureCoverageNote(
+                gapCount = day.captureGapCount,
+                hasCapture = day.hasRoute || visits.isNotEmpty(),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
         }
 
         item {

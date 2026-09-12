@@ -1,8 +1,8 @@
-# DailyBeat experience direction — v3.9
+# DailyBeat experience direction — v4.0
 
 DailyBeat is a private **journey ledger**: it quietly records the day, shows the map as evidence, and makes uncertainty easy to repair. The interface should feel like dependable field equipment—calm while capture is healthy, direct when attention is needed, and never gamified. The product doctrine and non-goals live in [`PRODUCT.md`](../PRODUCT.md).
 
-The editable design handoff is in [Daily Beat — Product Experience v3.9](https://www.figma.com/design/fFqXwpmbBjhBTC0CyFxja3). It uses the official Material 3 Design Kit as its component reference; the shipped Compose UI remains the source of truth until proposed Figma frames have passed implementation review.
+The editable design handoff is in [DailyBeat — Product Architecture & UI v4](https://design.penpot.app/#/workspace?team-id=d8ac01df-6646-81d2-8008-a07dc599b336&file-id=c514c1fb-1cda-8125-8008-a07dc599b336&page-id=c514c1fb-1cda-8125-8008-a07dc599b337). DailyBeat is a phone-only Android product; the shipped Compose UI remains authoritative for behavior, privacy, storage, and Android semantics.
 
 ## Experience principles
 
@@ -34,7 +34,7 @@ Typography uses the Android system family and Material 3 roles. Screen titles us
 - **Settings** — capture and privacy first, then places, appearance, AI, and backup.
 - **Review** — a focused flow opened from Today or a day; it is intentionally not a permanent tab.
 
-On compact widths, these four top-level destinations use bottom navigation. At `600dp` and wider they move to a navigation rail, leaving vertical room for the day record. Content stays centered and readable instead of stretching across a tablet.
+These four top-level destinations always use bottom navigation. Portrait and landscape phones keep the same navigation model, so muscle memory and one-handed reach do not change with window width.
 
 ## Today composition
 
@@ -59,7 +59,7 @@ Motion explains continuity: sheet entry, map selection, and review progression m
 
 - Never communicate capture or review state by color alone.
 - Keep interactive targets at least `48dp` and preserve predictable Android Back behavior.
-- Support TalkBack, dark theme, `200%` font scaling, edge-to-edge insets, and compact/expanded widths.
+- Support TalkBack, dark theme, `200%` font scaling, edge-to-edge insets, and phone portrait/landscape widths.
 - Let status labels truncate safely rather than overlap; keep essential explanations multiline.
 - Errors say what happened and provide a recovery action without exposing exception text.
 - Hiding or correcting inferred data is reversible and does not silently delete captured history.

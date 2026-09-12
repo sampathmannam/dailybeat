@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -53,9 +55,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.ui.components.CaptureCoverageNote
+import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
+import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
 import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
@@ -72,6 +77,7 @@ fun TodayScreen(
     viewModel: TodayViewModel = viewModel(),
 ) {
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
+    val events by viewModel.todayEvents.collectAsStateWithLifecycle()
     val beat by viewModel.todayBeat.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
@@ -115,16 +121,14 @@ fun TodayScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .widthIn(max = 840.dp)
-                .fillMaxSize()
-                .align(Alignment.TopCenter)
-                .testTag("today_list")
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .readableContentWidth()
+            .testTag("today_list")
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         item {
             DailyBeatScreenHeader(
                 title = stringResource(R.string.today_passive_title),
@@ -145,6 +149,7 @@ fun TodayScreen(
                 status = uiState.captureStatus,
                 gpsOn = uiState.gpsActive,
                 cloudReady = uiState.cloudBrainReady,
+                onResumeCapture = viewModel::resumeCaptureNow,
             )
         }
 
@@ -162,6 +167,13 @@ fun TodayScreen(
                 timeValue = Formatters.durationCompact(uiState.trackedMinutes),
                 stopsLabel = stringResource(R.string.feed_stat_stops),
                 stopsValue = Formatters.count(visits.count { it.visitType != "transit" }),
+            )
+        }
+
+        item {
+            CaptureCoverageNote(
+                gapCount = uiState.captureGapCount,
+                hasCapture = beat.hasRoute || visits.isNotEmpty(),
             )
         }
 
@@ -205,6 +217,25 @@ fun TodayScreen(
             }
         }
 
+        item {
+            TodayMomentsHeader()
+        }
+
+        if (events.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.today_moments_empty),
+                    modifier = Modifier.testTag("today_moments_empty"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(todayMomentsOrder(events), key = { it.id }) { event ->
+                EventCard(event = event)
+            }
+        }
+
         if (showQaTools) {
             item {
                 SecondaryButton(
@@ -241,8 +272,33 @@ fun TodayScreen(
             }
         }
 
-            item { Spacer(Modifier.height(12.dp)) }
-        }
+        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+/**
+ * "Today's moments · Local to this phone". The provenance half is not decoration: this list is the
+ * one place the officer sees raw personal notes, and the app's whole promise is that they stay on
+ * the device unless a deliberate backup, AI, export or share action says otherwise.
+ */
+@Composable
+private fun TodayMomentsHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = stringResource(R.string.today_moments_title),
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = stringResource(R.string.today_moments_provenance),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -272,10 +328,10 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = if (status.level == CaptureHealthLevel.OFF) {
-                    stringResource(R.string.map_tracking_off_body)
-                } else {
-                    stringResource(R.string.map_waiting_body)
+                text = when (status.level) {
+                    CaptureHealthLevel.OFF -> stringResource(R.string.map_tracking_off_body)
+                    CaptureHealthLevel.PAUSED -> stringResource(R.string.map_paused_body)
+                    else -> stringResource(R.string.map_waiting_body)
                 },
                 modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.bodyMedium,
@@ -285,25 +341,77 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
     }
 }
 
+/**
+ * "Last reliable fix 4 min ago · accurate to about 6 m". Either half can be missing: the age is
+ * absent until a point has been stored, and accuracy is absent when the provider did not report
+ * it. Returns null only when neither is known, so the caller can fall back.
+ */
+@Composable
+private fun captureFixAgeText(status: CaptureHealthStatus): String? =
+    status.lastPointAgeMs?.let { ageMs ->
+        when (val classified = Formatters.fixAge(ageMs)) {
+            Formatters.FixAge.JustNow -> stringResource(R.string.capture_fix_just_now)
+            is Formatters.FixAge.Ago -> stringResource(
+                R.string.capture_fix_ago,
+                Formatters.duration(classified.minutes),
+            )
+        }
+    }
+
+@Composable
+private fun captureFreshnessDetail(status: CaptureHealthStatus): String? {
+    val age = captureFixAgeText(status)
+    val accuracy = status.accuracyM?.let {
+        stringResource(R.string.capture_accuracy_suffix, it.roundToInt())
+    }
+    return when {
+        age != null && accuracy != null -> stringResource(R.string.capture_detail_join, age, accuracy)
+        age != null -> age
+        accuracy != null -> stringResource(R.string.capture_accuracy, status.accuracyM.roundToInt())
+        else -> null
+    }
+}
+
 @Composable
 private fun CaptureOverview(
     status: CaptureHealthStatus,
     gpsOn: Boolean,
     cloudReady: Boolean,
+    onResumeCapture: () -> Unit,
 ) {
     val (title, detail) = when (status.level) {
+        // Lead with how current the fix is, then how precise it was. Accuracy alone cannot tell
+        // the officer whether what they are looking at is live.
         CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
-            status.accuracyM?.let { stringResource(R.string.capture_accuracy, it.roundToInt()) }
+            captureFreshnessDetail(status)
         CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
             stringResource(R.string.capture_waiting_detail)
+        // Say how stale it is, but keep the reassurance: nothing captured is ever lost, and
+        // DailyBeat has not stopped watching. A number without that reads as an alarm.
         CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
-            stringResource(R.string.capture_degraded_detail)
+            (
+                captureFixAgeText(status)?.let {
+                    stringResource(
+                        R.string.capture_detail_join,
+                        it,
+                        stringResource(R.string.capture_degraded_reassurance),
+                    )
+                } ?: stringResource(R.string.capture_degraded_detail)
+                )
+        // Name the clock time capture comes back, not a vague "within one hour". The single most
+        // reassuring fact about a privacy pause is exactly when it ends.
+        CaptureHealthLevel.PAUSED -> stringResource(R.string.capture_paused) to
+            status.resumesAtMs?.let {
+                stringResource(R.string.capture_paused_until, Formatters.clock(it))
+            }
         CaptureHealthLevel.OFF -> stringResource(R.string.capture_off) to
             stringResource(R.string.capture_off_detail)
     }
     val color = when (status.level) {
         CaptureHealthLevel.HEALTHY -> MaterialTheme.colorScheme.primary
-        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED -> MaterialTheme.colorScheme.tertiary
+        // Tertiary, never error: a pause is a state the officer chose, not a fault to fix.
+        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
+            MaterialTheme.colorScheme.tertiary
         CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
     }
     Surface(
@@ -329,6 +437,15 @@ private fun CaptureOverview(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (status.level == CaptureHealthLevel.PAUSED) {
+                // The undo lives next to the state it undoes. Previously the only way back was to
+                // go find the Settings row that started the pause.
+                SecondaryButton(
+                    text = stringResource(R.string.resume_capture_now),
+                    onClick = onResumeCapture,
+                    modifier = Modifier.testTag("resume_capture"),
+                )
             }
             StatusStrip(gpsOn = gpsOn, cloudReady = cloudReady)
         }

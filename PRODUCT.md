@@ -10,7 +10,7 @@ android
 
 ## Users
 
-DailyBeat is primarily for an IPS officer using one Android phone throughout an active, interruption-heavy day. The user needs a trustworthy account of where they went, what happened, and what still needs attention without manually running a tracker or repeatedly typing notes.
+DailyBeat is a phone-only Android product for an IPS officer using one phone throughout an active, interruption-heavy day. The user needs a trustworthy account of where they went, what happened, and what still needs attention without manually running a tracker or repeatedly typing notes.
 
 ## Product Purpose
 
@@ -42,4 +42,4 @@ Calm, trustworthy, purposeful. During capture the app should recede into the bac
 
 ## Accessibility & Inclusion
 
-Meet WCAG AA contrast for text and controls, preserve meaning without color, support TalkBack, 200% font scaling, compact and expanded Android widths, dark theme, predictable system Back behavior, 48dp touch targets, and reduced-motion settings. Error states must explain what happened and provide a concrete recovery action without exposing technical exception text.
+Meet WCAG AA contrast for text and controls, preserve meaning without color, support TalkBack, 200% font scaling, phone portrait and landscape layouts, dark theme, predictable system Back behavior, 48dp touch targets, and reduced-motion settings. Error states must explain what happened and provide a concrete recovery action without exposing technical exception text.

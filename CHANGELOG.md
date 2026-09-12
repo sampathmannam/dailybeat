@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.0.0 — 2026-09-12
+
+### Redesigned
+- **DailyBeat is now explicitly phone-only.** Today, Days, Insights, and Settings keep the same
+  bottom navigation in portrait and landscape instead of switching to a tablet navigation rail.
+  Primary actions stay predictable and within comfortable thumb reach.
+- **The DailyBeat Penpot v4 architecture is the design source.** It documents the complete journey
+  from capture to evidence, review, diary, and private learning, alongside all nine production phone
+  states and the Android interaction contract.
+
+### Improved
+- **Saved moments are visible on Today immediately.** The newest local notes appear in chronological
+  context instead of disappearing after save.
+- **Capture status tells the truth calmly.** A deliberate privacy pause is distinct from capture
+  failure, capture gaps are disclosed and excluded from distance, and the last GPS fix includes
+  freshness as well as accuracy.
+- **Settings follows the privacy contract.** Capture and named places come before appearance and
+  connected cloud services.
+- **Phone content remains readable.** Screen content is centered where a landscape window is wider,
+  while navigation and interaction stay phone-native.
+
+### Verification
+- Added policy coverage that prevents the navigation rail and width-triggered tablet shell from
+  returning.
+
 ## 3.9.0 — 2026-09-12
 
 ### Redesigned
