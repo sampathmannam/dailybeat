@@ -1,6 +1,7 @@
 package com.dailybeat.app.data.settings
 
 import android.content.Context
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +17,7 @@ class SettingsRepository(
 
     fun get(): AppSettings = AppSettings(
         officerName = (prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer")
-            .take(MAX_NAME_CHARS),
+            .let { InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS) },
         themePreference = readThemePreference(),
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
         cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
@@ -25,15 +26,24 @@ class SettingsRepository(
             CloudProvider.entries.find { it.id == stored }?.id ?: CloudProvider.DEEPSEEK.id
         },
         cloudModel = (prefs.getString(KEY_CLOUD_MODEL, CloudProvider.DEEPSEEK.defaultModel)
-            ?: CloudProvider.DEEPSEEK.defaultModel).take(MAX_MODEL_CHARS),
-        cloudBaseUrl = (prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "").take(MAX_URL_CHARS),
+            ?: CloudProvider.DEEPSEEK.defaultModel).let {
+            InputPolicy.singleLine(it, InputPolicy.CLOUD_MODEL_CHARS)
+        },
+        cloudBaseUrl = (prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "").let {
+            InputPolicy.singleLine(it, InputPolicy.CLOUD_URL_CHARS)
+        },
         autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
-        supervisorName = (prefs.getString(KEY_SUPERVISOR, "") ?: "").take(MAX_NAME_CHARS),
+        supervisorName = (prefs.getString(KEY_SUPERVISOR, "") ?: "").let {
+            InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
+        },
     )
 
     fun setOfficerName(name: String) {
-        prefs.edit().putString(KEY_OFFICER, name.trim().take(MAX_NAME_CHARS)).apply()
+        prefs.edit().putString(
+            KEY_OFFICER,
+            InputPolicy.singleLine(name, InputPolicy.PERSON_NAME_CHARS).trim(),
+        ).apply()
     }
 
     fun setThemePreference(preference: ThemePreference) {
@@ -76,11 +86,17 @@ class SettingsRepository(
     }
 
     fun setCloudModel(model: String) {
-        prefs.edit().putString(KEY_CLOUD_MODEL, model.trim().take(MAX_MODEL_CHARS)).apply()
+        prefs.edit().putString(
+            KEY_CLOUD_MODEL,
+            InputPolicy.singleLine(model, InputPolicy.CLOUD_MODEL_CHARS).trim(),
+        ).apply()
     }
 
     fun setCloudBaseUrl(url: String) {
-        prefs.edit().putString(KEY_CLOUD_BASE_URL, url.trim().take(MAX_URL_CHARS)).apply()
+        prefs.edit().putString(
+            KEY_CLOUD_BASE_URL,
+            InputPolicy.singleLine(url, InputPolicy.CLOUD_URL_CHARS).trim(),
+        ).apply()
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
@@ -88,7 +104,10 @@ class SettingsRepository(
     }
 
     fun setSupervisorName(name: String) {
-        prefs.edit().putString(KEY_SUPERVISOR, name.trim().take(MAX_NAME_CHARS)).apply()
+        prefs.edit().putString(
+            KEY_SUPERVISOR,
+            InputPolicy.singleLine(name, InputPolicy.PERSON_NAME_CHARS).trim(),
+        ).apply()
     }
 
     fun setAutoMiddayPulse(enabled: Boolean) {
@@ -120,8 +139,5 @@ class SettingsRepository(
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
         private const val KEY_SUPERVISOR = "supervisor_name"
-        private const val MAX_NAME_CHARS = 120
-        private const val MAX_MODEL_CHARS = 200
-        private const val MAX_URL_CHARS = 2_048
     }
 }

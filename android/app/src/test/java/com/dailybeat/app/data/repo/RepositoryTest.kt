@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,5 +88,56 @@ class DiaryRepositoryTest {
         repository.saveToday("   ")
         val count = db.diaries().countNonEmpty()
         assertEquals(0, count)
+    }
+
+    @Test
+    fun saveTodayBoundsAndSanitizesUntrustedText() = runBlocking {
+        repository.saveToday("A\u0000" + "b".repeat(60_000))
+
+        val saved = repository.todayText().orEmpty()
+        assertEquals(50_000, saved.length)
+        assertFalse(saved.contains('\u0000'))
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
+class PlaceRepositoryTest {
+
+    private lateinit var db: DailyBeatDb
+    private lateinit var repository: PlaceRepository
+
+    @Before
+    fun setup() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, DailyBeatDb::class.java)
+            .allowMainThreadQueries()
+            .build()
+        repository = PlaceRepository(db.places())
+    }
+
+    @After
+    fun tearDown() {
+        db.close()
+    }
+
+    @Test
+    fun addBoundsNameAndRecognitionRadius() = runBlocking {
+        repository.add("A\u0000" + "b".repeat(200), 12.9, 77.6, radiusM = 1)
+
+        val saved = repository.all().single()
+        assertEquals(120, saved.name.length)
+        assertFalse(saved.name.contains('\u0000'))
+        assertEquals(25, saved.radiusM)
+    }
+
+    @Test
+    fun addRejectsCoordinatesOutsideEarth() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.add("Invalid", 91.0, 77.6) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.add("Invalid", 12.9, Double.NaN) }
+        }
     }
 }

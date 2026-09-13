@@ -50,6 +50,7 @@ import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
+import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SettingsGroup
@@ -65,7 +66,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.semantics.Role
-import java.util.Locale
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 
@@ -103,7 +103,7 @@ fun SettingsScreen(
 
     placePendingDeletion?.let { place ->
         AlertDialog(
-            onDismissRequest = { placePendingDeletion = null },
+            onDismissRequest = { if (!state.placeBusy) placePendingDeletion = null },
             title = { Text(stringResource(R.string.delete_place_title)) },
             text = { Text(stringResource(R.string.delete_place_warning, place.name)) },
             confirmButton = {
@@ -112,12 +112,14 @@ fun SettingsScreen(
                         viewModel.deletePlace(place)
                         placePendingDeletion = null
                     },
+                    enabled = !state.placeBusy,
                     modifier = Modifier.testTag("confirm_delete_place"),
                 ) { Text(stringResource(R.string.delete_place_confirm)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { placePendingDeletion = null },
+                    enabled = !state.placeBusy,
                     modifier = Modifier.testTag("cancel_delete_place"),
                 ) { Text(stringResource(R.string.cancel)) }
             },
@@ -149,6 +151,17 @@ fun SettingsScreen(
     ) {
         item {
             DailyBeatScreenHeader(title = stringResource(R.string.settings_title))
+        }
+
+        state.screenError?.let { error ->
+            item {
+                InlineFeedback(
+                    message = error,
+                    isError = true,
+                    actionLabel = stringResource(R.string.feed_load_retry),
+                    onAction = viewModel::refresh,
+                )
+            }
         }
 
         item {
@@ -203,7 +216,7 @@ fun SettingsScreen(
                     )
                 }
                 state.captureMessage?.let { message ->
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    InlineFeedback(message = message, isError = true)
                     SecondaryButton(
                         text = stringResource(R.string.open_app_settings),
                         onClick = { openAppSettings(settingsContext) },
@@ -224,6 +237,7 @@ fun SettingsScreen(
                         SecondaryButton(
                             text = "${suggestion.name} (${suggestion.visitCount} visits)",
                             onClick = { viewModel.addSuggestedPlace(suggestion) },
+                            enabled = !state.placeBusy,
                         )
                     }
                 }
@@ -234,6 +248,8 @@ fun SettingsScreen(
                     label = { Text(stringResource(R.string.place_name_label)) },
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
+                    enabled = !state.placeBusy && !state.placeLocating,
+                    singleLine = true,
                 )
                 // The officer no longer types coordinates: one tap reads the current GPS fix.
                 val locationCaptured = state.placeLat.isNotBlank() && state.placeLon.isNotBlank()
@@ -244,7 +260,7 @@ fun SettingsScreen(
                         stringResource(R.string.use_current_location)
                     },
                     onClick = viewModel::captureCurrentLocationForPlace,
-                    enabled = !state.placeLocating,
+                    enabled = !state.placeLocating && !state.placeBusy,
                 )
                 if (state.placeLocating) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -256,13 +272,8 @@ fun SettingsScreen(
                         )
                     }
                 } else if (locationCaptured) {
-                    val coords = String.format(
-                        Locale.US, "%.5f, %.5f",
-                        state.placeLat.toDoubleOrNull() ?: 0.0,
-                        state.placeLon.toDoubleOrNull() ?: 0.0,
-                    )
                     Text(
-                        stringResource(R.string.place_location_captured, coords),
+                        stringResource(R.string.place_location_captured),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.testTag("place_captured_readout"),
@@ -271,10 +282,11 @@ fun SettingsScreen(
                 PrimaryButton(
                     text = stringResource(R.string.add_place_button),
                     onClick = viewModel::addPlace,
-                    enabled = state.placeName.isNotBlank() && locationCaptured && !state.placeLocating,
+                    enabled = state.placeName.isNotBlank() && locationCaptured &&
+                        !state.placeLocating && !state.placeBusy,
                 )
                 state.placeError?.let { error ->
-                    Text(text = error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    InlineFeedback(message = error, isError = true)
                 }
             }
         }
@@ -284,6 +296,7 @@ fun SettingsScreen(
                 place = place,
                 onPrivateChange = { viewModel.setPlacePrivate(place, it) },
                 onDelete = { placePendingDeletion = place },
+                enabled = !state.placeBusy,
             )
         }
 
@@ -323,7 +336,7 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup(title = stringResource(R.string.officer_name_label)) {
+            SettingsGroup(title = stringResource(R.string.settings_identity_group)) {
                 OutlinedTextField(
                     value = state.officerName,
                     onValueChange = viewModel::setOfficerName,
@@ -436,7 +449,10 @@ fun SettingsScreen(
                     }
                 }
                 state.backupMessage?.let { message ->
-                    Text(text = message, style = MaterialTheme.typography.bodySmall)
+                    InlineFeedback(message = message, isError = state.backupMessageIsError)
+                }
+                if (state.backupBusy) {
+                    BusyRow(stringResource(R.string.backup_working))
                 }
                 Text(
                     text = stringResource(R.string.backup_api_key_excluded),
@@ -458,6 +474,22 @@ fun SettingsScreen(
                     checked = state.cloudLlmEnabled,
                     onCheckedChange = viewModel::setCloudLlmEnabled,
                 )
+                CloudProvider.entries.toList().chunked(2).forEach { providers ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        providers.forEach { provider ->
+                            SecondaryProviderChip(
+                                label = provider.displayName,
+                                selected = state.cloudProvider == provider.id,
+                                onClick = { viewModel.setCloudProvider(provider.id) },
+                                enabled = !state.apiKeyBusy && !state.cloudTesting,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = state.apiKeyDraft,
                     onValueChange = viewModel::setApiKeyDraft,
@@ -508,28 +540,16 @@ fun SettingsScreen(
                         colors = fieldColors,
                     )
                 }
-                CloudProvider.entries.toList().chunked(2).forEach { providers ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        providers.forEach { provider ->
-                            SecondaryProviderChip(
-                                label = provider.displayName,
-                                selected = state.cloudProvider == provider.id,
-                                onClick = { viewModel.setCloudProvider(provider.id) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
                 SecondaryButton(
                     text = stringResource(R.string.test_cloud_connection),
                     onClick = viewModel::testCloudConnection,
                     enabled = !state.cloudTesting && !state.apiKeyBusy,
                 )
                 state.cloudTestResult?.let { msg ->
-                    Text(text = msg, style = MaterialTheme.typography.bodySmall)
+                    InlineFeedback(message = msg, isError = state.cloudTestIsError)
+                }
+                if (state.cloudTesting || state.apiKeyBusy) {
+                    BusyRow(stringResource(R.string.cloud_working))
                 }
                 ToggleRow(
                     label = stringResource(R.string.auto_evening_report),
@@ -568,13 +588,19 @@ private fun SecondaryProviderChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     // Selection used to be a 1.19:1 background tint with no check, no role and a 28 dp target.
     Surface(
         modifier = modifier
             .heightIn(min = 48.dp)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
         shape = MaterialTheme.shapes.small,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
@@ -621,7 +647,12 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 }
 
 @Composable
-private fun PlaceCard(place: Place, onPrivateChange: (Boolean) -> Unit, onDelete: () -> Unit) {
+private fun PlaceCard(
+    place: Place,
+    onPrivateChange: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    enabled: Boolean,
+) {
     androidx.compose.material3.Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -636,7 +667,7 @@ private fun PlaceCard(place: Place, onPrivateChange: (Boolean) -> Unit, onDelete
             Column(Modifier.weight(1f)) {
                 Text(text = place.name, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = String.format(Locale.US, "%.5f, %.5f · %d m", place.latitude, place.longitude, place.radiusM),
+                    text = stringResource(R.string.saved_place_radius, place.radiusM),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -646,6 +677,7 @@ private fun PlaceCard(place: Place, onPrivateChange: (Boolean) -> Unit, onDelete
                         .heightIn(min = 48.dp)
                         .toggleable(
                             value = place.isPrivate,
+                            enabled = enabled,
                             role = Role.Switch,
                             onValueChange = onPrivateChange,
                         ),
@@ -671,11 +703,28 @@ private fun PlaceCard(place: Place, onPrivateChange: (Boolean) -> Unit, onDelete
             }
             IconButton(
                 onClick = onDelete,
+                enabled = enabled,
                 modifier = Modifier.testTag("delete_place_${place.id}"),
             ) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_place))
             }
         }
+    }
+}
+
+@Composable
+private fun BusyRow(message: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

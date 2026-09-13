@@ -3,6 +3,7 @@ package com.dailybeat.app.data.repo
 import com.dailybeat.app.data.db.DiaryDao
 import com.dailybeat.app.data.model.DiaryEntry
 import com.dailybeat.app.util.DateKeys
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -18,7 +19,7 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
     suspend fun saveToday(text: String) = saveForDate(DateKeys.today(), text)
 
     suspend fun saveForDate(date: LocalDate, text: String) {
-        val trimmed = text.trim()
+        val trimmed = InputPolicy.multiline(text, InputPolicy.DIARY_CHARS).trim()
         // An empty body is a deliberate clear, not a no-op; dropping it made the old text
         // reappear the next time the day was opened.
         diaryDao.upsert(

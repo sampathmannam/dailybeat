@@ -25,7 +25,8 @@ EXPECTED_ORDER = [
     "settings_capture_group",
     "places_title",
     "settings_appearance_group",
-    "officer_name_label",
+    # The group contains both officer and supervisor fields, so its heading describes the pair.
+    "settings_identity_group",
     "settings_backup_group",
     "settings_cloud_group",
     "settings_qa_group",

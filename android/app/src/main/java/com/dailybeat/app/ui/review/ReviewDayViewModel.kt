@@ -9,6 +9,7 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.ui.feed.DayFeedBuilder
 import com.dailybeat.app.ui.feed.DayFeedItem
 import com.dailybeat.app.util.DateKeys
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -79,7 +80,9 @@ class ReviewDayViewModel(
     val uiState: StateFlow<ReviewDayUiState> = _uiState.asStateFlow()
 
     fun setTitle(value: String) {
-        _uiState.update { it.copy(title = value.take(120)) }
+        _uiState.update {
+            it.copy(title = InputPolicy.singleLine(value, InputPolicy.BEAT_TITLE_CHARS))
+        }
     }
 
     fun saveTitle() = launchAction("Title saved.", "Unable to save the title.") {
@@ -87,7 +90,7 @@ class ReviewDayViewModel(
     }
 
     fun renameVisit(visit: LocationVisit, name: String) {
-        val cleanName = name.trim().take(120)
+        val cleanName = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS).trim()
         if (cleanName.isEmpty()) return
         launchAction("Stop updated.", "Unable to update this stop.") {
             app.visitRepository.update(

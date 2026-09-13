@@ -5,6 +5,7 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.StructuredEvent
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -25,7 +26,7 @@ class EventRepository(private val eventDao: EventDao) {
     suspend fun countToday(): Int = eventsForDate(DateKeys.today()).size
 
     suspend fun addManualEvent(rawText: String) {
-        val trimmed = rawText.trim().take(MAX_EVENT_CHARS)
+        val trimmed = InputPolicy.multiline(rawText, InputPolicy.MOMENT_NOTE_CHARS).trim()
         if (trimmed.isEmpty()) return
         eventDao.insert(
             Event(
@@ -37,7 +38,7 @@ class EventRepository(private val eventDao: EventDao) {
     }
 
     suspend fun addMomentMarker(label: String = "Significant moment flagged") {
-        val trimmed = label.trim().take(MAX_EVENT_CHARS)
+        val trimmed = InputPolicy.singleLine(label, InputPolicy.MOMENT_NOTE_CHARS).trim()
         if (trimmed.isEmpty()) return
         eventDao.insert(
             Event(
@@ -49,7 +50,7 @@ class EventRepository(private val eventDao: EventDao) {
     }
 
     suspend fun addStructuredEvent(structured: StructuredEvent, type: String = "voice") {
-        val rawText = structured.rawText.trim().take(MAX_EVENT_CHARS)
+        val rawText = InputPolicy.multiline(structured.rawText, InputPolicy.MOMENT_NOTE_CHARS).trim()
         if (rawText.isEmpty()) return
         eventDao.insert(
             Event(
@@ -66,7 +67,6 @@ class EventRepository(private val eventDao: EventDao) {
     suspend fun deleteEvent(event: Event) = eventDao.delete(event)
 
     companion object {
-        private const val MAX_EVENT_CHARS = 8_000
         private const val MAX_TYPE_CHARS = 32
         private const val MAX_PLACE_CHARS = 500
         private const val MAX_METADATA_CHARS = 1_000

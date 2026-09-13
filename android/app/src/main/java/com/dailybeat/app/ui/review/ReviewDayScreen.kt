@@ -42,6 +42,7 @@ import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.Formatters
+import com.dailybeat.app.util.InputPolicy
 import androidx.compose.foundation.layout.imePadding
 
 @Composable
@@ -279,7 +280,9 @@ private fun RenameStopDialog(visit: LocationVisit, onDismiss: () -> Unit, onSave
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it.take(120) },
+                onValueChange = {
+                    name = InputPolicy.singleLine(it, InputPolicy.PLACE_NAME_CHARS)
+                },
                 label = { Text(stringResource(R.string.place_name_label)) },
                 singleLine = true,
             )

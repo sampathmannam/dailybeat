@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -54,11 +56,13 @@ import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EmptyState
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.util.DateKeys
 import java.time.LocalDate
 import java.io.File
 import com.dailybeat.app.util.Formatters
+import com.dailybeat.app.util.InputPolicy
 
 @Composable
 fun FeedScreen(
@@ -105,10 +109,11 @@ fun FeedScreen(
     stayBeingNamed?.let { stay ->
         NamePlaceDialog(
             stay = stay,
-            onDismiss = { stayBeingNamed = null },
+            isSaving = state.isSavingPlace,
+            error = state.error,
+            onDismiss = { if (!state.isSavingPlace) stayBeingNamed = null },
             onSave = { name ->
-                viewModel.saveNamedPlace(stay, name)
-                stayBeingNamed = null
+                viewModel.saveNamedPlace(stay, name) { stayBeingNamed = null }
             },
         )
     }
@@ -135,7 +140,19 @@ fun FeedScreen(
         }
 
         state.error?.let { error ->
-            item { FeedErrorNotice(message = error, onRetry = viewModel::refresh) }
+            item {
+                InlineFeedback(
+                    message = error,
+                    isError = true,
+                    modifier = Modifier.testTag("feed_error"),
+                    actionLabel = if (state.days.isEmpty()) {
+                        stringResource(R.string.feed_load_retry)
+                    } else {
+                        null
+                    },
+                    onAction = if (state.days.isEmpty()) viewModel::refresh else null,
+                )
+            }
         }
 
         if (state.days.isEmpty() && !state.isLoading && state.error == null) {
@@ -169,21 +186,32 @@ fun FeedScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        val weeklyBusy = state.isGeneratingWeekly || state.isExporting
                         PrimaryButton(
                             text = stringResource(R.string.generate_weekly_rollup),
                             onClick = viewModel::generateWeeklyRollup,
-                            enabled = !state.isGeneratingWeekly,
+                            enabled = !weeklyBusy,
                         )
                         SecondaryButton(
                             text = stringResource(R.string.export_week_package),
                             onClick = viewModel::exportPackage,
-                            enabled = !state.isExporting,
+                            enabled = !weeklyBusy,
                         )
                         if (state.isGeneratingWeekly || state.isExporting) {
-                            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                            Row(
+                                modifier = Modifier.padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Text(
+                                    stringResource(R.string.weekly_working),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                         state.message?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            InlineFeedback(message = it, isError = false)
                         }
                     }
                 }
@@ -208,7 +236,11 @@ private fun DayFeedCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("feed_card_${day.date}")
-            .clickable(onClick = onClick),
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.feed_open_day_action),
+                onClick = onClick,
+            ),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
@@ -352,13 +384,18 @@ private fun DayStateBadge(state: String) {
 @Composable
 private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
     val interactionModifier = if (stay.canBeNamed) {
-        Modifier.clickable(onClick = onNameStay)
+        Modifier.clickable(
+            role = Role.Button,
+            onClickLabel = stringResource(R.string.feed_name_place_action),
+            onClick = onNameStay,
+        )
     } else {
         Modifier
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .then(interactionModifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -429,26 +466,6 @@ internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today
         is Formatters.RelativeDay.OnDate -> Formatters.dayHeading(relative.date)
     }
 
-@Composable
-private fun FeedErrorNotice(message: String, onRetry: (() -> Unit)?) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().testTag("feed_error"),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.errorContainer,
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            onRetry?.let { retry ->
-                TextButton(onClick = retry) { Text(stringResource(R.string.feed_load_retry)) }
-            }
-        }
-    }
-}
-
 /**
  * Names the place a stay happened at. OpenStreetMap has no point of interest at many real stops,
  * so the map can only offer the road; naming it once makes every later stay there read correctly.
@@ -456,12 +473,14 @@ private fun FeedErrorNotice(message: String, onRetry: (() -> Unit)?) {
 @Composable
 private fun NamePlaceDialog(
     stay: DayStay,
+    isSaving: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
 ) {
     var draft by remember(stay) { mutableStateOf(stay.name) }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(stringResource(R.string.feed_name_place_title)) },
         text = {
             Column {
@@ -472,7 +491,9 @@ private fun NamePlaceDialog(
                 )
                 OutlinedTextField(
                     value = draft,
-                    onValueChange = { draft = it },
+                    onValueChange = {
+                        draft = InputPolicy.singleLine(it, InputPolicy.PLACE_NAME_CHARS)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp)
@@ -480,17 +501,26 @@ private fun NamePlaceDialog(
                     singleLine = true,
                     label = { Text(stringResource(R.string.feed_name_place_label)) },
                 )
+                error?.let { message ->
+                    InlineFeedback(
+                        message = message,
+                        isError = true,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onSave(draft) },
-                enabled = draft.isNotBlank(),
+                enabled = draft.isNotBlank() && !isSaving,
                 modifier = Modifier.testTag("name_place_save"),
             ) { Text(stringResource(R.string.feed_name_place_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.feed_name_place_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text(stringResource(R.string.feed_name_place_cancel))
+            }
         },
     )
 }

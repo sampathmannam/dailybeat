@@ -42,6 +42,7 @@ data class TodayUiState(
     val seedMessage: String? = null,
     val isRecordingVoice: Boolean = false,
     val isSavingNote: Boolean = false,
+    val isSavingMoment: Boolean = false,
     val error: String? = null,
     val successMessage: String? = null,
     val captureStatus: CaptureHealthStatus = CaptureHealthStatus(CaptureHealthLevel.OFF),
@@ -199,16 +200,28 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun markSignificantMoment() {
+    fun markSignificantMoment(onSaved: () -> Unit = {}) {
+        if (_uiState.value.isSavingMoment) return
+        _uiState.update { it.copy(isSavingMoment = true, error = null) }
         viewModelScope.launch {
             runCatching {
                 repository.addMomentMarker("Significant moment flagged (passive marker)")
                 CaptureAuditLog.log(getApplication(), "moment", "User flagged significant moment")
             }.fold(
                 onSuccess = {
-                    _uiState.update { it.copy(error = null, successMessage = "Moment saved at the current time.") }
+                    _uiState.update {
+                        it.copy(
+                            isSavingMoment = false,
+                            error = null,
+                            successMessage = "Moment saved at the current time.",
+                        )
+                    }
+                    onSaved()
                 },
-                onFailure = { error -> showError(error, "Unable to mark this moment.") },
+                onFailure = { error ->
+                    _uiState.update { it.copy(isSavingMoment = false) }
+                    showError(error, "Unable to mark this moment.")
+                },
             )
         }
     }
@@ -220,7 +233,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             val result = runCatching { VoiceCaptureOrchestrator(app).captureAndSave() }
                 .getOrElse { Result.failure(it) }
             result.fold(
-                onSuccess = { transcript ->
+                onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isRecordingVoice = false,
                         successMessage = "Voice note saved.",

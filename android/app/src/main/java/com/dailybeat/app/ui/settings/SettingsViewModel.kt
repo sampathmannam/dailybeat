@@ -16,6 +16,7 @@ import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.data.settings.ThemePreference
 import com.dailybeat.app.util.PermissionHelper
+import com.dailybeat.app.util.InputPolicy
 import com.dailybeat.app.util.fetchCurrentLocation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ data class SettingsUiState(
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val gpsEnabled: Boolean = true,
     val captureMessage: String? = null,
+    val screenError: String? = null,
     val capturePausedUntilMs: Long = 0L,
     val batteryUnrestricted: Boolean = true,
     val cloudLlmEnabled: Boolean = true,
@@ -45,11 +47,13 @@ data class SettingsUiState(
     val autoEveningReport: Boolean = true,
     val autoMiddayPulse: Boolean = false,
     val cloudTestResult: String? = null,
+    val cloudTestIsError: Boolean = false,
     val cloudTesting: Boolean = false,
     val placeName: String = "",
     val placeLat: String = "",
     val placeLon: String = "",
     val placeLocating: Boolean = false,
+    val placeBusy: Boolean = false,
     val places: List<Place> = emptyList(),
     val placeError: String? = null,
     val auditLines: List<String> = emptyList(),
@@ -62,6 +66,7 @@ data class SettingsUiState(
     val backupSignedInEmail: String? = null,
     val backupBusy: Boolean = false,
     val backupMessage: String? = null,
+    val backupMessageIsError: Boolean = false,
     val backupRestoreConfirmation: Boolean = false,
 )
 
@@ -73,8 +78,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         SettingsUiState(themePreference = app.settingsRepository.themePreference.value),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
-    private var placeMutationInFlight = false
-
     init {
         refresh()
     }
@@ -116,13 +119,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         placeSuggestions = suggestions,
                         backupConfigured = app.backupCoordinator.isConfigured,
                         backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
+                        screenError = null,
                     )
                 }
             } catch (error: Exception) {
                 _uiState.update { current ->
                     current.copy(
                         backupBusy = false,
-                        backupMessage = error.userMessage("Unable to load settings data."),
+                        screenError = error.userMessage("Unable to load settings. Try again."),
                     )
                 }
             }
@@ -130,11 +134,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setBackupEmail(email: String) {
-        _uiState.update { it.copy(backupEmailDraft = email, backupMessage = null) }
+        _uiState.update {
+            it.copy(
+                backupEmailDraft = InputPolicy.singleLine(email, InputPolicy.BACKUP_EMAIL_CHARS),
+                backupMessage = null,
+            )
+        }
     }
 
     fun setBackupPassword(password: String) {
-        _uiState.update { it.copy(backupPasswordDraft = password, backupMessage = null) }
+        _uiState.update {
+            it.copy(
+                backupPasswordDraft = InputPolicy.bounded(password, InputPolicy.BACKUP_PASSWORD_CHARS),
+                backupMessage = null,
+            )
+        }
     }
 
     fun signInToBackup() {
@@ -153,12 +167,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             backupSignedInEmail = session.email,
                             backupPasswordDraft = "",
                             backupMessage = "Signed in. Back up this phone now.",
+                            backupMessageIsError = false,
                         )
                     }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(backupBusy = false, backupMessage = error.userMessage("Unable to sign in."))
+                        it.copy(
+                            backupBusy = false,
+                            backupMessage = error.userMessage("Unable to sign in."),
+                            backupMessageIsError = true,
+                        )
                     }
                 },
             )
@@ -185,12 +204,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             } else {
                                 "Account created. Back up this phone now."
                             },
+                            backupMessageIsError = false,
                         )
                     }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(backupBusy = false, backupMessage = error.userMessage("Unable to create account."))
+                        it.copy(
+                            backupBusy = false,
+                            backupMessage = error.userMessage("Unable to create account."),
+                            backupMessageIsError = true,
+                        )
                     }
                 },
             )
@@ -205,11 +229,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
-                    _uiState.update { it.copy(backupBusy = false, backupMessage = "Cloud backup completed.") }
+                    _uiState.update {
+                        it.copy(
+                            backupBusy = false,
+                            backupMessage = "Cloud backup completed.",
+                            backupMessageIsError = false,
+                        )
+                    }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(backupBusy = false, backupMessage = error.userMessage("Cloud backup failed."))
+                        it.copy(
+                            backupBusy = false,
+                            backupMessage = error.userMessage("Cloud backup failed."),
+                            backupMessageIsError = true,
+                        )
                     }
                 },
             )
@@ -246,8 +280,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         _uiState.update {
                             it.copy(
                                 backupBusy = false,
-                                backupMessage = activationError.userMessage("Cloud backup could not be switched on.")
-                                    ?: "Backup restored, but capture could not be restarted.",
+                                backupMessage = activationError.userMessage(
+                                    "Backup restored, but capture could not be restarted.",
+                                ),
+                                backupMessageIsError = true,
                             )
                         }
                     } else {
@@ -255,6 +291,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             it.copy(
                                 backupBusy = false,
                                 backupMessage = "Cloud backup restored on this phone.",
+                                backupMessageIsError = false,
                             )
                         }
                     }
@@ -262,7 +299,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(backupBusy = false, backupMessage = error.userMessage("Cloud restore failed."))
+                        it.copy(
+                            backupBusy = false,
+                            backupMessage = error.userMessage("Cloud restore failed."),
+                            backupMessageIsError = true,
+                        )
                     }
                 },
             )
@@ -277,14 +318,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 backupSignedInEmail = null,
                 backupPasswordDraft = "",
                 backupMessage = "Signed out. Local DailyBeat data remains on this phone.",
+                backupMessageIsError = false,
                 backupRestoreConfirmation = false,
             )
         }
     }
 
     fun setSupervisorName(name: String) {
-        app.settingsRepository.setSupervisorName(name)
-        _uiState.update { it.copy(supervisorName = name) }
+        val bounded = InputPolicy.singleLine(name, InputPolicy.PERSON_NAME_CHARS)
+        app.settingsRepository.setSupervisorName(bounded)
+        _uiState.update { it.copy(supervisorName = bounded) }
     }
 
     fun setThemePreference(preference: ThemePreference) {
@@ -293,20 +336,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addSuggestedPlace(suggestion: PlaceSuggestion) {
-        if (placeMutationInFlight) return
-        placeMutationInFlight = true
+        if (_uiState.value.placeBusy) return
+        _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
             runCatching {
                 app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
             }.fold(
                 onSuccess = {
-                    placeMutationInFlight = false
+                    _uiState.update { it.copy(placeBusy = false) }
                     refresh()
                 },
                 onFailure = { error ->
-                    placeMutationInFlight = false
                     _uiState.update {
-                        it.copy(placeError = error.userMessage("Unable to save the suggested place."))
+                        it.copy(
+                            placeBusy = false,
+                            placeError = error.userMessage("Unable to save the suggested place."),
+                        )
                     }
                 },
             )
@@ -358,8 +403,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setOfficerName(name: String) {
-        app.settingsRepository.setOfficerName(name)
-        _uiState.update { it.copy(officerName = name) }
+        val bounded = InputPolicy.singleLine(name, InputPolicy.PERSON_NAME_CHARS)
+        app.settingsRepository.setOfficerName(bounded)
+        _uiState.update { it.copy(officerName = bounded) }
     }
 
     fun setGpsEnabled(enabled: Boolean) {
@@ -401,17 +447,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setCloudModel(model: String) {
-        app.settingsRepository.setCloudModel(model)
-        _uiState.update { it.copy(cloudModel = model) }
+        val bounded = InputPolicy.singleLine(model, InputPolicy.CLOUD_MODEL_CHARS)
+        app.settingsRepository.setCloudModel(bounded)
+        _uiState.update { it.copy(cloudModel = bounded, cloudTestResult = null) }
     }
 
     fun setCloudBaseUrl(url: String) {
-        app.settingsRepository.setCloudBaseUrl(url)
-        _uiState.update { it.copy(cloudBaseUrl = url) }
+        val bounded = InputPolicy.singleLine(url, InputPolicy.CLOUD_URL_CHARS)
+        app.settingsRepository.setCloudBaseUrl(bounded)
+        _uiState.update { it.copy(cloudBaseUrl = bounded, cloudTestResult = null) }
     }
 
     fun setApiKeyDraft(key: String) {
-        _uiState.update { it.copy(apiKeyDraft = key, cloudTestResult = null) }
+        _uiState.update {
+            it.copy(
+                apiKeyDraft = InputPolicy.singleLine(key, InputPolicy.API_KEY_CHARS),
+                cloudTestResult = null,
+            )
+        }
     }
 
     fun saveApiKey() {
@@ -432,6 +485,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             hasApiKey = true,
                             apiKeyBusy = false,
                             cloudTestResult = "API key saved securely.",
+                            cloudTestIsError = false,
                         )
                     }
                 },
@@ -440,6 +494,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         it.copy(
                             apiKeyBusy = false,
                             cloudTestResult = error.userMessage("Unable to save the API key securely."),
+                            cloudTestIsError = true,
                         )
                     }
                 },
@@ -476,6 +531,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             hasApiKey = false,
                             apiKeyBusy = false,
                             cloudTestResult = "API key removed from this phone. Cloud requests are stopped.",
+                            cloudTestIsError = false,
                         )
                     }
                 },
@@ -483,8 +539,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(
                             apiKeyBusy = false,
-                            cloudTestResult = error.userMessage("Connection test failed.")
-                                ?: "Unable to remove the API key securely.",
+                            cloudTestResult = error.userMessage("Unable to remove the API key securely."),
+                            cloudTestIsError = true,
                         )
                     }
                 },
@@ -514,8 +570,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         _uiState.update {
                             it.copy(
                                 cloudTesting = false,
-                                cloudTestResult = saveError.userMessage("Unable to save the API key securely.")
-                                    ?: "Unable to save the API key securely.",
+                                cloudTestResult = saveError.userMessage("Unable to save the API key securely."),
+                                cloudTestIsError = true,
                             )
                         }
                         return@launch
@@ -531,13 +587,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val hasApiKey = withContext(Dispatchers.IO) {
                     app.settingsRepository.secureApiKey.hasApiKey()
                 }
+                val testError = result.exceptionOrNull()
                 _uiState.update {
                     it.copy(
                         cloudTesting = false,
-                        cloudTestResult = result.fold(
-                            onSuccess = { "Connected successfully." },
-                            onFailure = { error -> error.userMessage("Connection failed.") },
-                        ),
+                        cloudTestResult = testError?.userMessage("Connection failed.")
+                            ?: "Connected successfully.",
+                        cloudTestIsError = testError != null,
                         hasApiKey = hasApiKey,
                         apiKeyDraft = "",
                     )
@@ -547,6 +603,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         cloudTesting = false,
                         cloudTestResult = error.userMessage("Connection failed."),
+                        cloudTestIsError = true,
                     )
                 }
             }
@@ -555,7 +612,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** Fill the new-place coordinates from one fresh GPS fix, so the officer never types them. */
     fun captureCurrentLocationForPlace() {
-        if (_uiState.value.placeLocating) return
+        if (_uiState.value.placeLocating || _uiState.value.placeBusy) return
         _uiState.update { it.copy(placeLocating = true, placeError = null) }
         viewModelScope.launch {
             val location = fetchCurrentLocation(app)
@@ -578,11 +635,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updatePlaceDraft(name: String, lat: String, lon: String) {
-        _uiState.update { it.copy(placeName = name, placeLat = lat, placeLon = lon) }
+        _uiState.update {
+            it.copy(
+                placeName = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS),
+                placeLat = lat,
+                placeLon = lon,
+                placeError = null,
+            )
+        }
     }
 
     fun addPlace() {
-        if (placeMutationInFlight) return
+        if (_uiState.value.placeBusy) return
         val state = _uiState.value
         val name = state.placeName.trim()
         if (state.placeLat.isBlank() || state.placeLon.isBlank()) {
@@ -597,20 +661,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val lat = state.placeLat.toDouble()
         val lon = state.placeLon.toDouble()
 
-        placeMutationInFlight = true
+        _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
             runCatching { app.placeRepository.add(name, lat, lon) }.fold(
                 onSuccess = {
-                    placeMutationInFlight = false
                     _uiState.update {
-                        it.copy(placeName = "", placeLat = "", placeLon = "", placeLocating = false, placeError = null)
+                        it.copy(
+                            placeName = "",
+                            placeLat = "",
+                            placeLon = "",
+                            placeLocating = false,
+                            placeBusy = false,
+                            placeError = null,
+                        )
                     }
                     refresh()
                 },
                 onFailure = { error ->
-                    placeMutationInFlight = false
                     _uiState.update {
-                        it.copy(placeError = error.userMessage("Unable to add this place."))
+                        it.copy(
+                            placeBusy = false,
+                            placeError = error.userMessage("Unable to add this place."),
+                        )
                     }
                 },
             )
@@ -618,27 +690,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun deletePlace(place: Place) {
-        if (placeMutationInFlight) return
-        placeMutationInFlight = true
+        if (_uiState.value.placeBusy) return
+        _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
             runCatching { app.placeRepository.delete(place) }.fold(
                 onSuccess = {
-                    placeMutationInFlight = false
                     // Reflect the completed delete immediately. A full refresh still follows for
                     // suggestions and other derived state, but the stale row must not remain
                     // tappable while that second database read is waiting to run.
                     _uiState.update { state ->
                         state.copy(
                             places = state.places.filterNot { candidate -> candidate.id == place.id },
+                            placeBusy = false,
                             placeError = null,
                         )
                     }
                     refresh()
                 },
                 onFailure = { error ->
-                    placeMutationInFlight = false
                     _uiState.update {
-                        it.copy(placeError = error.userMessage("Unable to delete this place."))
+                        it.copy(
+                            placeBusy = false,
+                            placeError = error.userMessage("Unable to delete this place."),
+                        )
                     }
                 },
             )
@@ -646,24 +720,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setPlacePrivate(place: Place, isPrivate: Boolean) {
-        if (placeMutationInFlight) return
-        placeMutationInFlight = true
+        if (_uiState.value.placeBusy) return
+        _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
             runCatching { app.placeRepository.setPrivate(place, isPrivate) }.fold(
                 onSuccess = {
-                    placeMutationInFlight = false
                     _uiState.update { state ->
                         state.copy(
                             places = state.places.map { candidate ->
                                 if (candidate.id == place.id) candidate.copy(isPrivate = isPrivate) else candidate
                             },
+                            placeBusy = false,
                             placeError = null,
                         )
                     }
                 },
                 onFailure = { error ->
-                    placeMutationInFlight = false
-                    _uiState.update { it.copy(placeError = error.userMessage("Unable to update privacy.")) }
+                    _uiState.update {
+                        it.copy(
+                            placeBusy = false,
+                            placeError = error.userMessage("Unable to update privacy."),
+                        )
+                    }
                 },
             )
         }

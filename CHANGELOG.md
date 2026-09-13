@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Hardened
+- User-entered names, notes, diary text, cloud settings, and place labels now share Unicode-safe
+  length and control-character boundaries in both UI and persistence layers.
+- Place coordinates and recognition radii are validated before storage, while repeat taps are
+  blocked during place, moment, weekly-export, and PDF operations.
+- Async errors and confirmations now use accessible live feedback with recovery actions where a
+  retry is possible.
+
+### Polished
+- Saved-place cards no longer expose raw latitude and longitude in the ordinary Settings flow;
+  they explain the practical recognition distance instead.
+- Settings now chooses the cloud provider before provider-specific fields and groups officer and
+  supervisor details under the clearer “Diary identity” heading.
+- Long-running backup, cloud, weekly, moment, note, and PDF actions show calm progress copy and
+  keep related controls unavailable until completion.
+
 ## 4.0.1 — 2026-09-13
 
 ### Redesigned

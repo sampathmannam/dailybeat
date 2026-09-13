@@ -25,7 +25,7 @@ import com.dailybeat.app.ui.theme.EventVisit
 import com.dailybeat.app.ui.theme.EventVoice
 import java.util.Locale
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Icon
@@ -89,7 +89,7 @@ fun EventCard(
                     MetaLine(Icons.Outlined.Person, people)
                 }
                 event.caseNumbers?.let { cases ->
-                    MetaLine(Icons.Outlined.Assignment, cases)
+                    MetaLine(Icons.AutoMirrored.Outlined.Assignment, cases)
                 }
             }
         }

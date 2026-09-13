@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.EventCard
+import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.components.SectionHeader
@@ -68,6 +69,10 @@ fun DiaryScreen(
                 title = stringResource(R.string.diary_screen_title),
                 subtitle = dateLabel,
             )
+        }
+
+        uiState.error?.let { error ->
+            item { InlineFeedback(message = error, isError = true) }
         }
 
         item {
@@ -119,13 +124,6 @@ fun DiaryScreen(
                 onClick = viewModel::generateFromCustomEvents,
                 enabled = !uiState.isGenerating && uiState.customEvents.isNotBlank(),
             )
-            uiState.error?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
         }
 
         if (uiState.isGenerating) {
@@ -149,8 +147,13 @@ fun DiaryScreen(
             }
             item {
                 PrimaryButton(
-                    text = stringResource(R.string.share_pdf_button),
-                    enabled = uiState.text.isNotBlank() && !uiState.isGenerating,
+                    text = if (uiState.isExporting) {
+                        stringResource(R.string.creating_pdf)
+                    } else {
+                        stringResource(R.string.share_pdf_button)
+                    },
+                    enabled = uiState.text.isNotBlank() &&
+                        !uiState.isGenerating && !uiState.isExporting,
                     onClick = {
                         scope.launch {
                             val path = viewModel.exportPdfPath() ?: return@launch
