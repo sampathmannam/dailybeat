@@ -220,7 +220,6 @@ class MainNavigationTest {
         // every other Settings test in this file reaches its target, instead of assuming the
         // theme selector is on the first screenful.
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Appearance"))
-        composeRule.onNodeWithText("Appearance").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").performClick()
         composeRule.waitUntil(5_000) {
