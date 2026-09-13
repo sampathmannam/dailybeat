@@ -214,12 +214,10 @@ class MainNavigationTest {
     fun appearanceSelectorChangesThemeAndSurvivesActivityRecreation() {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitForIdle()
 
-        // Appearance is deliberately no longer the first group: capture and named places come
-        // first, because that is where the privacy contract lives. So scroll to it the same way
-        // every other Settings test in this file reaches its target, instead of assuming the
-        // theme selector is on the first screenful.
-        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Appearance"))
+        // Appearance is deliberately below capture and named places, so scroll directly to the
+        // tagged control after Settings has settled instead of querying an intermediate heading.
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").performClick()
         composeRule.waitUntil(5_000) {
@@ -232,7 +230,9 @@ class MainNavigationTest {
         composeRule.onNodeWithTag("theme_dark").assertIsSelected()
 
         composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").assertIsSelected()
 
