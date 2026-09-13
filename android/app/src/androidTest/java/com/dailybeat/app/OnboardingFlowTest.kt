@@ -2,7 +2,6 @@ package com.dailybeat.app
 
 import android.Manifest
 import android.os.ParcelFileDescriptor
-import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
@@ -13,7 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -52,15 +51,11 @@ class OnboardingFlowTest {
             timeoutMillis = 10_000,
         )
         composeRule.onNode(hasText("Officer name") and hasSetTextAction())
-            .performTextInput("Inspector Rao")
+            .performTextReplacement("Inspector Rao")
 
-        // The name editor opens the software keyboard. On slower emulator frames it can consume
-        // the Continue tap even though Compose has already laid the button out below it.
-        composeRule.activityRule.scenario.onActivity { activity ->
-            val inputMethodManager = activity.getSystemService(InputMethodManager::class.java)
-            val windowToken = activity.currentFocus?.windowToken ?: activity.window.decorView.windowToken
-            inputMethodManager.hideSoftInputFromWindow(windowToken, 0)
-        }
+        // Set text through semantics instead of opening Gboard. Waiting for the asynchronous IME
+        // hide animation made the following button click depend on emulator frame timing rather
+        // than on Daily Beat's onboarding behavior.
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Continue").performScrollTo().performClick()
         composeRule.waitUntilAtLeastOneExists(hasText("Get started"), timeoutMillis = 10_000)
