@@ -26,12 +26,12 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = SurfaceElevated,
     onPrimaryContainer = Navy,
-    secondary = Gold,
+    secondary = Marigold,
     onSecondary = Ink,
-    secondaryContainer = GoldSoft,
+    secondaryContainer = MarigoldSoft,
     onSecondaryContainer = Ink,
     // Attention states — "Needs review", "Waiting for GPS". Left at Material's default this role is
-    // a mauve-pink that has nothing to do with the navy-and-gold identity.
+    // a mauve-pink that has nothing to do with the navy-and-marigold identity.
     tertiary = WarningAmber,
     onTertiary = Color.White,
     tertiaryContainer = WarningAmberSoft,
@@ -51,10 +51,10 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = NightCanvas,
     primaryContainer = Color(0xFF183F6E),
     onPrimaryContainer = NightInk,
-    secondary = Gold,
+    secondary = MarigoldNight,
     onSecondary = Ink,
-    secondaryContainer = Color(0xFF514600),
-    onSecondaryContainer = Color(0xFFFFF4B8),
+    secondaryContainer = MarigoldNightContainer,
+    onSecondaryContainer = MarigoldNightInk,
     tertiary = NightAmber,
     onTertiary = Color(0xFF3B2300),
     tertiaryContainer = NightAmberSoft,
@@ -65,7 +65,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = NightInk,
     surfaceVariant = NightElevated,
     onSurfaceVariant = NightMuted,
-    outline = Color(0xFF6F8194),
+    outline = NightOutline,
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
 )
