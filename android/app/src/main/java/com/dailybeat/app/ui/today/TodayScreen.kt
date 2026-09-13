@@ -57,6 +57,7 @@ import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
 import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.EventCard
+import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
@@ -64,6 +65,7 @@ import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
 import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
+import com.dailybeat.app.util.InputPolicy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,14 +96,17 @@ fun TodayScreen(
     }
 
     if (showCaptureSheet) {
-        ModalBottomSheet(onDismissRequest = { showCaptureSheet = false }) {
+        val captureBusy = uiState.isSavingMoment || uiState.isSavingNote ||
+            uiState.isRecordingVoice || uiState.isGeneratingReport
+        ModalBottomSheet(onDismissRequest = { if (!captureBusy) showCaptureSheet = false }) {
             CaptureMomentSheet(
                 note = note,
-                onNoteChanged = { note = it },
+                onNoteChanged = {
+                    note = InputPolicy.multiline(it, InputPolicy.MOMENT_NOTE_CHARS)
+                },
                 uiState = uiState,
                 onMarkMoment = {
-                    viewModel.markSignificantMoment()
-                    showCaptureSheet = false
+                    viewModel.markSignificantMoment { showCaptureSheet = false }
                 },
                 onRecordVoice = {
                     (onRecordVoice ?: viewModel::recordVoiceNote).invoke()
@@ -560,7 +565,15 @@ private fun CaptureMomentSheet(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        PrimaryButton(text = stringResource(R.string.mark_significant_moment), onClick = onMarkMoment)
+        PrimaryButton(
+            text = if (uiState.isSavingMoment) {
+                stringResource(R.string.saving_moment)
+            } else {
+                stringResource(R.string.mark_significant_moment)
+            },
+            onClick = onMarkMoment,
+            enabled = !uiState.isSavingMoment,
+        )
         SecondaryButton(
             text = stringResource(R.string.record_voice_note),
             onClick = onRecordVoice,
@@ -576,7 +589,11 @@ private fun CaptureMomentSheet(
             colors = fieldColors,
         )
         SecondaryButton(
-            text = stringResource(R.string.save_optional_note),
+            text = if (uiState.isSavingNote) {
+                stringResource(R.string.saving_note)
+            } else {
+                stringResource(R.string.save_optional_note)
+            },
             onClick = onSaveNote,
             enabled = note.isNotBlank() && !uiState.isSavingNote,
         )
@@ -650,21 +667,10 @@ private fun StatusChip(
 
 @Composable
 private fun FeedbackMessage(message: String, error: Boolean, onDismiss: (() -> Unit)? = null) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = message,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            onDismiss?.let { dismiss ->
-                TextButton(onClick = dismiss) { Text(stringResource(R.string.dismiss)) }
-            }
-        }
-    }
+    InlineFeedback(
+        message = message,
+        isError = error,
+        actionLabel = if (onDismiss != null) stringResource(R.string.dismiss) else null,
+        onAction = onDismiss,
+    )
 }

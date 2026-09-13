@@ -3,6 +3,7 @@ package com.dailybeat.app.data.repo
 import com.dailybeat.app.data.db.BeatReviewDao
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.util.DateKeys
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -18,7 +19,7 @@ class BeatRepository(
         val current = get(date)
         dao.upsert(
             (current ?: BeatReview(dateKey = DateKeys.format(date))).copy(
-                title = title.trim().take(120),
+                title = InputPolicy.singleLine(title, InputPolicy.BEAT_TITLE_CHARS).trim(),
                 updatedAt = clock(),
             ),
         )
@@ -29,7 +30,7 @@ class BeatRepository(
         val current = get(date)
         dao.upsert(
             (current ?: BeatReview(dateKey = DateKeys.format(date))).copy(
-                title = title.trim().take(120),
+                title = InputPolicy.singleLine(title, InputPolicy.BEAT_TITLE_CHARS).trim(),
                 state = "complete",
                 completedAt = now,
                 updatedAt = now,

@@ -123,8 +123,9 @@
     <string name="status_cloud_off">Cloud AI not set up</string>
     <string name="mark_significant_moment">Mark significant moment (no typing)</string>
     <string name="record_voice_note">Record voice note</string>
+    <string name="saving_moment">Saving moment…</string>
+    <string name="saving_note">Saving note…</string>
     <string name="load_synthetic_day">Load synthetic demo day</string>
-    <string name="auto_midday_pulse">Auto midday pulse at 1 PM (cloud AI)</string>
     <string name="settings_qa_group">QA &amp; transparency</string>
     <string name="refresh_audit_log">Refresh capture audit log</string>
     <string name="supervisor_name_label">Supervisor name (PDF sign-off)</string>
@@ -168,9 +169,11 @@
         <item quantity="other">Route map for the day with %1$d stops</item>
     </plurals>
     <string name="share_pdf_button">Share PDF</string>
+    <string name="creating_pdf">Creating PDF…</string>
     <string name="recording_label">Listening… stop speaking to save</string>
     <string name="settings_title">Settings</string>
     <string name="settings_appearance_group">Appearance</string>
+    <string name="settings_identity_group">Diary identity</string>
     <string name="settings_theme_description">Choose how DailyBeat looks. System follows your phone’s appearance setting.</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
@@ -245,6 +248,12 @@
     <string name="use_current_location">Use current location</string>
     <string name="use_current_location_again">Update to current location</string>
     <string name="place_locating">Getting your location…</string>
-    <string name="place_location_captured">Location set (%1$s)</string>
+    <string name="place_location_captured">Location captured from this phone</string>
+    <string name="saved_place_radius">Recognises stops within about %1$d m</string>
+    <string name="backup_working">Working securely…</string>
+    <string name="cloud_working">Checking cloud connection…</string>
+    <string name="weekly_working">Preparing your weekly record…</string>
+    <string name="feed_open_day_action">Open this day</string>
+    <string name="feed_name_place_action">Name this place</string>
     <string name="insights_tap_a_day">Tap a bar to see that day.</string>
 </resources>

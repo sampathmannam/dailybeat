@@ -16,12 +16,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import com.dailybeat.app.util.userMessage
+import com.dailybeat.app.util.InputPolicy
 
 data class FeedUiState(
     val days: List<DayFeedItem> = emptyList(),
     val isLoading: Boolean = true,
     val isGeneratingWeekly: Boolean = false,
     val isExporting: Boolean = false,
+    val isSavingPlace: Boolean = false,
     val message: String? = null,
     val error: String? = null,
     val exportPath: String? = null,
@@ -81,7 +83,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun generateWeeklyRollup() {
-        if (_uiState.value.isGeneratingWeekly) return
+        if (_uiState.value.isGeneratingWeekly || _uiState.value.isExporting) return
         _uiState.value = _uiState.value.copy(isGeneratingWeekly = true, error = null, message = null)
         viewModelScope.launch {
             val result = runCatching { app.weeklyGenerator.generateAndSave() }
@@ -105,7 +107,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun exportPackage() {
-        if (_uiState.value.isExporting) return
+        if (_uiState.value.isExporting || _uiState.value.isGeneratingWeekly) return
         _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
         viewModelScope.launch {
             runCatching {
@@ -140,8 +142,9 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
      * stops, so reverse geocoding can only offer the road; naming it once teaches the app, and
      * [com.dailybeat.app.domain.GeofenceMatcher] labels every later stay there.
      */
-    fun saveNamedPlace(stay: DayStay, name: String) {
-        val trimmed = name.trim()
+    fun saveNamedPlace(stay: DayStay, name: String, onSaved: () -> Unit = {}) {
+        if (_uiState.value.isSavingPlace) return
+        val trimmed = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS).trim()
         if (trimmed.isEmpty()) return
         if (!stay.canBeNamed) {
             _uiState.value = _uiState.value.copy(
@@ -150,19 +153,23 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             )
             return
         }
+        _uiState.value = _uiState.value.copy(isSavingPlace = true, error = null, message = null)
         viewModelScope.launch {
             runCatching {
                 app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
             }.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
+                        isSavingPlace = false,
                         message = "Saved \"$trimmed\". Future stays here will use it.",
                         error = null,
                     )
+                    onSaved()
                     refresh()
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
+                        isSavingPlace = false,
                         error = error.userMessage("Unable to save this place."),
                     )
                 },

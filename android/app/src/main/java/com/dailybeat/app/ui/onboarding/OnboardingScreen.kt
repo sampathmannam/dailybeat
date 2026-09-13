@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
+import com.dailybeat.app.util.InputPolicy
 
 @Composable
 fun OnboardingScreen(
@@ -117,7 +118,9 @@ fun OnboardingScreen(
                     )
                     OutlinedTextField(
                         value = officerName,
-                        onValueChange = { officerName = it },
+                        onValueChange = {
+                            officerName = InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(stringResource(R.string.officer_name_label)) },
                         singleLine = true,
