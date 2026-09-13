@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.0.1 — 2026-09-13
+
+### Redesigned
+- **Days cards now read as a focused journey summary.** Each card prioritizes the date, review
+  state, route map, distance, tracked time, stops, and the action to inspect the day.
+- **Generated diary prose is no longer duplicated inside the card.** Legacy midday-pulse and diary
+  preview text have been removed from the Days list; the complete diary remains available in its
+  dedicated day view.
+
+### Hardened
+- **Release and dependency checks fail closed.** The protected release commit must pass build,
+  offline and live instrumentation, cloud-backup, release-policy, CodeQL, and open-source security
+  gates before the permanent signing key can publish an APK.
+- **Production safeguards cover secrets, networking, backups, and Android components.** Runtime
+  provider keys remain device-encrypted and absent from source and release artifacts, owner-only
+  backup policies remain enforced, and exported Android components stay explicitly constrained.
+
+### Verification
+- Added regression coverage for the simplified Days-card information hierarchy.
+- Re-ran the phone UI flow and the complete protected CI/security matrix before release.
+
 ## 4.0.0 — 2026-09-12
 
 ### Redesigned
