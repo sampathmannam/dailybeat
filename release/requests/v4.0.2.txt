@@ -1,0 +1,4 @@
+Publish DailyBeat v4.0.2 only after the Unicode-safe input boundaries, privacy-safe saved-place UI,
+duplicate-action guards, accessible progress and recovery states, build, offline and live
+instrumentation, cloud-backup, release-policy, CodeQL, and open-source security checks all pass on
+the protected main commit.

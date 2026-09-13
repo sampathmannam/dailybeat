@@ -1,9 +1,13 @@
-# DailyBeat v4.0.1 — install and verify
+# DailyBeat v4.0.2 — install and verify
 
-Version 4.0.1 hardens DailyBeat and simplifies the phone-only journey ledger. Days cards now focus
-on the date, review state, route map, distance, tracked time, stops, and the action to inspect the
-day. Generated diary and legacy midday-pulse prose no longer compete with that summary; the complete
-diary remains available inside its dedicated day view.
+Version 4.0.2 hardens every user-editable path and polishes the phone-only experience. Names,
+notes, diary text, places, and cloud settings now share Unicode-safe boundaries in the UI and
+persistence layers. Long-running actions block duplicate taps, announce progress and outcomes to
+assistive technology, and keep recovery close to the action that failed.
+
+Saved-place cards no longer expose precise coordinates in the ordinary Settings flow. They explain
+the practical recognition distance instead, while the cloud provider is chosen before its
+provider-specific fields and officer/supervisor information is grouped as Diary identity.
 
 The privacy and reliability guarantees from v3.9.0 remain intact. A place marked **Private zone**
 in Settings, and any stop hidden in **Review my day**, are excluded from cloud reports and shared
@@ -39,9 +43,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.0.1`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.0.2`):
 
-- `DailyBeat-v4.0.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.0.2.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

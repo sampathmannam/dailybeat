@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.0.2 — 2026-09-13
 
 ### Hardened
 - User-entered names, notes, diary text, cloud settings, and place labels now share Unicode-safe
