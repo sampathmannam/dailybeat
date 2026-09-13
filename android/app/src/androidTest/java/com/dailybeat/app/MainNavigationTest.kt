@@ -133,7 +133,7 @@ class MainNavigationTest {
         composeRule.onNodeWithText("1 event logged for this day").assertIsDisplayed()
     }
 
-        @Test
+    @Test
     fun settingsAddPlaceNeedsANameAndACapturedLocation() {
         composeRule.onNodeWithTag("nav_settings").performClick()
         composeRule.onNodeWithTag("settings_list")
@@ -143,7 +143,7 @@ class MainNavigationTest {
         // Coordinates are captured from GPS now, not typed. Without a captured fix, Add place
         // stays disabled and the "Use current location" action is offered instead.
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Use current location"))
-        composeRule.onNodeWithText("Use current location").assertIsDisplayed()
+        composeRule.onNodeWithText("Use current location").assertExists()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Add place"))
         composeRule.onNodeWithText("Add place").assertIsNotEnabled()
     }

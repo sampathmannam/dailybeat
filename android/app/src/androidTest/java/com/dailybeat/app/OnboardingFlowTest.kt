@@ -2,14 +2,19 @@ package com.dailybeat.app
 
 import android.Manifest
 import android.os.ParcelFileDescriptor
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Before
@@ -18,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+@OptIn(ExperimentalTestApi::class)
 class OnboardingFlowTest {
 
     @get:Rule
@@ -27,26 +33,40 @@ class OnboardingFlowTest {
     fun resetAppState() {
         requireDisposableTestApp()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+        check(
+            context.getSharedPreferences("dailybeat_settings", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .clear()
+                .commit(),
+        )
         grantCorePermissions()
         composeRule.activityRule.scenario.recreate()
     }
 
     @Test
     fun onboardingThreeStepsReachTodayScreen() {
-        composeRule.onNodeWithText("Continue").performClick()
+        composeRule.waitUntilAtLeastOneExists(hasText("Continue"), timeoutMillis = 10_000)
+        composeRule.onNodeWithText("Continue").performScrollTo().performClick()
+        composeRule.waitUntilAtLeastOneExists(
+            hasText("Officer name") and hasSetTextAction(),
+            timeoutMillis = 10_000,
+        )
         composeRule.onNode(hasText("Officer name") and hasSetTextAction())
             .performTextInput("Inspector Rao")
-        composeRule.onNodeWithText("Continue").performClick()
-        composeRule.onNodeWithText("Get started").performClick()
 
-        // Offline emulator runners can need an extra frame to replace the onboarding surface.
-        // Wait for the destination to be visible instead of racing that transition.
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            runCatching {
-                composeRule.onNodeWithTag("today_list").assertIsDisplayed()
-            }.isSuccess
+        // The name editor opens the software keyboard. On slower emulator frames it can consume
+        // the Continue tap even though Compose has already laid the button out below it.
+        composeRule.activityRule.scenario.onActivity { activity ->
+            val inputMethodManager = activity.getSystemService(InputMethodManager::class.java)
+            val windowToken = activity.currentFocus?.windowToken ?: activity.window.decorView.windowToken
+            inputMethodManager.hideSoftInputFromWindow(windowToken, 0)
         }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Continue").performScrollTo().performClick()
+        composeRule.waitUntilAtLeastOneExists(hasText("Get started"), timeoutMillis = 10_000)
+        composeRule.onNodeWithText("Get started").performScrollTo().performClick()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), timeoutMillis = 20_000)
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
     }
 }
