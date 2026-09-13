@@ -19,7 +19,10 @@ The editable design handoff is in [DailyBeat — Product Architecture & UI v4](h
 | Canvas | `#F8FAFC` | Quiet screen background |
 | Navy | `#0B2D5B` | Primary actions, emphasis, route edge |
 | Ink | `#0B1B33` | High-contrast text |
-| Signal yellow | `#FFD60A` | Route, stops, key moments, identity |
+| Marigold | `#EAAA00` | Route, stops, key moments, identity |
+| Carbon canvas | `#090A0C` | Neutral dark-mode background |
+| Carbon surface | `#121418` | Neutral dark-mode cards and sheets |
+| Carbon elevated | `#1A1D23` | Neutral dark-mode tonal elevation |
 | Off-white | `#FFFDF7` | Warm light surface and icon detail |
 | Large radius | `20dp` | Maps and the single dominant day object |
 | Medium radius | `16dp` | Controls and status surfaces |
@@ -49,7 +52,7 @@ Only Review My Day receives primary-action styling. Repeated metric cards are av
 
 ## Route language
 
-Reliable breadcrumb segments use signal yellow with a navy edge. Stops use yellow markers with an off-white ring. Capture gaps longer than ten minutes appear as discontinuities and are excluded from distance totals. When route data exists, use a base map; an abstract line-only thumbnail is not an acceptable connected-state fallback.
+Reliable breadcrumb segments use marigold with a navy edge. Stops use marigold markers with an off-white ring. Capture gaps longer than ten minutes appear as discontinuities and are excluded from distance totals. When route data exists, use a base map; an abstract line-only thumbnail is not an acceptable connected-state fallback.
 
 ## Interaction and motion
 

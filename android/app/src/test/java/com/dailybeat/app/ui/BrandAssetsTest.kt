@@ -49,7 +49,7 @@ class BrandAssetsTest {
 
         assertTrue("#0B2D5B" in colors)
         assertTrue("#F8FAFC" in foreground)
-        assertTrue("#FFD60A" in foreground)
+        assertTrue("#EAAA00" in foreground)
         assertTrue("#0B2D5B" in foreground)
         assertTrue("M31,19" in foreground) // daily record page
         assertTrue("M37,72 C41,66" in foreground) // mapped route

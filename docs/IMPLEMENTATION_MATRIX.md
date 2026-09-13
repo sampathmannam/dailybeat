@@ -45,9 +45,9 @@ discards. No gap required a schema change, a new dependency, or a new permission
 
 | Prototype intent | Production | Owner | Status |
 |---|---|---|---|
-| Navy `#0B2D5B`, navy-soft `#294E78`, signal `#FFD60A` | Identical values | `Color.kt` | Matched |
+| Navy `#0B2D5B`, navy-soft `#294E78`, marigold `#EAAA00` | Identical values | `Color.kt` | Matched |
 | Light surfaces `#F8FAFC` / `#FFFFFF` / `#EEF3F8`, ink `#0B1B33`, muted `#475569`, outline `#7C8DA3` | Identical | `Color.kt` | Matched |
-| Dark surfaces `#081A2E` / `#10263D` / `#183149`, ink `#F2F6FA`, muted `#B7C5D4`, primary `#B8D4FF` | Identical | `Color.kt` | Matched |
+| Carbon dark surfaces `#090A0C` / `#121418` / `#1A1D23`, ink `#F4F5F7`, muted `#B8BEC7`, primary `#B8D4FF` | Identical | `Color.kt` | Matched |
 | Six event accents (manual/voice/gps/call/visit/moment) | Identical, **plus** a second lifted night set the token file does not have | `Color.kt`, `EventCard.kt` | Production wins |
 | Roboto / system sans | `FontFamily.SansSerif` — resolves to Roboto on Android and honours a user's font substitution | `Type.kt` | Matched |
 | Type ramp 28/22/18/16/16/14/14/11 | Identical sizes and weights | `Type.kt` | Matched |

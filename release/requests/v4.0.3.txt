@@ -1,0 +1,3 @@
+Publish DailyBeat v4.0.3 only after the marigold identity, neutral Carbon dark surfaces, launcher,
+maps, cold-start window, contrast checks, and complete protected CI/security matrix pass on the
+exact main commit. Publish the permanently signed APK with SHA256SUMS.txt.

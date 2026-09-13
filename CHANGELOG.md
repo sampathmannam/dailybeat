@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.3 — 2026-09-13
+
+### Refined
+- The fluorescent signal yellow is replaced by a calmer marigold system across actions, selected
+  states, route lines, stop markers, onboarding accents, and the launcher identity.
+- Dark mode now uses neutral Carbon layers for the window, canvas, cards, and elevated surfaces
+  instead of blue-tinted backgrounds. Text, boundaries, and marigold containers retain AA contrast.
+- The light and dark launch windows match their Compose canvases, preventing a tinted flash during
+  cold start.
+
 ## 4.0.2 — 2026-09-13
 
 ### Hardened

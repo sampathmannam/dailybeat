@@ -34,7 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.dailybeat.app.ui.theme.Gold
+import com.dailybeat.app.ui.theme.Marigold
 import com.dailybeat.app.ui.theme.Navy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -160,7 +160,7 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
                 offsets.drop(1).forEach { lineTo(it.x, it.y) }
             }
             drawPath(path = routePath, color = Navy, style = Stroke(width = 8.dp.toPx()))
-            drawPath(path = routePath, color = Gold, style = Stroke(width = 5.dp.toPx()))
+            drawPath(path = routePath, color = Marigold, style = Stroke(width = 5.dp.toPx()))
         }
 
         model.gapSegments.forEach { segment ->
@@ -184,7 +184,7 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
         model.stopPoints.forEach { point ->
             val offset = point.toOffset()
             drawCircle(color = Navy, radius = 7.dp.toPx(), center = offset)
-            drawCircle(color = Gold, radius = 4.5.dp.toPx(), center = offset)
+            drawCircle(color = Marigold, radius = 4.5.dp.toPx(), center = offset)
         }
     }
 }
