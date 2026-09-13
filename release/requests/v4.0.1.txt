@@ -1,0 +1,1 @@
+Publish DailyBeat v4.0.1 only after the hardened secrets, networking, backup, dependency and Android-component policies; redesigned phone-first Days cards; build; offline and live instrumentation; cloud-backup; release-policy; CodeQL; and open-source security checks all pass on the protected main commit.
