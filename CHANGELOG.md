@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.4 — 2026-09-14
+
+### Refined
+- DailyBeat's original high-visibility yellow returns to the launcher, maps, markers, selected
+  states, onboarding accents, and identity details.
+- The calmer marigold introduced in 4.0.3 is retained only for yellow-toned button surfaces, so
+  actions stay grounded without muting the rest of the brand.
+- Neutral Carbon dark-mode backgrounds and surfaces remain unchanged.
+
 ## 4.0.3 — 2026-09-13
 
 ### Refined

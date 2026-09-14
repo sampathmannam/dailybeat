@@ -49,12 +49,26 @@ class BrandAssetsTest {
 
         assertTrue("#0B2D5B" in colors)
         assertTrue("#F8FAFC" in foreground)
-        assertTrue("#EAAA00" in foreground)
+        assertTrue("#FFD60A" in foreground)
         assertTrue("#0B2D5B" in foreground)
         assertTrue("M31,19" in foreground) // daily record page
         assertTrue("M37,72 C41,66" in foreground) // mapped route
         assertTrue("M62,27 C53.7" in foreground) // destination pin
         assertTrue(Regex("<path\\b").findAll(foreground).count() >= 5)
+    }
+
+    @Test
+    fun originalYellowIdentityAndMarigoldButtonsStaySeparate() {
+        val colors = source("ui/theme/Color.kt")
+        val theme = source("ui/theme/Theme.kt")
+        val buttons = source("ui/components/CommonComponents.kt")
+        val map = source("ui/components/JourneyMapStyle.kt")
+
+        assertTrue("val Gold = Color(0xFFFFD60A)" in colors)
+        assertTrue("val ButtonMarigold = Color(0xFFEAAA00)" in colors)
+        assertTrue("secondary = Gold" in theme)
+        assertTrue("containerColor = ButtonMarigold" in buttons)
+        assertTrue("#FFD60A" in map)
     }
 
     @Test

@@ -1,0 +1,4 @@
+Publish DailyBeat v4.0.4 only after the original signal-yellow identity, marigold-only button
+surfaces, neutral Carbon dark mode, launcher, maps, contrast checks, and complete protected
+CI/security matrix pass on the exact main commit. Publish the permanently signed APK with
+SHA256SUMS.txt.

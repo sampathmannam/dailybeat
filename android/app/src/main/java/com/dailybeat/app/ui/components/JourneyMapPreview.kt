@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -51,6 +52,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
+import com.dailybeat.app.ui.theme.ButtonMarigold
+import com.dailybeat.app.ui.theme.ButtonMarigoldInk
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -335,6 +338,10 @@ fun JourneyMapPreview(
                         },
                         enabled = canReplay,
                         modifier = Modifier.testTag("replay_route"),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = ButtonMarigold,
+                            contentColor = ButtonMarigoldInk,
+                        ),
                     ) {
                         Icon(
                             imageVector = when {
