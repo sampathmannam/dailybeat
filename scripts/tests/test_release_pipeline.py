@@ -33,9 +33,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 26" in gradle
-    assert 'versionName = "4.0.5"' in gradle
-    assert release_marker == "4.0.5"
+    assert "versionCode = 27" in gradle
+    assert 'versionName = "4.0.6"' in gradle
+    assert release_marker == "4.0.6"
 
 
 def test_release_build_requires_the_permanent_signing_key():
