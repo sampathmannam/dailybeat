@@ -1,9 +1,9 @@
-# DailyBeat v4.0.3 — install and verify
+# DailyBeat v4.0.4 — install and verify
 
-Version 4.0.3 replaces the fluorescent signal yellow with a calmer marigold across the app and
-moves dark mode from navy-tinted surfaces to neutral Carbon layers. The launcher, route, stops,
-selection accents, cold-start window, cards, and elevated surfaces now share the same system.
-Foreground/background pairs retain accessible contrast in light and dark themes.
+Version 4.0.4 restores DailyBeat's original signal yellow to the launcher, route, stops, selected
+states, and identity accents. The calmer marigold introduced in 4.0.3 is retained specifically for
+yellow-toned buttons. Neutral Carbon dark-mode layers remain unchanged, and foreground/background
+pairs retain accessible contrast in both themes.
 
 The v4.0.2 hardening remains intact. Names, notes, diary text, places, and cloud settings share
 Unicode-safe boundaries in the UI and persistence layers. Long-running actions block duplicate
@@ -48,9 +48,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.0.3`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.0.4`):
 
-- `DailyBeat-v4.0.3.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.0.4.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
@@ -103,7 +103,7 @@ by CI; credential values are never committed.
    Days card update after returning.
 4. Verify the four tabs: Today, Days, Insights and Settings. DSR must not appear.
 5. Open Review My Day, rename one stop, hide and restore it, name the Beat, and mark it complete.
-6. Open the full map and verify a marigold route appears immediately while interactive tiles load;
+6. Open the full map and verify a signal-yellow route appears immediately while interactive tiles load;
    when the street map is ready, tap **Replay route** and verify the route draws from start to finish.
 7. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.
