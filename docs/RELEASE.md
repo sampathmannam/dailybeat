@@ -1,9 +1,9 @@
-# DailyBeat v4.0.4 — install and verify
+# DailyBeat v4.0.5 — install and verify
 
-Version 4.0.4 restores DailyBeat's original signal yellow to the launcher, route, stops, selected
-states, and identity accents. The calmer marigold introduced in 4.0.3 is retained specifically for
-yellow-toned buttons. Neutral Carbon dark-mode layers remain unchanged, and foreground/background
-pairs retain accessible contrast in both themes.
+Version 4.0.5 uses DailyBeat's original signal yellow for the launcher, route, stops, selected
+states, identity accents, and every yellow-toned button. The marigold override has been removed.
+Neutral Carbon dark-mode layers remain unchanged, and foreground/background pairs retain
+accessible contrast in both themes.
 
 The v4.0.2 hardening remains intact. Names, notes, diary text, places, and cloud settings share
 Unicode-safe boundaries in the UI and persistence layers. Long-running actions block duplicate
@@ -48,9 +48,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.0.4`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.0.5`):
 
-- `DailyBeat-v4.0.4.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.0.5.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

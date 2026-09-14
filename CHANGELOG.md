@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.5 — 2026-09-14
+
+### Refined
+- Yellow action buttons now use DailyBeat's original signal yellow `#FFD60A`; the marigold
+  override has been removed.
+- Every yellow role now resolves to the same original identity color, while Carbon dark-mode
+  surfaces remain neutral and unchanged.
+
 ## 4.0.4 — 2026-09-14
 
 ### Refined
