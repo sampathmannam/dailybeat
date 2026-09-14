@@ -1,0 +1,4 @@
+Publish DailyBeat v4.0.5 only after all yellow surfaces and accents, including buttons, use the
+original signal yellow `#FFD60A`; Carbon dark mode, launcher, maps, contrast checks, and the
+complete protected CI/security matrix must pass on the exact main commit. Publish the permanently
+signed APK with `SHA256SUMS.txt`.

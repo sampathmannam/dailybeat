@@ -58,16 +58,18 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun originalYellowIdentityAndMarigoldButtonsStaySeparate() {
+    fun originalYellowIsUsedForIdentityAndYellowButtons() {
         val colors = source("ui/theme/Color.kt")
         val theme = source("ui/theme/Theme.kt")
         val buttons = source("ui/components/CommonComponents.kt")
+        val mapPreview = source("ui/components/JourneyMapPreview.kt")
         val map = source("ui/components/JourneyMapStyle.kt")
 
         assertTrue("val Gold = Color(0xFFFFD60A)" in colors)
-        assertTrue("val ButtonMarigold = Color(0xFFEAAA00)" in colors)
+        assertFalse("EAAA00" in colors)
         assertTrue("secondary = Gold" in theme)
-        assertTrue("containerColor = ButtonMarigold" in buttons)
+        assertTrue("containerColor = Gold" in buttons)
+        assertTrue("containerColor = Gold" in mapPreview)
         assertTrue("#FFD60A" in map)
     }
 

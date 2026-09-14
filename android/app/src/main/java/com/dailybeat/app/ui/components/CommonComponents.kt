@@ -35,8 +35,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dailybeat.app.R
-import com.dailybeat.app.ui.theme.ButtonMarigold
-import com.dailybeat.app.ui.theme.ButtonMarigoldInk
+import com.dailybeat.app.ui.theme.Gold
+import com.dailybeat.app.ui.theme.Ink
 
 @Composable
 fun DailyBeatScreenHeader(
@@ -218,8 +218,8 @@ fun SecondaryButton(
         modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
         shape = MaterialTheme.shapes.medium,
         colors = ButtonDefaults.buttonColors(
-            containerColor = ButtonMarigold,
-            contentColor = ButtonMarigoldInk,
+            containerColor = Gold,
+            contentColor = Ink,
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
     ) {

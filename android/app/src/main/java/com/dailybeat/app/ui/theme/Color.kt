@@ -9,10 +9,6 @@ val Navy = Color(0xFF0B2D5B)
 val NavySoft = Color(0xFF294E78)
 val Gold = Color(0xFFFFD60A)
 val GoldSoft = Color(0xFFFFF2A8)
-// The calmer marigold is reserved for yellow-toned button surfaces. Keeping it separate from the
-// identity role lets maps, markers and icons retain DailyBeat's original high-visibility yellow.
-val ButtonMarigold = Color(0xFFEAAA00)
-val ButtonMarigoldInk = Ink
 val Canvas = Color(0xFFF8FAFC)
 val SurfaceCard = Color(0xFFFFFFFF)
 val SurfaceElevated = Color(0xFFEEF3F8)
