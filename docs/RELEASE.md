@@ -1,9 +1,8 @@
-# DailyBeat v4.0.5 — install and verify
+# DailyBeat v4.0.6 — install and verify
 
-Version 4.0.5 uses DailyBeat's original signal yellow for the launcher, route, stops, selected
-states, identity accents, and every yellow-toned button. The marigold override has been removed.
-Neutral Carbon dark-mode layers remain unchanged, and foreground/background pairs retain
-accessible contrast in both themes.
+Version 4.0.6 uses the calmer Soft Sun yellow `#F0C94A` for the launcher, route, stops, selected
+states, identity accents, and every yellow-toned button. Neutral Carbon dark-mode layers remain
+unchanged, with accessible foreground/background contrast in both themes.
 
 The v4.0.2 hardening remains intact. Names, notes, diary text, places, and cloud settings share
 Unicode-safe boundaries in the UI and persistence layers. Long-running actions block duplicate
@@ -48,9 +47,9 @@ remote snapshot validates.
 
 ## Signed APK
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.0.5`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.0.6`):
 
-- `DailyBeat-v4.0.5.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.0.6.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
@@ -103,7 +102,7 @@ by CI; credential values are never committed.
    Days card update after returning.
 4. Verify the four tabs: Today, Days, Insights and Settings. DSR must not appear.
 5. Open Review My Day, rename one stop, hide and restore it, name the Beat, and mark it complete.
-6. Open the full map and verify a signal-yellow route appears immediately while interactive tiles load;
+6. Open the full map and verify a Soft Sun yellow route appears immediately while interactive tiles load;
    when the street map is ready, tap **Replay route** and verify the route draws from start to finish.
 7. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.

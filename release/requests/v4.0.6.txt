@@ -1,0 +1,4 @@
+Publish DailyBeat v4.0.6 only after Soft Sun `#F0C94A` is used for every yellow action and accent,
+including buttons, maps, launcher, and selected states. Carbon dark mode, contrast checks, and the
+complete protected CI/security matrix must pass on the exact main commit. Publish the permanently
+signed APK with `SHA256SUMS.txt`.

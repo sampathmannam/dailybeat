@@ -19,7 +19,7 @@ The editable design handoff is in [DailyBeat — Product Architecture & UI v4](h
 | Canvas | `#F8FAFC` | Quiet screen background |
 | Navy | `#0B2D5B` | Primary actions, emphasis, route edge |
 | Ink | `#0B1B33` | High-contrast text |
-| Signal yellow | `#FFD60A` | Route, stops, key moments, identity, and yellow-toned buttons |
+| Soft Sun yellow | `#F0C94A` | Route, stops, key moments, identity, and yellow-toned buttons |
 | Carbon canvas | `#090A0C` | Neutral dark-mode background |
 | Carbon surface | `#121418` | Neutral dark-mode cards and sheets |
 | Carbon elevated | `#1A1D23` | Neutral dark-mode tonal elevation |

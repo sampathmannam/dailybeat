@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.6 — 2026-09-14
+
+### Refined
+- DailyBeat's yellow moves to Soft Sun `#F0C94A`: a calmer yellow used consistently for buttons,
+  maps, markers, launcher details, and identity accents.
+- Light and Carbon dark themes retain distinct, accessible container tones around the new yellow.
+
 ## 4.0.5 — 2026-09-14
 
 ### Refined
