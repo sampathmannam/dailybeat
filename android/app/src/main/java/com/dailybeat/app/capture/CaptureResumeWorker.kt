@@ -19,7 +19,8 @@ class CaptureResumeWorker(
             return Result.retry()
         }
         app.settingsRepository.clearCapturePause()
-        CaptureController.applyFromSettings(app)
+        // WorkManager runs out of process/UI context; only re-arm the adaptive watcher here.
+        CaptureController.rearmFromBackground(app)
         return Result.success()
     }
 

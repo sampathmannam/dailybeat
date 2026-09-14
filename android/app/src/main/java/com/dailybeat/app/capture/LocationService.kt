@@ -40,12 +40,19 @@ class LocationService : Service() {
     private lateinit var app: DailyBeatApp
     @Volatile
     private var previousAccepted: LocationSample? = null
+    @Volatile
+    private var previousPersisted: LocationSample? = null
+    @Volatile
+    private var lastMeaningfulMovementMs: Long = 0L
+    @Volatile
+    private var activeProfile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING
     private val breadcrumbWrites = Collections.synchronizedSet(mutableSetOf<Job>())
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             // Fused Location may batch several fixes to save battery. Feeding only lastLocation
             // drops the intermediate path and can turn a real stay into a single point.
+            val breadcrumbs = mutableListOf<LocationBreadcrumb>()
             result.locations
                 .sortedBy { it.time }
                 .forEach { location ->
@@ -62,38 +69,54 @@ class LocationService : Service() {
                         app.captureHealthStore.rejected(sample.timestampMs, decision.reason ?: "unknown")
                         return@forEach
                     }
+                    val priorAccepted = previousAccepted
                     previousAccepted = sample
                     app.captureHealthStore.accepted(sample, decision.quality)
-                    val write = scope.launch {
-                        runCatching {
-                            app.breadcrumbRepository.insert(
-                                LocationBreadcrumb(
-                                    timestampMs = sample.timestampMs,
-                                    latitude = sample.latitude,
-                                    longitude = sample.longitude,
-                                    accuracyM = sample.accuracyM,
-                                    quality = decision.quality,
-                                ),
-                            )
-                        }.onFailure { error ->
-                            OperationalFailureLog.record(
-                                context = this@LocationService,
-                                category = "capture-breadcrumb",
-                                retryable = true,
-                                message = "Route point could not be saved (${error.javaClass.simpleName}).",
-                            )
-                        }
+                    if (priorAccepted == null) {
+                        lastMeaningfulMovementMs = sample.timestampMs
+                    } else if (
+                        RoutePointSampler.distanceM(sample, priorAccepted) >=
+                        AdaptiveCapturePolicy.MEANINGFUL_MOVEMENT_M
+                    ) {
+                        lastMeaningfulMovementMs = sample.timestampMs
                     }
-                    breadcrumbWrites += write
-                    write.invokeOnCompletion { breadcrumbWrites -= write }
+                    if (RoutePointSampler.shouldPersist(sample, previousPersisted)) {
+                        previousPersisted = sample
+                        breadcrumbs += LocationBreadcrumb(
+                            timestampMs = sample.timestampMs,
+                            latitude = sample.latitude,
+                            longitude = sample.longitude,
+                            accuracyM = sample.accuracyM,
+                            quality = decision.quality,
+                        )
+                    }
                     visitTracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs)
                 }
+            enqueueBreadcrumbWrite(breadcrumbs)
+            if (
+                AdaptiveCapturePolicy.shouldStopForLocationIdle(
+                    lastMeaningfulMovementMs = lastMeaningfulMovementMs,
+                    nowMs = System.currentTimeMillis(),
+                    hasMotionWatcher = MotionStateStore(this@LocationService).watcherArmed,
+                )
+            ) {
+                // A transition callback normally stops us sooner. This is a conservative fallback
+                // for handsets which keep delivering location but never emit STILL.
+                stopSelf()
+            }
         }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val profile = intent?.getStringExtra(EXTRA_PROFILE)
+            ?.let { runCatching { ActiveCaptureProfile.valueOf(it) }.getOrNull() }
+        if (profile != null && ::app.isInitialized && activeProfile != profile) {
+            configureLocationUpdates(profile)
+        }
+        return START_STICKY
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -114,6 +137,9 @@ class LocationService : Service() {
                 )
                 if (previousAccepted == null || restored.timestampMs > previousAccepted!!.timestampMs) {
                     previousAccepted = restored
+                }
+                if (previousPersisted == null || restored.timestampMs > previousPersisted!!.timestampMs) {
+                    previousPersisted = restored
                 }
             }
         }
@@ -176,13 +202,21 @@ class LocationService : Service() {
             stopSelf()
             return
         }
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 45_000L)
-            .setMinUpdateIntervalMillis(45_000L)
-            .setMinUpdateDistanceMeters(75f)
-            .setMaxUpdateDelayMillis(120_000L)
+        configureLocationUpdates(ActiveCaptureProfile.MOVING)
+    }
+
+    private fun configureLocationUpdates(profile: ActiveCaptureProfile) {
+        activeProfile = profile
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, profile.intervalMs)
+            .setMinUpdateIntervalMillis(profile.minIntervalMs)
+            .setMinUpdateDistanceMeters(profile.minDistanceM)
+            .setMaxUpdateDelayMillis(profile.maxDelayMs)
             .build()
         try {
-            LocationServices.getFusedLocationProviderClient(this)
+            val client = LocationServices.getFusedLocationProviderClient(this)
+            // Reconfiguration must not accumulate callbacks; one callback owns the route engine.
+            client.removeLocationUpdates(callback)
+            client
                 .requestLocationUpdates(request, callback, Looper.getMainLooper())
                 .addOnSuccessListener { _running.value = true }
                 .addOnFailureListener { error ->
@@ -203,6 +237,24 @@ class LocationService : Service() {
             )
             stopSelf()
         }
+    }
+
+    private fun enqueueBreadcrumbWrite(points: List<LocationBreadcrumb>) {
+        if (points.isEmpty()) return
+        val write = scope.launch {
+            runCatching {
+                app.breadcrumbRepository.insertAll(points)
+            }.onFailure { error ->
+                OperationalFailureLog.record(
+                    context = this@LocationService,
+                    category = "capture-breadcrumb",
+                    retryable = true,
+                    message = "Route points could not be saved (${error.javaClass.simpleName}).",
+                )
+            }
+        }
+        breadcrumbWrites += write
+        write.invokeOnCompletion { breadcrumbWrites -= write }
     }
 
     override fun onDestroy() {
@@ -243,6 +295,8 @@ class LocationService : Service() {
     companion object {
         const val CHANNEL_ID = "location_capture"
         const val NOTIFICATION_ID = 1002
+        private const val ACTION_UPDATE_PROFILE = "com.dailybeat.app.capture.UPDATE_PROFILE"
+        private const val EXTRA_PROFILE = "capture_profile"
 
         private val _running = MutableStateFlow(false)
 
@@ -255,9 +309,27 @@ class LocationService : Service() {
 
         val isRunning: Boolean get() = _running.value
 
-        fun start(context: Context): Result<Unit> = runCatching {
-            context.startForegroundService(Intent(context, LocationService::class.java))
+        fun start(
+            context: Context,
+            profile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING,
+        ): Result<Unit> = runCatching {
+            context.startForegroundService(
+                Intent(context, LocationService::class.java)
+                    .putExtra(EXTRA_PROFILE, profile.name),
+            )
             Unit
+        }
+
+        /** Updates a service that is already foreground; it never creates a new background FGS. */
+        fun updateProfile(context: Context, profile: ActiveCaptureProfile) {
+            if (!isRunning) return
+            runCatching {
+                context.startService(
+                    Intent(context, LocationService::class.java)
+                        .setAction(ACTION_UPDATE_PROFILE)
+                        .putExtra(EXTRA_PROFILE, profile.name),
+                )
+            }
         }
 
         fun stop(context: Context) {

@@ -23,4 +23,7 @@ class BreadcrumbRepository(private val dao: BreadcrumbDao) {
     suspend fun all(): List<LocationBreadcrumb> = dao.all()
     suspend fun latest(): LocationBreadcrumb? = dao.latest()
     suspend fun insert(point: LocationBreadcrumb): Long = dao.insert(point)
+    suspend fun insertAll(points: List<LocationBreadcrumb>) {
+        if (points.isNotEmpty()) dao.insertAll(points)
+    }
 }

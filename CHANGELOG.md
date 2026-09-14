@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Improved
+- Passive capture now uses an adaptive battery state machine: a coordinate-free activity watcher
+  observes movement and stillness, active capture settles and stops after confirmed stillness, and
+  the foreground service restarts only for a background movement trigger with the required
+  all-the-time location grant.
+- Route persistence batches fused fixes and keeps meaningful route evidence rather than writing
+  each small callback jitter to the database.
+
 ## 4.0.6 — 2026-09-14
 
 ### Refined

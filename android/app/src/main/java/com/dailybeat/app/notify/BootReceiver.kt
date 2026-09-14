@@ -15,7 +15,9 @@ class BootReceiver : BroadcastReceiver() {
         DailyReminderScheduler.scheduleNext(context)
         PulseScheduler.scheduleNext(context)
         if (action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            CaptureController.applyFromSettings(context)
+            // A boot receiver is background execution. Re-arm the low-power movement watcher
+            // instead of blindly creating a location foreground service from the background.
+            CaptureController.rearmFromBackground(context)
         }
     }
 

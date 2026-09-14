@@ -753,6 +753,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             "Location permission is off. Open Android app settings and allow location."
         !PermissionHelper.hasBackgroundLocation(app) ->
             "For reliable passive capture, allow location all the time in Android app settings."
+        !PermissionHelper.hasActivityRecognition(app) ->
+            "Allow Physical activity for battery-adaptive capture. DailyBeat will keep baseline tracking until then."
         !PermissionHelper.hasNotifications(app) ->
             "Notifications are off. Enable them so Android can show capture status."
         else -> null

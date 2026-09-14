@@ -73,6 +73,7 @@ internal fun grantCorePermissions() {
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
         Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.ACTIVITY_RECOGNITION,
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.RECORD_AUDIO,
     ).forEach { permission -> runShellCommand("pm grant $pkg $permission") }
