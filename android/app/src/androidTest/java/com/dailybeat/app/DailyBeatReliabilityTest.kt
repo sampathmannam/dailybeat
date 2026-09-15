@@ -72,7 +72,7 @@ class DailyBeatReliabilityTest {
             PdfRenderer(ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY)).use { renderer ->
                 assertTrue(renderer.pageCount > 1)
             }
-            val zip = app.packageExporter.exportWeekPackage("Synthetic reviewer", "Synthetic supervisor")
+            val zip = app.packageExporter.exportWeekPackage(app.diaryShareService.prepareWeek())
             ZipFile(zip).use { archive ->
                 assertNotNull(archive.getEntry("diaries/$today.txt"))
                 assertNotNull(archive.getEntry("diaries/${today.minusDays(6)}.pdf"))

@@ -16,11 +16,11 @@ class SettingsRepository(
     val themePreference: StateFlow<ThemePreference> = _themePreference.asStateFlow()
 
     fun get(): AppSettings = AppSettings(
-        officerName = (prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer")
+        officerName = (prefs.getString(KEY_OFFICER, "") ?: "")
             .let { InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS) },
         themePreference = readThemePreference(),
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
-        cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
+        cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, false),
         cloudProvider = (prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id)
             ?: CloudProvider.DEEPSEEK.id).let { stored ->
             CloudProvider.entries.find { it.id == stored }?.id ?: CloudProvider.DEEPSEEK.id
@@ -32,12 +32,25 @@ class SettingsRepository(
         cloudBaseUrl = (prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "").let {
             InputPolicy.singleLine(it, InputPolicy.CLOUD_URL_CHARS)
         },
-        autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
+        autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, false) &&
+            prefs.getBoolean("auto_report_privacy_v1", false),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
         supervisorName = (prefs.getString(KEY_SUPERVISOR, "") ?: "").let {
             InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
         },
+        journalProfile = readJournalProfile(),
     )
+
+    private fun readJournalProfile(): JournalProfile {
+        if (prefs.contains(KEY_PROFILE)) return JournalProfile.fromId(prefs.getString(KEY_PROFILE, null))
+        // Existing police users retain their template. New installs start with a general journal.
+        return if (prefs.contains(KEY_OFFICER) || isOnboardingComplete()) JournalProfile.POLICE
+        else JournalProfile.PERSONAL
+    }
+
+    fun setJournalProfile(profile: JournalProfile) {
+        prefs.edit().putString(KEY_PROFILE, profile.id).apply()
+    }
 
     fun setOfficerName(name: String) {
         prefs.edit().putString(
@@ -100,7 +113,8 @@ class SettingsRepository(
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled).apply()
+        prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled)
+            .putBoolean("auto_report_privacy_v1", true).apply()
     }
 
     fun setSupervisorName(name: String) {
@@ -127,6 +141,7 @@ class SettingsRepository(
     )
 
     companion object {
+        private const val KEY_PROFILE = "journal_profile"
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_THEME_PREFERENCE = "theme_preference"
         private const val KEY_GPS = "gps_enabled"

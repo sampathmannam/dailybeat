@@ -6,7 +6,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
-import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
@@ -16,11 +15,6 @@ import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.util.PermissionHelper
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withContext
 import java.util.Collections
 
 class LocationService : Service() {
@@ -48,12 +43,15 @@ class LocationService : Service() {
     private var activeProfile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING
     private val breadcrumbWrites = Collections.synchronizedSet(mutableSetOf<Job>())
 
-    private val callback = object : LocationCallback() {
-        override fun onLocationResult(result: LocationResult) {
+    private lateinit var backend: LocationBackend
+
+    private fun onLocations(locations: List<android.location.Location>) {
+            if (!::app.isInitialized || !app.settingsRepository.get().gpsCaptureEnabled ||
+                app.settingsRepository.isCapturePaused()) return
             // Fused Location may batch several fixes to save battery. Feeding only lastLocation
             // drops the intermediate path and can turn a real stay into a single point.
             val breadcrumbs = mutableListOf<LocationBreadcrumb>()
-            result.locations
+            locations
                 .sortedBy { it.time }
                 .forEach { location ->
                     val sample = LocationSample(
@@ -104,12 +102,16 @@ class LocationService : Service() {
                 // for handsets which keep delivering location but never emit STILL.
                 stopSelf()
             }
-        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!::app.isInitialized || !app.settingsRepository.get().gpsCaptureEnabled ||
+            app.settingsRepository.isCapturePaused() || !PermissionHelper.hasLocation(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val profile = intent?.getStringExtra(EXTRA_PROFILE)
             ?.let { runCatching { ActiveCaptureProfile.valueOf(it) }.getOrNull() }
         if (profile != null && ::app.isInitialized && activeProfile != profile) {
@@ -120,12 +122,14 @@ class LocationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        if (!PermissionHelper.hasLocation(this)) {
+        app = application as DailyBeatApp
+        if (!PermissionHelper.hasLocation(this) || !app.settingsRepository.get().gpsCaptureEnabled ||
+            app.settingsRepository.isCapturePaused()) {
             stopSelf()
             return
         }
 
-        app = application as DailyBeatApp
+        backend = LocationBackend(this)
         app.captureHealthStore.serviceStarted()
         scope.launch {
             app.breadcrumbRepository.latest()?.let { latest ->
@@ -135,11 +139,13 @@ class LocationService : Service() {
                     timestampMs = latest.timestampMs,
                     accuracyM = latest.accuracyM,
                 )
-                if (previousAccepted == null || restored.timestampMs > previousAccepted!!.timestampMs) {
-                    previousAccepted = restored
-                }
-                if (previousPersisted == null || restored.timestampMs > previousPersisted!!.timestampMs) {
-                    previousPersisted = restored
+                withContext(Dispatchers.Main.immediate) {
+                    if (previousAccepted == null || restored.timestampMs > previousAccepted!!.timestampMs) {
+                        previousAccepted = restored
+                    }
+                    if (previousPersisted == null || restored.timestampMs > previousPersisted!!.timestampMs) {
+                        previousPersisted = restored
+                    }
                 }
             }
         }
@@ -152,7 +158,7 @@ class LocationService : Service() {
                 CaptureAuditLog.log(
                     this,
                     "visit",
-                    "${visit.visitType}: ${visit.placeName ?: visit.address ?: "coords"}",
+                    "Visit recorded (${visit.visitType})",
                 )
                 val summary = when (visit.visitType) {
                     "transit" -> "Transit: ${visit.address ?: "en route"}"
@@ -207,34 +213,15 @@ class LocationService : Service() {
 
     private fun configureLocationUpdates(profile: ActiveCaptureProfile) {
         activeProfile = profile
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, profile.intervalMs)
-            .setMinUpdateIntervalMillis(profile.minIntervalMs)
-            .setMinUpdateDistanceMeters(profile.minDistanceM)
-            .setMaxUpdateDelayMillis(profile.maxDelayMs)
-            .build()
         try {
-            val client = LocationServices.getFusedLocationProviderClient(this)
-            // Reconfiguration must not accumulate callbacks; one callback owns the route engine.
-            client.removeLocationUpdates(callback)
-            client
-                .requestLocationUpdates(request, callback, Looper.getMainLooper())
-                .addOnSuccessListener { _running.value = true }
-                .addOnFailureListener { error ->
-                    OperationalFailureLog.record(
-                        context = this,
-                        category = "capture-location-updates",
-                        retryable = true,
-                        message = "Location updates failed (${error.javaClass.simpleName}).",
-                    )
-                    stopSelf()
-                }
-        } catch (error: SecurityException) {
-            OperationalFailureLog.record(
-                context = this,
-                category = "capture-permission",
-                retryable = false,
-                message = "Location permission was revoked while capture started.",
-            )
+            backend.start(profile, ::onLocations, onReady = { _running.value = true }, onError = { error ->
+                OperationalFailureLog.record(this, "capture-location-updates", true,
+                    "Location updates unavailable (${error.javaClass.simpleName}).")
+                stopSelf()
+            })
+        } catch (error: Exception) {
+            OperationalFailureLog.record(this, "capture-location-updates", false,
+                "Location updates could not start (${error.javaClass.simpleName}).")
             stopSelf()
         }
     }
@@ -261,7 +248,7 @@ class LocationService : Service() {
         _running.value = false
         if (::app.isInitialized) app.captureHealthStore.serviceStopped()
         runCatching {
-            LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(callback)
+            if (::backend.isInitialized) backend.stop()
         }
         if (::visitTracker.isInitialized) {
             visitTracker.flushPending()

@@ -48,6 +48,7 @@ data class DayFeedItem(
     val state: String = "needs_review",
     val captureGapCount: Int = 0,
     val distanceEstimated: Boolean = true,
+    val noteCount: Int = 0,
 ) {
     val stayCount: Int get() = stays.size
 
@@ -66,7 +67,7 @@ data class DayFeedItem(
     val hasRoute: Boolean get() = route.isNotEmpty()
 
     /** A day with nothing captured should not take up a card. */
-    val isEmpty: Boolean get() = stays.isEmpty() && route.isEmpty() && diaryPreview.isNullOrBlank()
+    val isEmpty: Boolean get() = stays.isEmpty() && route.isEmpty() && diaryPreview.isNullOrBlank() && noteCount == 0
 }
 
 object DayFeedBuilder {
@@ -84,6 +85,7 @@ object DayFeedBuilder {
         places: List<Place> = emptyList(),
         breadcrumbs: List<LocationBreadcrumb> = emptyList(),
         review: BeatReview? = null,
+        noteCount: Int = 0,
     ): DayFeedItem {
         val ordered = visits.filterNot { it.hidden }.sortedBy { it.startMs }
         val mappable = plausibleRoute(ordered.filter { it.hasUsableCoordinate() })
@@ -165,6 +167,7 @@ object DayFeedBuilder {
         }
 
         return DayFeedItem(
+            noteCount = noteCount,
             date = date,
             stays = stays,
             route = route,

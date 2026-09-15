@@ -115,7 +115,7 @@ class SupabaseBackupClientTest {
 
         assertTrue(result.isSuccess)
         val request = server.takeRequest()
-        assertEquals("/rest/v1/dailybeat_backups?on_conflict=user_id", request.path)
+        assertEquals("/rest/v1/dailybeat_encrypted_backups?on_conflict=user_id", request.path)
         assertEquals("Bearer access-one", request.getHeader("Authorization"))
         val body = request.body.readUtf8()
         assertTrue(body.contains("\"user_id\":\"user-1\""))

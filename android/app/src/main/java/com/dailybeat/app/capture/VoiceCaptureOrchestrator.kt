@@ -19,7 +19,9 @@ class VoiceCaptureOrchestrator(private val app: DailyBeatApp) {
             return Result.failure(IllegalStateException("Voice not recognized. Try again or use optional note."))
         }
 
-        val cloudReady = runCatching { app.settingsRepository.isCloudBrainReady() }.getOrDefault(false)
+        val cloudReady = runCatching {
+            app.settingsRepository.isCloudBrainReady() && app.permitsUnlinkedCloudText()
+        }.getOrDefault(false)
         val extraction = if (cloudReady) {
             app.eventExtractor.extract(transcript)
         } else {

@@ -20,6 +20,16 @@ object ReportIntegrityValidator {
         if (allowed.isNotEmpty() && cited.none(allowed::contains)) {
             violations += "Report contains no valid source citation."
         }
+        // Citation coverage is structural, not proof that a cited source entails the sentence.
+        if (allowed.isNotEmpty() && cited.any(allowed::contains)) {
+            val headings = setOf("overview", "timeline", "summary", "closing", "chronological narrative")
+            val statements = report.split(Regex("(?<=[.!?।])\\s+(?!\\[)|[\\r\\n]+"))
+            if (statements.any { statement ->
+                val label = statement.trim().trim('#', '*', ':', ' ').lowercase()
+                statement.any(Char::isLetter) && label !in headings &&
+                    citation.findAll(statement).none { it.value in allowed }
+            }) violations += "Every factual sentence must include a source citation."
+        }
         return ReportIntegrityCheck(violations.isEmpty(), violations.toList())
     }
 

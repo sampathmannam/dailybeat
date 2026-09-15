@@ -27,6 +27,7 @@ class LocalBackupStore(
                 breadcrumbs = db.breadcrumbs().all(),
                 beatReviews = db.beatReviews().all(),
                 settings = BackupSettings(
+                    journalProfile = settings.journalProfile.id,
                     officerName = settings.officerName,
                     themePreference = settings.themePreference.id,
                     gpsCaptureEnabled = settings.gpsCaptureEnabled,
@@ -64,6 +65,7 @@ class LocalBackupStore(
     }
 
     private fun applySettings(settings: BackupSettings) {
+        settingsRepository.setJournalProfile(com.dailybeat.app.data.settings.JournalProfile.fromId(settings.journalProfile))
         settingsRepository.setOfficerName(settings.officerName)
         settingsRepository.setThemePreference(ThemePreference.fromId(settings.themePreference))
         settingsRepository.setGpsEnabled(settings.gpsCaptureEnabled)
@@ -71,7 +73,8 @@ class LocalBackupStore(
         settingsRepository.setCloudProvider(settings.cloudProvider)
         settingsRepository.setCloudModel(settings.cloudModel)
         settingsRepository.setCloudBaseUrl(settings.cloudBaseUrl)
-        settingsRepository.setAutoEveningReport(settings.autoEveningReport)
+        // Restore is not renewed consent to unattended cloud generation on a new phone.
+        settingsRepository.setAutoEveningReport(false)
         settingsRepository.setAutoMiddayPulse(settings.autoMiddayPulse)
         settingsRepository.setSupervisorName(settings.supervisorName)
     }

@@ -17,10 +17,13 @@ class BackupCoordinatorTest {
         val remote = FakeRemote()
         val coordinator = BackupCoordinator(local, remote)
 
-        val result = coordinator.backupNow()
+        val result = coordinator.backupNow("harbour comet velvet cedar orbit lantern".toCharArray())
 
         assertEquals(4_321L, result.getOrThrow())
-        assertTrue(remote.uploaded.orEmpty().contains("\"schemaVersion\":2"))
+        assertTrue(remote.uploaded.orEmpty().contains("\"envelopeVersion\":1"))
+        assertFalse(remote.uploaded.orEmpty().contains("schemaVersion"))
+        assertEquals(local.createSnapshot(), BackupSnapshotCodec.decode(BackupEnvelope.open(remote.uploaded!!,
+            "harbour comet velvet cedar orbit lantern".toCharArray())))
         assertFalse(remote.uploaded.orEmpty().contains("apiKey", ignoreCase = true))
     }
 
@@ -32,7 +35,7 @@ class BackupCoordinatorTest {
         }
         val coordinator = BackupCoordinator(local, remote)
 
-        val result = coordinator.restoreNow()
+        val result = coordinator.restoreNow("harbour comet velvet cedar orbit lantern".toCharArray())
 
         assertTrue(result.isFailure)
         assertEquals(null, local.restored)
@@ -43,11 +46,12 @@ class BackupCoordinatorTest {
         val expected = BackupSnapshot.empty(9L)
         val local = FakeLocalStore(BackupSnapshot.empty(1L))
         val remote = FakeRemote().apply {
-            downloaded = RemoteBackup(BackupSnapshotCodec.encode(expected), "2026-08-31T02:00:00Z")
+            downloaded = RemoteBackup(BackupEnvelope.seal(BackupSnapshotCodec.encode(expected),
+                "harbour comet velvet cedar orbit lantern".toCharArray()), "2026-08-31T02:00:00Z")
         }
         val coordinator = BackupCoordinator(local, remote)
 
-        val updatedAt = coordinator.restoreNow().getOrThrow()
+        val updatedAt = coordinator.restoreNow("harbour comet velvet cedar orbit lantern".toCharArray()).getOrThrow()
 
         assertEquals("2026-08-31T02:00:00Z", updatedAt)
         assertEquals(expected, local.restored)

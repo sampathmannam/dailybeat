@@ -69,7 +69,10 @@ class MainActivity : ComponentActivity() {
 
                     if (!onboardingDone) {
                         OnboardingScreen(
+                            onProfileSelected = app.settingsRepository::setJournalProfile,
                             onComplete = { officerName ->
+                                val profile = app.settingsRepository.get().journalProfile
+                                app.settingsRepository.setJournalProfile(profile)
                                 app.settingsRepository.setOfficerName(officerName)
                                 app.settingsRepository.setOnboardingComplete(true)
                                 requestRuntimePermissions()
@@ -102,12 +105,12 @@ class MainActivity : ComponentActivity() {
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
             permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+        if (BuildConfig.GOOGLE_LOCATION && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
             !PermissionHelper.hasActivityRecognition(this)
         ) {
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
-        if (!PermissionHelper.hasNotifications(this)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !PermissionHelper.hasNotifications(this)) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (permissions.isEmpty()) {

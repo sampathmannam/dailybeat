@@ -57,4 +57,5 @@ abstract class DailyBeatDb : RoomDatabase() {
     abstract fun dsr(): DsrDao
     abstract fun breadcrumbs(): BreadcrumbDao
     abstract fun beatReviews(): BeatReviewDao
+    abstract fun journalSearch(): JournalSearchDao
 }

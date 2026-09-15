@@ -19,7 +19,7 @@ class PulseReportGenerator(
     suspend fun generateAndSavePulse(): Result<String> {
         val date = DateKeys.today()
         val settings = settingsRepository.get()
-        val visits = visitRepository.visitsForDate(date)
+        val visits = visitRepository.outboundVisitsForDate(date)
         val events = eventRepository.eventsForDate(date)
         val places = placeRepository.all()
 
@@ -34,11 +34,12 @@ class PulseReportGenerator(
                 visits = visits,
                 events = events,
                 places = places,
+                profile = settings.journalProfile,
             ),
         )
 
         val prompt = """
-            Write a brief midday status pulse (3–5 sentences) for an IPS officer.
+            Write a brief midday journal draft (3–5 sentences).
             Summarize where they have been so far today and key notes.
             Formal tone. No invented facts.
 
@@ -48,7 +49,7 @@ class PulseReportGenerator(
 
         return cloudLlm.generate(
             settings = settings,
-            systemPrompt = DayContextBuilder.SYSTEM_PROMPT,
+            systemPrompt = DayContextBuilder.systemPrompt(settings.journalProfile),
             userPrompt = prompt,
             maxOutputTokens = CloudTokenBudgets.MIDDAY_PULSE,
         ).mapCatching { pulse ->

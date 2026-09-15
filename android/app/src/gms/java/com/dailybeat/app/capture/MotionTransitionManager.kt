@@ -11,7 +11,7 @@ import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.location.DetectedActivity
 
-/**
+/** Play Services implementation, excluded entirely from the FOSS build.
  * Lets Google Play services wake DailyBeat only when a person starts moving or becomes still.
  * No coordinates are retained here; it is solely a power-management trigger for capture.
  */

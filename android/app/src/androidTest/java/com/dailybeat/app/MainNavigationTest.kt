@@ -149,7 +149,7 @@ class MainNavigationTest {
     }
 
     @Test
-    fun customDiaryGenerationExplainsMissingCloudConfiguration() {
+    fun customDiaryGenerationWorksWithoutCloudConfiguration() {
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
         composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNode(hasText("Raw events") and hasSetTextAction())
@@ -167,13 +167,17 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Generate from pasted text")
             .assertIsEnabled()
             .performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasText("Cloud AI is required", substring = true),
-            timeoutMillis = 10_000,
-        )
         composeRule.onNodeWithTag("diary_list")
-            .performScrollToNode(hasText("Cloud AI is required", substring = true))
-        composeRule.onNodeWithText("Cloud AI is required", substring = true).assertIsDisplayed()
+            .performScrollToNode(hasTestTag("diary_editor"))
+        val draft = hasTestTag("diary_editor") and
+            hasText("Briefing completed at headquarters.", substring = true) and
+            hasText("Draft", substring = true)
+        composeRule.waitUntilAtLeastOneExists(draft, timeoutMillis = 10_000)
+        composeRule.onNode(draft).assertIsDisplayed()
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        org.junit.Assert.assertTrue(runBlocking {
+            app.diaryRepository.todayText().orEmpty().contains("Briefing completed at headquarters.")
+        })
     }
 
     @Test

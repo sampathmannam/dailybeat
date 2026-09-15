@@ -144,15 +144,15 @@ class PrivatePlaceExclusionTest {
     }
 
     @Test
-    fun `events are unaffected by the visit filter`() {
+    fun `a note made during a private visit is withheld with that visit`()  {
         val built = build(
             visits = listOf(visitAt(12.9701, 77.5901, "Safehouse")),
             places = listOf(safehouse),
             events = listOf(Event(timestamp = 1_757_502_000_000L, type = "manual", rawText = "Briefing note.")),
         )
 
-        assertTrue(built.text.contains("Briefing note."))
-        assertEquals(1, built.eventRefCount)
+        assertFalse(built.text.contains("Briefing note."))
+        assertEquals(0, built.eventRefCount)
     }
 
     @Test

@@ -22,6 +22,8 @@ class CloudBackupLiveTest {
         val arguments = InstrumentationRegistry.getArguments()
         val email = arguments.getString("backupEmail").orEmpty()
         val password = arguments.getString("backupPassword").orEmpty()
+        val recovery = arguments.getString("backupRecoveryPassphrase").orEmpty()
+        assumeTrue("An isolated live-backup recovery passphrase was not provided.", recovery.length >= 20)
         assumeTrue("Live backup credentials were not provided.", email.isNotBlank() && password.isNotBlank())
         assertEquals(arguments.getString("backupEmailSha"), sha256(email))
         assertEquals(arguments.getString("backupPasswordSha"), sha256(password))
@@ -42,12 +44,12 @@ class CloudBackupLiveTest {
                 )
             }
             app.backupCoordinator.signIn(email, password).getOrThrow()
-            app.backupCoordinator.backupNow().getOrThrow()
+            app.backupCoordinator.backupNow(recovery.toCharArray()).getOrThrow()
 
             withContext(Dispatchers.IO) { app.db.clearAllTables() }
             assertEquals(0, withContext(Dispatchers.IO) { app.db.events().all().size })
 
-            app.backupCoordinator.restoreNow().getOrThrow()
+            app.backupCoordinator.restoreNow(recovery.toCharArray()).getOrThrow()
             val restored = withContext(Dispatchers.IO) { app.db.events().all() }
             assertEquals(listOf("Live cloud backup round trip"), restored.map { it.rawText })
             assertEquals(

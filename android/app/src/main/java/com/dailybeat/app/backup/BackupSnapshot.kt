@@ -45,4 +45,5 @@ data class BackupSettings(
     val autoEveningReport: Boolean = true,
     val autoMiddayPulse: Boolean = false,
     val supervisorName: String = "",
+    val journalProfile: String = "personal",
 )

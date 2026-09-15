@@ -7,7 +7,7 @@ import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionResult
 import com.google.android.gms.location.DetectedActivity
 
-/** Receives only coarse movement-state changes; route coordinates remain in [LocationService]. */
+/** Play Services transitions; route coordinates remain in [LocationService]. */
 class MotionTransitionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != MotionTransitionManager.ACTION_MOTION_TRANSITION ||

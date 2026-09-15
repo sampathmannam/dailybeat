@@ -1,5 +1,6 @@
 package com.dailybeat.app.ui.settings
 
+import com.dailybeat.app.data.settings.JournalProfile
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withContext
 import com.dailybeat.app.util.userMessage
 
 data class SettingsUiState(
+    val journalProfile: JournalProfile = JournalProfile.PERSONAL,
     val officerName: String = "",
     val supervisorName: String = "",
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
@@ -36,7 +38,7 @@ data class SettingsUiState(
     val screenError: String? = null,
     val capturePausedUntilMs: Long = 0L,
     val batteryUnrestricted: Boolean = true,
-    val cloudLlmEnabled: Boolean = true,
+    val cloudLlmEnabled: Boolean = false,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
     val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
     val cloudBaseUrl: String = "",
@@ -44,7 +46,7 @@ data class SettingsUiState(
     val hasApiKey: Boolean = false,
     val apiKeyBusy: Boolean = false,
     val apiKeyRemovalConfirmation: Boolean = false,
-    val autoEveningReport: Boolean = true,
+    val autoEveningReport: Boolean = false,
     val autoMiddayPulse: Boolean = false,
     val cloudTestResult: String? = null,
     val cloudTestIsError: Boolean = false,
@@ -63,6 +65,9 @@ data class SettingsUiState(
     val backupConfigured: Boolean = false,
     val backupEmailDraft: String = "",
     val backupPasswordDraft: String = "",
+    val recoveryPassphrase: String = "",
+    val recoveryConfirmation: String = "",
+    val legacyBackupRestore: Boolean = false,
     val backupSignedInEmail: String? = null,
     val backupBusy: Boolean = false,
     val backupMessage: String? = null,
@@ -80,6 +85,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     init {
         refresh()
+    }
+
+    fun setJournalProfile(profile: JournalProfile) {
+        app.settingsRepository.setJournalProfile(profile)
+        _uiState.update { it.copy(journalProfile = profile) }
     }
 
     fun refresh() {
@@ -101,6 +111,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update { current ->
                     current.copy(
                         officerName = settings.officerName,
+                        journalProfile = settings.journalProfile,
                         supervisorName = settings.supervisorName,
                         themePreference = settings.themePreference,
                         gpsEnabled = settings.gpsCaptureEnabled,
@@ -221,18 +232,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setRecoveryPassphrase(value: String) { _uiState.update { it.copy(recoveryPassphrase = value.take(256)) } }
+    fun setRecoveryConfirmation(value: String) { _uiState.update { it.copy(recoveryConfirmation = value.take(256)) } }
+    fun setLegacyBackupRestore(value: Boolean) { _uiState.update { it.copy(legacyBackupRestore = value) } }
+
     fun backupNow() {
         if (_uiState.value.backupBusy) return
+        val current = _uiState.value
+        if (current.recoveryPassphrase.length < 20 || current.recoveryPassphrase != current.recoveryConfirmation) {
+            _uiState.update { it.copy(backupMessage = "Enter a recovery passphrase of at least 20 characters and confirm it.", backupMessageIsError = true) }
+            return
+        }
+        val passphrase = current.recoveryPassphrase.toCharArray()
+        _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
         viewModelScope.launch {
-            val result = runCatching { app.backupCoordinator.backupNow() }
+            val result = runCatching { app.backupCoordinator.backupNow(passphrase) }
                 .getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
                     _uiState.update {
                         it.copy(
                             backupBusy = false,
-                            backupMessage = "Cloud backup completed.",
+                            backupMessage = "Encrypted backup completed. Keep your recovery passphrase safe; it cannot be reset. Older readable backups are not automatically deleted.",
                             backupMessageIsError = false,
                         )
                     }
@@ -260,11 +282,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun confirmBackupRestore() {
         if (_uiState.value.backupBusy) return
+        val passphrase = _uiState.value.recoveryPassphrase.toCharArray()
+        val legacy = _uiState.value.legacyBackupRestore
+        _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
         _uiState.update {
             it.copy(backupBusy = true, backupRestoreConfirmation = false, backupMessage = null)
         }
         viewModelScope.launch {
-            val result = runCatching { app.backupCoordinator.restoreNow() }
+            val result = runCatching { if (legacy) {
+                passphrase.fill('\u0000')
+                app.backupCoordinator.restoreLegacyNow()
+            } else app.backupCoordinator.restoreNow(passphrase) }
                 .getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
@@ -311,6 +339,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun signOutOfBackup() {
+        _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
         if (_uiState.value.backupBusy) return
         app.backupCoordinator.signOut()
         _uiState.update {
@@ -753,7 +782,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             "Location permission is off. Open Android app settings and allow location."
         !PermissionHelper.hasBackgroundLocation(app) ->
             "For reliable passive capture, allow location all the time in Android app settings."
-        !PermissionHelper.hasActivityRecognition(app) ->
+        com.dailybeat.app.BuildConfig.GOOGLE_LOCATION && !PermissionHelper.hasActivityRecognition(app) ->
             "Allow Physical activity for battery-adaptive capture. DailyBeat will keep baseline tracking until then."
         !PermissionHelper.hasNotifications(app) ->
             "Notifications are off. Enable them so Android can show capture status."

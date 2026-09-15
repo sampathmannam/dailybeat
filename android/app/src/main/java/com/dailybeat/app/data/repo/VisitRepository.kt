@@ -33,9 +33,25 @@ class VisitRepository(private val visitDao: VisitDao) {
         return visitDao.between(startMs, endMs)
     }
 
+    /** Hidden history also supplies labels that must not leak through later notes/rollups. */
+    suspend fun outboundVisitsForDate(date: LocalDate): List<LocationVisit> =
+        (visitsForDate(date) + visitDao.hiddenEntries()).distinctBy { it.id }
+
     suspend fun insert(visit: LocationVisit) = visitDao.insert(visit)
 
     suspend fun update(visit: LocationVisit) = visitDao.update(visit)
+
+    suspend fun rename(visit: LocationVisit, name: String) {
+        check(visitDao.rename(visit.id, visit.placeName, name) == 1) {
+            "This stop changed while you were reviewing it. Reopen it and try again."
+        }
+    }
+
+    suspend fun setHidden(visit: LocationVisit, hidden: Boolean) {
+        check(visitDao.setHidden(visit.id, visit.hidden, hidden) == 1) {
+            "This stop changed while you were reviewing it. Reopen it and try again."
+        }
+    }
 
     private fun LocationVisit.clippedTo(dayStart: Long, dayEnd: Long): LocationVisit = copy(
         startMs = maxOf(startMs, dayStart),

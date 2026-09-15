@@ -10,12 +10,16 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.waitUntilAtLeastOneExists
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -45,24 +49,37 @@ class OnboardingFlowTest {
     @Test
     fun onboardingThreeStepsReachTodayScreen() {
         composeRule.waitUntilAtLeastOneExists(hasText("Continue"), timeoutMillis = 10_000)
-        composeRule.onNodeWithText("Continue").performScrollTo().performClick()
+        advanceAboveSystemNavigation("Continue")
         composeRule.waitUntilAtLeastOneExists(
-            hasText("Officer name") and hasSetTextAction(),
+            hasText("Your name (optional)") and hasSetTextAction(),
             timeoutMillis = 10_000,
         )
-        composeRule.onNode(hasText("Officer name") and hasSetTextAction())
+        composeRule.onNode(hasText("Your name (optional)") and hasSetTextAction())
             .performTextReplacement("Inspector Rao")
 
         // Set text through semantics instead of opening Gboard. Waiting for the asynchronous IME
         // hide animation made the following button click depend on emulator frame timing rather
         // than on Daily Beat's onboarding behavior.
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Continue").performScrollTo().performClick()
+        advanceAboveSystemNavigation("Continue")
         composeRule.waitUntilAtLeastOneExists(hasText("Get started"), timeoutMillis = 10_000)
-        composeRule.onNodeWithText("Get started").performScrollTo().performClick()
+        advanceAboveSystemNavigation("Get started")
 
         composeRule.waitUntilAtLeastOneExists(hasTestTag("today_list"), timeoutMillis = 20_000)
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
+    }
+
+    private fun advanceAboveSystemNavigation(label: String) {
+        val button = composeRule.onNodeWithText(label).performScrollTo().assertIsDisplayed()
+        val bounds = button.fetchSemanticsNode().boundsInRoot
+        val rootBottom = composeRule.onRoot().fetchSemanticsNode().boundsInRoot.bottom
+        val navigationInset = composeRule.runOnIdle {
+            checkNotNull(ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView))
+                .getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        }
+        assertTrue("$label must remain above system navigation, including at large font sizes",
+            bounds.bottom <= rootBottom - navigationInset + 1f)
+        button.performClick()
     }
 }
 

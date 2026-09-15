@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +48,29 @@ fun DiaryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dateLabel = Formatters.dayHeadingWithYear(uiState.date)
+    var sharePreview by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<com.dailybeat.app.export.DiarySharePreview?>(null)
+    }
+    sharePreview?.let { preview ->
+        com.dailybeat.app.ui.components.SharePreviewDialog(listOf(preview), uiState.isExporting,
+            onDismiss = { sharePreview = null }, onConfirm = {
+                scope.launch {
+                    val path = viewModel.exportPdfPath(preview)
+                    sharePreview = null
+                    if (path == null) return@launch
+                    runCatching {
+                        val uri = FileProvider.getUriForFile(context,
+                            "${context.packageName}.fileprovider", java.io.File(path))
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/pdf"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(share, "Share diary PDF"))
+                    }.onFailure { viewModel.onShareError() }
+                }
+            })
+    }
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -155,22 +179,7 @@ fun DiaryScreen(
                     enabled = uiState.text.isNotBlank() &&
                         !uiState.isGenerating && !uiState.isExporting,
                     onClick = {
-                        scope.launch {
-                            val path = viewModel.exportPdfPath() ?: return@launch
-                            runCatching {
-                                val uri = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    java.io.File(path),
-                                )
-                                val share = Intent(Intent.ACTION_SEND).apply {
-                                    type = "application/pdf"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(share, "Share diary PDF"))
-                            }.onFailure { viewModel.onShareError() }
-                        }
+                        scope.launch { sharePreview = viewModel.prepareShare() }
                     },
                 )
             }

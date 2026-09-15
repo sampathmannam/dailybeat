@@ -171,6 +171,11 @@ fun SettingsScreen(
                     checked = state.gpsEnabled,
                     onCheckedChange = viewModel::setGpsEnabled,
                 )
+                Text(if (com.dailybeat.app.BuildConfig.GOOGLE_LOCATION)
+                    "Motion-aware capture uses Google location services. Battery results depend on your device and route."
+                else "Google-free build · Uses Android location providers with batched updates. Motion-triggered idle sleep is unavailable; battery use must be measured separately.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.capturePausedUntilMs > System.currentTimeMillis()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -337,16 +342,20 @@ fun SettingsScreen(
 
         item {
             SettingsGroup(title = stringResource(R.string.settings_identity_group)) {
+                com.dailybeat.app.ui.components.JournalProfilePicker(
+                    selected = state.journalProfile,
+                    onSelected = viewModel::setJournalProfile,
+                )
                 OutlinedTextField(
                     value = state.officerName,
                     onValueChange = viewModel::setOfficerName,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.officer_name_label)) },
+                    label = { Text(if (state.journalProfile == com.dailybeat.app.data.settings.JournalProfile.POLICE) "Officer name" else "Your name (optional)") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
-                OutlinedTextField(
+                if (state.journalProfile == com.dailybeat.app.data.settings.JournalProfile.POLICE) OutlinedTextField(
                     value = state.supervisorName,
                     onValueChange = viewModel::setSupervisorName,
                     modifier = Modifier.fillMaxWidth(),
@@ -415,6 +424,38 @@ fun SettingsScreen(
                             text = stringResource(R.string.backup_signed_in_as, state.backupSignedInEmail.orEmpty()),
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        Text("New backups are encrypted on this phone. Use a separate recovery passphrase (20–256 characters, ideally six random words). Keep it in a password manager; losing it means losing access to the backup. It is not your account password.",
+                            style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = state.recoveryPassphrase,
+                            onValueChange = viewModel::setRecoveryPassphrase,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Recovery passphrase") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            enabled = !state.backupBusy,
+                        )
+                        OutlinedTextField(
+                            value = state.recoveryConfirmation,
+                            onValueChange = viewModel::setRecoveryConfirmation,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Confirm passphrase for a new backup") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            enabled = !state.backupBusy,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = state.legacyBackupRestore,
+                                onCheckedChange = viewModel::setLegacyBackupRestore,
+                                enabled = !state.backupBusy,
+                            )
+                            Text("Restore an older, unencrypted backup instead", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (state.legacyBackupRestore) Text("Legacy recovery does not use this passphrase. After checking the restored data, create an encrypted backup. Older cloud copies remain until you delete them separately.",
+                            style = MaterialTheme.typography.bodySmall)
                         PrimaryButton(
                             text = stringResource(R.string.backup_now),
                             onClick = viewModel::backupNow,

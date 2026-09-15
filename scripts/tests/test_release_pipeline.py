@@ -33,8 +33,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 27" in gradle
-    assert 'versionName = "4.0.6"' in gradle
+    assert "versionCode = 28" in gradle
+    assert 'versionName = "4.1.0-beta.1"' in gradle
+    # This is an unreleased QA candidate. A separate approved release advances the marker.
     assert release_marker == "4.0.6"
 
 
@@ -199,7 +200,8 @@ def test_ci_requires_a_live_cloud_backup_round_trip():
     assert "python3 scripts/live_backup_e2e.py" in workflow
     assert 'branches: [main, "hardening/**"]' not in workflow
     assert "/auth/v1/token?grant_type=password" in runner
-    assert "/rest/v1/dailybeat_backups?on_conflict=user_id" in runner
+    assert '/rest/v1/{self.table}?on_conflict=user_id' in runner
+    assert 'for table in ("dailybeat_backups", "dailybeat_encrypted_backups")' in runner
     assert "client.upload(session, original)" in runner
     assert "client.delete(session)" in runner
     assert "if client.download(session) != original" in runner

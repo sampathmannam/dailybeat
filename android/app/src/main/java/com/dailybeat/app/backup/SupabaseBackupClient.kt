@@ -44,6 +44,7 @@ interface BackupRemote {
     suspend fun signIn(email: String, password: String): Result<BackupSession>
     suspend fun upload(snapshotJson: String): Result<Unit>
     suspend fun download(): Result<RemoteBackup?>
+    suspend fun downloadLegacy(): Result<RemoteBackup?> = Result.failure(IllegalStateException("Legacy recovery unavailable."))
     fun signOut()
 }
 
@@ -112,7 +113,7 @@ class SupabaseBackupClient(
                 .put("snapshot", JSONObject(snapshotJson))
                 .toString()
             val request = authorizedRequestBuilder(
-                "/rest/v1/dailybeat_backups?on_conflict=user_id",
+                "/rest/v1/dailybeat_encrypted_backups?on_conflict=user_id",
                 session,
             )
                 .header("Prefer", "resolution=merge-duplicates,return=minimal")
@@ -123,12 +124,15 @@ class SupabaseBackupClient(
         }
     }
 
-    override suspend fun download(): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
+    override suspend fun download(): Result<RemoteBackup?> = downloadFrom("dailybeat_encrypted_backups")
+    override suspend fun downloadLegacy(): Result<RemoteBackup?> = downloadFrom("dailybeat_backups")
+
+    private suspend fun downloadFrom(table: String): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
             val session = validSession()
             val request = authorizedRequestBuilder(
-                "/rest/v1/dailybeat_backups?select=snapshot,updated_at&user_id=eq.${session.userId}&limit=1",
+                "/rest/v1/$table?select=snapshot,updated_at&user_id=eq.${session.userId}&limit=1",
                 session,
             ).get().build()
             val rows = JSONArray(execute(request))

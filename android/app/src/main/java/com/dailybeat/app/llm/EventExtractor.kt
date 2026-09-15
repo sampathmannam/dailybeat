@@ -10,11 +10,12 @@ import org.json.JSONObject
 class EventExtractor(
     private val cloudLlm: CloudTextGenerator,
     private val settingsRepository: SettingsRepository,
+    private val permitsUnlinkedText: suspend () -> Boolean = { true },
 ) {
 
     suspend fun extract(transcript: String): Result<StructuredEvent> {
         val settings = settingsRepository.get()
-        if (!settingsRepository.isCloudBrainReady()) {
+        if (!settingsRepository.isCloudBrainReady() || !permitsUnlinkedText()) {
             return Result.failure(IllegalStateException("Cloud AI is required. Enable it and add an API key in Settings."))
         }
         val boundedTranscript = transcript.trim().take(MAX_TRANSCRIPT_CHARS)

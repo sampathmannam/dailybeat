@@ -93,13 +93,7 @@ class ReviewDayViewModel(
         val cleanName = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS).trim()
         if (cleanName.isEmpty()) return
         launchAction("Stop updated.", "Unable to update this stop.") {
-            app.visitRepository.update(
-                visit.copy(
-                    placeName = cleanName,
-                    manuallyEdited = true,
-                    reviewState = "confirmed",
-                ),
-            )
+            app.visitRepository.rename(visit, cleanName)
         }
     }
 
@@ -108,9 +102,7 @@ class ReviewDayViewModel(
             if (hidden) "Stop hidden from this Beat." else "Stop restored.",
             "Unable to update this stop.",
         ) {
-            app.visitRepository.update(
-                visit.copy(hidden = hidden, manuallyEdited = true, reviewState = "confirmed"),
-            )
+            app.visitRepository.setHidden(visit, hidden)
         }
     }
 

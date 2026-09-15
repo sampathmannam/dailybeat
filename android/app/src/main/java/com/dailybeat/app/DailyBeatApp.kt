@@ -39,7 +39,10 @@ class DailyBeatApp : Application() {
             .build()
     }
 
-    val eventExtractor: EventExtractor by lazy { EventExtractor(cloudLlm, settingsRepository) }
+    val eventExtractor: EventExtractor by lazy { EventExtractor(cloudLlm, settingsRepository, ::permitsUnlinkedCloudText) }
+
+    suspend fun permitsUnlinkedCloudText(): Boolean =
+        placeRepository.all().none { it.isPrivate } && db.visits().hiddenEntries().isEmpty()
 
     val eventRepository: EventRepository by lazy { EventRepository(db.events()) }
 
@@ -112,8 +115,13 @@ class DailyBeatApp : Application() {
         )
     }
 
+    val diaryShareService by lazy {
+        com.dailybeat.app.export.DiaryShareService(settingsRepository, visitRepository,
+            eventRepository, placeRepository, diaryRepository, db)
+    }
+
     val packageExporter: PackageExporter by lazy {
-        PackageExporter(this, diaryRepository, pdfExporter)
+        PackageExporter(this, diaryShareService, pdfExporter)
     }
 
     override fun onCreate() {

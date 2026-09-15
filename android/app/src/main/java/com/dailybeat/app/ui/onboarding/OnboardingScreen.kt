@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -43,12 +44,14 @@ import com.dailybeat.app.util.InputPolicy
 @Composable
 fun OnboardingScreen(
     onComplete: (officerName: String) -> Unit,
+    onProfileSelected: (com.dailybeat.app.data.settings.JournalProfile) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Saveable, not plain remember: rotating the phone on the name step used to throw the user
     // back to the welcome screen with the name they had typed gone.
     var step by rememberSaveable { mutableIntStateOf(0) }
     var officerName by rememberSaveable { mutableStateOf("") }
+    var profileId by rememberSaveable { mutableStateOf("personal") }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -57,6 +60,8 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Edge-to-edge must still keep the scroll viewport above system navigation.
+                .safeDrawingPadding()
                 .readableContentWidth()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
@@ -116,13 +121,17 @@ fun OnboardingScreen(
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    com.dailybeat.app.ui.components.JournalProfilePicker(
+                        selected = com.dailybeat.app.data.settings.JournalProfile.fromId(profileId),
+                        onSelected = { profileId = it.id; onProfileSelected(it) },
+                    )
                     OutlinedTextField(
                         value = officerName,
                         onValueChange = {
                             officerName = InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.officer_name_label)) },
+                        label = { Text(if (profileId == "police") "Officer name (optional)" else "Your name (optional)") },
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -133,7 +142,7 @@ fun OnboardingScreen(
                     PrimaryButton(
                         text = stringResource(R.string.onboarding_continue),
                         onClick = { step = 2 },
-                        enabled = officerName.isNotBlank(),
+                        enabled = true,
                     )
                 }
                 else -> {

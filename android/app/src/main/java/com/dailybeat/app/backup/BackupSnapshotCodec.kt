@@ -184,6 +184,7 @@ object BackupSnapshotCodec {
     )
 
     private fun settingsJson(value: BackupSettings) = JSONObject().apply {
+        put("journalProfile", value.journalProfile)
         put("officerName", value.officerName)
         put("themePreference", value.themePreference)
         put("gpsCaptureEnabled", value.gpsCaptureEnabled)
@@ -208,6 +209,9 @@ object BackupSnapshotCodec {
         val defaults = BackupSettings()
         val storedThemePreference = value.optString("themePreference")
         return BackupSettings(
+            journalProfile = value.optString("journalProfile", "police").also {
+                require(it in setOf("personal", "field_work", "police")) { "Unknown journal template." }
+            },
             officerName = value.optString("officerName").ifBlank { defaults.officerName },
             themePreference = storedThemePreference
                 .takeIf { it in SUPPORTED_THEME_PREFERENCES }
