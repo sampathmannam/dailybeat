@@ -27,6 +27,14 @@ fi
 cd "$GITHUB_WORKSPACE/android"
 
 instrumentation_args=()
+if [ "${DAILYBEAT_LIVE_BACKUP_ONLY:-0}" = "1" ]; then
+  if [ "${DAILYBEAT_OFFLINE_TESTS_ONLY:-0}" = "1" ] || [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" != "1" ]; then
+    echo "Live-backup-only mode requires the live gate and cannot run offline-only."
+    capture_evidence 2
+    exit 2
+  fi
+  instrumentation_args+=("-Pandroid.testInstrumentationRunnerArguments.class=com.dailybeat.app.CloudBackupLiveTest")
+fi
 if [ "${DAILYBEAT_OFFLINE_TESTS_ONLY:-0}" = "1" ]; then
   if [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
     echo "Offline-only mode cannot bypass the required live backup gate."
@@ -83,6 +91,7 @@ fi
 
 timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest \
   -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop \
+  -PdailybeatFoss="${DAILYBEAT_FOSS:-false}" \
   "${instrumentation_args[@]}" --no-daemon --stacktrace
 test_status=$?
 capture_evidence "$test_status"

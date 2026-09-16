@@ -56,7 +56,7 @@ jobs:
           # These checks run again on the resulting main commit.
           # A release must not outrun either emulator lane. The offline lane catches navigation,
           # storage and permission regressions without depending on third-party availability.
-          required_checks=(build offline-instrumentation instrumentation live-backup release-policy codeql oss-security foss-build rls-tests)
+          required_checks=(build offline-instrumentation instrumentation live-backup release-policy codeql oss-security foss-build rls-tests native-backup)
           deadline=$((SECONDS + 1800))
 
           while true; do

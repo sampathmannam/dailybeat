@@ -111,6 +111,20 @@ def test_requested_android_cloud_recovery_is_fail_closed_and_cleans_up_qa_backup
     assert 'addQueryParameter("user_id", "eq.${session.userId}")' in test
 
 
+def test_native_cloud_recovery_uses_isolated_foss_build_and_serializes_qa_account():
+    jobs = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())["jobs"]
+    native = jobs["native-backup"]
+    assert native["env"]["DAILYBEAT_REQUIRE_LIVE_BACKUP"] == "1"
+    assert native["env"]["DAILYBEAT_LIVE_BACKUP_ONLY"] == "1"
+    assert native["env"]["DAILYBEAT_FOSS"] == "true"
+    assert native["concurrency"] == jobs["live-backup"]["concurrency"]
+    assert native["concurrency"]["cancel-in-progress"] is False
+    assert not any("upload-artifact" in step.get("uses", "") for step in native["steps"])
+    assert any("-PdailybeatFoss=true -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop" in step.get("run", "") for step in native["steps"])
+    publisher = (ROOT / ".github/workflows/publish-release.yml").read_text()
+    assert "native-backup" in publisher.split("required_checks=(", 1)[1].split(")", 1)[0]
+
+
 def test_phone_live_gate_rejects_missing_configuration_before_any_device_action():
     import os
     import subprocess

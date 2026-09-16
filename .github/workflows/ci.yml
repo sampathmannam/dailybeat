@@ -37,6 +37,9 @@ jobs:
   live-backup:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: dailybeat-backup-qa-account
+      cancel-in-progress: false
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -51,6 +54,57 @@ jobs:
           python-version: "3.12"
       - name: Live cloud backup upload, download, and cleanup
         run: python3 scripts/live_backup_e2e.py
+
+  # Use the existing protected QA credentials without copying them to a developer machine.
+  # API 35 is independent of the API 34 offline lanes and checks the actual Android crypto/client path.
+  native-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: dailybeat-backup-qa-account
+      cancel-in-progress: false
+    env:
+      DAILYBEAT_REQUIRE_LIVE_BACKUP: "1"
+      DAILYBEAT_LIVE_BACKUP_ONLY: "1"
+      DAILYBEAT_FOSS: "true"
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      DAILYBEAT_BACKUP_TEST_EMAIL: ${{ secrets.DAILYBEAT_BACKUP_TEST_EMAIL }}
+      DAILYBEAT_BACKUP_TEST_PASSWORD: ${{ secrets.DAILYBEAT_BACKUP_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: 'false'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Build isolated Google-free recovery test
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest -PdailybeatFoss=true -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop --no-daemon
+      - name: Enable KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Native encrypted recovery and verified QA cleanup
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
+          script: bash .github/scripts/run-instrumentation.sh
+      # Do not upload raw instrumentation artifacts from a credentialed test. Runner/proto files
+      # may contain argument values, and artifact contents do not receive GitHub log masking.
 
   build:
     runs-on: ubuntu-latest
