@@ -107,7 +107,20 @@ def test_phone_installer_defaults_to_the_current_signed_stable_release():
         encoding="utf-8"
     )
 
-    assert "DAILYBEAT_RELEASE_TAG:-v4.0.2" in installer
+    assert '"$ROOT/release/version.txt"' in installer
+    assert 'TAG="${DAILYBEAT_RELEASE_TAG:-v${release_version}}"' in installer
+    assert "v4.0.2" not in installer
+
+
+def test_release_waits_for_foss_and_executable_database_isolation_tests():
+    publisher = (ROOT / ".github/workflows/publish-release.yml").read_text()
+    checks = publisher.split("required_checks=(", 1)[1].split(")", 1)[0].split()
+    assert {"foss-build", "rls-tests"}.issubset(checks)
+    backend = yaml.safe_load((ROOT / ".github/workflows/backend-rls.yml").read_text())
+    # PyYAML's YAML 1.1 loader represents the unquoted GitHub Actions `on` key as True.
+    triggers = backend.get("on", backend.get(True))
+    for trigger in ("push", "pull_request"):
+        assert triggers[trigger] == {"branches": ["main"]}
 
 
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():

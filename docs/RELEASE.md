@@ -47,14 +47,20 @@ remote snapshot validates.
 
 ## Signed APK
 
+For current candidate progress and unresolved gates, see [release completion status](RELEASE_COMPLETION_STATUS.md).
+The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
+checks the release checksum and permanent signing certificate, and leaves permissions to Android's
+normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
+
 After every release gate passes, download these assets from GitHub Releases (tag `v4.0.6`):
 
 - `DailyBeat-v4.0.6.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
-for build, Android instrumentation, a real Supabase backup/restore round trip, the release-policy
-suite, and CodeQL, then verifies the permanent signing-certificate fingerprint before publishing.
+for standard and Google-free builds, Android instrumentation, a real Supabase backup/restore round
+trip, executable database isolation tests, the release-policy suite, and security checks, then
+verifies the permanent signing-certificate fingerprint before publishing.
 Do not create a tag from a feature branch merely to obtain an APK.
 
 ## Test the candidate on a physical Android phone
