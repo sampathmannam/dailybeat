@@ -3,6 +3,16 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
+def test_owner_approved_gpl_licence_is_bundled_and_scope_is_explicit():
+    licence = (ROOT / "LICENSE").read_text()
+    readme = (ROOT / "README.md").read_text()
+    assert "GNU GENERAL PUBLIC LICENSE" in licence
+    assert "Version 3, 29 June 2007" in licence
+    assert "END OF TERMS AND CONDITIONS" in licence
+    assert "GPL-3.0-only" in readme
+    assert "Third-party code and assets retain their own licences" in readme
+    assert 'license = {file = "LICENSE"}' in (ROOT / "pyproject.toml").read_text()
+
 def test_foss_build_has_its_own_required_dependency_verification():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text()
     assert 'if (!dailybeatFoss) implementation("com.google.android.gms:play-services-location:21.3.0")' in gradle

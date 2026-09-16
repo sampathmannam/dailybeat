@@ -6,7 +6,9 @@ Branch: `feature/public-foss-readiness`
 
 Baseline: `a839e8f` (adaptive capture); stable release marker 4.0.6.
 
-Candidate: 4.1.0-beta.1 / code 28. No production publication authorised or performed.
+Candidate: 4.1.0-beta.1 / code 28. The owner has requested a release; none has been published.
+See [the latest follow-through](RELEASE_FOLLOWTHROUGH_20260916.md) for the approved GPL licence,
+deployed additive backend migration and physical-phone tests. The remaining acceptance gates still apply.
 
 Local QA results and known limits: [validation record](PUBLIC_BETA_VALIDATION.md).
 
@@ -54,12 +56,12 @@ they ran. Never substitute static SQL checks for the live RLS gate.
 
 ## Distribution gates — do not publish before these decisions
 
-- **Licence:** owner must select/approve a licence; then add LICENSE, copyright notices and contributor
-  terms as appropriate. Public GitHub visibility does not grant redistribution rights.
+- **Licence:** owner approved GPL-3.0; original source is now GPL-3.0-only with LICENSE included.
+  Complete third-party compatibility/notice review for the exact distributed configuration.
 - **Dependencies/assets:** audit all licences and origins, including MapLibre native artifacts,
   fonts and design assets. The no-GMS gate is narrower than a complete FLOSS audit.
-- **Backend:** deploy and verify encrypted storage without altering legacy data. CI's live-backup job
-  now checks both tables and will fail if the encrypted migration is absent. Explicitly exercise
+- **Backend:** the approved encrypted table is deployed and CI transport checks now pass for both tables.
+  Legacy user data was not changed by the migration. Still explicitly exercise
   recovery after a clean installation and wrong-passphrase handling on a dedicated QA account.
 - **User control:** finish local/cloud deletion, retention and privacy-policy/contact disclosures
   before broad availability; never remove a user's old readable backup silently.

@@ -93,7 +93,40 @@ def test_phone_gate_does_not_expand_an_empty_array_under_macos_bash_strict_mode(
         './gradlew connectedDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop "$@" --no-daemon --stacktrace'
         in runner
     )
-    assert "else\n  run_phone_instrumentation\nfi" in runner
+    assert "Running offline/core tests only; live cloud recovery is not included." in runner
+    assert "notClass=com.dailybeat.app.CloudBackupLiveTest" in runner
+
+
+def test_requested_android_cloud_recovery_is_fail_closed_and_cleans_up_qa_backup():
+    for path in ("scripts/mac_phone_e2e.sh", ".github/scripts/run-instrumentation.sh"):
+        assert "android.testInstrumentationRunnerArguments.requireLiveBackup=true" in (ROOT / path).read_text()
+    test = (ROOT / "android/app/src/androidTest/java/com/dailybeat/app/CloudBackupLiveTest.kt").read_text()
+    assert 'if (required) check(hasCredentials)' in test
+    assert "check(configuration.isConfigured)" in test
+    assert "backupRecoveryPassphrase" not in test
+    assert "SecureRandom()" in test
+    assert "client.upload(original.snapshotJson).getOrThrow()" in test
+    assert "deleteOwnQaFixture(configuration, client)" in test
+    assert "Dedicated QA backup cleanup verification failed." in test
+    assert 'addQueryParameter("user_id", "eq.${session.userId}")' in test
+
+
+def test_phone_live_gate_rejects_missing_configuration_before_any_device_action():
+    import os
+    import subprocess
+
+    environment = dict(os.environ)
+    for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "DAILYBEAT_BACKUP_TEST_EMAIL", "DAILYBEAT_BACKUP_TEST_PASSWORD"):
+        environment.pop(name, None)
+    environment["DAILYBEAT_REQUIRE_LIVE_BACKUP"] = "1"
+    # An unusable device serial is intentional: the configuration check must stop before adb.
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/mac_phone_e2e.sh"), "must-not-touch-any-device"],
+        env=environment, capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode != 0
+    assert "Required live backup verification needs dedicated QA credentials" in result.stdout
+    assert "Using device:" not in result.stdout
 
 
 def test_mac_helpers_detect_android_studios_bundled_java_runtime():

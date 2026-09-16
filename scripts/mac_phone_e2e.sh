@@ -7,6 +7,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=mac_adb_common.sh
 source "$ROOT/scripts/mac_adb_common.sh"
 
+# Fail before syncing branches or touching any device when the requested live gate cannot run.
+if [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ] &&
+  { [ -z "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] || [ -z "${DAILYBEAT_BACKUP_TEST_PASSWORD:-}" ] ||
+    [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; }; then
+  echo "Required live backup verification needs dedicated QA credentials and Supabase configuration."
+  exit 1
+fi
+
 if [ -n "${DAILYBEAT_BRANCH:-}" ]; then
   echo "=== Sync branch $DAILYBEAT_BRANCH ==="
   git -C "$ROOT" fetch origin "$DAILYBEAT_BRANCH"
@@ -64,6 +72,7 @@ if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PA
     printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
   }
   run_phone_instrumentation \
+    "-Pandroid.testInstrumentationRunnerArguments.requireLiveBackup=true" \
     "-Pandroid.testInstrumentationRunnerArguments.backupEmail=$DAILYBEAT_BACKUP_TEST_EMAIL" \
     "-Pandroid.testInstrumentationRunnerArguments.backupPassword=$DAILYBEAT_BACKUP_TEST_PASSWORD" \
     "-Pandroid.testInstrumentationRunnerArguments.backupEmailSha=$(mac_sha256_text "$DAILYBEAT_BACKUP_TEST_EMAIL")" \
@@ -73,7 +82,9 @@ elif [ "${DAILYBEAT_REQUIRE_LIVE_BACKUP:-0}" = "1" ]; then
   echo "Live backup verification requires DAILYBEAT_BACKUP_TEST_EMAIL and DAILYBEAT_BACKUP_TEST_PASSWORD."
   exit 1
 else
-  run_phone_instrumentation
+  echo "Running offline/core tests only; live cloud recovery is not included."
+  run_phone_instrumentation \
+    "-Pandroid.testInstrumentationRunnerArguments.notClass=com.dailybeat.app.CloudBackupLiveTest"
 fi
 
 echo "=== Reinstall QA app after the Android test runner cleanup ==="

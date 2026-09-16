@@ -46,6 +46,7 @@ if [ -n "${DAILYBEAT_BACKUP_TEST_EMAIL:-}" ] && [ -n "${DAILYBEAT_BACKUP_TEST_PA
     printf '%s' "$1" | sha256sum | awk '{print $1}'
   }
   instrumentation_args+=(
+    "-Pandroid.testInstrumentationRunnerArguments.requireLiveBackup=true"
     "-Pandroid.testInstrumentationRunnerArguments.backupEmail=$DAILYBEAT_BACKUP_TEST_EMAIL"
     "-Pandroid.testInstrumentationRunnerArguments.backupPassword=$DAILYBEAT_BACKUP_TEST_PASSWORD"
     "-Pandroid.testInstrumentationRunnerArguments.backupEmailSha=$(sha256_text "$DAILYBEAT_BACKUP_TEST_EMAIL")"

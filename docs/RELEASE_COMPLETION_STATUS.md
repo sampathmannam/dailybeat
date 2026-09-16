@@ -1,5 +1,8 @@
 # Release completion attempt — 2026-09-16
 
+**Later update:** [backend deployment, GPL approval and physical-phone verification](RELEASE_FOLLOWTHROUGH_20260916.md)
+resolve several blockers listed in this earlier attempt record. It remains a record of an unreleased candidate.
+
 The owner requested completion and a release. The candidate is still **4.1.0-beta.1 / code 28**;
 the published stable release remains **4.0.6**. No stable release is claimed by this document.
 

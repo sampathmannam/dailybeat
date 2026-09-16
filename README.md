@@ -90,8 +90,17 @@ Production releases must keep the permanent signing certificate and pass the exi
 No production release or store submission is created by this branch.
 
 The last stable release is available through [GitHub Releases](https://github.com/sampathmannam/dailybeat/releases).
-The public-store licence decision, dependency/asset audit, F-Droid review and signing strategy are
-still pending. Public source visibility alone is not an open-source licence.
+The dependency/asset audit, F-Droid review and distribution signing strategy are still pending.
+The Google-backed build includes dependencies that need separate compatibility review; do not
+treat the project licence as permission to redistribute every dependency under that licence.
+
+## Licence
+
+DailyBeat original source is licensed under **GNU GPL version 3 only** (`GPL-3.0-only`),
+as approved by the project owner on 16 September 2026. See [LICENSE](LICENSE).
+Third-party code and assets retain their own licences and notices. No additional linking exception
+or grant over third-party material is implied. The Google-free configuration is the candidate for
+FLOSS distribution, subject to the remaining dependency/asset audit and release gates.
 
 ## Scope
 
