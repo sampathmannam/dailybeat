@@ -105,6 +105,45 @@ jobs:
             --exit-code 1 \
             --no-progress .
 
+      # A generic source scan sees no Gradle dependencies without resolved inventories.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: 'false'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Resolve both Android release dependency inventories
+        working-directory: android
+        run: |
+          ./gradlew exportReleaseDependencyInventory --no-daemon
+          ./gradlew exportReleaseDependencyInventory -PdailybeatFoss=true --no-daemon
+      - name: Scan resolved Android runtime dependencies
+        run: |
+          test -s android/app/build/reports/dependency-inventory/standard.gradle.lockfile
+          test -s android/app/build/reports/dependency-inventory/foss.gradle.lockfile
+          "$RUNNER_TEMP/security-bin/trivy" fs \
+            --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+            --list-all-pkgs --format json --output android/app/build/reports/android-dependency-scan.json \
+            android/app/build/reports/dependency-inventory
+          for variant in standard foss; do
+            expected="$(awk '/=releaseRuntimeClasspath$/ {n++} END {print n+0}' "android/app/build/reports/dependency-inventory/$variant.gradle.lockfile")"
+            actual="$(jq -r --arg target "$variant.gradle.lockfile" '[.Results[] | select(.Target == $target and .Type == "gradle") | .Packages | length] | if length == 1 then .[0] else -1 end' android/app/build/reports/android-dependency-scan.json)"
+            test "$expected" -gt 0
+            test "$actual" -eq "$expected"
+          done
+      - name: Upload Android dependency scan evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-dependency-security-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            android/app/build/reports/dependency-inventory/
+            android/app/build/reports/android-dependency-scan.json
+
   codeql:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -127,6 +166,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: 'false'
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build analyzed Android bytecode
         working-directory: android

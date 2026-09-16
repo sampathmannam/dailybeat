@@ -13,8 +13,18 @@ the published stable release remains **4.0.6**. No stable release is claimed by 
   There is no checksum-less fallback, uninstall, downgrade flag or automatic permission grant.
 - Synthetic installer tests cover success and rejection of corrupt, ambiguous, mis-signed,
   wrong-package and wrong-version assets. These tests use fake Android tools, not a real device.
-- All **56** repository policy/installer tests pass locally; shell syntax and whitespace checks pass.
+- All **58** repository policy/installer tests pass locally; shell syntax and whitespace checks pass.
 - Gitleaks scanned **260 commits / 6.32 MB** of repository history with no detected leaks.
+- The first GitHub run passed the OSS scanner suite and dependency review, but Android jobs and
+  CodeQL stopped in SDK setup: the pinned setup action defaults to the retired `tools` package.
+  Every SDK setup now explicitly requests platform-tools, API 35 and build-tools 35.0.0.
+- A generic Trivy source scan found no supported dependency files. A new Gradle task emits
+  resolved release-module inventories for both configurations. Trivy actually scanned **93 standard**
+  and **89 Google-free** modules and found no HIGH/CRITICAL vulnerabilities in its current database.
+  CI now compares scanned counts with inventory counts; an empty/partial scan cannot pass.
+  This covers resolved Maven runtime dependencies, not every native component or asset licence.
+- GitHub's disposable Postgres/Auth stack applied the migrations and passed **25 pgTAP tests**
+  across legacy and encrypted storage. This is not evidence of deployment to the live backend.
 
 The app code remains the tested public-beta milestone in [the validation record](PUBLIC_BETA_VALIDATION.md).
 This work does not complete the still-open evidence/revision, correction, follow-up and capture
@@ -27,10 +37,14 @@ coverage tasks in [the roadmap](PRODUCT_IMPROVEMENT_PLAN.md).
   migration/deployment was attempted. Sign in locally with `supabase login`; do not paste tokens.
 - **Physical device:** `adb devices -l` currently lists no devices. No phone data or permissions
   were changed. Device capture/recovery verification and sustained battery/recall trials are unrun.
-- **Remote checks:** the candidate is being submitted to GitHub CI. Local Docker is unavailable;
-  the GitHub Backend RLS job is the available route to executable migration/isolation tests.
+- **Remote checks:** [PR #52](https://github.com/sampathmannam/dailybeat/pull/52) is open. The first
+  live-backup check failed with HTTP 404. Sanitized error-stage reporting was added for the rerun;
+  do not assume which table or authentication endpoint is missing until that output is inspected.
 - **Public-store readiness:** dependency/asset licensing, account deletion/retention, independent
   security review and the remaining product acceptance gates are not signed off.
 
 Do not create a production tag or bypass required checks to turn a QA artifact into a release.
 Use the existing permanent signing identity and retain the installed production database.
+
+Technical references: [setup-android's pinned inputs](https://github.com/android-actions/setup-android/blob/40fd30fb8d7440372e1316f5d1809ec01dcd3699/action.yml)
+and [Trivy's supported Java inputs](https://www.trivy.dev/docs/latest/coverage/language/java/).

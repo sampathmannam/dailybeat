@@ -123,6 +123,20 @@ def test_release_waits_for_foss_and_executable_database_isolation_tests():
         assert triggers[trigger] == {"branches": ["main"]}
 
 
+def test_android_setup_never_requests_the_retired_tools_package():
+    found = 0
+    for path in (ROOT / ".github/workflows").glob("*.yml"):
+        workflow = yaml.safe_load(path.read_text())
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if step.get("uses", "").startswith("android-actions/setup-android@"):
+                    packages = step.get("with", {}).get("packages", "").split()
+                    assert "tools" not in packages and "platform-tools" in packages
+                    assert {"platforms;android-35", "build-tools;35.0.0"}.issubset(packages)
+                    found += 1
+    assert found >= 6
+
+
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():
     flow = (ROOT / "maestro/onboarding_and_nav.yaml").read_text(encoding="utf-8")
 

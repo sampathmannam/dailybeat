@@ -137,6 +137,28 @@ tasks.register("verifyGoogleFreeDependencies") {
     }
 }
 
+// Trivy does not infer Android dependencies from build.gradle.kts. Emit the resolved release
+// modules in its supported Gradle lockfile format; this inventory is NOT an input lock for Gradle.
+tasks.register("exportReleaseDependencyInventory") {
+    group = "verification"
+    val variantName = if (dailybeatFoss) "foss" else "standard"
+    val inventory = layout.buildDirectory.file("reports/dependency-inventory/$variantName.gradle.lockfile")
+    outputs.file(inventory)
+    outputs.upToDateWhen { false }
+    doLast {
+        val modules = configurations.getByName("releaseRuntimeClasspath")
+            .resolvedConfiguration.resolvedArtifacts.map { it.moduleVersion.id.toString() }
+            .distinct().sorted()
+        check(modules.isNotEmpty()) { "Refusing to emit an empty dependency inventory." }
+        inventory.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText("# Generated release runtime inventory for vulnerability scanning; not an input lock.\n" +
+                modules.joinToString("\n") { "$it=releaseRuntimeClasspath" } + "\nempty=\n")
+        }
+        logger.lifecycle("Exported {} {} release modules for vulnerability scanning.", modules.size, variantName)
+    }
+}
+
 // The regular .qa app can contain the officer's imported PDFs. Instrumentation fixtures
 // are destructive, so neither a default Gradle invocation nor a runner may target it.
 val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {

@@ -45,3 +45,19 @@ def test_scanner_downloads_are_checksum_verified():
     assert "TRUFFLEHOG_SHA256:" in workflow
     assert "TRIVY_SHA256:" in workflow
     assert workflow.count("sha256sum --check --strict") == 4
+
+
+def test_security_scans_resolved_android_dependencies_not_only_source_files():
+    workflow = _workflow()
+    gradle = (ROOT / "android/app/build.gradle.kts").read_text()
+    assert 'tasks.register("exportReleaseDependencyInventory")' in gradle
+    assert 'getByName("releaseRuntimeClasspath")' in gradle
+    assert "modules.isNotEmpty()" in gradle
+    assert "exportReleaseDependencyInventory -PdailybeatFoss=true" in workflow
+    assert "dependency-inventory/standard.gradle.lockfile" in workflow
+    assert "dependency-inventory/foss.gradle.lockfile" in workflow
+    scan = workflow.split("name: Scan resolved Android runtime dependencies", 1)[1].split("- name:", 1)[0]
+    assert "--scanners vuln --severity HIGH,CRITICAL --exit-code 1" in scan
+    assert "--ignore-unfixed" not in scan
+    assert "--list-all-pkgs" in scan
+    assert 'test "$actual" -eq "$expected"' in scan

@@ -152,8 +152,9 @@ class SupabaseQaClient:
                 if error.code in {429, 500, 502, 503, 504} and attempt < 3:
                     time.sleep(2**attempt)
                     continue
+                stage = "authentication" if path.startswith("/auth/") else f"{self.table} {method}"
                 raise LiveBackupError(
-                    f"Cloud backup request failed with HTTP {error.code}."
+                    f"Cloud backup request failed with HTTP {error.code} during {stage}."
                 ) from error
             except (urllib.error.URLError, TimeoutError) as error:
                 if attempt < 3:
