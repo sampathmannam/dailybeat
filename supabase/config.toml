@@ -184,6 +184,10 @@ minimum_password_length = 12
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = "lower_upper_letters_digits_symbols"
 
+[functions.delete-account]
+# Keep platform JWT verification on before the function also validates the caller and recent iat.
+verify_jwt = true
+
 # Configure passkey sign-ins.
 # [auth.passkey]
 # enabled = false

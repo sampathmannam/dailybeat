@@ -30,6 +30,9 @@ import com.dailybeat.app.llm.EventExtractor
 import com.dailybeat.app.notify.DailyReminderScheduler
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.capture.CaptureHealthStore
+import com.dailybeat.app.data.retention.HistoryRetentionManager
+import com.dailybeat.app.data.retention.HistoryRetentionWorker
+import com.dailybeat.app.data.retention.LocalDataEraser
 
 class DailyBeatApp : Application() {
 
@@ -50,13 +53,17 @@ class DailyBeatApp : Application() {
 
     val placeRepository: PlaceRepository by lazy { PlaceRepository(db.places()) }
 
-    val visitRepository: VisitRepository by lazy { VisitRepository(db.visits()) }
+    val visitRepository: VisitRepository by lazy { VisitRepository(db.visits(), db) }
 
     val breadcrumbRepository: BreadcrumbRepository by lazy { BreadcrumbRepository(db.breadcrumbs()) }
 
     val beatRepository: BeatRepository by lazy { BeatRepository(db.beatReviews()) }
 
     val captureHealthStore: CaptureHealthStore by lazy { CaptureHealthStore(this) }
+
+    val historyRetentionManager by lazy { HistoryRetentionManager(db) }
+
+    val localDataEraser by lazy { LocalDataEraser(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
@@ -133,6 +140,7 @@ class DailyBeatApp : Application() {
         // previous version may have scheduled, so it can never fire again.
         settingsRepository.setAutoMiddayPulse(false)
         PulseScheduler.cancel(this)
+        HistoryRetentionWorker.applySchedule(this, settingsRepository.get().historyRetentionDays)
     }
 
     private fun createNotificationChannels() {

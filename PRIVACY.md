@@ -1,6 +1,6 @@
 # DailyBeat privacy information — 4.1 public beta
 
-Updated 2026-09-16. This describes the candidate source, not a claim about older installed releases.
+Updated 2026-09-17. This describes the candidate source, not a claim about older installed releases.
 
 ## On your phone
 
@@ -52,19 +52,29 @@ compromised unlocked device.
 
 Encrypted and legacy backups use different tables. Wrong keys, modified ciphertext and unsupported
 envelope formats fail before database restore. There is no automatic downgrade to legacy recovery.
-The legacy-restore option reads older **unencrypted** snapshots. Old cloud copies remain until
-separately deleted; making a new encrypted backup does not retroactively protect or remove them.
+The legacy-restore option reads older **unencrypted** snapshots. Making a new encrypted backup does
+not retroactively protect or remove them. A signed-in user can delete both cloud-backup formats in
+Settings, or delete the cloud account after entering the current password again. Account deletion
+uses a server-side function; no service credential is included in the app.
 
 The snapshot includes private-zone definitions so protection survives recovery, but excludes
 API keys, auth sessions, the recovery passphrase and dormant DSR data. Exported files and shared
-copies are not included. Local database/backup deletion and cloud-account retention workflows must
-be reviewed before general availability.
+copies are not included. The selected local-retention period is restored with the encrypted backup;
+older restored history is pruned immediately when that setting has a finite period.
+
+Local history is kept until deletion by default. A user may instead choose 30 days, 90 days or one
+year. Applying a shorter period deletes complete older days immediately and a daily background task
+continues the policy. It covers events, visits, route points, diaries, day reviews, diary versions
+and visit-correction history; named-place definitions and settings remain. Cloud backups are a
+separate copy and are not shortened by local retention. “Erase all data on this phone” removes the
+local database, settings, exports, API key and saved cloud session after typed confirmation; it does
+not delete cloud data unless that separate action is used first.
 
 ## Limitations
 
 This app is not certified for evidence custody, attendance verification, emergency use, or continuous
 perfect location coverage. Cloud citations do not verify the truth of generated prose. Physical
-battery/recall trials, an independent security review, store disclosures and a production backup
-recovery drill remain necessary before a broad release.
+battery/recall trials, an independent security review and store disclosures remain necessary before
+a broad release.
 
 Algorithm reference: [Android cryptography guidance](https://developer.android.com/privacy-and-security/cryptography).

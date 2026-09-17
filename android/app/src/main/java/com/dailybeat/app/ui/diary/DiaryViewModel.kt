@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import com.dailybeat.app.util.userMessage
+import com.dailybeat.app.data.model.DiaryRevision
 
 data class DiaryUiState(
     val date: LocalDate = DateKeys.today(),
@@ -58,11 +59,15 @@ class DiaryViewModel(
     val uiState: StateFlow<DiaryUiState> = _uiState.asStateFlow()
 
     private var saveJob: Job? = null
+    private var editingCheckpointWritten = false
 
     val eventsForDay = app.eventRepository.observeEventsForDate(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val visitsForDay = app.visitRepository.observeForDate(date)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val revisionsForDay = app.diaryRepository.observeRevisions(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -119,7 +124,7 @@ class DiaryViewModel(
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(500)
-            runCatching { app.diaryRepository.saveForDate(date, boundedText) }
+            runCatching { saveCurrentEdit(boundedText) }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(
                         error = error.userMessage("Unable to save the diary draft."),
@@ -144,9 +149,13 @@ class DiaryViewModel(
         result.fold(
             onSuccess = { dairy ->
                 val boundedDairy = InputPolicy.multiline(dairy, InputPolicy.DIARY_CHARS)
-                runCatching { app.diaryRepository.saveForDate(date, boundedDairy) }.fold(
+                runCatching {
+                    app.diaryRepository.checkpointForDate(date, "Before generating a new draft")
+                    app.diaryRepository.saveForDate(date, boundedDairy)
+                }.fold(
                     onSuccess = {
                         hasLocalEdit = true
+                        editingCheckpointWritten = false
                         savedStateHandle[DRAFT_KEY] = boundedDairy
                         _uiState.value = _uiState.value.copy(
                             isGenerating = false,
@@ -199,9 +208,13 @@ class DiaryViewModel(
             result.fold(
                 onSuccess = { dairy ->
                     val boundedDairy = InputPolicy.multiline(dairy, InputPolicy.DIARY_CHARS)
-                    runCatching { app.diaryRepository.saveForDate(date, boundedDairy) }.fold(
+                    runCatching {
+                        app.diaryRepository.checkpointForDate(date, "Before generating from notes")
+                        app.diaryRepository.saveForDate(date, boundedDairy)
+                    }.fold(
                         onSuccess = {
                             hasLocalEdit = true
+                            editingCheckpointWritten = false
                             savedStateHandle[DRAFT_KEY] = boundedDairy
                             _uiState.value = _uiState.value.copy(
                                 isGenerating = false,
@@ -278,11 +291,40 @@ class DiaryViewModel(
         )
     }
 
+    fun restoreRevision(revision: DiaryRevision) {
+        if (_uiState.value.isGenerating || _uiState.value.isExporting) return
+        viewModelScope.launch {
+            runCatching {
+                flushPendingEdit()
+                app.diaryRepository.restoreRevision(date, revision)
+            }.fold(
+                onSuccess = {
+                    hasLocalEdit = true
+                    editingCheckpointWritten = false
+                    savedStateHandle[DRAFT_KEY] = revision.text
+                    _uiState.value = _uiState.value.copy(text = revision.text, error = null)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        error = error.userMessage("Unable to restore that diary version."),
+                    )
+                },
+            )
+        }
+    }
+
     private suspend fun flushPendingEdit() {
-        val pending = saveJob ?: return
-        pending.cancelAndJoin()
+        saveJob?.cancelAndJoin()
         saveJob = null
-        app.diaryRepository.saveForDate(date, _uiState.value.text)
+        if (hasLocalEdit) saveCurrentEdit(_uiState.value.text)
+    }
+
+    private suspend fun saveCurrentEdit(text: String) {
+        if (!editingCheckpointWritten) {
+            app.diaryRepository.checkpointForDate(date, "Before this editing session")
+            editingCheckpointWritten = true
+        }
+        app.diaryRepository.saveForDate(date, text)
     }
 
     private companion object {

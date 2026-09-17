@@ -6,6 +6,8 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.data.model.DiaryRevision
+import com.dailybeat.app.data.model.VisitCorrection
 
 data class BackupSnapshot(
     val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
@@ -17,9 +19,11 @@ data class BackupSnapshot(
     val settings: BackupSettings,
     val breadcrumbs: List<LocationBreadcrumb> = emptyList(),
     val beatReviews: List<BeatReview> = emptyList(),
+    val diaryRevisions: List<DiaryRevision> = emptyList(),
+    val visitCorrections: List<VisitCorrection> = emptyList(),
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 2
+        const val CURRENT_SCHEMA_VERSION = 3
 
         fun empty(createdAtMs: Long) = BackupSnapshot(
             createdAtMs = createdAtMs,
@@ -30,6 +34,8 @@ data class BackupSnapshot(
             settings = BackupSettings(),
             breadcrumbs = emptyList(),
             beatReviews = emptyList(),
+            diaryRevisions = emptyList(),
+            visitCorrections = emptyList(),
         )
     }
 }
@@ -46,4 +52,5 @@ data class BackupSettings(
     val autoMiddayPulse: Boolean = false,
     val supervisorName: String = "",
     val journalProfile: String = "personal",
+    val historyRetentionDays: Int = 0,
 )

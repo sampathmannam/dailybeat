@@ -28,6 +28,9 @@ interface EventDao {
     @Query("DELETE FROM events")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM events WHERE timestamp < :cutoffMs")
+    suspend fun deleteBefore(cutoffMs: Long): Int
+
     @Delete
     suspend fun delete(event: Event)
 

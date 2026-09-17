@@ -24,6 +24,8 @@ SETTINGS_SCREEN = (
 EXPECTED_ORDER = [
     "settings_capture_group",
     "places_title",
+    # Retention, local erasure and legal notices are core privacy controls, before cosmetics.
+    "settings_data_privacy_group",
     "settings_appearance_group",
     # The group contains both officer and supervisor fields, so its heading describes the pair.
     "settings_identity_group",
@@ -32,7 +34,7 @@ EXPECTED_ORDER = [
     "settings_qa_group",
 ]
 
-PRIVACY_FIRST = ("settings_capture_group", "places_title")
+PRIVACY_FIRST = ("settings_capture_group", "places_title", "settings_data_privacy_group")
 MUST_COME_LATER = (
     "settings_appearance_group",
     "settings_cloud_group",

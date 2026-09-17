@@ -12,6 +12,8 @@ data class AppSettings(
     val autoMiddayPulse: Boolean = false,
     val supervisorName: String = "",
     val journalProfile: JournalProfile = JournalProfile.PERSONAL,
+    /** Zero keeps history until the user deletes it; positive values keep that many calendar days. */
+    val historyRetentionDays: Int = 0,
 )
 
 enum class ThemePreference(val id: String) {

@@ -257,6 +257,14 @@ private fun ReviewVisitRow(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
+                if (visit.manuallyEdited) {
+                    Text(
+                        stringResource(R.string.visit_correction_retained),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
                 Row {
                     TextButton(onClick = onRename) { Text(stringResource(R.string.rename_stop)) }
                     TextButton(

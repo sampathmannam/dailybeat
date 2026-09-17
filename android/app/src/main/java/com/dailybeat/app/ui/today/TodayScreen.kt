@@ -145,7 +145,10 @@ fun TodayScreen(
             if (beat.hasRoute) {
                 JourneyRoutePreview(route = beat.route, onOpenMap = onOpenMap)
             } else {
-                WaitingForRouteCard(uiState.captureStatus)
+                WaitingForRouteCard(
+                    status = uiState.captureStatus,
+                    locationPermissionGranted = uiState.locationPermissionGranted,
+                )
             }
         }
 
@@ -182,7 +185,7 @@ fun TodayScreen(
             )
         }
 
-        if (uiState.distanceEstimated) {
+        if (beat.hasRoute && uiState.distanceEstimated) {
             item {
                 Text(
                     stringResource(R.string.distance_estimated_note),
@@ -308,7 +311,10 @@ private fun TodayMomentsHeader() {
 }
 
 @Composable
-private fun WaitingForRouteCard(status: CaptureHealthStatus) {
+private fun WaitingForRouteCard(
+    status: CaptureHealthStatus,
+    locationPermissionGranted: Boolean,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth().heightIn(min = 188.dp).testTag("today_map_empty"),
         shape = MaterialTheme.shapes.large,
@@ -334,7 +340,11 @@ private fun WaitingForRouteCard(status: CaptureHealthStatus) {
             )
             Text(
                 text = when (status.level) {
-                    CaptureHealthLevel.OFF -> stringResource(R.string.map_tracking_off_body)
+                    CaptureHealthLevel.OFF -> if (locationPermissionGranted) {
+                        stringResource(R.string.map_tracking_off_body)
+                    } else {
+                        stringResource(R.string.map_location_permission_body)
+                    }
                     CaptureHealthLevel.PAUSED -> stringResource(R.string.map_paused_body)
                     else -> stringResource(R.string.map_waiting_body)
                 },

@@ -26,6 +26,8 @@ class LocalBackupStore(
                 visits = db.visits().all(),
                 breadcrumbs = db.breadcrumbs().all(),
                 beatReviews = db.beatReviews().all(),
+                diaryRevisions = db.diaries().allRevisions(),
+                visitCorrections = db.visits().allCorrections(),
                 settings = BackupSettings(
                     journalProfile = settings.journalProfile.id,
                     officerName = settings.officerName,
@@ -38,6 +40,7 @@ class LocalBackupStore(
                     autoEveningReport = settings.autoEveningReport,
                     autoMiddayPulse = settings.autoMiddayPulse,
                     supervisorName = settings.supervisorName,
+                    historyRetentionDays = settings.historyRetentionDays,
                 ),
             )
         }
@@ -54,12 +57,24 @@ class LocalBackupStore(
             db.visits().deleteAll()
             db.breadcrumbs().deleteAll()
             db.beatReviews().deleteAll()
+            db.diaries().deleteAllRevisions()
+            db.visits().deleteAllCorrections()
             db.events().insertAll(snapshot.events)
             db.places().insertAll(snapshot.places)
             db.diaries().insertAll(snapshot.diaries)
             db.visits().insertAll(snapshot.visits)
             db.breadcrumbs().insertAll(snapshot.breadcrumbs)
             db.beatReviews().insertAll(snapshot.beatReviews)
+            if (snapshot.diaryRevisions.isNotEmpty()) {
+                db.diaries().insertRevisions(snapshot.diaryRevisions)
+            }
+            if (snapshot.visitCorrections.isNotEmpty()) {
+                db.visits().insertCorrections(snapshot.visitCorrections)
+            }
+            if (snapshot.settings.historyRetentionDays > 0) {
+                com.dailybeat.app.data.retention.HistoryRetentionManager(db)
+                    .prune(snapshot.settings.historyRetentionDays)
+            }
         }
         applySettings(snapshot.settings)
     }
@@ -77,5 +92,6 @@ class LocalBackupStore(
         settingsRepository.setAutoEveningReport(false)
         settingsRepository.setAutoMiddayPulse(settings.autoMiddayPulse)
         settingsRepository.setSupervisorName(settings.supervisorName)
+        settingsRepository.setHistoryRetentionDays(settings.historyRetentionDays)
     }
 }

@@ -39,6 +39,8 @@ class SettingsRepository(
             InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
         },
         journalProfile = readJournalProfile(),
+        historyRetentionDays = prefs.getInt(KEY_HISTORY_RETENTION_DAYS, 0)
+            .takeIf { it in SUPPORTED_RETENTION_DAYS } ?: 0,
     )
 
     private fun readJournalProfile(): JournalProfile {
@@ -136,6 +138,24 @@ class SettingsRepository(
         prefs.edit().putBoolean(KEY_ONBOARDING, complete).apply()
     }
 
+    fun setHistoryRetentionDays(days: Int) {
+        require(days in SUPPORTED_RETENTION_DAYS) { "Unsupported history retention period." }
+        check(prefs.edit().putInt(KEY_HISTORY_RETENTION_DAYS, days).commit()) {
+            "Unable to save the retention setting."
+        }
+    }
+
+    /** Reset preferences after the user explicitly erases this phone. Capture stays off. */
+    fun resetAfterLocalDataDeletion() {
+        check(
+            prefs.edit().clear()
+                .putBoolean(KEY_GPS, false)
+                .putBoolean(KEY_ONBOARDING, false)
+                .commit(),
+        ) { "Unable to reset local settings." }
+        _themePreference.value = ThemePreference.SYSTEM
+    }
+
     private fun readThemePreference(): ThemePreference = ThemePreference.fromId(
         prefs.getString(KEY_THEME_PREFERENCE, ThemePreference.SYSTEM.id),
     )
@@ -154,5 +174,7 @@ class SettingsRepository(
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
         private const val KEY_SUPERVISOR = "supervisor_name"
+        private const val KEY_HISTORY_RETENTION_DAYS = "history_retention_days"
+        val SUPPORTED_RETENTION_DAYS = setOf(0, 30, 90, 365)
     }
 }

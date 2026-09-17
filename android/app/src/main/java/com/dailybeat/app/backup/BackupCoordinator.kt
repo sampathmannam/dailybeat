@@ -43,5 +43,7 @@ class BackupCoordinator(
         localStore.restore(snapshot)
         backup.updatedAt
     }
+    suspend fun deleteCloudData(): Result<Unit> = remote.deleteCloudData()
+    suspend fun deleteAccount(): Result<Unit> = remote.deleteAccount()
     fun signOut() { remote.signOut() }
 }

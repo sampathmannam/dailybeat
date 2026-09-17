@@ -16,6 +16,8 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Sharing previews for PDF and seven-day ZIP, checked against current records and privacy settings.
 - Conservative sharing copies when privacy controls are active; saved diary prose stays unchanged.
 - Client-encrypted backup/recovery with a separate recovery passphrase and explicit legacy restore.
+- Restorable diary checkpoints, immutable visit-correction history, and optional local retention.
+- Separate controls to delete cloud backups, the cloud account, or every local DailyBeat record.
 - Standard Google location backend and a separate Android-platform-only build.
 - Soft Sun accent and Carbon dark mode retained; no DSR features added.
 
@@ -80,8 +82,13 @@ passphrase-derived key; the passphrase is not uploaded or saved in settings. Los
 impossible. Keep it in a password manager.
 
 Legacy backup restore is explicit. It does not delete or encrypt older cloud copies retroactively.
-A full account lifecycle/deletion workflow and a live migration/restore drill remain release gates.
+Settings can delete both cloud formats. Cloud-account deletion reauthenticates and calls the
+server-only `delete-account` Edge Function; deploy that function with JWT verification before a
+public build. A passing client test is not proof that the production function is deployed.
 API keys, recovery passphrases, auth sessions and dormant DSR records are excluded from snapshots.
+
+The app packages its GPL text and offline third-party notices. The coordinate-level POM inventory
+remains evidence rather than legal clearance for every native component or asset.
 
 ## Updating safely
 

@@ -45,6 +45,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".LegalNoticesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DailyBeat" />
+
         <receiver
             android:name=".notify.DailyReminderReceiver"
             android:exported="false" />

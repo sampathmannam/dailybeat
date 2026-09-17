@@ -170,6 +170,46 @@ class SupabaseBackupClientTest {
         assertFalse(message.contains("refresh-one"))
     }
 
+    @Test
+    fun `cloud data deletion removes encrypted and legacy rows for current user only`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(MockResponse().setResponseCode(204))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        assertTrue(client.deleteCloudData().isSuccess)
+
+        val encrypted = server.takeRequest()
+        val legacy = server.takeRequest()
+        assertEquals("DELETE", encrypted.method)
+        assertEquals("/rest/v1/dailybeat_encrypted_backups?user_id=eq.user-1", encrypted.path)
+        assertEquals("Bearer access-one", encrypted.getHeader("Authorization"))
+        assertEquals("/rest/v1/dailybeat_backups?user_id=eq.user-1", legacy.path)
+    }
+
+    @Test
+    fun `account deletion calls edge function and clears local session only after success`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(jsonResponse("{\"message\":\"Account deleted.\"}"))
+
+        assertTrue(client.deleteAccount().isSuccess)
+
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/functions/v1/delete-account", request.path)
+        assertEquals("Bearer access-one", request.getHeader("Authorization"))
+        assertEquals(null, sessions.current)
+    }
+
+    @Test
+    fun `failed account deletion keeps session so the user can retry`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(MockResponse().setResponseCode(500).setBody("secret server detail"))
+
+        assertTrue(client.deleteAccount().isFailure)
+
+        assertEquals("user-1", sessions.current?.userId)
+    }
+
     private fun activeSession(expiresAtMs: Long = 5_000_000L) = BackupSession(
         userId = "user-1",
         email = "person@example.com",

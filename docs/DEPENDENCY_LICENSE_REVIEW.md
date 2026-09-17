@@ -27,7 +27,9 @@ Still required before distribution:
 
 - Verify bundled native subcomponents and their notices, especially inside MapLibre's AAR.
 - Verify app font/image/icon origins, generated assets and any copied code.
-- Bundle applicable third-party notices and make the app's own licence/source notice accessible.
+- Implemented at app level in the candidate: the APK packages the exact repository GPL text, the Apache 2.0
+  licence, BSD terms, build-specific Google SDK disclosure and a link to the coordinate inventory;
+  Settings exposes them through **Licences & source**. This does not replace native/asset clearance.
 - Review GPL source-delivery obligations and store/signing requirements for the exact released APK.
 - Regenerate the inventory after dependency changes; POM labels alone are not licence compatibility proof.
 

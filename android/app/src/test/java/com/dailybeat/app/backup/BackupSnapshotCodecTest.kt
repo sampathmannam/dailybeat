@@ -6,6 +6,8 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.data.model.DiaryRevision
+import com.dailybeat.app.data.model.VisitCorrection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -71,6 +73,7 @@ class BackupSnapshotCodecTest {
                 autoEveningReport = true,
                 autoMiddayPulse = false,
                 supervisorName = "Supervisor",
+                historyRetentionDays = 90,
             ),
             breadcrumbs = listOf(
                 LocationBreadcrumb(
@@ -90,6 +93,12 @@ class BackupSnapshotCodecTest {
                     completedAt = 4_500L,
                     updatedAt = 4_600L,
                 ),
+            ),
+            diaryRevisions = listOf(
+                DiaryRevision(6, "2026-08-31", "Earlier draft", 2_100L, "Before editing"),
+            ),
+            visitCorrections = listOf(
+                VisitCorrection(7, 4, 4_100L, "placeName", "Old HQ", "HQ"),
             ),
         )
 
@@ -111,10 +120,10 @@ class BackupSnapshotCodecTest {
     @Test
     fun `future snapshot version is rejected`() {
         val error = assertThrows(IllegalArgumentException::class.java) {
-            BackupSnapshotCodec.decode("""{"schemaVersion":3,"createdAtMs":1,"events":[],"places":[],"diaries":[],"visits":[],"settings":{}}""")
+            BackupSnapshotCodec.decode("""{"schemaVersion":4,"createdAtMs":1,"events":[],"places":[],"diaries":[],"visits":[],"settings":{}}""")
         }
 
-        assertEquals("Unsupported backup version: 3", error.message)
+        assertEquals("Unsupported backup version: 4", error.message)
     }
 
     @Test

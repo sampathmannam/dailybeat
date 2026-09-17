@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.dailybeat.app.util.userMessage
+import com.dailybeat.app.data.retention.HistoryRetentionWorker
 
 data class SettingsUiState(
     val journalProfile: JournalProfile = JournalProfile.PERSONAL,
@@ -73,6 +74,16 @@ data class SettingsUiState(
     val backupMessage: String? = null,
     val backupMessageIsError: Boolean = false,
     val backupRestoreConfirmation: Boolean = false,
+    val historyRetentionDays: Int = 0,
+    val pendingRetentionDays: Int? = null,
+    val cloudDeleteConfirmation: Boolean = false,
+    val accountDeleteConfirmation: Boolean = false,
+    val accountDeletePassword: String = "",
+    val localEraseConfirmation: Boolean = false,
+    val dataBusy: Boolean = false,
+    val dataMessage: String? = null,
+    val dataMessageIsError: Boolean = false,
+    val localDataErased: Boolean = false,
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -130,6 +141,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         placeSuggestions = suggestions,
                         backupConfigured = app.backupCoordinator.isConfigured,
                         backupSignedInEmail = app.backupCoordinator.currentSession()?.email,
+                        historyRetentionDays = settings.historyRetentionDays,
                         screenError = null,
                     )
                 }
@@ -303,6 +315,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         } else {
                             PulseScheduler.cancel(app)
                         }
+                        HistoryRetentionWorker.applySchedule(
+                            app,
+                            app.settingsRepository.get().historyRetentionDays,
+                        )
                     }.exceptionOrNull()
                     if (activationError != null) {
                         _uiState.update {
@@ -349,6 +365,201 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 backupMessage = "Signed out. Local DailyBeat data remains on this phone.",
                 backupMessageIsError = false,
                 backupRestoreConfirmation = false,
+            )
+        }
+    }
+
+    fun requestCloudDataDeletion() {
+        if (!_uiState.value.dataBusy) {
+            _uiState.update { it.copy(cloudDeleteConfirmation = true, dataMessage = null) }
+        }
+    }
+
+    fun cancelCloudDataDeletion() {
+        _uiState.update { it.copy(cloudDeleteConfirmation = false) }
+    }
+
+    fun confirmCloudDataDeletion() {
+        if (_uiState.value.dataBusy) return
+        _uiState.update {
+            it.copy(dataBusy = true, cloudDeleteConfirmation = false, dataMessage = null)
+        }
+        viewModelScope.launch {
+            app.backupCoordinator.deleteCloudData().fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            dataMessage = "Encrypted and legacy cloud backups were deleted. Your account and phone data remain.",
+                            dataMessageIsError = false,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            dataMessage = error.userMessage("Unable to delete cloud backups."),
+                            dataMessageIsError = true,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestAccountDeletion() {
+        if (!_uiState.value.dataBusy) {
+            _uiState.update {
+                it.copy(accountDeleteConfirmation = true, accountDeletePassword = "", dataMessage = null)
+            }
+        }
+    }
+
+    fun setAccountDeletePassword(password: String) {
+        _uiState.update {
+            it.copy(
+                accountDeletePassword = InputPolicy.bounded(password, InputPolicy.BACKUP_PASSWORD_CHARS),
+                dataMessage = null,
+            )
+        }
+    }
+
+    fun cancelAccountDeletion() {
+        _uiState.update { it.copy(accountDeleteConfirmation = false, accountDeletePassword = "") }
+    }
+
+    fun confirmAccountDeletion() {
+        val state = _uiState.value
+        val email = state.backupSignedInEmail ?: return
+        if (state.dataBusy || state.accountDeletePassword.isBlank()) return
+        val password = state.accountDeletePassword
+        _uiState.update {
+            it.copy(
+                dataBusy = true,
+                accountDeleteConfirmation = false,
+                accountDeletePassword = "",
+                dataMessage = null,
+            )
+        }
+        viewModelScope.launch {
+            val result = app.backupCoordinator.signIn(email, password).fold(
+                onSuccess = { app.backupCoordinator.deleteAccount() },
+                onFailure = { Result.failure(it) },
+            )
+            result.fold(
+                onSuccess = {
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            backupSignedInEmail = null,
+                            backupPasswordDraft = "",
+                            dataMessage = "Cloud account and all cloud backups were deleted. Data on this phone remains.",
+                            dataMessageIsError = false,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            dataMessage = error.userMessage("Unable to delete the cloud account."),
+                            dataMessageIsError = true,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestRetentionChange(days: Int) {
+        if (days == _uiState.value.historyRetentionDays || _uiState.value.dataBusy) return
+        require(days in com.dailybeat.app.data.settings.SettingsRepository.SUPPORTED_RETENTION_DAYS)
+        if (days == 0) {
+            app.settingsRepository.setHistoryRetentionDays(0)
+            HistoryRetentionWorker.applySchedule(app, 0)
+            _uiState.update {
+                it.copy(
+                    historyRetentionDays = 0,
+                    pendingRetentionDays = null,
+                    dataMessage = "History will be kept until you delete it.",
+                    dataMessageIsError = false,
+                )
+            }
+        } else {
+            _uiState.update { it.copy(pendingRetentionDays = days, dataMessage = null) }
+        }
+    }
+
+    fun cancelRetentionChange() {
+        _uiState.update { it.copy(pendingRetentionDays = null) }
+    }
+
+    fun confirmRetentionChange() {
+        val days = _uiState.value.pendingRetentionDays ?: return
+        if (_uiState.value.dataBusy) return
+        val previousDays = _uiState.value.historyRetentionDays
+        _uiState.update { it.copy(dataBusy = true, pendingRetentionDays = null, dataMessage = null) }
+        viewModelScope.launch {
+            runCatching {
+                app.settingsRepository.setHistoryRetentionDays(days)
+                HistoryRetentionWorker.applySchedule(app, days)
+                app.historyRetentionManager.prune(days)
+            }.fold(
+                onSuccess = { result ->
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            historyRetentionDays = days,
+                            dataMessage = "Keeping $days days of history. ${result.recordsDeleted} older records were deleted.",
+                            dataMessageIsError = false,
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    runCatching {
+                        app.settingsRepository.setHistoryRetentionDays(previousDays)
+                        HistoryRetentionWorker.applySchedule(app, previousDays)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            dataMessage = error.userMessage("Unable to apply history retention."),
+                            dataMessageIsError = true,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestLocalDataErase() {
+        if (!_uiState.value.dataBusy) {
+            _uiState.update { it.copy(localEraseConfirmation = true, dataMessage = null) }
+        }
+    }
+
+    fun cancelLocalDataErase() {
+        _uiState.update { it.copy(localEraseConfirmation = false) }
+    }
+
+    fun confirmLocalDataErase() {
+        if (_uiState.value.dataBusy) return
+        _uiState.update { it.copy(dataBusy = true, localEraseConfirmation = false, dataMessage = null) }
+        viewModelScope.launch {
+            runCatching { app.localDataEraser.erase() }.fold(
+                onSuccess = {
+                    _uiState.update { SettingsUiState(localDataErased = true) }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            dataBusy = false,
+                            dataMessage = error.userMessage("Unable to erase all data on this phone."),
+                            dataMessageIsError = true,
+                        )
+                    }
+                },
             )
         }
     }

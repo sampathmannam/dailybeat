@@ -2,13 +2,19 @@ package com.dailybeat.app.data.repo
 
 import com.dailybeat.app.data.db.VisitDao
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.VisitCorrection
+import androidx.room.withTransaction
+import com.dailybeat.app.data.db.DailyBeatDb
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
-class VisitRepository(private val visitDao: VisitDao) {
+class VisitRepository(
+    private val visitDao: VisitDao,
+    private val db: DailyBeatDb? = null,
+) {
 
     fun observeTodayVisits(): Flow<List<LocationVisit>> =
         observeForDate(DateKeys.today())
@@ -42,16 +48,41 @@ class VisitRepository(private val visitDao: VisitDao) {
     suspend fun update(visit: LocationVisit) = visitDao.update(visit)
 
     suspend fun rename(visit: LocationVisit, name: String) {
-        check(visitDao.rename(visit.id, visit.placeName, name) == 1) {
-            "This stop changed while you were reviewing it. Reopen it and try again."
+        inTransaction {
+            check(visitDao.rename(visit.id, visit.placeName, name) == 1) {
+                "This stop changed while you were reviewing it. Reopen it and try again."
+            }
+            visitDao.insertCorrection(
+                VisitCorrection(
+                    visitId = visit.id,
+                    correctedAt = System.currentTimeMillis(),
+                    field = "placeName",
+                    oldValue = visit.placeName,
+                    newValue = name,
+                ),
+            )
         }
     }
 
     suspend fun setHidden(visit: LocationVisit, hidden: Boolean) {
-        check(visitDao.setHidden(visit.id, visit.hidden, hidden) == 1) {
-            "This stop changed while you were reviewing it. Reopen it and try again."
+        inTransaction {
+            check(visitDao.setHidden(visit.id, visit.hidden, hidden) == 1) {
+                "This stop changed while you were reviewing it. Reopen it and try again."
+            }
+            visitDao.insertCorrection(
+                VisitCorrection(
+                    visitId = visit.id,
+                    correctedAt = System.currentTimeMillis(),
+                    field = "hidden",
+                    oldValue = visit.hidden.toString(),
+                    newValue = hidden.toString(),
+                ),
+            )
         }
     }
+
+    private suspend fun <T> inTransaction(block: suspend () -> T): T =
+        db?.withTransaction { block() } ?: block()
 
     private fun LocationVisit.clippedTo(dayStart: Long, dayEnd: Long): LocationVisit = copy(
         startMs = maxOf(startMs, dayStart),

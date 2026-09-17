@@ -16,10 +16,47 @@ object DailyBeatMigrations {
         MIGRATION_5_6,
         MIGRATION_6_7,
         MIGRATION_7_8,
+        MIGRATION_8_9,
     )
 
     /** The oldest schema ever shipped to a user (app v1.0.0). */
     const val OLDEST_SHIPPED_VERSION = 2
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS diary_revisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                dateKey TEXT NOT NULL,
+                text TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                reason TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_diary_revisions_dateKey_createdAt " +
+                "ON diary_revisions(dateKey, createdAt)",
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS visit_corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                visitId INTEGER NOT NULL,
+                correctedAt INTEGER NOT NULL,
+                field TEXT NOT NULL,
+                oldValue TEXT,
+                newValue TEXT
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_visit_corrections_visitId_correctedAt " +
+                "ON visit_corrections(visitId, correctedAt)",
+        )
+    }
 }
 
 val MIGRATION_7_8 = object : Migration(7, 8) {

@@ -21,6 +21,14 @@ val prepareFossManifest = tasks.register("prepareFossManifest") {
     }
 }
 
+// Package the exact repository GPL text into every APK instead of maintaining a second copy.
+val generatedLegalResources = layout.buildDirectory.dir("generated/legal/res")
+val prepareLegalResources = tasks.register<Copy>("prepareLegalResources") {
+    from(rootProject.file("../LICENSE"))
+    into(generatedLegalResources.map { it.dir("raw") })
+    rename { "gpl_3_0.txt" }
+}
+
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
@@ -42,6 +50,7 @@ android {
 
     sourceSets.getByName("main") {
         java.srcDir(if (dailybeatFoss) "src/foss/java" else "src/gms/java")
+        res.srcDir(generatedLegalResources)
         if (dailybeatFoss) manifest.srcFile(fossManifest)
     }
 
@@ -169,6 +178,7 @@ val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {
     }
 }
 tasks.configureEach {
+    if (name == "preBuild") dependsOn(prepareLegalResources)
     if (dailybeatFoss && name == "preBuild") dependsOn(prepareFossManifest)
     if (name == "connectedDebugAndroidTest" || name == "installDebugAndroidTest") {
         dependsOn(verifyDisposableTestTarget)

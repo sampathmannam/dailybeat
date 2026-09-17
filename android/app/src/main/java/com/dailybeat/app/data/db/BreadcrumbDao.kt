@@ -29,4 +29,7 @@ interface BreadcrumbDao {
 
     @Query("DELETE FROM location_breadcrumbs")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM location_breadcrumbs WHERE timestampMs < :cutoffMs")
+    suspend fun deleteBefore(cutoffMs: Long): Int
 }

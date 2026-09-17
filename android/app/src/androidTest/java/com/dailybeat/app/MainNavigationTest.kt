@@ -23,6 +23,7 @@ import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.settings.ThemePreference
 import org.junit.Before
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -212,6 +213,24 @@ class MainNavigationTest {
         }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun retentionChangeExplainsDeletionBeforeApplyingIt() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Data & privacy"))
+        composeRule.onNodeWithText("Data & privacy").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("retention_30"))
+        composeRule.onNodeWithTag("retention_30").performClick()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("confirm_retention_change"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("confirm_retention_change").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(0, app.settingsRepository.get().historyRetentionDays)
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Licences & source"))
+        composeRule.onNodeWithText("Licences & source").assertIsDisplayed()
     }
 
     @Test

@@ -30,16 +30,21 @@ No migration-history repair was performed. Inspect and reconcile CLI migration h
 On the connected Motorola Signature (Android 17), explicitly targeted disposable package
 `com.dailybeat.app.qa.e2eloop` only:
 
-- Standard configuration: **35 tests passed**, no failures/errors/skips.
+- Standard configuration: **36 tests passed**, no failures/errors/skips. The added test verifies
+  that choosing shorter retention explains permanent deletion before changing the setting.
 - Google-free configuration: **35 tests passed**, no failures/errors/skips.
+- The expanded **36-test Google-free matrix** also passed on the dedicated Android 14 / API 34 AVD;
+  this includes the retention-warning regression added after the physical-phone run.
 - A deliberate negative test requested mandatory cloud recovery without credentials. It failed
   with `Required live backup credentials were not provided.` and zero skips, as required.
   This is verification of fail-closed behavior, not a successful cloud recovery test.
 - Production `com.dailybeat.app` still reports v4.0.6 / code 27 and its original update time.
   No production installation, uninstall, data clear, permission grant or battery-stat reset occurred.
 
-The two 35-test runs exercise the same suite in different configurations, not 70 distinct tests.
-They exclude the live Android cloud test. USB-connected tests are not a battery field trial.
+The configurations exercise the same shared suite rather than distinct product behaviors. The
+Google-free phone pass predates the added retention-dialog test, while its final 279-test host suite,
+36-test emulator suite and APK/lint gates pass. Both device matrices exclude the live Android cloud
+test. USB-connected tests and emulators are not a battery field trial.
 
 ## Additional test hardening
 
@@ -54,8 +59,10 @@ and rejects unexpected non-fixture records before upload. Cleanup never targets 
 if a different snapshot is observed, it stops instead of overwriting that snapshot. Use an exclusive
 dedicated QA account, not an everyday account or concurrent test sessions.
 
-The full revised Android network recovery path still requires a real credentialed run; compilation,
-policy checks and the negative test do not substitute for that run.
+The later protected `native-backup` job completed the revised Android network recovery path on a
+Google-free Android 15 emulator: one mandatory test ran, with zero skips and zero failures. It used
+the isolated QA account and serialized cleanup. This validates that job's path; it does not make
+cloud storage anonymous or turn the beta into a general release.
 
 ## Licence inventory and remaining release gates
 
@@ -64,8 +71,12 @@ runtime module POMs, including one inherited licence. The standard build has fou
 Google modules absent from the Google-free build. This is not full native-component or asset clearance,
 and the standard publisher has not been silently switched to a new capture backend.
 
-Still open: exact-distribution licence/notice review, credentialed Android encrypted/legacy recovery,
-account deletion/retention, independent security/key-lifecycle review, sustained battery/recall trials,
-and the remaining correction/revision/provenance/coverage/follow-up roadmap. All automated checks at
-baseline `6504e58` passed after the backend repair; the additional source/test/licence changes need
-their own CI run. Neither milestone completes the entire product roadmap or approves a store release.
+Follow-up source now implements local retention, device/cloud/account deletion, diary checkpoints,
+visit-correction audit records, encrypted backup/restore of those histories, offline GPL/Apache/BSD
+notices, and reproducible battery/recall collection tools. The account endpoint is intentionally an
+Edge Function so the APK never contains an admin key; deployment and a non-destructive authentication
+probe must be verified separately.
+
+Still open: exact-distribution native/asset clearance, independent security/key-lifecycle review,
+the 14-day physical battery/recall trial, and the remaining provenance/coverage/follow-up roadmap.
+Neither milestone completes the entire product roadmap or approves a store release.

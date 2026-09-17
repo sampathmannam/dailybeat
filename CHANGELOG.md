@@ -2,7 +2,25 @@
 
 ## Unreleased
 
+### Privacy and control
+- Settings now offers explicit 30-day, 90-day, one-year, or user-controlled local retention.
+  A destructive choice is confirmed before the first prune; a lightweight daily worker then applies
+  the selected policy to activity, diary, route, review and revision history.
+- Users can independently delete both cloud-backup formats, permanently delete the cloud account
+  after password reauthentication, or erase all local DailyBeat data with typed confirmation.
+- Diary edits have restorable local checkpoints, and visit rename/hide actions create immutable
+  correction records. Both histories are included in the encrypted backup format.
+- Encrypted recovery also restores a finite retention choice and prunes older restored history
+  before it becomes visible.
+- GPL, Apache 2.0, BSD and build-specific third-party notices are readable in the app.
+
+### Validation
+- Added a no-reset physical battery sampler, matched-interval analyzer, stop-recall worksheet and
+  14-day protocol. These tools do not replace the still-pending physical field trial.
+
 ### Improved
+- Today now distinguishes missing Android location permission from an intentionally disabled
+  capture setting, and no longer shows an estimated-distance warning before a route exists.
 - Passive capture now uses an adaptive battery state machine: a coordinate-free activity watcher
   observes movement and stillness, active capture settles and stops after confirmed stillness, and
   the foreground service restarts only for a background movement trigger with the required

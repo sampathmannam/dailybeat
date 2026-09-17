@@ -14,6 +14,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -45,11 +47,43 @@ fun DiaryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
+    val revisions by viewModel.revisionsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dateLabel = Formatters.dayHeadingWithYear(uiState.date)
     var sharePreview by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<com.dailybeat.app.export.DiarySharePreview?>(null)
+    }
+    var revisionPendingRestore by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<com.dailybeat.app.data.model.DiaryRevision?>(null)
+    }
+    revisionPendingRestore?.let { revision ->
+        AlertDialog(
+            onDismissRequest = { revisionPendingRestore = null },
+            title = { Text(stringResource(R.string.restore_diary_version_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.restore_diary_version_warning,
+                        revision.text.take(240),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.restoreRevision(revision)
+                        revisionPendingRestore = null
+                    },
+                    modifier = Modifier.testTag("confirm_restore_diary_revision"),
+                ) { Text(stringResource(R.string.restore)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { revisionPendingRestore = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
     sharePreview?.let { preview ->
         com.dailybeat.app.ui.components.SharePreviewDialog(listOf(preview), uiState.isExporting,
@@ -182,6 +216,47 @@ fun DiaryScreen(
                         scope.launch { sharePreview = viewModel.prepareShare() }
                     },
                 )
+            }
+            if (revisions.isNotEmpty()) {
+                item {
+                    SectionHeader(title = stringResource(R.string.diary_version_history))
+                    Text(
+                        stringResource(R.string.diary_version_history_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                items(revisions, key = { "revision-${it.id}" }) { revision ->
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    ) {
+                        androidx.compose.foundation.layout.Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(revision.reason, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                android.text.format.DateFormat.getMediumDateFormat(context)
+                                    .format(java.util.Date(revision.createdAt)) + " · " +
+                                    android.text.format.DateFormat.getTimeFormat(context)
+                                        .format(java.util.Date(revision.createdAt)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                revision.text.replace('\n', ' ').take(160),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 3,
+                            )
+                            SecondaryButton(
+                                text = stringResource(R.string.restore_this_version),
+                                onClick = { revisionPendingRestore = revision },
+                            )
+                        }
+                    }
+                }
             }
         }
 
