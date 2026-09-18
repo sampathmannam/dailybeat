@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 
 class LocationService : Service() {
 
@@ -251,13 +252,22 @@ class LocationService : Service() {
             if (::backend.isInitialized) backend.stop()
         }
         if (::visitTracker.isInitialized) {
-            visitTracker.flushPending()
-            scope.launch {
-                visitTracker.awaitPendingWrites()
-                synchronized(breadcrumbWrites) { breadcrumbWrites.toList() }.joinAll()
+            if (discardPendingOnDestroy.getAndSet(false)) {
+                visitTracker.discardPending()
                 scope.cancel()
+            } else {
+                // Service teardown must persist the open visit without waiting up to 20 seconds
+                // for reverse geocoding. A coordinate label is honest and can be renamed later;
+                // losing the visit because Android reclaimed the process is not recoverable.
+                visitTracker.flushPending(allowNetworkLookup = false)
+                scope.launch {
+                    visitTracker.awaitPendingWrites()
+                    synchronized(breadcrumbWrites) { breadcrumbWrites.toList() }.joinAll()
+                    scope.cancel()
+                }
             }
         } else {
+            discardPendingOnDestroy.set(false)
             scope.cancel()
         }
         super.onDestroy()
@@ -286,6 +296,7 @@ class LocationService : Service() {
         private const val EXTRA_PROFILE = "capture_profile"
 
         private val _running = MutableStateFlow(false)
+        private val discardPendingOnDestroy = AtomicBoolean(false)
 
         /**
          * Whether capture is genuinely collecting, as opposed to merely being enabled in
@@ -321,6 +332,14 @@ class LocationService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, LocationService::class.java))
+        }
+
+        /** Stop capture for a confirmed local-data erase without re-inserting the open visit. */
+        fun stopAndDiscard(context: Context) {
+            discardPendingOnDestroy.set(true)
+            if (!context.stopService(Intent(context, LocationService::class.java))) {
+                discardPendingOnDestroy.set(false)
+            }
         }
     }
 }

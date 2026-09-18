@@ -31,6 +31,10 @@ class MotionStateStore(context: Context) {
         prefs.edit().clear().apply()
     }
 
+    fun clearSynchronously() {
+        check(prefs.edit().clear().commit()) { "Unable to clear capture motion state." }
+    }
+
     private companion object {
         const val PREFS = "capture_motion_state"
         const val KEY_STATE = "state"

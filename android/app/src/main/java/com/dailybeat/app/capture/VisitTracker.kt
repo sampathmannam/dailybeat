@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
@@ -150,7 +151,7 @@ class VisitTracker(
         departureLon = null
     }
 
-    private fun finalizeDwell(dwellEndMs: Long) {
+    private fun finalizeDwell(dwellEndMs: Long, allowNetworkLookup: Boolean = true) {
         val lat = dwellLat ?: return
         val lon = dwellLon ?: return
         // Read the start time now: resetDwell() zeroes it before the coroutine below gets to
@@ -158,7 +159,7 @@ class VisitTracker(
         val startMs = dwellStartMs
         if (startMs <= 0 || dwellEndMs - startMs < MIN_DWELL_MS) return
         launchWrite {
-            recordDwell(startMs, dwellEndMs, lat, lon)
+            recordDwell(startMs, dwellEndMs, lat, lon, allowNetworkLookup)
         }
     }
 
@@ -168,14 +169,24 @@ class VisitTracker(
         dwellStartMs = 0L
     }
 
-    private suspend fun recordDwell(startMs: Long, endMs: Long, lat: Double, lon: Double) {
+    private suspend fun recordDwell(
+        startMs: Long,
+        endMs: Long,
+        lat: Double,
+        lon: Double,
+        allowNetworkLookup: Boolean,
+    ) {
         val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
         val matched = GeofenceMatcher.matchPlace(lat, lon, places)
         // A private zone is never sent to the geocoder. Resolving it would hand the officer's
         // home, or an informant's meeting point, to a third-party service at capture time —
         // before any outbound filter downstream ever gets a say. Their own saved name is the
         // label, and no third-party address is stored for it.
-        val resolved = if (matched?.isPrivate == true) null else resolveSafely(lat, lon)
+        val resolved = when {
+            matched?.isPrivate == true -> null
+            allowNetworkLookup -> resolveSafely(lat, lon)
+            else -> coordinateFallback(lat, lon)
+        }
         onVisitRecorded(
             LocationVisit(
                 startMs = startMs,
@@ -190,13 +201,19 @@ class VisitTracker(
         )
     }
 
-    private suspend fun recordTransit(startMs: Long, endMs: Long, lat: Double, lon: Double) {
+    private suspend fun recordTransit(
+        startMs: Long,
+        endMs: Long,
+        lat: Double,
+        lon: Double,
+        allowNetworkLookup: Boolean = true,
+    ) {
         val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
         // Same rule for a transit sample that happens to fall inside a private zone.
-        val resolved = if (OutboundVisitFilter.isPrivateLocation(lat, lon, places)) {
-            null
-        } else {
-            resolveSafely(lat, lon)
+        val resolved = when {
+            OutboundVisitFilter.isPrivateLocation(lat, lon, places) -> null
+            allowNetworkLookup -> resolveSafely(lat, lon)
+            else -> coordinateFallback(lat, lon)
         }
         onVisitRecorded(
             LocationVisit(
@@ -212,17 +229,19 @@ class VisitTracker(
     }
 
     private suspend fun resolveSafely(latitude: Double, longitude: Double): ResolvedPlace =
-        runCatching { osmGeocoder.resolve(latitude, longitude) }.getOrElse {
-            ResolvedPlace(
-                name = null,
-                address = String.format(
-                    Locale.US,
-                    "Location %.4f, %.4f",
-                    latitude,
-                    longitude,
-                ),
-            )
-        }
+        runCatching { osmGeocoder.resolve(latitude, longitude) }
+            .getOrElse { coordinateFallback(latitude, longitude) }
+
+    private fun coordinateFallback(latitude: Double, longitude: Double): ResolvedPlace =
+        ResolvedPlace(
+            name = null,
+            address = String.format(
+                Locale.US,
+                "Location %.4f, %.4f",
+                latitude,
+                longitude,
+            ),
+        )
 
     private fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val earth = 6_371_000.0
@@ -235,7 +254,7 @@ class VisitTracker(
     }
 
     /** Flush open dwell when location service stops (e.g. app killed). */
-    fun flushPending() {
+    fun flushPending(allowNetworkLookup: Boolean = true) {
         if (inTransit) {
             val fromLat = departureLat
             val fromLon = departureLon
@@ -249,11 +268,11 @@ class VisitTracker(
             ) {
                 val startMs = transitStartMs
                 val endMs = lastSampleMs
-                launchWrite { recordTransit(startMs, endMs, lat, lon) }
+                launchWrite { recordTransit(startMs, endMs, lat, lon, allowNetworkLookup) }
             }
         } else {
             val endMs = lastSampleMs.takeIf { it > dwellStartMs } ?: System.currentTimeMillis()
-            finalizeDwell(endMs)
+            finalizeDwell(endMs, allowNetworkLookup)
         }
         clearState()
         stateStore.clear()
@@ -265,6 +284,17 @@ class VisitTracker(
             if (jobs.isEmpty()) return
             jobs.joinAll()
         }
+    }
+
+    /**
+     * Privacy erasure is different from an ordinary service stop: an open stay must not be
+     * finalized after the database has been wiped. Cancel in-flight enrichment/writes and remove
+     * the durable checkpoint before the erase transaction starts.
+     */
+    fun discardPending() {
+        synchronized(pendingWrites) { pendingWrites.toList() }.forEach { it.cancel() }
+        clearState()
+        stateStore.clear()
     }
 
     private fun launchWrite(block: suspend () -> Unit) {

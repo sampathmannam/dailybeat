@@ -72,6 +72,10 @@ internal class SharedPreferencesVisitTrackerStateStore(context: Context) : Visit
         runCatching { prefs.edit().clear().apply() }
     }
 
+    fun clearSynchronously() {
+        check(prefs.edit().clear().commit()) { "Unable to clear the pending visit checkpoint." }
+    }
+
     private fun android.content.SharedPreferences.optionalDouble(key: String): Double? =
         if (contains(key)) Double.fromBits(getLong(key, 0L)) else null
 

@@ -34,6 +34,8 @@ private const val TILE_SIZE_LOGICAL_PX = 256.0
 private const val MAP_PADDING_LOGICAL_PX = 40
 private const val TILE_CACHE_BYTES = 64L * 1024L * 1024L
 private const val MAX_TILE_RESPONSE_BYTES = 2L * 1024L * 1024L
+private const val MAX_TILE_DIMENSION_PX = 1_024
+private const val MAX_TILE_PIXELS = 1_048_576L
 private const val ATTRIBUTION = "© OpenStreetMap contributors"
 
 /**
@@ -73,44 +75,56 @@ internal suspend fun renderJourneyMapRaster(
         viewportSize.height,
         Bitmap.Config.ARGB_8888,
     )
-    val canvas = Canvas(bitmap)
-    canvas.drawColor(Color.rgb(238, 242, 245))
-    val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    var renderedTileCount = 0
+    try {
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.rgb(238, 242, 245))
+        val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        var renderedTileCount = 0
 
-    for (rawTileY in firstTileY..lastTileY) {
-        if (rawTileY !in 0 until worldTiles) continue
-        for (rawTileX in firstTileX..lastTileX) {
-            currentCoroutineContext().ensureActive()
-            val tileX = Math.floorMod(rawTileX, worldTiles)
-            val tile = OsmRasterTileClient.load(context, zoom, tileX, rawTileY) ?: continue
-            val left = (rawTileX * tileSizePx - viewportLeft).toFloat()
-            val top = (rawTileY * tileSizePx - viewportTop).toFloat()
-            canvas.drawBitmap(
-                tile,
-                null,
-                RectF(left, top, left + tileSizePx.toFloat(), top + tileSizePx.toFloat()),
-                tilePaint,
-            )
-            renderedTileCount += 1
+        for (rawTileY in firstTileY..lastTileY) {
+            if (rawTileY !in 0 until worldTiles) continue
+            for (rawTileX in firstTileX..lastTileX) {
+                currentCoroutineContext().ensureActive()
+                val tileX = Math.floorMod(rawTileX, worldTiles)
+                val tile = OsmRasterTileClient.load(context, zoom, tileX, rawTileY) ?: continue
+                try {
+                    val left = (rawTileX * tileSizePx - viewportLeft).toFloat()
+                    val top = (rawTileY * tileSizePx - viewportTop).toFloat()
+                    canvas.drawBitmap(
+                        tile,
+                        null,
+                        RectF(left, top, left + tileSizePx.toFloat(), top + tileSizePx.toFloat()),
+                        tilePaint,
+                    )
+                    renderedTileCount += 1
+                } finally {
+                    // Decoded tile bitmaps are not shared or cached. Release their native pixel
+                    // memory as soon as they have been copied into the card bitmap.
+                    if (!tile.isRecycled) tile.recycle()
+                }
+            }
         }
-    }
-    if (renderedTileCount == 0) {
-        bitmap.recycle()
-        throw IOException("OpenStreetMap tiles are unavailable")
-    }
+        if (renderedTileCount == 0) {
+            throw IOException("OpenStreetMap tiles are unavailable")
+        }
 
-    drawRoute(
-        canvas = canvas,
-        model = model,
-        centerX = centerX,
-        worldSizePx = worldSizePx,
-        viewportLeft = viewportLeft,
-        viewportTop = viewportTop,
-        density = safeDensity,
-    )
-    drawAttribution(canvas, viewportSize, safeDensity)
-    return bitmap
+        drawRoute(
+            canvas = canvas,
+            model = model,
+            centerX = centerX,
+            worldSizePx = worldSizePx,
+            viewportLeft = viewportLeft,
+            viewportTop = viewportTop,
+            density = safeDensity,
+        )
+        drawAttribution(canvas, viewportSize, safeDensity)
+        return bitmap
+    } catch (error: Throwable) {
+        // Cancellation while a card scrolls off screen used to strand a partially rendered
+        // bitmap until a future GC. A fast scroll through Days could therefore spike memory.
+        if (!bitmap.isRecycled) bitmap.recycle()
+        throw error
+    }
 }
 
 private fun drawRoute(
@@ -275,6 +289,15 @@ private object OsmRasterTileClient {
         if (contentLength > MAX_TILE_RESPONSE_BYTES) return null
         val bytes = body.bytes()
         if (bytes.size > MAX_TILE_RESPONSE_BYTES) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (
+            bounds.outWidth !in 1..MAX_TILE_DIMENSION_PX ||
+            bounds.outHeight !in 1..MAX_TILE_DIMENSION_PX ||
+            bounds.outWidth.toLong() * bounds.outHeight.toLong() > MAX_TILE_PIXELS
+        ) {
+            return null
+        }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 }

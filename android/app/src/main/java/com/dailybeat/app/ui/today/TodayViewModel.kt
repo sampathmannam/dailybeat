@@ -16,11 +16,15 @@ import com.dailybeat.app.capture.VoiceCaptureOrchestrator
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import com.dailybeat.app.ui.feed.DayFeedBuilder
 import com.dailybeat.app.ui.feed.DayFeedItem
@@ -29,6 +33,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.dailybeat.app.util.userMessage
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class TodayUiState(
     val visitCount: Int = 0,
@@ -62,40 +69,83 @@ private data class TodayDataState(
     val gpsRunning: Boolean,
 )
 
+/**
+ * The local day is more than a date: changing the phone's time zone can change Room query
+ * boundaries even when the calendar label stays the same. Keeping both values in the key makes
+ * long-lived Today screens resubscribe after midnight and after a time-zone change.
+ */
+internal data class LocalDayContext(
+    val date: LocalDate,
+    val zoneId: ZoneId,
+)
+
+internal fun localDayContext(
+    nowMs: Long = System.currentTimeMillis(),
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): LocalDayContext = LocalDayContext(
+    date = Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate(),
+    zoneId = zoneId,
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as DailyBeatApp
     private val repository = app.eventRepository
     private val diaryRepository = app.diaryRepository
 
-    val todayVisits = app.visitRepository.observeTodayVisits()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val todayEvents = repository.observeTodayEvents()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val todayBreadcrumbs = app.breadcrumbRepository.observeToday()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val todayBeat = combine(
-        todayVisits,
-        todayBreadcrumbs,
-        app.beatRepository.observe(DateKeys.today()),
-        app.placeRepository.observeAll(),
-        diaryRepository.observeToday(),
-    ) { visits, breadcrumbs, review, places, diary ->
-        DayFeedBuilder.build(
-            date = DateKeys.today(),
-            visits = visits,
-            diaryText = diary?.text,
-            places = places,
-            breadcrumbs = breadcrumbs,
-            review = review,
+    private val clockTicks = minuteTicker()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            System.currentTimeMillis(),
         )
+
+    private val activeDay = clockTicks
+        .map { localDayContext(it) }
+        .distinctUntilChanged()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            localDayContext(),
+        )
+
+    val todayVisits = activeDay.flatMapLatest { day ->
+        app.visitRepository.observeForDate(day.date)
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val todayEvents = activeDay.flatMapLatest { day ->
+        repository.observeEventsForDate(day.date)
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val todayBreadcrumbs = activeDay.flatMapLatest { day ->
+        app.breadcrumbRepository.observeForDate(day.date)
+    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val todayBeat = activeDay.flatMapLatest { day ->
+        combine(
+            app.visitRepository.observeForDate(day.date),
+            app.breadcrumbRepository.observeForDate(day.date),
+            app.beatRepository.observe(day.date),
+            app.placeRepository.observeAll(),
+            diaryRepository.observeForDate(day.date),
+        ) { visits, breadcrumbs, review, places, diary ->
+            DayFeedBuilder.build(
+                date = day.date,
+                visits = visits,
+                diaryText = diary?.text,
+                places = places,
+                breadcrumbs = breadcrumbs,
+                review = review,
+            )
+        }
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        DayFeedBuilder.build(DateKeys.today(), emptyList(), null),
+        DayFeedBuilder.build(activeDay.value.date, emptyList(), null),
     )
 
     private val _uiState = MutableStateFlow(
@@ -153,7 +203,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 todayBeat,
                 app.captureHealthStore.health,
                 LocationService.running,
-                minuteTicker(),
+                clockTicks,
             ) { beat, health, running, now ->
                 val enabled = runCatching { app.settingsRepository.get().gpsCaptureEnabled }
                     .getOrDefault(false)
@@ -368,8 +418,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun minuteTicker() = flow {
         while (true) {
-            emit(System.currentTimeMillis())
-            delay(60_000L)
+            val now = System.currentTimeMillis()
+            emit(now)
+            // Align to the next wall-clock minute. A screen opened at 23:59:58 therefore rolls
+            // over at midnight, not nearly a minute later.
+            val untilNextMinute = 60_000L - Math.floorMod(now, 60_000L)
+            delay(untilNextMinute.coerceIn(1L, 60_000L))
         }
     }
 }

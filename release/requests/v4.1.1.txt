@@ -1,0 +1,4 @@
+Publish DailyBeat v4.1.1 only from the protected main commit after standard and Google-free builds,
+host tests, both offline Android instrumentation lanes, live and native encrypted-backup recovery,
+release policy, executable backend isolation, CodeQL, dependency review, and open-source security
+checks pass. Publish the permanently signed DailyBeat-v4.1.1.apk with SHA256SUMS.txt.

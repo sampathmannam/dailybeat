@@ -115,6 +115,13 @@ class CaptureHealthStore(context: Context) {
         )
     }
 
+    /** Synchronous because a confirmed local-data erase must not leave old fix metadata behind. */
+    @Synchronized
+    fun clear() {
+        check(prefs.edit().clear().commit()) { "Unable to clear capture health." }
+        _health.value = CaptureHealth()
+    }
+
     private fun update(block: (CaptureHealth) -> CaptureHealth) {
         val next = block(_health.value)
         prefs.edit()

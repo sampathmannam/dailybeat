@@ -2,6 +2,7 @@ package com.dailybeat.app.audit
 
 import android.content.Context
 import com.dailybeat.app.util.AppStorage
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -26,7 +27,10 @@ object CaptureAuditLog {
 
     suspend fun log(context: Context, category: String, detail: String) = withContext(Dispatchers.IO) {
         val safeCategory = category.replace(Regex("[^A-Za-z0-9_-]"), "-").take(32)
-        val safeDetail = detail.replace(Regex("[\\r\\n\\u2028\\u2029]+"), " ").take(MAX_DETAIL_CHARS)
+        val safeDetail = InputPolicy.bounded(
+            detail.replace(Regex("[\\r\\n\\u2028\\u2029]+"), " "),
+            MAX_DETAIL_CHARS,
+        )
         val line = "${timeFmt.format(Instant.now())} | $safeCategory | $safeDetail\n"
         try {
             synchronized(fileLock) {
@@ -54,11 +58,9 @@ object CaptureAuditLog {
             }
         }
 
-    fun clear(context: Context) {
-        runCatching {
-            synchronized(fileLock) { auditFile(context).delete() }
-        }
-    }
+    fun clear(context: Context): Boolean = runCatching {
+        synchronized(fileLock) { AppStorage.clearSensitiveFileVerified(auditFile(context)) }
+    }.getOrDefault(false)
 
     private fun newestLines(file: File, limit: Int): List<String> {
         if (limit == 0 || !file.isFile) return emptyList()

@@ -39,6 +39,7 @@ import com.dailybeat.app.ui.components.SectionHeader
 import com.dailybeat.app.ui.components.readableContentWidth
 import kotlinx.coroutines.launch
 import com.dailybeat.app.util.Formatters
+import com.dailybeat.app.util.InputPolicy
 
 @Composable
 fun DiaryScreen(
@@ -65,7 +66,7 @@ fun DiaryScreen(
                 Text(
                     stringResource(
                         R.string.restore_diary_version_warning,
-                        revision.text.take(240),
+                        InputPolicy.bounded(revision.text, 240),
                     ),
                 )
             },
@@ -246,7 +247,7 @@ fun DiaryScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
-                                revision.text.replace('\n', ' ').take(160),
+                                InputPolicy.bounded(revision.text.replace('\n', ' '), 160),
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 3,
                             )

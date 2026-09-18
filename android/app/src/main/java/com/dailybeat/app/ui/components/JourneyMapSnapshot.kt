@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,15 @@ fun JourneyMapSnapshot(
     val density = context.resources.displayMetrics.density
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var snapshotBitmap by remember(model) { mutableStateOf<Bitmap?>(null) }
+
+    DisposableEffect(snapshotBitmap) {
+        val ownedBitmap = snapshotBitmap
+        onDispose {
+            // Every rendered snapshot is owned by this composable. Releasing it on replacement
+            // or disposal keeps a long Days feed from accumulating native bitmap memory.
+            if (ownedBitmap != null && !ownedBitmap.isRecycled) ownedBitmap.recycle()
+        }
+    }
 
     LaunchedEffect(context, model, viewportSize) {
         if (viewportSize == IntSize.Zero) return@LaunchedEffect

@@ -2,6 +2,7 @@ package com.dailybeat.app.geo
 
 import com.dailybeat.app.data.db.GeocodeDao
 import com.dailybeat.app.data.model.GeocodeCache
+import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -102,7 +103,8 @@ open class OsmGeocoder(
         }
 
     internal fun parse(json: JSONObject, latitude: Double, longitude: Double): ResolvedPlace {
-        val address = json.optString("display_name").trimOrNull()?.take(MAX_ADDRESS_CHARS)
+        val address = json.optString("display_name").trimOrNull()
+            ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
             ?: fallbackLabel(latitude, longitude)
         return ResolvedPlace(name = extractName(json), address = address)
     }
@@ -114,13 +116,21 @@ open class OsmGeocoder(
      */
     private fun extractName(json: JSONObject): String? {
         json.optJSONObject("namedetails")?.let { names ->
-            names.optString("name").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
-            names.optString("name:en").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+            names.optString("name").trimOrNull()?.let {
+                return InputPolicy.bounded(it, MAX_NAME_CHARS)
+            }
+            names.optString("name:en").trimOrNull()?.let {
+                return InputPolicy.bounded(it, MAX_NAME_CHARS)
+            }
         }
-        json.optString("name").trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+        json.optString("name").trimOrNull()?.let {
+            return InputPolicy.bounded(it, MAX_NAME_CHARS)
+        }
         json.optJSONObject("address")?.let { address ->
             NAMED_FEATURE_KEYS.forEach { key ->
-                address.optString(key).trimOrNull()?.let { return it.take(MAX_NAME_CHARS) }
+                address.optString(key).trimOrNull()?.let {
+                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
+                }
             }
         }
         return null

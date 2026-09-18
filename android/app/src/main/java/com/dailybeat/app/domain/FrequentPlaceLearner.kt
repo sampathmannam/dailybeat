@@ -2,6 +2,7 @@ package com.dailybeat.app.domain
 
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.util.InputPolicy
 import kotlin.math.cos
 
 data class PlaceSuggestion(
@@ -51,7 +52,7 @@ object FrequentPlaceLearner {
                 ?.key
                 ?: fallbackName
             PlaceSuggestion(
-                name = name.take(80),
+                name = InputPolicy.bounded(name, 80),
                 latitude = lat,
                 longitude = lon,
                 visitCount = cluster.size,

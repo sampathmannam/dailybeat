@@ -71,8 +71,13 @@ class EncryptedBackupSessionStore(private val context: Context) : BackupSessionS
     }
 
     override fun clear() {
-        runCatching { prefs.edit().clear().commit() }
-            .onFailure { context.deleteSharedPreferences(FILE_NAME) }
+        val cleared = runCatching { prefs.edit().clear().commit() }.getOrDefault(false)
+        if (!cleared) {
+            // commit() reports storage failure with `false`; it does not throw. Treat that the
+            // same as a keystore/preferences exception so Sign out and Erase phone data cannot
+            // silently leave refresh tokens behind.
+            context.deleteSharedPreferences(FILE_NAME)
+        }
     }
 
     private companion object {

@@ -5,6 +5,7 @@ import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.domain.GeofenceMatcher
+import com.dailybeat.app.util.InputPolicy
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlin.math.cos
@@ -111,7 +112,10 @@ object DayFeedBuilder {
             .map { it.second.timestampMs }
             .toSet()
         val route = if (orderedBreadcrumbs.isNotEmpty()) {
-            val stayPoints = mappable.filter { it.visitType != "transit" }.map {
+            val stayPoints = evenlySample(
+                mappable.filter { it.visitType != "transit" },
+                MAX_RENDERED_STAY_POINTS,
+            ).map {
                 RoutePoint(
                     latitude = it.latitude,
                     longitude = it.longitude,
@@ -120,17 +124,18 @@ object DayFeedBuilder {
                     drawsRoute = false,
                 )
             }
-            (orderedBreadcrumbs.map {
+            (sampleBreadcrumbsForRoute(orderedBreadcrumbs, gapStarts).map { sampled ->
+                val point = sampled.point
                 RoutePoint(
-                    latitude = it.latitude,
-                    longitude = it.longitude,
+                    latitude = point.latitude,
+                    longitude = point.longitude,
                     isStay = false,
-                    timestampMs = it.timestampMs,
-                    startsAfterGap = it.timestampMs in gapStarts,
+                    timestampMs = point.timestampMs,
+                    startsAfterGap = sampled.startsAfterGap,
                 )
             } + stayPoints).sortedBy { it.timestampMs }
         } else {
-            mappable.map {
+            evenlySample(mappable, MAX_RENDERED_ROUTE_POINTS).map {
                 RoutePoint(
                     latitude = it.latitude,
                     longitude = it.longitude,
@@ -180,7 +185,8 @@ object DayFeedBuilder {
             firstSeenMs = first,
             lastSeenMs = last,
             diaryPreview = diaryText?.trim()?.takeIf { it.isNotEmpty() }?.let { preview ->
-                if (preview.length <= MAX_PREVIEW_CHARS) preview else preview.take(MAX_PREVIEW_CHARS).trimEnd() + "…"
+                if (preview.length <= MAX_PREVIEW_CHARS) preview
+                else InputPolicy.bounded(preview, MAX_PREVIEW_CHARS).trimEnd() + "…"
             },
             title = generatedTitle,
             state = inferredState,
@@ -229,6 +235,44 @@ object DayFeedBuilder {
             }
         }
         return total + currentEnd - currentStart
+    }
+
+    private data class SampledBreadcrumb(
+        val point: LocationBreadcrumb,
+        val startsAfterGap: Boolean,
+    )
+
+    /**
+     * Keep map rendering bounded even after years of imports or an unusually dense provider.
+     * Distance, tracked time and gap counts still use every accepted point; only the visual path
+     * is sampled. If a removed span contained a capture gap, the next visible point retains the
+     * break so the map never draws invented continuity.
+     */
+    private fun sampleBreadcrumbsForRoute(
+        points: List<LocationBreadcrumb>,
+        gapStarts: Set<Long>,
+    ): List<SampledBreadcrumb> {
+        val indices = sampleIndices(points.size, MAX_RENDERED_BREADCRUMBS)
+        var previousIndex = -1
+        return indices.map { index ->
+            val startsAfterGap = previousIndex >= 0 &&
+                ((previousIndex + 1)..index).any { candidate ->
+                    points[candidate].timestampMs in gapStarts
+                }
+            previousIndex = index
+            SampledBreadcrumb(points[index], startsAfterGap)
+        }
+    }
+
+    private fun <T> evenlySample(values: List<T>, limit: Int): List<T> =
+        sampleIndices(values.size, limit).map(values::get)
+
+    private fun sampleIndices(size: Int, limit: Int): List<Int> {
+        if (size <= 0) return emptyList()
+        if (size <= limit) return (0 until size).toList()
+        return (0 until limit).map { position ->
+            (position.toLong() * (size - 1L) / (limit - 1L)).toInt()
+        }
     }
 
     private fun plausibleBreadcrumbs(points: List<LocationBreadcrumb>): List<LocationBreadcrumb> {
@@ -321,6 +365,9 @@ object DayFeedBuilder {
     private const val MIN_ROUTE_SEGMENT_MS = 60_000L
     private const val CAPTURE_GAP_MS = 10 * 60_000L
     private const val MAX_ROUTE_SPEED_METERS_PER_SECOND = 100.0 // 360 km/h
+    private const val MAX_RENDERED_ROUTE_POINTS = 4_000
+    private const val MAX_RENDERED_BREADCRUMBS = 3_500
+    private const val MAX_RENDERED_STAY_POINTS = 500
 }
 
 internal fun isUsableFeedCoordinate(latitude: Double, longitude: Double): Boolean =
