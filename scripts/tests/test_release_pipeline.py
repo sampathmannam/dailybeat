@@ -113,6 +113,7 @@ def test_requested_android_cloud_recovery_is_fail_closed_and_cleans_up_qa_backup
 def test_native_cloud_recovery_uses_isolated_foss_build_and_serializes_qa_account():
     jobs = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())["jobs"]
     native = jobs["native-backup"]
+    assert native["needs"] == "live-backup"
     assert native["env"]["DAILYBEAT_REQUIRE_LIVE_BACKUP"] == "1"
     assert native["env"]["DAILYBEAT_LIVE_BACKUP_ONLY"] == "1"
     assert native["env"]["DAILYBEAT_FOSS"] == "true"
