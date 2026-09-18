@@ -13,3 +13,8 @@ supabase functions deploy delete-account --project-ref mrhffxtuzxqzcqicchoj
 ```
 
 The built-in Supabase environment variables are sufficient; do not create duplicate secrets.
+
+Production deployment was verified on 18 September 2026 with JWT verification enabled. A
+non-destructive unauthenticated POST returned HTTP 401 with `UNAUTHORIZED_NO_AUTH_HEADER`. Do not
+test the authenticated success path with an everyday account: it permanently deletes that caller
+and relies on the database foreign-key cascade to remove the caller's encrypted backups.

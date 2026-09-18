@@ -17,6 +17,9 @@
 ### Validation
 - Added a no-reset physical battery sampler, matched-interval analyzer, stop-recall worksheet and
   14-day protocol. These tools do not replace the still-pending physical field trial.
+- Deployed the server-only `delete-account` Edge Function to the production Supabase project with
+  JWT verification enabled. An unauthenticated POST was rejected by the gateway with HTTP 401;
+  no account or backup was deleted during the probe.
 
 ### Improved
 - Today now distinguishes missing Android location permission from an intentionally disabled

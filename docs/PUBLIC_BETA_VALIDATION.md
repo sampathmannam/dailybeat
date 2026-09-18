@@ -59,9 +59,11 @@ signing strategy. Do not uninstall production to test either APK.
 ## Still required before release
 
 1. Complete the exact-distribution dependency/native/asset provenance audit and signing strategy.
-2. Deploy and probe the server-only account-deletion Edge Function. The encrypted-backup migration,
-   live RLS transport, mandatory native encrypted recovery, local retention and deletion controls
-   are implemented and tested; never ship an admin key in the app.
+2. Exercise the deployed server-only account-deletion Edge Function with an explicitly disposable
+   QA account and verify the backup cascade. Production deployment with JWT verification and the
+   non-destructive unauthenticated HTTP 401 probe passed on 18 September 2026; no real account was
+   deleted. The encrypted-backup migration, live RLS transport, mandatory native encrypted recovery,
+   local retention and deletion controls are implemented and tested; never ship an admin key in the app.
 3. Independent security review and full dependency/history scans. Local test success is not a
    security certification. Legacy plaintext backups are not retroactively removed/encrypted.
 4. Run [the physical-device field trial](BATTERY_FIELD_TRIAL.md) against a capture-off baseline,

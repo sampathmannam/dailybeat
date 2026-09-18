@@ -74,8 +74,11 @@ and the standard publisher has not been silently switched to a new capture backe
 Follow-up source now implements local retention, device/cloud/account deletion, diary checkpoints,
 visit-correction audit records, encrypted backup/restore of those histories, offline GPL/Apache/BSD
 notices, and reproducible battery/recall collection tools. The account endpoint is intentionally an
-Edge Function so the APK never contains an admin key; deployment and a non-destructive authentication
-probe must be verified separately.
+Edge Function so the APK never contains an admin key. It was deployed to the production Supabase
+project with JWT verification on 18 September 2026. Supabase returned HTTP 201 for deployment and
+an unauthenticated POST to the public endpoint returned HTTP 401
+(`UNAUTHORIZED_NO_AUTH_HEADER`); no account or backup was deleted. The authenticated destructive
+path still needs a deliberately disposable QA account before store approval.
 
 Still open: exact-distribution native/asset clearance, independent security/key-lifecycle review,
 the 14-day physical battery/recall trial, and the remaining provenance/coverage/follow-up roadmap.

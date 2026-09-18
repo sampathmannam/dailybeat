@@ -83,8 +83,9 @@ impossible. Keep it in a password manager.
 
 Legacy backup restore is explicit. It does not delete or encrypt older cloud copies retroactively.
 Settings can delete both cloud formats. Cloud-account deletion reauthenticates and calls the
-server-only `delete-account` Edge Function; deploy that function with JWT verification before a
-public build. A passing client test is not proof that the production function is deployed.
+server-only `delete-account` Edge Function. That function was deployed to the production Supabase
+project with JWT verification on 18 September 2026; an unauthenticated POST was rejected with HTTP
+401. A destructive authenticated probe still requires an explicitly disposable QA account.
 API keys, recovery passphrases, auth sessions and dormant DSR records are excluded from snapshots.
 
 The app packages its GPL text and offline third-party notices. The coordinate-level POM inventory
