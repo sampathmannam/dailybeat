@@ -1,7 +1,6 @@
 package com.dailybeat.app.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,16 +11,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -63,6 +64,7 @@ import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
+import com.dailybeat.app.ui.feed.DayStay
 import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
 import com.dailybeat.app.util.InputPolicy
@@ -84,6 +86,7 @@ fun TodayScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var showCaptureSheet by rememberSaveable { mutableStateOf(false) }
+    var showRouteDetails by rememberSaveable { mutableStateOf(false) }
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
@@ -153,45 +156,44 @@ fun TodayScreen(
         }
 
         item {
-            CaptureOverview(
-                status = uiState.captureStatus,
-                gpsOn = uiState.gpsActive,
-                cloudReady = uiState.cloudBrainReady,
-                onResumeCapture = viewModel::resumeCaptureNow,
-            )
-        }
-
-        item {
-            BeatSummary(
-                title = beat.title,
-                status = if (uiState.beatState == "complete") {
-                    stringResource(R.string.beat_complete_status)
-                } else {
-                    stringResource(R.string.beat_live_status)
-                },
+            TodaySummaryCard(
                 distanceLabel = stringResource(R.string.feed_stat_distance),
                 distanceValue = Formatters.distance(uiState.distanceMeters, uiState.distanceEstimated),
                 timeLabel = stringResource(R.string.beat_tracked_time),
                 timeValue = Formatters.durationCompact(uiState.trackedMinutes),
-                stopsLabel = stringResource(R.string.feed_stat_stops),
-                stopsValue = Formatters.count(visits.count { it.visitType != "transit" }),
+                stopsLabel = stringResource(R.string.feed_stat_auto_stops),
+                stopsValue = Formatters.count(beat.stays.size),
+                stays = beat.stays,
+                expanded = showRouteDetails,
+                onToggleDetails = { showRouteDetails = !showRouteDetails },
             )
         }
 
-        item {
-            CaptureCoverageNote(
-                gapCount = uiState.captureGapCount,
-                hasCapture = beat.hasRoute || visits.isNotEmpty(),
-            )
-        }
-
-        if (beat.hasRoute && uiState.distanceEstimated) {
+        if (showRouteDetails) {
             item {
-                Text(
-                    stringResource(R.string.distance_estimated_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                CaptureOverview(
+                    status = uiState.captureStatus,
+                    gpsOn = uiState.gpsActive,
+                    cloudReady = uiState.cloudBrainReady,
+                    onResumeCapture = viewModel::resumeCaptureNow,
                 )
+            }
+
+            item {
+                CaptureCoverageNote(
+                    gapCount = uiState.captureGapCount,
+                    hasCapture = beat.hasRoute || visits.isNotEmpty(),
+                )
+            }
+
+            if (beat.hasRoute && uiState.distanceEstimated) {
+                item {
+                    Text(
+                        stringResource(R.string.distance_estimated_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -468,51 +470,95 @@ private fun CaptureOverview(
 }
 
 @Composable
-private fun BeatSummary(
-    title: String,
-    status: String,
+private fun TodaySummaryCard(
     distanceLabel: String,
     distanceValue: String,
     timeLabel: String,
     timeValue: String,
     stopsLabel: String,
     stopsValue: String,
+    stays: List<DayStay>,
+    expanded: Boolean,
+    onToggleDetails: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth().testTag("today_summary"),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Box(
-                modifier = Modifier.fillMaxWidth().height(1.dp)
-                    .background(MaterialTheme.colorScheme.outlineVariant),
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
-                MetricDivider()
                 SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
-                MetricDivider()
                 SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            TextButton(
+                onClick = onToggleDetails,
+                modifier = Modifier.fillMaxWidth().testTag("today_more"),
+            ) {
+                Text(
+                    text = stringResource(if (expanded) R.string.today_less else R.string.today_more),
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                )
+            }
+            if (expanded) {
+                RouteDetails(stays)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteDetails(stays: List<DayStay>) {
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("today_route_details"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.today_where_you_went),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (stays.isEmpty()) {
+            Text(
+                text = stringResource(R.string.today_no_auto_stops),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            stays.forEachIndexed { index, stay ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stay.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.today_stop_time,
+                            Formatters.clock(stay.startMs),
+                            Formatters.clock(stay.endMs),
+                            Formatters.duration(stay.durationMinutes),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -541,14 +587,6 @@ private fun SummaryMetric(value: String, label: String, modifier: Modifier = Mod
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-@Composable
-private fun MetricDivider() {
-    Box(
-        modifier = Modifier.width(1.dp).height(36.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant),
-    )
 }
 
 @Composable

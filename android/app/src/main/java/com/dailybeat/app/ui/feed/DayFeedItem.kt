@@ -41,6 +41,8 @@ data class DayFeedItem(
     val stays: List<DayStay>,
     val route: List<RoutePoint>,
     val distanceMeters: Double,
+    /** Minutes backed by continuous capture evidence, with long gaps excluded. */
+    val trackedMinutes: Long = 0,
     val firstSeenMs: Long?,
     val lastSeenMs: Long?,
     val diaryPreview: String?,
@@ -59,8 +61,6 @@ data class DayFeedItem(
             val last = lastSeenMs ?: return 0
             return TimeUnit.MILLISECONDS.toMinutes(last - first).coerceAtLeast(0)
         }
-
-    val trackedMinutes: Long get() = activeMinutes
 
     val distanceKm: Double get() = distanceMeters / 1000.0
 
@@ -176,6 +176,7 @@ object DayFeedBuilder {
             } else {
                 routeDistanceMeters(mappable)
             },
+            trackedMinutes = trackedCoverageMinutes(orderedBreadcrumbs, ordered),
             firstSeenMs = first,
             lastSeenMs = last,
             diaryPreview = diaryText?.trim()?.takeIf { it.isNotEmpty() }?.let { preview ->
@@ -186,6 +187,48 @@ object DayFeedBuilder {
             captureGapCount = gapStarts.size,
             distanceEstimated = orderedBreadcrumbs.size < 2 || orderedBreadcrumbs.any { it.quality != "good" },
         )
+    }
+
+    /**
+     * A first fix in the morning and another at night are not twenty-three tracked hours. Prefer
+     * breadcrumb intervals because they are direct capture evidence, and discard the same long
+     * gaps the route renderer marks as incomplete. Older records without enough breadcrumbs fall
+     * back to the union of recorded visit intervals, never the wall-clock span between visits.
+     */
+    private fun trackedCoverageMinutes(
+        breadcrumbs: List<LocationBreadcrumb>,
+        visits: List<LocationVisit>,
+    ): Long {
+        val measuredMs = if (breadcrumbs.size >= 2) {
+            breadcrumbs.zipWithNext().sumOf { (from, to) ->
+                (to.timestampMs - from.timestampMs).takeIf { it in 1L..CAPTURE_GAP_MS } ?: 0L
+            }
+        } else {
+            mergedVisitDurationMs(visits)
+        }
+        return TimeUnit.MILLISECONDS.toMinutes(measuredMs.coerceAtLeast(0L))
+    }
+
+    private fun mergedVisitDurationMs(visits: List<LocationVisit>): Long {
+        val intervals = visits.mapNotNull { visit ->
+            val end = visit.endMs
+            if (visit.startMs <= 0L || end <= visit.startMs) null else visit.startMs..end
+        }.sortedBy { it.first }
+        if (intervals.isEmpty()) return 0L
+
+        var total = 0L
+        var currentStart = intervals.first().first
+        var currentEnd = intervals.first().last
+        intervals.drop(1).forEach { interval ->
+            if (interval.first <= currentEnd) {
+                currentEnd = maxOf(currentEnd, interval.last)
+            } else {
+                total += currentEnd - currentStart
+                currentStart = interval.first
+                currentEnd = interval.last
+            }
+        }
+        return total + currentEnd - currentStart
     }
 
     private fun plausibleBreadcrumbs(points: List<LocationBreadcrumb>): List<LocationBreadcrumb> {

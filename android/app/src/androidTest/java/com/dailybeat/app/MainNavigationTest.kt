@@ -80,8 +80,12 @@ class MainNavigationTest {
     @Test
     fun todayShowsBothMetricsWithoutHorizontalClipping() {
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
-        composeRule.onNodeWithText("Tracked").assertIsDisplayed()
-        composeRule.onNodeWithText("Stops").assertIsDisplayed()
+        composeRule.onNodeWithText("Time").assertIsDisplayed()
+        composeRule.onNodeWithText("Auto stops").assertIsDisplayed()
+        composeRule.onNodeWithTag("today_route_details").assertDoesNotExist()
+        composeRule.onNodeWithTag("today_more").performClick()
+        composeRule.onNodeWithTag("today_route_details").assertIsDisplayed()
+        composeRule.onNodeWithText("Where you went").assertIsDisplayed()
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add moment"))
         composeRule.onNodeWithText("Add moment").assertIsDisplayed()
     }

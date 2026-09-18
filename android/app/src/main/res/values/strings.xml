@@ -9,7 +9,13 @@
     <string name="today_passive_subtitle">Capture your journey, add notes and review a draft of your day. Cloud AI is optional.</string>
     <string name="beat_live_status">Building quietly as your day unfolds</string>
     <string name="beat_complete_status">Reviewed and complete</string>
-    <string name="beat_tracked_time">Tracked</string>
+    <string name="beat_tracked_time">Time</string>
+    <string name="feed_stat_auto_stops">Auto stops</string>
+    <string name="today_more">More</string>
+    <string name="today_less">Less</string>
+    <string name="today_where_you_went">Where you went</string>
+    <string name="today_no_auto_stops">No automatic stops detected yet.</string>
+    <string name="today_stop_time">%1$s–%2$s · %3$s</string>
     <string name="review_my_day">Review my day</string>
     <string name="view_completed_beat">View completed Beat</string>
     <string name="add_moment">Add moment</string>
@@ -63,7 +69,7 @@
         <item quantity="one">%1$d capture gap</item>
         <item quantity="other">%1$d capture gaps</item>
     </plurals>
-    <string name="capture_gaps_note">%1$s. Distance and tracked time may be incomplete.</string>
+    <string name="capture_gaps_note">%1$s. Distance and time may be incomplete.</string>
     <string name="capture_no_gaps">No capture gaps.</string>
     <string name="today_moments_title">Today\'s moments</string>
     <string name="today_moments_provenance">Local to this phone</string>

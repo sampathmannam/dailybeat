@@ -22,6 +22,11 @@
   no account or backup was deleted during the probe.
 
 ### Improved
+- Today no longer presents the wall-clock span between the first and last fix as continuously
+  tracked time. The Time metric now totals measured capture intervals, excludes long gaps, and
+  falls back to the union of legacy visit intervals.
+- Today now leads with the route map and one compact Distance / Time / Auto stops card. Place names,
+  stop times, capture health and coverage details stay behind a More control until requested.
 - Today now distinguishes missing Android location permission from an intentionally disabled
   capture setting, and no longer shows an estimated-distance warning before a route exists.
 - Passive capture now uses an adaptive battery state machine: a coordinate-free activity watcher
