@@ -1,8 +1,14 @@
-# DailyBeat v4.0.6 — install and verify
+# DailyBeat v4.1.0 — install and verify
 
-Version 4.0.6 uses the calmer Soft Sun yellow `#F0C94A` for the launcher, route, stops, selected
-states, identity accents, and every yellow-toned button. Neutral Carbon dark-mode layers remain
-unchanged, with accessible foreground/background contrast in both themes.
+Version 4.1.0 makes all-day capture adaptive to movement and stillness, adds client-encrypted cloud
+recovery and explicit data-lifecycle controls, and introduces Personal, Field work and Police diary
+templates. Today now leads with the route map and a compact Distance / Time / Auto stops card;
+place details and capture diagnostics remain available under **More**. The Time metric totals measured
+capture intervals rather than the wall-clock span from the first fix to the last.
+
+The Soft Sun yellow `#F0C94A` remains consistent across the launcher, route, stops, selected states,
+identity accents, and buttons. Neutral Carbon dark-mode layers remain unchanged, with accessible
+foreground/background contrast in both themes.
 
 The v4.0.2 hardening remains intact. Names, notes, diary text, places, and cloud settings share
 Unicode-safe boundaries in the UI and persistence layers. Long-running actions block duplicate
@@ -38,23 +44,24 @@ valid key; it does not use an offline model fallback.
 
 Cloud backup uses a DailyBeat Supabase project configured at build time with `SUPABASE_URL` and
 `SUPABASE_ANON_KEY`. These are public client configuration; authenticated owner-only row-level
-security protects each backup. The Cloud AI provider key is never backed up.
+security protects each backup. New backups are encrypted on the phone with a separate recovery
+passphrase that is never uploaded or stored in settings. The Cloud AI provider key is never backed up.
 
-After installation, open Settings → Cloud backup, sign in, and select **Back up now**. On a
-replacement phone, install the same signed DailyBeat package, sign in to the same account, and
-explicitly confirm **Restore from cloud**. Restore replaces local records only after the complete
-remote snapshot validates.
+After installation, open Settings → Cloud backup, sign in, set a recovery passphrase, and select
+**Back up now**. On a replacement phone, install the same signed DailyBeat package, sign in to the
+same account, enter the recovery passphrase, and explicitly confirm **Restore from cloud**. Restore
+replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For current candidate progress and unresolved gates, see [release completion status](RELEASE_COMPLETION_STATUS.md).
+For the exact release contents and validation contract, see [the v4.1.0 release report](V4_1_0_RELEASE_REPORT.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.0.6`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.1.0`):
 
-- `DailyBeat-v4.0.6.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.1.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

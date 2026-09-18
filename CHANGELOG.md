@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.1.0 — 2026-09-18
+
 ### Privacy and control
 - Settings now offers explicit 30-day, 90-day, one-year, or user-controlled local retention.
   A destructive choice is confirmed before the first prune; a lightweight daily worker then applies

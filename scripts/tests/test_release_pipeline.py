@@ -34,9 +34,8 @@ def test_android_version_advances_for_obtainium_update():
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
     assert "versionCode = 28" in gradle
-    assert 'versionName = "4.1.0-beta.1"' in gradle
-    # This is an unreleased QA candidate. A separate approved release advances the marker.
-    assert release_marker == "4.0.6"
+    assert 'versionName = "4.1.0"' in gradle
+    assert release_marker == "4.1.0"
 
 
 def test_release_build_requires_the_permanent_signing_key():

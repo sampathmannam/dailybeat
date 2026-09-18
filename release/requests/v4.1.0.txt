@@ -1,0 +1,5 @@
+Publish DailyBeat v4.1.0 only after adaptive capture, measured tracked-time calculation, the compact
+Today summary, encrypted backup recovery, owner-only backend policies, lifecycle controls, standard
+and Google-free builds, both Android instrumentation lanes, native and transport backup recovery,
+release-policy, database isolation, CodeQL, dependency review, and open-source security checks pass
+on the exact protected main commit. Publish the permanently signed APK with SHA256SUMS.txt.

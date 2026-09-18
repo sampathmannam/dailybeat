@@ -59,7 +59,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 28
-        versionName = "4.1.0-beta.1"
+        versionName = "4.1.0"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))

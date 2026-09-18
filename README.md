@@ -5,10 +5,10 @@ A phone-first Android journal for remembering where your day took you, adding no
 Personal, Field work and Police templates share one app. The Police template is a writing format,
 not certification of attendance, official submission, or an evidentiary chain of custody.
 
-## Current branch
+## Current release
 
-**4.1.0-beta.1 / code 28 is an unreleased QA candidate.** The production release marker remains
-4.0.6. This branch must not be published until the release checklist is complete.
+**4.1.0 / code 28** is the current production release line. It upgrades the permanently signed
+`com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
 - Deterministic, source-linked daily drafts without an account or AI; optional cloud drafting.
@@ -22,7 +22,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Soft Sun accent and Carbon dark mode retained; no DSR features added.
 
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
-[local validation and remaining gates](docs/PUBLIC_BETA_VALIDATION.md),
+[validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),
 [privacy information](PRIVACY.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
 
 ## Build and test
@@ -95,10 +95,11 @@ remains evidence rather than legal clearance for every native component or asset
 
 Production package: `com.dailybeat.app`. Never uninstall it to resolve a signing mismatch.
 Production releases must keep the permanent signing certificate and pass the existing release gates.
-No production release or store submission is created by this branch.
+Only the signed APK attached to the matching GitHub Release is an in-place production update.
 
-The last stable release is available through [GitHub Releases](https://github.com/sampathmannam/dailybeat/releases).
-The dependency/asset audit, F-Droid review and distribution signing strategy are still pending.
+The latest stable release is available through [GitHub Releases](https://github.com/sampathmannam/dailybeat/releases).
+The remaining dependency/asset audit, F-Droid review and store-specific signing strategy apply to
+future third-party store submissions; they do not change the GitHub/Obtainium update identity.
 The Google-backed build includes dependencies that need separate compatibility review; do not
 treat the project licence as permission to redistribute every dependency under that licence.
 
