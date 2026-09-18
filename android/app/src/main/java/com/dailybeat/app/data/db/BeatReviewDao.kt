@@ -29,4 +29,7 @@ interface BeatReviewDao {
 
     @Query("DELETE FROM beat_reviews")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM beat_reviews WHERE dateKey < :cutoffDateKey")
+    suspend fun deleteBefore(cutoffDateKey: String): Int
 }

@@ -37,6 +37,7 @@ data class TodayUiState(
     val cloudBrainReady: Boolean = false,
     val gpsEnabled: Boolean = true,
     val gpsActive: Boolean = false,
+    val locationPermissionGranted: Boolean = false,
     val isGeneratingReport: Boolean = false,
     val isSeeding: Boolean = false,
     val seedMessage: String? = null,
@@ -105,6 +106,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             gpsEnabled = runCatching {
                 app.settingsRepository.get().gpsCaptureEnabled
             }.getOrDefault(false),
+            locationPermissionGranted = PermissionHelper.canCaptureLocation(application),
             gpsActive = runCatching { isGpsCaptureActive() }.getOrDefault(false),
         ),
     )
@@ -138,6 +140,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                             app.settingsRepository.isCloudBrainReady()
                         }.getOrDefault(false),
                         gpsEnabled = settings.gpsCaptureEnabled,
+                        locationPermissionGranted = PermissionHelper.canCaptureLocation(getApplication()),
                         gpsActive = settings.gpsCaptureEnabled &&
                             PermissionHelper.canCaptureLocation(getApplication()) &&
                             data.gpsRunning,
@@ -344,6 +347,7 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 current.copy(
                     cloudBrainReady = app.settingsRepository.isCloudBrainReady(),
                     gpsEnabled = settings.gpsCaptureEnabled,
+                    locationPermissionGranted = PermissionHelper.canCaptureLocation(getApplication()),
                     gpsActive = isGpsCaptureActive(),
                     captureStatus = status,
                 )

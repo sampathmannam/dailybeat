@@ -56,7 +56,7 @@ jobs:
           # These checks run again on the resulting main commit.
           # A release must not outrun either emulator lane. The offline lane catches navigation,
           # storage and permission regressions without depending on third-party availability.
-          required_checks=(build offline-instrumentation instrumentation live-backup release-policy codeql oss-security)
+          required_checks=(build offline-instrumentation instrumentation live-backup release-policy codeql oss-security foss-build rls-tests native-backup)
           deadline=$((SECONDS + 1800))
 
           while true; do
@@ -108,6 +108,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: 'false'
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 

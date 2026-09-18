@@ -3,6 +3,7 @@ package com.dailybeat.app.data.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.dailybeat.app.data.model.DiaryEntry
+import com.dailybeat.app.data.model.DiaryRevision
 import com.dailybeat.app.data.model.DsrCase
 import com.dailybeat.app.data.model.DsrCaseSnapshot
 import com.dailybeat.app.data.model.DsrCaseWork
@@ -17,6 +18,7 @@ import com.dailybeat.app.data.model.DsrStationSnapshot
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.GeocodeCache
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.VisitCorrection
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
@@ -44,8 +46,10 @@ import com.dailybeat.app.data.model.Place
         DsrCaseAudit::class,
         LocationBreadcrumb::class,
         BeatReview::class,
+        DiaryRevision::class,
+        VisitCorrection::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {
@@ -57,4 +61,5 @@ abstract class DailyBeatDb : RoomDatabase() {
     abstract fun dsr(): DsrDao
     abstract fun breadcrumbs(): BreadcrumbDao
     abstract fun beatReviews(): BeatReviewDao
+    abstract fun journalSearch(): JournalSearchDao
 }

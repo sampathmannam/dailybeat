@@ -63,6 +63,7 @@ import java.time.LocalDate
 import java.io.File
 import com.dailybeat.app.util.Formatters
 import com.dailybeat.app.util.InputPolicy
+import kotlinx.coroutines.launch
 
 @Composable
 fun FeedScreen(
@@ -73,6 +74,13 @@ fun FeedScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var sharePreviews by remember { mutableStateOf<List<com.dailybeat.app.export.DiarySharePreview>?>(null) }
+    sharePreviews?.let { previews ->
+        com.dailybeat.app.ui.components.SharePreviewDialog(previews, state.isExporting,
+            onDismiss = { sharePreviews = null },
+            onConfirm = { viewModel.exportPackage(previews); sharePreviews = null })
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     // A destination can stay composed while the app is in the background. Refresh on resume
@@ -134,6 +142,26 @@ fun FeedScreen(
         }
 
         item {
+            OutlinedTextField(value = state.searchQuery, onValueChange = viewModel::search,
+                modifier = Modifier.fillMaxWidth().testTag("history_search"), singleLine = true,
+                label = { Text("Search notes, diaries and places") },
+                supportingText = { Text("On this phone · Up to 100 matching records") })
+        }
+        if (state.searchQuery.isNotBlank()) {
+            if (state.isSearching) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            else if (state.searchResults.isEmpty()) item { Text("No matching records. Try another word.") }
+            items(state.searchResults) { hit ->
+                Column(Modifier.fillMaxWidth().clickable(role = Role.Button) {
+                    onOpenDay(hit.date().toString())
+                }.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${hit.kind} · ${hit.date()}", style = MaterialTheme.typography.titleSmall)
+                    Text(hit.snippet, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium)
+                }
+                HorizontalDivider()
+            }
+        }
+        item {
             if (state.isLoading) {
                 LinearProgressIndicator(Modifier.fillMaxWidth().testTag("feed_loading"))
             }
@@ -155,7 +183,7 @@ fun FeedScreen(
             }
         }
 
-        if (state.days.isEmpty() && !state.isLoading && state.error == null) {
+        if (state.days.isEmpty() && !state.isLoading && state.error == null && state.searchQuery.isBlank()) {
             item {
                 EmptyState(
                     title = stringResource(R.string.feed_empty_title),
@@ -164,7 +192,7 @@ fun FeedScreen(
             }
         }
 
-        items(state.days, key = { it.date.toString() }) { day ->
+        items(if (state.searchQuery.isBlank()) state.days else emptyList(), key = { it.date.toString() }) { day ->
             DayFeedCard(
                 day = day,
                 onClick = { onOpenDay(DateKeys.format(day.date)) },
@@ -172,7 +200,7 @@ fun FeedScreen(
             )
         }
 
-        if (state.days.isNotEmpty()) {
+        if (state.days.isNotEmpty() && state.searchQuery.isBlank()) {
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -194,7 +222,7 @@ fun FeedScreen(
                         )
                         SecondaryButton(
                             text = stringResource(R.string.export_week_package),
-                            onClick = viewModel::exportPackage,
+                            onClick = { scope.launch { sharePreviews = viewModel.preparePackage() } },
                             enabled = !weeklyBusy,
                         )
                         if (state.isGeneratingWeekly || state.isExporting) {

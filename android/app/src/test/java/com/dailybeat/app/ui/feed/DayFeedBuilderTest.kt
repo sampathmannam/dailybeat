@@ -136,7 +136,9 @@ class DayFeedBuilderTest {
     fun `time out spans the first and last thing captured`() {
         val visits = listOf(stay("A", 30, 60), stay("B", 120, 200, lat = 11.47))
 
-        assertEquals(170, DayFeedBuilder.build(date, visits, null).activeMinutes)
+        val item = DayFeedBuilder.build(date, visits, null)
+        assertEquals(170, item.activeMinutes)
+        assertEquals(110, item.trackedMinutes)
     }
 
     @Test
@@ -182,9 +184,33 @@ class DayFeedBuilderTest {
         val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
 
         assertEquals(1, item.captureGapCount)
+        assertEquals(4, item.trackedMinutes)
         assertTrue(item.route.single { it.timestampMs == dayStart + minutes(32) }.startsAfterGap)
         assertTrue("Only measured segments should count, got ${item.distanceKm}", item.distanceKm in 1.8..2.2)
         assertTrue(item.distanceEstimated)
+    }
+
+    @Test
+    fun `sparse fixes across a whole day do not claim a whole day was tracked`() {
+        val points = listOf(
+            LocationBreadcrumb(
+                timestampMs = dayStart,
+                latitude = 11.4557,
+                longitude = 78.1856,
+                accuracyM = 20f,
+            ),
+            LocationBreadcrumb(
+                timestampMs = dayStart + minutes(23 * 60 + 28),
+                latitude = 11.4647,
+                longitude = 78.1856,
+                accuracyM = 20f,
+            ),
+        )
+
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertEquals(0, item.trackedMinutes)
+        assertEquals(1, item.captureGapCount)
     }
 
     @Test

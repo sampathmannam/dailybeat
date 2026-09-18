@@ -16,11 +16,11 @@ class SettingsRepository(
     val themePreference: StateFlow<ThemePreference> = _themePreference.asStateFlow()
 
     fun get(): AppSettings = AppSettings(
-        officerName = (prefs.getString(KEY_OFFICER, "IPS Officer") ?: "IPS Officer")
+        officerName = (prefs.getString(KEY_OFFICER, "") ?: "")
             .let { InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS) },
         themePreference = readThemePreference(),
         gpsCaptureEnabled = prefs.getBoolean(KEY_GPS, true),
-        cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, true),
+        cloudLlmEnabled = prefs.getBoolean(KEY_CLOUD_ENABLED, false),
         cloudProvider = (prefs.getString(KEY_CLOUD_PROVIDER, CloudProvider.DEEPSEEK.id)
             ?: CloudProvider.DEEPSEEK.id).let { stored ->
             CloudProvider.entries.find { it.id == stored }?.id ?: CloudProvider.DEEPSEEK.id
@@ -32,12 +32,27 @@ class SettingsRepository(
         cloudBaseUrl = (prefs.getString(KEY_CLOUD_BASE_URL, "") ?: "").let {
             InputPolicy.singleLine(it, InputPolicy.CLOUD_URL_CHARS)
         },
-        autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, true),
+        autoEveningReport = prefs.getBoolean(KEY_AUTO_REPORT, false) &&
+            prefs.getBoolean("auto_report_privacy_v1", false),
         autoMiddayPulse = prefs.getBoolean(KEY_MIDDAY_PULSE, false),
         supervisorName = (prefs.getString(KEY_SUPERVISOR, "") ?: "").let {
             InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS)
         },
+        journalProfile = readJournalProfile(),
+        historyRetentionDays = prefs.getInt(KEY_HISTORY_RETENTION_DAYS, 0)
+            .takeIf { it in SUPPORTED_RETENTION_DAYS } ?: 0,
     )
+
+    private fun readJournalProfile(): JournalProfile {
+        if (prefs.contains(KEY_PROFILE)) return JournalProfile.fromId(prefs.getString(KEY_PROFILE, null))
+        // Existing police users retain their template. New installs start with a general journal.
+        return if (prefs.contains(KEY_OFFICER) || isOnboardingComplete()) JournalProfile.POLICE
+        else JournalProfile.PERSONAL
+    }
+
+    fun setJournalProfile(profile: JournalProfile) {
+        prefs.edit().putString(KEY_PROFILE, profile.id).apply()
+    }
 
     fun setOfficerName(name: String) {
         prefs.edit().putString(
@@ -100,7 +115,8 @@ class SettingsRepository(
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled).apply()
+        prefs.edit().putBoolean(KEY_AUTO_REPORT, enabled)
+            .putBoolean("auto_report_privacy_v1", true).apply()
     }
 
     fun setSupervisorName(name: String) {
@@ -122,11 +138,30 @@ class SettingsRepository(
         prefs.edit().putBoolean(KEY_ONBOARDING, complete).apply()
     }
 
+    fun setHistoryRetentionDays(days: Int) {
+        require(days in SUPPORTED_RETENTION_DAYS) { "Unsupported history retention period." }
+        check(prefs.edit().putInt(KEY_HISTORY_RETENTION_DAYS, days).commit()) {
+            "Unable to save the retention setting."
+        }
+    }
+
+    /** Reset preferences after the user explicitly erases this phone. Capture stays off. */
+    fun resetAfterLocalDataDeletion() {
+        check(
+            prefs.edit().clear()
+                .putBoolean(KEY_GPS, false)
+                .putBoolean(KEY_ONBOARDING, false)
+                .commit(),
+        ) { "Unable to reset local settings." }
+        _themePreference.value = ThemePreference.SYSTEM
+    }
+
     private fun readThemePreference(): ThemePreference = ThemePreference.fromId(
         prefs.getString(KEY_THEME_PREFERENCE, ThemePreference.SYSTEM.id),
     )
 
     companion object {
+        private const val KEY_PROFILE = "journal_profile"
         private const val KEY_OFFICER = "officer_name"
         private const val KEY_THEME_PREFERENCE = "theme_preference"
         private const val KEY_GPS = "gps_enabled"
@@ -139,5 +174,7 @@ class SettingsRepository(
         private const val KEY_AUTO_REPORT = "auto_evening_report"
         private const val KEY_MIDDAY_PULSE = "auto_midday_pulse"
         private const val KEY_SUPERVISOR = "supervisor_name"
+        private const val KEY_HISTORY_RETENTION_DAYS = "history_retention_days"
+        val SUPPORTED_RETENTION_DAYS = setOf(0, 30, 90, 365)
     }
 }

@@ -12,14 +12,8 @@ name: Backend RLS
 on:
   push:
     branches: [main]
-    paths:
-      - 'supabase/**'
-      - '.github/workflows/backend-rls.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'supabase/**'
-      - '.github/workflows/backend-rls.yml'
 
 permissions:
   contents: read

@@ -88,6 +88,28 @@ class LocalBackupStoreTest {
         assertEquals("Sampath", settings.get().officerName)
     }
 
+    @Test
+    fun `restore reapplies finite retention and immediately prunes older records`() = runBlocking {
+        val now = System.currentTimeMillis()
+        db.events().insert(
+            Event(
+                id = 1,
+                timestamp = now - java.time.Duration.ofDays(100).toMillis(),
+                type = "manual",
+                rawText = "old",
+            ),
+        )
+        db.events().insert(Event(id = 2, timestamp = now, type = "manual", rawText = "recent"))
+        settings.setHistoryRetentionDays(90)
+        val snapshot = store.createSnapshot()
+
+        settings.setHistoryRetentionDays(0)
+        store.restore(snapshot)
+
+        assertEquals(90, settings.get().historyRetentionDays)
+        assertEquals(listOf(2L), db.events().all().map { it.id })
+    }
+
     private suspend fun seedOriginalData() {
         db.events().insert(Event(id = 1, timestamp = 1_000L, type = "manual", rawText = "original"))
         db.places().insert(Place(id = 2, name = "HQ", latitude = 17.4, longitude = 78.5))

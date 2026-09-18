@@ -6,6 +6,8 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
+import com.dailybeat.app.data.model.DiaryRevision
+import com.dailybeat.app.data.model.VisitCorrection
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -27,6 +29,8 @@ object BackupSnapshotCodec {
             put("visits", JSONArray(snapshot.visits.map(::visitJson)))
             put("breadcrumbs", JSONArray(snapshot.breadcrumbs.map(::breadcrumbJson)))
             put("beatReviews", JSONArray(snapshot.beatReviews.map(::beatReviewJson)))
+            put("diaryRevisions", JSONArray(snapshot.diaryRevisions.map(::diaryRevisionJson)))
+            put("visitCorrections", JSONArray(snapshot.visitCorrections.map(::visitCorrectionJson)))
             put("settings", settingsJson(snapshot.settings))
         }.toString().also { encoded ->
             require(jsonByteSize(encoded) <= MAX_JSON_BYTES) { "Backup is too large to upload safely." }
@@ -57,6 +61,8 @@ object BackupSnapshotCodec {
                 settings = settings(root.getJSONObject("settings")),
                 breadcrumbs = root.optJSONArray("breadcrumbs")?.mapObjects(::breadcrumb).orEmpty(),
                 beatReviews = root.optJSONArray("beatReviews")?.mapObjects(::beatReview).orEmpty(),
+                diaryRevisions = root.optJSONArray("diaryRevisions")?.mapObjects(::diaryRevision).orEmpty(),
+                visitCorrections = root.optJSONArray("visitCorrections")?.mapObjects(::visitCorrection).orEmpty(),
             )
         } catch (_: JSONException) {
             throw IllegalArgumentException("Backup is incomplete or damaged.")
@@ -183,7 +189,42 @@ object BackupSnapshotCodec {
         updatedAt = value.getLong("updatedAt"),
     )
 
+    private fun diaryRevisionJson(value: DiaryRevision) = JSONObject().apply {
+        put("id", value.id)
+        put("dateKey", value.dateKey)
+        put("text", value.text)
+        put("createdAt", value.createdAt)
+        put("reason", value.reason)
+    }
+
+    private fun diaryRevision(value: JSONObject) = DiaryRevision(
+        id = value.getLong("id"),
+        dateKey = value.getString("dateKey"),
+        text = value.getString("text"),
+        createdAt = value.getLong("createdAt"),
+        reason = value.getString("reason"),
+    )
+
+    private fun visitCorrectionJson(value: VisitCorrection) = JSONObject().apply {
+        put("id", value.id)
+        put("visitId", value.visitId)
+        put("correctedAt", value.correctedAt)
+        put("field", value.field)
+        putNullable("oldValue", value.oldValue)
+        putNullable("newValue", value.newValue)
+    }
+
+    private fun visitCorrection(value: JSONObject) = VisitCorrection(
+        id = value.getLong("id"),
+        visitId = value.getLong("visitId"),
+        correctedAt = value.getLong("correctedAt"),
+        field = value.getString("field"),
+        oldValue = value.nullableString("oldValue"),
+        newValue = value.nullableString("newValue"),
+    )
+
     private fun settingsJson(value: BackupSettings) = JSONObject().apply {
+        put("journalProfile", value.journalProfile)
         put("officerName", value.officerName)
         put("themePreference", value.themePreference)
         put("gpsCaptureEnabled", value.gpsCaptureEnabled)
@@ -197,6 +238,7 @@ object BackupSnapshotCodec {
         put("autoEveningReport", value.autoEveningReport)
         put("autoMiddayPulse", value.autoMiddayPulse)
         put("supervisorName", value.supervisorName)
+        put("historyRetentionDays", value.historyRetentionDays)
     }
 
     /**
@@ -208,6 +250,9 @@ object BackupSnapshotCodec {
         val defaults = BackupSettings()
         val storedThemePreference = value.optString("themePreference")
         return BackupSettings(
+            journalProfile = value.optString("journalProfile", "police").also {
+                require(it in setOf("personal", "field_work", "police")) { "Unknown journal template." }
+            },
             officerName = value.optString("officerName").ifBlank { defaults.officerName },
             themePreference = storedThemePreference
                 .takeIf { it in SUPPORTED_THEME_PREFERENCES }
@@ -220,6 +265,10 @@ object BackupSnapshotCodec {
             autoEveningReport = value.optBoolean("autoEveningReport", defaults.autoEveningReport),
             autoMiddayPulse = value.optBoolean("autoMiddayPulse", defaults.autoMiddayPulse),
             supervisorName = value.optString("supervisorName", defaults.supervisorName),
+            historyRetentionDays = value.optInt(
+                "historyRetentionDays",
+                defaults.historyRetentionDays,
+            ),
         )
     }
 
@@ -249,6 +298,8 @@ object BackupSnapshotCodec {
         require(snapshot.visits.size <= MAX_RECORDS_PER_TABLE) { "Backup contains too many visits." }
         require(snapshot.breadcrumbs.size <= MAX_BREADCRUMBS) { "Backup contains too many route points." }
         require(snapshot.beatReviews.size <= MAX_DIARIES) { "Backup contains too many day reviews." }
+        require(snapshot.diaryRevisions.size <= MAX_REVISIONS) { "Backup contains too many diary versions." }
+        require(snapshot.visitCorrections.size <= MAX_RECORDS_PER_TABLE) { "Backup contains too many visit corrections." }
 
         snapshot.events.forEach { event ->
             require(event.timestamp >= 0) { "Backup contains an invalid event time." }
@@ -302,11 +353,32 @@ object BackupSnapshotCodec {
                 "Backup contains an invalid day review time."
             }
         }
+        snapshot.diaryRevisions.forEach { revision ->
+            require(runCatching { LocalDate.parse(revision.dateKey) }.isSuccess) {
+                "Backup contains an invalid diary-version date."
+            }
+            require(
+                revision.id >= 0 && revision.createdAt >= 0 &&
+                    revision.text.length <= MAX_DIARY_TEXT &&
+                    revision.reason.length <= MAX_SHORT_TEXT,
+            ) { "Backup contains an invalid diary version." }
+        }
+        snapshot.visitCorrections.forEach { correction ->
+            require(
+                correction.id >= 0 && correction.visitId > 0 && correction.correctedAt >= 0 &&
+                    correction.field in setOf("placeName", "hidden") &&
+                    (correction.oldValue?.length ?: 0) <= MAX_SHORT_TEXT &&
+                    (correction.newValue?.length ?: 0) <= MAX_SHORT_TEXT,
+            ) { "Backup contains an invalid visit correction." }
+        }
         require(snapshot.settings.officerName.length <= MAX_SHORT_TEXT) {
             "Backup contains an oversized officer name."
         }
         require(snapshot.settings.supervisorName.length <= MAX_SHORT_TEXT) {
             "Backup contains an oversized supervisor name."
+        }
+        require(snapshot.settings.historyRetentionDays in setOf(0, 30, 90, 365)) {
+            "Backup contains an invalid history-retention setting."
         }
         require(snapshot.settings.cloudBaseUrl.length <= MAX_URL_TEXT) {
             "Backup contains an oversized cloud URL."
@@ -343,6 +415,7 @@ object BackupSnapshotCodec {
     private const val MAX_BREADCRUMBS = 500_000
     private const val MAX_PLACES = 10_000
     private const val MAX_DIARIES = 10_000
+    private const val MAX_REVISIONS = 100_000
     private const val MAX_SHORT_TEXT = 1_000
     private const val MAX_LONG_TEXT = 100_000
     private const val MAX_DIARY_TEXT = 500_000

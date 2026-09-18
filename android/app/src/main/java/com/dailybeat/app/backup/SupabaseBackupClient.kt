@@ -44,6 +44,9 @@ interface BackupRemote {
     suspend fun signIn(email: String, password: String): Result<BackupSession>
     suspend fun upload(snapshotJson: String): Result<Unit>
     suspend fun download(): Result<RemoteBackup?>
+    suspend fun downloadLegacy(): Result<RemoteBackup?> = Result.failure(IllegalStateException("Legacy recovery unavailable."))
+    suspend fun deleteCloudData(): Result<Unit> = Result.failure(IllegalStateException("Cloud deletion unavailable."))
+    suspend fun deleteAccount(): Result<Unit> = Result.failure(IllegalStateException("Account deletion unavailable."))
     fun signOut()
 }
 
@@ -112,7 +115,7 @@ class SupabaseBackupClient(
                 .put("snapshot", JSONObject(snapshotJson))
                 .toString()
             val request = authorizedRequestBuilder(
-                "/rest/v1/dailybeat_backups?on_conflict=user_id",
+                "/rest/v1/dailybeat_encrypted_backups?on_conflict=user_id",
                 session,
             )
                 .header("Prefer", "resolution=merge-duplicates,return=minimal")
@@ -123,12 +126,44 @@ class SupabaseBackupClient(
         }
     }
 
-    override suspend fun download(): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
+    override suspend fun download(): Result<RemoteBackup?> = downloadFrom("dailybeat_encrypted_backups")
+    override suspend fun downloadLegacy(): Result<RemoteBackup?> = downloadFrom("dailybeat_backups")
+
+    override suspend fun deleteCloudData(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureConfigured()
+            val session = validSession()
+            listOf("dailybeat_encrypted_backups", "dailybeat_backups").forEach { table ->
+                val request = authorizedRequestBuilder(
+                    "/rest/v1/$table?user_id=eq.${session.userId}",
+                    session,
+                )
+                    .header("Prefer", "return=minimal")
+                    .delete()
+                    .build()
+                execute(request)
+            }
+        }
+    }
+
+    override suspend fun deleteAccount(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureConfigured()
+            val session = validSession()
+            val request = authorizedRequestBuilder("/functions/v1/delete-account", session)
+                .post("{}".toRequestBody(JSON))
+                .build()
+            execute(request)
+            sessionStore.clear()
+        }
+    }
+
+    private suspend fun downloadFrom(table: String): Result<RemoteBackup?> = withContext(Dispatchers.IO) {
         runCatching {
             ensureConfigured()
             val session = validSession()
             val request = authorizedRequestBuilder(
-                "/rest/v1/dailybeat_backups?select=snapshot,updated_at&user_id=eq.${session.userId}&limit=1",
+                "/rest/v1/$table?select=snapshot,updated_at&user_id=eq.${session.userId}&limit=1",
                 session,
             ).get().build()
             val rows = JSONArray(execute(request))
@@ -226,6 +261,8 @@ class SupabaseBackupClient(
                         authRequest && response.code in 400..499 -> "Email or password is incorrect."
                         response.code == 401 || response.code == 403 ->
                             "Cloud backup authorization expired. Sign in again."
+                        response.code == 404 && request.url.encodedPath.contains("delete-account") ->
+                            "Account deletion is not available on this server yet."
                         response.code == 404 -> "No cloud backup was found."
                         response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
                         response.code >= 500 -> "Cloud backup service is temporarily unavailable."

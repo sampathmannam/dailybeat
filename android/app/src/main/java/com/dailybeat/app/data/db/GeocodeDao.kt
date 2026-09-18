@@ -13,4 +13,7 @@ interface GeocodeDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(entry: GeocodeCache)
+
+    @Query("DELETE FROM geocode_cache")
+    suspend fun deleteAll()
 }

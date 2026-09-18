@@ -1,5 +1,6 @@
 package com.dailybeat.app.export
 
+import com.dailybeat.app.data.settings.JournalProfile
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -25,9 +26,10 @@ class PdfExporter(private val context: Context) {
         date: LocalDate = LocalDate.now(),
         supervisorName: String = "",
         destination: File? = null,
+        profile: JournalProfile = JournalProfile.PERSONAL,
     ): File {
-        val safeOfficer = officerName.trim().ifBlank { "IPS Officer" }
-        val safeSupervisor = supervisorName.trim()
+        val safeOfficer = officerName.trim()
+        val safeSupervisor = supervisorName.trim().takeIf { profile == JournalProfile.POLICE }.orEmpty()
         val safeText = dairyText.trim().ifBlank { "No diary content." }
         val document = PdfDocument()
         try {
@@ -51,6 +53,7 @@ class PdfExporter(private val context: Context) {
                 safeSupervisor,
                 titlePaint,
                 bodyPaint,
+                profile,
             )
             var canvas = page.canvas
             var y = MARGIN + 72f
@@ -68,6 +71,7 @@ class PdfExporter(private val context: Context) {
                         safeSupervisor,
                         titlePaint,
                         bodyPaint,
+                        profile,
                     )
                     canvas = page.canvas
                     y = MARGIN + 72f
@@ -78,7 +82,7 @@ class PdfExporter(private val context: Context) {
             }
 
             canvas.drawText(
-                "Page $pageNumber — Submitted via DailyBeat.",
+                "Page $pageNumber — Draft exported from DailyBeat.",
                 MARGIN,
                 PAGE_HEIGHT - MARGIN,
                 footerPaint,
@@ -111,14 +115,15 @@ class PdfExporter(private val context: Context) {
         supervisorName: String,
         titlePaint: Paint,
         bodyPaint: Paint,
+        profile: JournalProfile,
     ): PdfDocument.Page {
         val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
         val page = document.startPage(pageInfo)
         val canvas = page.canvas
         var y = MARGIN + 20f
-        canvas.drawText("Daily Diary — $dateStr", MARGIN, y, titlePaint)
+        canvas.drawText("${profile.documentTitle} — $dateStr", MARGIN, y, titlePaint)
         y += 28f
-        canvas.drawText("Officer: $officerName", MARGIN, y, bodyPaint)
+        canvas.drawText("${if (profile == JournalProfile.POLICE) "Officer" else "Name"}: $officerName", MARGIN, y, bodyPaint)
         if (supervisorName.isNotBlank()) {
             y += LINE_HEIGHT
             canvas.drawText("Supervisor: $supervisorName", MARGIN, y, bodyPaint)
@@ -134,7 +139,7 @@ class PdfExporter(private val context: Context) {
         footerPaint: Paint,
     ) {
         canvas.drawText(
-            "Page $pageNumber — Submitted via DailyBeat.",
+            "Page $pageNumber — Draft exported from DailyBeat.",
             MARGIN,
             PAGE_HEIGHT - MARGIN,
             footerPaint,

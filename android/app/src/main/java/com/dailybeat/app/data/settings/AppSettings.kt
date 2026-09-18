@@ -1,16 +1,19 @@
 package com.dailybeat.app.data.settings
 
 data class AppSettings(
-    val officerName: String = "IPS Officer",
+    val officerName: String = "",
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val gpsCaptureEnabled: Boolean = true,
-    val cloudLlmEnabled: Boolean = true,
+    val cloudLlmEnabled: Boolean = false,
     val cloudProvider: String = CloudProvider.DEEPSEEK.id,
     val cloudModel: String = CloudProvider.DEEPSEEK.defaultModel,
     val cloudBaseUrl: String = "",
-    val autoEveningReport: Boolean = true,
+    val autoEveningReport: Boolean = false,
     val autoMiddayPulse: Boolean = false,
     val supervisorName: String = "",
+    val journalProfile: JournalProfile = JournalProfile.PERSONAL,
+    /** Zero keeps history until the user deletes it; positive values keep that many calendar days. */
+    val historyRetentionDays: Int = 0,
 )
 
 enum class ThemePreference(val id: String) {

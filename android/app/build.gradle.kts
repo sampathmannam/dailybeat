@@ -4,6 +4,31 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+// Platform-only build: ./gradlew assembleRelease -PdailybeatFoss=true
+// A property preserves the existing signed release task/artifact contract for current users.
+val dailybeatFoss = providers.gradleProperty("dailybeatFoss").orNull == "true"
+val fossManifest = layout.buildDirectory.file("generated/foss/AndroidManifest.xml")
+val prepareFossManifest = tasks.register("prepareFossManifest") {
+    inputs.file("src/main/AndroidManifest.xml")
+    outputs.file(fossManifest)
+    doLast {
+        fossManifest.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(file("src/main/AndroidManifest.xml").readLines()
+                .filterNot { it.contains("permission.ACTIVITY_RECOGNITION") }
+                .joinToString("\n", postfix = "\n"))
+        }
+    }
+}
+
+// Package the exact repository GPL text into every APK instead of maintaining a second copy.
+val generatedLegalResources = layout.buildDirectory.dir("generated/legal/res")
+val prepareLegalResources = tasks.register<Copy>("prepareLegalResources") {
+    from(rootProject.file("../LICENSE"))
+    into(generatedLegalResources.map { it.dir("raw") })
+    rename { "gpl_3_0.txt" }
+}
+
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
@@ -23,12 +48,19 @@ android {
     namespace = "com.dailybeat.app"
     compileSdk = 35
 
+    sourceSets.getByName("main") {
+        java.srcDir(if (dailybeatFoss) "src/foss/java" else "src/gms/java")
+        res.srcDir(generatedLegalResources)
+        if (dailybeatFoss) manifest.srcFile(fossManifest)
+    }
+
     defaultConfig {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 27
-        versionName = "4.0.6"
+        versionCode = 28
+        versionName = "4.1.0"
+        buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
@@ -100,6 +132,42 @@ tasks.withType<Test> {
     }
 }
 
+tasks.register("verifyGoogleFreeDependencies") {
+    group = "verification"
+    description = "Reject Google Play Services/Firebase dependencies in the platform-only build."
+    doLast {
+        check(dailybeatFoss) { "Use -PdailybeatFoss=true for this verification." }
+        val modules = configurations.getByName("releaseRuntimeClasspath")
+            .resolvedConfiguration.resolvedArtifacts.map { it.moduleVersion.id }
+        val forbidden = modules.filter { it.group.startsWith("com.google.android.gms") ||
+            it.group.startsWith("com.google.firebase") }
+        check(forbidden.isEmpty()) { "Non-free dependencies found: $forbidden" }
+        logger.lifecycle("Google-free dependency gate passed ({} resolved artifacts).", modules.size)
+    }
+}
+
+// Trivy does not infer Android dependencies from build.gradle.kts. Emit the resolved release
+// modules in its supported Gradle lockfile format; this inventory is NOT an input lock for Gradle.
+tasks.register("exportReleaseDependencyInventory") {
+    group = "verification"
+    val variantName = if (dailybeatFoss) "foss" else "standard"
+    val inventory = layout.buildDirectory.file("reports/dependency-inventory/$variantName.gradle.lockfile")
+    outputs.file(inventory)
+    outputs.upToDateWhen { false }
+    doLast {
+        val modules = configurations.getByName("releaseRuntimeClasspath")
+            .resolvedConfiguration.resolvedArtifacts.map { it.moduleVersion.id.toString() }
+            .distinct().sorted()
+        check(modules.isNotEmpty()) { "Refusing to emit an empty dependency inventory." }
+        inventory.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText("# Generated release runtime inventory for vulnerability scanning; not an input lock.\n" +
+                modules.joinToString("\n") { "$it=releaseRuntimeClasspath" } + "\nempty=\n")
+        }
+        logger.lifecycle("Exported {} {} release modules for vulnerability scanning.", modules.size, variantName)
+    }
+}
+
 // The regular .qa app can contain the officer's imported PDFs. Instrumentation fixtures
 // are destructive, so neither a default Gradle invocation nor a runner may target it.
 val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {
@@ -110,6 +178,8 @@ val verifyDisposableTestTarget = tasks.register("verifyDisposableTestTarget") {
     }
 }
 tasks.configureEach {
+    if (name == "preBuild") dependsOn(prepareLegalResources)
+    if (dailybeatFoss && name == "preBuild") dependsOn(prepareFossManifest)
     if (name == "connectedDebugAndroidTest" || name == "installDebugAndroidTest") {
         dependsOn(verifyDisposableTestTarget)
     }
@@ -133,7 +203,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    if (!dailybeatFoss) implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

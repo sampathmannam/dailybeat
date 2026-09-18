@@ -29,6 +29,15 @@ object PermissionHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** Activity transitions let capture sleep while the phone is demonstrably still. */
+    fun hasActivityRecognition(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACTIVITY_RECOGNITION,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     /**
      * Whether passive capture can run at all. A foreground service declaring the location type
      * keeps receiving fixes on API 29+ with only the foreground grant, so requiring
@@ -37,6 +46,14 @@ object PermissionHelper {
      * [hasBackgroundLocation] reports that separately.
      */
     fun canCaptureLocation(context: Context): Boolean = hasLocation(context)
+
+    /**
+     * Android 14+ does not permit a receiver or worker to create a location foreground service
+     * from the background with only a while-in-use grant. A user-visible activity can still start
+     * capture with [canCaptureLocation]; this stricter predicate is only for background triggers.
+     */
+    fun canStartLocationCaptureFromBackground(context: Context): Boolean =
+        hasLocation(context) && hasBackgroundLocation(context)
 
     /**
      * Whether the system will leave passive capture alone. Under battery optimisation an OEM can

@@ -33,9 +33,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 27" in gradle
-    assert 'versionName = "4.0.6"' in gradle
-    assert release_marker == "4.0.6"
+    assert "versionCode = 28" in gradle
+    assert 'versionName = "4.1.0"' in gradle
+    assert release_marker == "4.1.0"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -92,7 +92,54 @@ def test_phone_gate_does_not_expand_an_empty_array_under_macos_bash_strict_mode(
         './gradlew connectedDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop "$@" --no-daemon --stacktrace'
         in runner
     )
-    assert "else\n  run_phone_instrumentation\nfi" in runner
+    assert "Running offline/core tests only; live cloud recovery is not included." in runner
+    assert "notClass=com.dailybeat.app.CloudBackupLiveTest" in runner
+
+
+def test_requested_android_cloud_recovery_is_fail_closed_and_cleans_up_qa_backup():
+    for path in ("scripts/mac_phone_e2e.sh", ".github/scripts/run-instrumentation.sh"):
+        assert "android.testInstrumentationRunnerArguments.requireLiveBackup=true" in (ROOT / path).read_text()
+    test = (ROOT / "android/app/src/androidTest/java/com/dailybeat/app/CloudBackupLiveTest.kt").read_text()
+    assert 'if (required) check(hasCredentials)' in test
+    assert "check(configuration.isConfigured)" in test
+    assert "backupRecoveryPassphrase" not in test
+    assert "SecureRandom()" in test
+    assert "client.upload(original.snapshotJson).getOrThrow()" in test
+    assert "deleteOwnQaFixture(configuration, client)" in test
+    assert "Dedicated QA backup cleanup verification failed." in test
+    assert 'addQueryParameter("user_id", "eq.${session.userId}")' in test
+
+
+def test_native_cloud_recovery_uses_isolated_foss_build_and_serializes_qa_account():
+    jobs = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())["jobs"]
+    native = jobs["native-backup"]
+    assert native["env"]["DAILYBEAT_REQUIRE_LIVE_BACKUP"] == "1"
+    assert native["env"]["DAILYBEAT_LIVE_BACKUP_ONLY"] == "1"
+    assert native["env"]["DAILYBEAT_FOSS"] == "true"
+    assert native["concurrency"] == jobs["live-backup"]["concurrency"]
+    assert native["concurrency"]["cancel-in-progress"] is False
+    assert not any("upload-artifact" in step.get("uses", "") for step in native["steps"])
+    assert any("-PdailybeatFoss=true -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop" in step.get("run", "") for step in native["steps"])
+    publisher = (ROOT / ".github/workflows/publish-release.yml").read_text()
+    assert "native-backup" in publisher.split("required_checks=(", 1)[1].split(")", 1)[0]
+
+
+def test_phone_live_gate_rejects_missing_configuration_before_any_device_action():
+    import os
+    import subprocess
+
+    environment = dict(os.environ)
+    for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "DAILYBEAT_BACKUP_TEST_EMAIL", "DAILYBEAT_BACKUP_TEST_PASSWORD"):
+        environment.pop(name, None)
+    environment["DAILYBEAT_REQUIRE_LIVE_BACKUP"] = "1"
+    # An unusable device serial is intentional: the configuration check must stop before adb.
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/mac_phone_e2e.sh"), "must-not-touch-any-device"],
+        env=environment, capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode != 0
+    assert "Required live backup verification needs dedicated QA credentials" in result.stdout
+    assert "Using device:" not in result.stdout
 
 
 def test_mac_helpers_detect_android_studios_bundled_java_runtime():
@@ -106,7 +153,34 @@ def test_phone_installer_defaults_to_the_current_signed_stable_release():
         encoding="utf-8"
     )
 
-    assert "DAILYBEAT_RELEASE_TAG:-v4.0.2" in installer
+    assert '"$ROOT/release/version.txt"' in installer
+    assert 'TAG="${DAILYBEAT_RELEASE_TAG:-v${release_version}}"' in installer
+    assert "v4.0.2" not in installer
+
+
+def test_release_waits_for_foss_and_executable_database_isolation_tests():
+    publisher = (ROOT / ".github/workflows/publish-release.yml").read_text()
+    checks = publisher.split("required_checks=(", 1)[1].split(")", 1)[0].split()
+    assert {"foss-build", "rls-tests"}.issubset(checks)
+    backend = yaml.safe_load((ROOT / ".github/workflows/backend-rls.yml").read_text())
+    # PyYAML's YAML 1.1 loader represents the unquoted GitHub Actions `on` key as True.
+    triggers = backend.get("on", backend.get(True))
+    for trigger in ("push", "pull_request"):
+        assert triggers[trigger] == {"branches": ["main"]}
+
+
+def test_android_setup_never_requests_the_retired_tools_package():
+    found = 0
+    for path in (ROOT / ".github/workflows").glob("*.yml"):
+        workflow = yaml.safe_load(path.read_text())
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if step.get("uses", "").startswith("android-actions/setup-android@"):
+                    packages = step.get("with", {}).get("packages", "").split()
+                    assert "tools" not in packages and "platform-tools" in packages
+                    assert {"platforms;android-35", "build-tools;35.0.0"}.issubset(packages)
+                    found += 1
+    assert found >= 6
 
 
 def test_maestro_flow_can_only_clear_the_disposable_qa_app():
@@ -199,7 +273,8 @@ def test_ci_requires_a_live_cloud_backup_round_trip():
     assert "python3 scripts/live_backup_e2e.py" in workflow
     assert 'branches: [main, "hardening/**"]' not in workflow
     assert "/auth/v1/token?grant_type=password" in runner
-    assert "/rest/v1/dailybeat_backups?on_conflict=user_id" in runner
+    assert '/rest/v1/{self.table}?on_conflict=user_id' in runner
+    assert 'for table in ("dailybeat_backups", "dailybeat_encrypted_backups")' in runner
     assert "client.upload(session, original)" in runner
     assert "client.delete(session)" in runner
     assert "if client.download(session) != original" in runner

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import secrets
@@ -15,6 +16,11 @@ from typing import Any
 MAX_RESPONSE_BYTES = 12 * 1024 * 1024
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # Never forward the apikey header to a redirected origin.
+
+
 class LiveBackupError(RuntimeError):
     """A sanitized live-gate failure that never includes credentials or tokens."""
 
@@ -26,7 +32,10 @@ class Session:
 
 
 class SupabaseQaClient:
-    def __init__(self, base_url: str, anonymous_key: str) -> None:
+    def __init__(self, base_url: str, anonymous_key: str, table: str = "dailybeat_backups") -> None:
+        if table not in {"dailybeat_backups", "dailybeat_encrypted_backups"}:
+            raise LiveBackupError("Unsupported backup table.")
+        self.table = table
         parsed = urllib.parse.urlsplit(base_url.strip())
         if (
             parsed.scheme != "https"
@@ -71,7 +80,7 @@ class SupabaseQaClient:
         user_id = urllib.parse.quote(session.user_id, safe="")
         response = self._request(
             "GET",
-            f"/rest/v1/dailybeat_backups?select=snapshot&user_id=eq.{user_id}&limit=1",
+            f"/rest/v1/{self.table}?select=snapshot&user_id=eq.{user_id}&limit=1",
             token=session.access_token,
         )
         if not isinstance(response, list):
@@ -88,7 +97,7 @@ class SupabaseQaClient:
     def upload(self, session: Session, snapshot: dict[str, Any]) -> None:
         self._request(
             "POST",
-            "/rest/v1/dailybeat_backups?on_conflict=user_id",
+            f"/rest/v1/{self.table}?on_conflict=user_id",
             {"user_id": session.user_id, "snapshot": snapshot},
             token=session.access_token,
             prefer="resolution=merge-duplicates,return=minimal",
@@ -99,7 +108,7 @@ class SupabaseQaClient:
         user_id = urllib.parse.quote(session.user_id, safe="")
         self._request(
             "DELETE",
-            f"/rest/v1/dailybeat_backups?user_id=eq.{user_id}",
+            f"/rest/v1/{self.table}?user_id=eq.{user_id}",
             token=session.access_token,
             expect_json=False,
         )
@@ -130,7 +139,7 @@ class SupabaseQaClient:
 
         for attempt in range(4):
             try:
-                with urllib.request.urlopen(request, timeout=30) as response:
+                with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
                     payload = response.read(MAX_RESPONSE_BYTES + 1)
                     if len(payload) > MAX_RESPONSE_BYTES:
                         raise LiveBackupError(
@@ -143,8 +152,9 @@ class SupabaseQaClient:
                 if error.code in {429, 500, 502, 503, 504} and attempt < 3:
                     time.sleep(2**attempt)
                     continue
+                stage = "authentication" if path.startswith("/auth/") else f"{self.table} {method}"
                 raise LiveBackupError(
-                    f"Cloud backup request failed with HTTP {error.code}."
+                    f"Cloud backup request failed with HTTP {error.code} during {stage}."
                 ) from error
             except (urllib.error.URLError, TimeoutError) as error:
                 if attempt < 3:
@@ -196,11 +206,21 @@ def valid_test_snapshot(marker: str, now_ms: int) -> dict[str, Any]:
     }
 
 
-def run_live_round_trip(client: SupabaseQaClient, email: str, password: str) -> None:
+def run_live_round_trip(client: SupabaseQaClient, email: str, password: str, *, encrypted: bool = False) -> None:
     session = client.sign_in(email, password)
     original = client.download(session)
     marker = f"DailyBeat live backup gate {secrets.token_hex(12)}"
     candidate = valid_test_snapshot(marker, int(time.time() * 1000))
+    if encrypted:
+        # This gate verifies opaque-envelope transport and cleanup. Android/JCA tests separately
+        # verify actual encryption and decryption; random bytes here are not an encrypted diary.
+        candidate = {
+            "format": "dailybeat-encrypted-backup", "envelopeVersion": 1,
+            "kdf": "PBKDF2-HMAC-SHA256", "iterations": 600000,
+            "salt": base64.b64encode(secrets.token_bytes(16)).decode("ascii"),
+            "nonce": base64.b64encode(secrets.token_bytes(12)).decode("ascii"),
+            "ciphertext": base64.b64encode(secrets.token_bytes(64)).decode("ascii"),
+        }
     mutation_started = False
     primary_error: Exception | None = None
 
@@ -253,13 +273,13 @@ def main() -> int:
             "Missing required live-backup configuration: " + ", ".join(missing)
         )
 
-    client = SupabaseQaClient(required["SUPABASE_URL"], required["SUPABASE_ANON_KEY"])
-    run_live_round_trip(
-        client,
-        required["DAILYBEAT_BACKUP_TEST_EMAIL"],
-        required["DAILYBEAT_BACKUP_TEST_PASSWORD"],
-    )
-    print("Live cloud backup upload/download/cleanup round trip passed.")
+    for table in ("dailybeat_backups", "dailybeat_encrypted_backups"):
+        client = SupabaseQaClient(required["SUPABASE_URL"], required["SUPABASE_ANON_KEY"], table)
+        run_live_round_trip(
+            client, required["DAILYBEAT_BACKUP_TEST_EMAIL"], required["DAILYBEAT_BACKUP_TEST_PASSWORD"],
+            encrypted=table == "dailybeat_encrypted_backups",
+        )
+    print("Legacy and encrypted-envelope transport/cleanup gates passed.")
     return 0
 
 

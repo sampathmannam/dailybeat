@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +81,122 @@ fun SettingsScreen(
     val settingsContext = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var placePendingDeletion by remember { mutableStateOf<Place?>(null) }
+    var localErasePhrase by remember { mutableStateOf("") }
+
+    LaunchedEffect(state.localDataErased) {
+        if (state.localDataErased) (settingsContext as? android.app.Activity)?.recreate()
+    }
+
+    state.pendingRetentionDays?.let { days ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelRetentionChange,
+            title = { Text(stringResource(R.string.retention_confirm_title, days)) },
+            text = { Text(stringResource(R.string.retention_confirm_warning, days)) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmRetentionChange,
+                    enabled = !state.dataBusy,
+                    modifier = Modifier.testTag("confirm_retention_change"),
+                ) { Text(stringResource(R.string.delete_older_history)) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelRetentionChange) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (state.cloudDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelCloudDataDeletion,
+            title = { Text(stringResource(R.string.delete_cloud_data_title)) },
+            text = { Text(stringResource(R.string.delete_cloud_data_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmCloudDataDeletion,
+                    enabled = !state.dataBusy,
+                    modifier = Modifier.testTag("confirm_delete_cloud_data"),
+                ) { Text(stringResource(R.string.delete_cloud_data)) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelCloudDataDeletion) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (state.accountDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelAccountDeletion,
+            title = { Text(stringResource(R.string.delete_cloud_account_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.delete_cloud_account_warning))
+                    OutlinedTextField(
+                        value = state.accountDeletePassword,
+                        onValueChange = viewModel::setAccountDeletePassword,
+                        modifier = Modifier.fillMaxWidth().testTag("delete_account_password"),
+                        label = { Text(stringResource(R.string.current_password)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmAccountDeletion,
+                    enabled = !state.dataBusy && state.accountDeletePassword.isNotBlank(),
+                    modifier = Modifier.testTag("confirm_delete_cloud_account"),
+                ) { Text(stringResource(R.string.delete_account)) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelAccountDeletion) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (state.localEraseConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                localErasePhrase = ""
+                viewModel.cancelLocalDataErase()
+            },
+            title = { Text(stringResource(R.string.erase_phone_data_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.erase_phone_data_warning))
+                    OutlinedTextField(
+                        value = localErasePhrase,
+                        onValueChange = { localErasePhrase = it.take(6) },
+                        modifier = Modifier.fillMaxWidth().testTag("erase_phone_confirmation"),
+                        label = { Text(stringResource(R.string.type_delete)) },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        localErasePhrase = ""
+                        viewModel.confirmLocalDataErase()
+                    },
+                    enabled = !state.dataBusy && localErasePhrase == "DELETE",
+                    modifier = Modifier.testTag("confirm_erase_phone_data"),
+                ) { Text(stringResource(R.string.erase_phone_data)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    localErasePhrase = ""
+                    viewModel.cancelLocalDataErase()
+                }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 
     if (state.apiKeyRemovalConfirmation) {
         AlertDialog(
@@ -171,6 +288,11 @@ fun SettingsScreen(
                     checked = state.gpsEnabled,
                     onCheckedChange = viewModel::setGpsEnabled,
                 )
+                Text(if (com.dailybeat.app.BuildConfig.GOOGLE_LOCATION)
+                    "Motion-aware capture uses Google location services. Battery results depend on your device and route."
+                else "Google-free build · Uses Android location providers with batched updates. Motion-triggered idle sleep is unavailable; battery use must be measured separately.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.capturePausedUntilMs > System.currentTimeMillis()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -301,6 +423,59 @@ fun SettingsScreen(
         }
 
         item {
+            SettingsGroup(title = stringResource(R.string.settings_data_privacy_group)) {
+                Text(
+                    stringResource(R.string.retention_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                listOf(
+                    0 to stringResource(R.string.retention_forever),
+                    30 to stringResource(R.string.retention_30_days),
+                    90 to stringResource(R.string.retention_90_days),
+                    365 to stringResource(R.string.retention_one_year),
+                ).forEach { (days, label) ->
+                    RetentionOption(
+                        label = label,
+                        selected = state.historyRetentionDays == days,
+                        enabled = !state.dataBusy,
+                        onClick = { viewModel.requestRetentionChange(days) },
+                        modifier = Modifier.testTag("retention_$days"),
+                    )
+                }
+                Text(
+                    stringResource(R.string.retention_scope),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                state.dataMessage?.let { message ->
+                    InlineFeedback(message = message, isError = state.dataMessageIsError)
+                }
+                if (state.dataBusy) BusyRow(stringResource(R.string.data_working))
+                TextButton(
+                    onClick = viewModel::requestLocalDataErase,
+                    enabled = !state.dataBusy && !state.backupBusy,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .testTag("erase_phone_data"),
+                ) {
+                    Text(
+                        stringResource(R.string.erase_phone_data),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                SecondaryButton(
+                    text = stringResource(R.string.legal_notices_title),
+                    onClick = {
+                        settingsContext.startActivity(
+                            android.content.Intent(settingsContext, com.dailybeat.app.LegalNoticesActivity::class.java),
+                        )
+                    },
+                    enabled = !state.dataBusy,
+                )
+            }
+        }
+
+        item {
             SettingsGroup(title = stringResource(R.string.settings_appearance_group)) {
                 Text(
                     text = stringResource(R.string.settings_theme_description),
@@ -337,16 +512,20 @@ fun SettingsScreen(
 
         item {
             SettingsGroup(title = stringResource(R.string.settings_identity_group)) {
+                com.dailybeat.app.ui.components.JournalProfilePicker(
+                    selected = state.journalProfile,
+                    onSelected = viewModel::setJournalProfile,
+                )
                 OutlinedTextField(
                     value = state.officerName,
                     onValueChange = viewModel::setOfficerName,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.officer_name_label)) },
+                    label = { Text(if (state.journalProfile == com.dailybeat.app.data.settings.JournalProfile.POLICE) "Officer name" else "Your name (optional)") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = fieldColors,
                 )
-                OutlinedTextField(
+                if (state.journalProfile == com.dailybeat.app.data.settings.JournalProfile.POLICE) OutlinedTextField(
                     value = state.supervisorName,
                     onValueChange = viewModel::setSupervisorName,
                     modifier = Modifier.fillMaxWidth(),
@@ -415,6 +594,38 @@ fun SettingsScreen(
                             text = stringResource(R.string.backup_signed_in_as, state.backupSignedInEmail.orEmpty()),
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        Text("New backups are encrypted on this phone. Use a separate recovery passphrase (20–256 characters, ideally six random words). Keep it in a password manager; losing it means losing access to the backup. It is not your account password.",
+                            style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = state.recoveryPassphrase,
+                            onValueChange = viewModel::setRecoveryPassphrase,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Recovery passphrase") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            enabled = !state.backupBusy,
+                        )
+                        OutlinedTextField(
+                            value = state.recoveryConfirmation,
+                            onValueChange = viewModel::setRecoveryConfirmation,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Confirm passphrase for a new backup") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            enabled = !state.backupBusy,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = state.legacyBackupRestore,
+                                onCheckedChange = viewModel::setLegacyBackupRestore,
+                                enabled = !state.backupBusy,
+                            )
+                            Text("Restore an older, unencrypted backup instead", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (state.legacyBackupRestore) Text("Legacy recovery does not use this passphrase. After checking the restored data, create an encrypted backup. Older cloud copies remain until you delete them separately.",
+                            style = MaterialTheme.typography.bodySmall)
                         PrimaryButton(
                             text = stringResource(R.string.backup_now),
                             onClick = viewModel::backupNow,
@@ -446,6 +657,23 @@ fun SettingsScreen(
                             onClick = viewModel::signOutOfBackup,
                             enabled = !state.backupBusy,
                         )
+                        SecondaryButton(
+                            text = stringResource(R.string.delete_cloud_data),
+                            onClick = viewModel::requestCloudDataDeletion,
+                            enabled = !state.backupBusy && !state.dataBusy,
+                            modifier = Modifier.testTag("delete_cloud_data"),
+                        )
+                        TextButton(
+                            onClick = viewModel::requestAccountDeletion,
+                            enabled = !state.backupBusy && !state.dataBusy,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                .testTag("delete_cloud_account"),
+                        ) {
+                            Text(
+                                stringResource(R.string.delete_cloud_account),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                 }
                 state.backupMessage?.let { message ->
@@ -643,6 +871,27 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+@Composable
+private fun RetentionOption(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        androidx.compose.material3.RadioButton(selected = selected, onClick = null, enabled = enabled)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

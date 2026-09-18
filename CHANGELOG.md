@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+## 4.1.0 — 2026-09-18
+
+### Privacy and control
+- Settings now offers explicit 30-day, 90-day, one-year, or user-controlled local retention.
+  A destructive choice is confirmed before the first prune; a lightweight daily worker then applies
+  the selected policy to activity, diary, route, review and revision history.
+- Users can independently delete both cloud-backup formats, permanently delete the cloud account
+  after password reauthentication, or erase all local DailyBeat data with typed confirmation.
+- Diary edits have restorable local checkpoints, and visit rename/hide actions create immutable
+  correction records. Both histories are included in the encrypted backup format.
+- Encrypted recovery also restores a finite retention choice and prunes older restored history
+  before it becomes visible.
+- GPL, Apache 2.0, BSD and build-specific third-party notices are readable in the app.
+
+### Validation
+- Added a no-reset physical battery sampler, matched-interval analyzer, stop-recall worksheet and
+  14-day protocol. These tools do not replace the still-pending physical field trial.
+- Deployed the server-only `delete-account` Edge Function to the production Supabase project with
+  JWT verification enabled. An unauthenticated POST was rejected by the gateway with HTTP 401;
+  no account or backup was deleted during the probe.
+
+### Improved
+- Today no longer presents the wall-clock span between the first and last fix as continuously
+  tracked time. The Time metric now totals measured capture intervals, excludes long gaps, and
+  falls back to the union of legacy visit intervals.
+- Today now leads with the route map and one compact Distance / Time / Auto stops card. Place names,
+  stop times, capture health and coverage details stay behind a More control until requested.
+- Today now distinguishes missing Android location permission from an intentionally disabled
+  capture setting, and no longer shows an estimated-distance warning before a route exists.
+- Passive capture now uses an adaptive battery state machine: a coordinate-free activity watcher
+  observes movement and stillness, active capture settles and stops after confirmed stillness, and
+  the foreground service restarts only for a background movement trigger with the required
+  all-the-time location grant.
+- Route persistence batches fused fixes and keeps meaningful route evidence rather than writing
+  each small callback jitter to the database.
+
 ## 4.0.6 — 2026-09-14
 
 ### Refined

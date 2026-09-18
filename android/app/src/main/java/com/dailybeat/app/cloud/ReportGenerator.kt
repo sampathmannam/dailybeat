@@ -22,7 +22,7 @@ class ReportGenerator(
 
     suspend fun generateForDate(date: LocalDate): Result<String> {
         val settings = settingsRepository.get()
-        val visits = visitRepository.visitsForDate(date)
+        val visits = visitRepository.outboundVisitsForDate(date)
         val events = eventRepository.eventsForDate(date)
         val places = placeRepository.all()
 
@@ -40,6 +40,7 @@ class ReportGenerator(
             visits = visits,
             events = events,
             places = places,
+            profile = settings.journalProfile,
         )
         val limitedText = ContextLimiter.trimForLlm(source.text)
         // ContextLimiter keeps the start of the timeline, so only allow citations that survived
@@ -56,15 +57,11 @@ class ReportGenerator(
         }
 
         if (!settingsRepository.isCloudBrainReady()) {
-            return Result.failure(
-                IllegalStateException(
-                    "Cloud AI is required. Enable it and add the provider API key in Settings → Cloud AI.",
-                ),
-            )
+            return Result.success(LocalDiaryBuilder.fromContext(date, settings.journalProfile, source.text))
         }
 
         val userPrompt = """
-            Generate today's official daily diary from this passive activity log.
+            Generate a ${settings.journalProfile.documentTitle} draft from this activity log.
             Cite every fact with [V#] and [E#] refs from the DATA block.
             End with a one-line summary of the day.
 
@@ -74,7 +71,7 @@ class ReportGenerator(
 
         return validatedReportClient.generate(
             settings = settings,
-            systemPrompt = DayContextBuilder.SYSTEM_PROMPT,
+            systemPrompt = DayContextBuilder.systemPrompt(settings.journalProfile),
             userPrompt = userPrompt,
             source = limitedSource,
         ).onFailure { error -> recordDailyReportFailure(appContext, error) }

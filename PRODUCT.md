@@ -10,11 +10,11 @@ android
 
 ## Users
 
-DailyBeat is a phone-only Android product for an IPS officer using one phone throughout an active, interruption-heavy day. The user needs a trustworthy account of where they went, what happened, and what still needs attention without manually running a tracker or repeatedly typing notes.
+DailyBeat is a phone-only Android product for individuals using one phone throughout an active, interruption-heavy day. Personal, Field work and Police templates adapt the journal without creating separate tracking systems. The user needs a reviewable account of observed places and their own notes without repeatedly operating a tracker. Existing police users retain their template.
 
 ## Product Purpose
 
-DailyBeat passively captures movement and meaningful moments, turns each calendar day into a reviewable Beat, and produces an accurate personal and official diary. Success means the user can see whether the day was captured correctly, repair uncertainty quickly, complete the diary in under a minute, and retrieve useful patterns later without exposing sensitive location data.
+DailyBeat captures approximate movement and user-recorded moments, turns each calendar day into a reviewable Beat, and helps prepare a journal draft. GPS does not establish activity or attendance. Success targets are reliable meaningful-stop recall, quick review and useful local retrieval with explicit privacy controls; the battery and review-time targets require physical validation.
 
 ## Positioning
 

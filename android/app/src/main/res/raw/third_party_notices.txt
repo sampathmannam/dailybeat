@@ -1,0 +1,49 @@
+DAILYBEAT
+
+DailyBeat original source is licensed under GNU General Public License version 3 only
+(GPL-3.0-only). Source, the complete GPL text, build instructions, and the coordinate-level
+third-party inventory are available at:
+https://github.com/sampathmannam/dailybeat
+
+DailyBeat is distributed without any warranty; see the GNU GPL version 3 for details.
+
+THIRD-PARTY SOFTWARE
+
+Third-party components retain their own copyright and licence terms. The resolved runtime
+inventory for this release is in docs/dependency-license-inventory.json in the source repository.
+
+Apache License 2.0 components include AndroidX, Jetpack Compose, Android Room, Android WorkManager,
+Kotlin, Kotlin coroutines, OkHttp, JSON-java, and supporting libraries. The Apache License 2.0 text
+is available at https://www.apache.org/licenses/LICENSE-2.0 .
+
+MapLibre Native for Android, MapLibre Android Gestures, MapLibre GeoJSON and MapLibre Turf are
+distributed under BSD-family terms. The resolved Maven declarations identify BSD-2-Clause for the
+MapLibre runtime modules. Copyright remains with the respective MapLibre contributors.
+
+BSD 2-Clause License
+
+Redistribution and use in source and binary forms, with or without modification, are permitted
+provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions
+and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of
+conditions and the following disclaimer in the documentation and/or other materials provided with
+the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The standard build can include Google Play services location, licensed under the Android Software
+Development Kit terms. The Google-free build omits those four runtime modules. Android SDK terms:
+https://developer.android.com/studio/terms
+
+Map tiles, map styles, geocoder results, and optional cloud-service responses are network content,
+not part of the DailyBeat source licence. Their providers' terms apply when those services are used.

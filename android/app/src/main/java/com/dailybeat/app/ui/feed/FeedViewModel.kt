@@ -20,6 +20,9 @@ import com.dailybeat.app.util.InputPolicy
 
 data class FeedUiState(
     val days: List<DayFeedItem> = emptyList(),
+    val searchQuery: String = "",
+    val searchResults: List<com.dailybeat.app.data.db.JournalSearchHit> = emptyList(),
+    val isSearching: Boolean = false,
     val isLoading: Boolean = true,
     val isGeneratingWeekly: Boolean = false,
     val isExporting: Boolean = false,
@@ -36,6 +39,25 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
     private var refreshJob: Job? = null
+    private var searchJob: Job? = null
+
+    fun search(value: String) {
+        val query = value.take(120)
+        searchJob?.cancel()
+        _uiState.value = _uiState.value.copy(searchQuery = query, searchResults = emptyList(),
+            isSearching = query.isNotBlank(), error = null)
+        if (query.isBlank()) return
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(250)
+            try {
+                val results = app.db.journalSearch().search(com.dailybeat.app.data.db.JournalSearchDao.pattern(query))
+                _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                _uiState.value = _uiState.value.copy(isSearching = false, error = "Unable to search local history. Try again.")
+            }
+        }
+    }
 
     init {
         refresh()
@@ -79,6 +101,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             places = places,
             breadcrumbs = app.breadcrumbRepository.forDate(date),
             review = app.beatRepository.get(date),
+            noteCount = app.eventRepository.eventsForDate(date).count { it.type != "visit" },
         )
     }
 
@@ -106,18 +129,21 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun exportPackage() {
+    suspend fun preparePackage(): List<com.dailybeat.app.export.DiarySharePreview>? = runCatching {
+        app.diaryShareService.prepareWeek().also {
+            check(it.isNotEmpty()) { "No saved diaries in the last seven days." }
+        }
+    }.onFailure { error ->
+        _uiState.value = _uiState.value.copy(error = error.userMessage("Unable to prepare sharing copy."))
+    }.getOrNull()
+
+    fun exportPackage(previews: List<com.dailybeat.app.export.DiarySharePreview>) {
         if (_uiState.value.isExporting || _uiState.value.isGeneratingWeekly) return
         _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
         viewModelScope.launch {
             runCatching {
-                val settings = app.settingsRepository.get()
-                // Zipping a week of diaries and rendering their PDFs is heavy disk work.
                 withContext(Dispatchers.IO) {
-                    app.packageExporter.exportWeekPackage(
-                        officerName = settings.officerName,
-                        supervisorName = settings.supervisorName,
-                    )
+                    app.packageExporter.exportWeekPackage(previews)
                 }
             }.fold(
                 onSuccess = { file ->

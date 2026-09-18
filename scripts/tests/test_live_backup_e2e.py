@@ -94,3 +94,17 @@ def test_live_round_trip_restores_the_original_after_a_verification_failure():
 def test_client_rejects_non_origin_supabase_urls(url):
     with pytest.raises(LiveBackupError, match="plain HTTPS origin"):
         SupabaseQaClient(url, "anon-key")
+
+
+def test_encrypted_transport_fixture_is_opaque_and_cleanup_is_preserved():
+    client = FakeClient(None)
+    run_live_round_trip(client, "qa@example.com", "secret", encrypted=True)
+    assert client.snapshot is None
+    assert client.uploads[0]["format"] == "dailybeat-encrypted-backup"
+    assert "events" not in client.uploads[0]
+    assert client.uploads[0]["iterations"] == 600000
+
+
+def test_backup_table_is_not_an_arbitrary_url_path():
+    with pytest.raises(LiveBackupError, match="Unsupported backup table"):
+        SupabaseQaClient("https://example.supabase.co", "key", "../other")

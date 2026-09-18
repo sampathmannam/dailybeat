@@ -41,10 +41,9 @@ class CaptureLifecycleTest {
 
     @Test
     fun openingTheAppReArmsPassiveCapture() {
-        assumeTrue(
-            "This emulator has no Google location provider; the physical-phone gate covers capture.",
-            com.google.android.gms.common.GoogleApiAvailability.getInstance()
-                .isGooglePlayServicesAvailable(app) == com.google.android.gms.common.ConnectionResult.SUCCESS,
+        if (BuildConfig.GOOGLE_LOCATION) assumeTrue(
+            "The Google build requires a Google provider for this test.",
+            runCatching { app.packageManager.getPackageInfo("com.google.android.gms", 0) }.isSuccess,
         )
         assertFalse("Precondition: capture must be stopped before launch.", LocationService.isRunning)
 

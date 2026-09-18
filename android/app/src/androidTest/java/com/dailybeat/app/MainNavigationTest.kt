@@ -23,6 +23,7 @@ import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.data.settings.ThemePreference
 import org.junit.Before
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,8 +80,12 @@ class MainNavigationTest {
     @Test
     fun todayShowsBothMetricsWithoutHorizontalClipping() {
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
-        composeRule.onNodeWithText("Tracked").assertIsDisplayed()
-        composeRule.onNodeWithText("Stops").assertIsDisplayed()
+        composeRule.onNodeWithText("Time").assertIsDisplayed()
+        composeRule.onNodeWithText("Auto stops").assertIsDisplayed()
+        composeRule.onNodeWithTag("today_route_details").assertDoesNotExist()
+        composeRule.onNodeWithTag("today_more").performClick()
+        composeRule.onNodeWithTag("today_route_details").assertIsDisplayed()
+        composeRule.onNodeWithText("Where you went").assertIsDisplayed()
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add moment"))
         composeRule.onNodeWithText("Add moment").assertIsDisplayed()
     }
@@ -149,7 +154,7 @@ class MainNavigationTest {
     }
 
     @Test
-    fun customDiaryGenerationExplainsMissingCloudConfiguration() {
+    fun customDiaryGenerationWorksWithoutCloudConfiguration() {
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Add diary"))
         composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNode(hasText("Raw events") and hasSetTextAction())
@@ -167,13 +172,17 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Generate from pasted text")
             .assertIsEnabled()
             .performClick()
-        composeRule.waitUntilAtLeastOneExists(
-            hasText("Cloud AI is required", substring = true),
-            timeoutMillis = 10_000,
-        )
         composeRule.onNodeWithTag("diary_list")
-            .performScrollToNode(hasText("Cloud AI is required", substring = true))
-        composeRule.onNodeWithText("Cloud AI is required", substring = true).assertIsDisplayed()
+            .performScrollToNode(hasTestTag("diary_editor"))
+        val draft = hasTestTag("diary_editor") and
+            hasText("Briefing completed at headquarters.", substring = true) and
+            hasText("Draft", substring = true)
+        composeRule.waitUntilAtLeastOneExists(draft, timeoutMillis = 10_000)
+        composeRule.onNode(draft).assertIsDisplayed()
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        org.junit.Assert.assertTrue(runBlocking {
+            app.diaryRepository.todayText().orEmpty().contains("Briefing completed at headquarters.")
+        })
     }
 
     @Test
@@ -208,6 +217,24 @@ class MainNavigationTest {
         }
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
+    }
+
+    @Test
+    fun retentionChangeExplainsDeletionBeforeApplyingIt() {
+        val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Data & privacy"))
+        composeRule.onNodeWithText("Data & privacy").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("retention_30"))
+        composeRule.onNodeWithTag("retention_30").performClick()
+
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("confirm_retention_change"), timeoutMillis = 5_000)
+        composeRule.onNodeWithTag("confirm_retention_change").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(0, app.settingsRepository.get().historyRetentionDays)
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Licences & source"))
+        composeRule.onNodeWithText("Licences & source").assertIsDisplayed()
     }
 
     @Test
