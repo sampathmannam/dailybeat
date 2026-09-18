@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.1.0 / code 28** is the current production release line. It upgrades the permanently signed
+**4.1.1 / code 29** is the current production release line. It upgrades the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -18,6 +18,8 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Client-encrypted backup/recovery with a separate recovery passphrase and explicit legacy restore.
 - Restorable diary checkpoints, immutable visit-correction history, and optional local retention.
 - Separate controls to delete cloud backups, the cloud account, or every local DailyBeat record.
+- Midnight and time-zone rollover without reopening Today; bounded, memory-safe route rendering.
+- Verified local erasure of records, capture checkpoints, credentials, diagnostics, and exports.
 - Standard Google location backend and a separate Android-platform-only build.
 - Soft Sun accent and Carbon dark mode retained; no DSR features added.
 

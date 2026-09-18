@@ -1,7 +1,12 @@
-# DailyBeat v4.1.0 — install and verify
+# DailyBeat v4.1.1 — install and verify
 
-Version 4.1.0 makes all-day capture adaptive to movement and stillness, adds client-encrypted cloud
-recovery and explicit data-lifecycle controls, and introduces Personal, Field work and Police diary
+Version 4.1.1 keeps the adaptive capture and client-encrypted recovery introduced in v4.1.0, and
+hardens long-running use: Today crosses midnight and time-zone changes without reopening, map
+rendering stays memory-bounded on dense history, capture teardown avoids a reverse-geocoding delay,
+and complete local erasure cancels pending writes before verifying every auxiliary store was cleared.
+
+Version 4.1.0 made all-day capture adaptive to movement and stillness, added client-encrypted cloud
+recovery and explicit data-lifecycle controls, and introduced Personal, Field work and Police diary
 templates. Today now leads with the route map and a compact Distance / Time / Auto stops card;
 place details and capture diagnostics remain available under **More**. The Time metric totals measured
 capture intervals rather than the wall-clock span from the first fix to the last.
@@ -54,14 +59,14 @@ replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For the exact release contents and validation contract, see [the v4.1.0 release report](V4_1_0_RELEASE_REPORT.md).
+For the exact release contents and validation contract, see [the v4.1.1 release report](V4_1_1_RELEASE_REPORT.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.1.0`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.1.1`):
 
-- `DailyBeat-v4.1.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.1.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits

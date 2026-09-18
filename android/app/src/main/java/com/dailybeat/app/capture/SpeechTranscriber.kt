@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -31,7 +32,9 @@ class SpeechTranscriber(private val context: Context) {
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                recognitionLanguageTag()?.let { language ->
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+                }
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
@@ -73,3 +76,7 @@ class SpeechTranscriber(private val context: Context) {
         const val RECOGNITION_TIMEOUT_MS = 30_000L
     }
 }
+
+/** Respect the person's Android language instead of forcing every voice note through English. */
+internal fun recognitionLanguageTag(locale: Locale = Locale.getDefault()): String? =
+    locale.toLanguageTag().takeIf { it.isNotBlank() && it != "und" }

@@ -7,6 +7,21 @@ import com.dailybeat.app.util.PermissionHelper
 
 object CaptureController {
 
+    /**
+     * Confirmed privacy erasure must not use the normal stop path: that path finalizes the open
+     * visit, which can race the database wipe and make erased coordinates reappear afterwards.
+     */
+    fun stopForDataErase(context: Context): Result<Unit> {
+        val failures = mutableListOf<Throwable>()
+        runCatching { MotionTransitionManager.disarm(context) }.onFailure(failures::add)
+        runCatching { StillnessConfirmationWorker.cancel(context) }.onFailure(failures::add)
+        runCatching { LocationService.stopAndDiscard(context) }.onFailure(failures::add)
+        if (failures.isEmpty()) return Result.success(Unit)
+        val error = IllegalStateException("Unable to stop every capture component.", failures.first())
+        failures.drop(1).forEach(error::addSuppressed)
+        return Result.failure(error)
+    }
+
     /** Called from a visible screen after the officer enables capture or opens DailyBeat. */
     fun applyFromSettings(context: Context) {
         val app = context.applicationContext as DailyBeatApp

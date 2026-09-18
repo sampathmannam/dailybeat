@@ -4,6 +4,7 @@ import com.dailybeat.app.cloud.CloudTextGenerator
 import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.StructuredEvent
 import com.dailybeat.app.data.settings.SettingsRepository
+import com.dailybeat.app.util.InputPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -18,7 +19,7 @@ class EventExtractor(
         if (!settingsRepository.isCloudBrainReady() || !permitsUnlinkedText()) {
             return Result.failure(IllegalStateException("Cloud AI is required. Enable it and add an API key in Settings."))
         }
-        val boundedTranscript = transcript.trim().take(MAX_TRANSCRIPT_CHARS)
+        val boundedTranscript = InputPolicy.bounded(transcript.trim(), MAX_TRANSCRIPT_CHARS)
         if (boundedTranscript.isEmpty()) {
             return Result.failure(IllegalArgumentException("Voice note is empty."))
         }
@@ -58,7 +59,7 @@ class EventExtractor(
             StructuredEvent(
                 // The model may enrich metadata, but the officer's own words remain the source
                 // record. Replacing them with a generated summary could silently omit details.
-                rawText = transcript.take(MAX_TRANSCRIPT_CHARS),
+                rawText = InputPolicy.bounded(transcript, MAX_TRANSCRIPT_CHARS),
                 placeName = obj.optString("place_guess").takeIf { it.isNotBlank() && it != "unknown" },
                 peopleMentioned = jsonArrayToCsv(obj.optJSONArray("people")),
                 caseNumbers = jsonArrayToCsv(obj.optJSONArray("case_numbers")),

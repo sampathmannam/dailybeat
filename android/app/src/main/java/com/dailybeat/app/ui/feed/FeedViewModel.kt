@@ -42,7 +42,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private var searchJob: Job? = null
 
     fun search(value: String) {
-        val query = value.take(120)
+        val query = InputPolicy.bounded(value, 120)
         searchJob?.cancel()
         _uiState.value = _uiState.value.copy(searchQuery = query, searchResults = emptyList(),
             isSearching = query.isNotBlank(), error = null)

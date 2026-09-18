@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 4.1.1 — 2026-09-19
+
+### Reliability and privacy
+- Today now rolls to the new local day while it remains open, and rebinds its database windows when
+  the phone's time zone changes instead of continuing to show the previous day.
+- Confirmed local erasure cancels pending capture writes before clearing Room, then verifies removal
+  of capture checkpoints, health/motion metadata, API and backup credentials, diagnostics, and exports.
+- Ordinary capture teardown saves an open stay immediately with an honest coordinate fallback rather
+  than risking the visit while waiting for reverse geocoding.
+- Dense imported journeys are fully counted but visually sampled to a bounded map path. Tile and card
+  bitmaps are released deterministically, cancelled renders clean up partial images, and oversized tile
+  payloads are rejected before decode.
+- Voice recognition follows the phone language, and every remaining bounded text path preserves full
+  Unicode code points, including recovery passphrases, cloud context, search, map labels, and previews.
+- A failed encrypted-session preference commit now falls back to deleting the session store so sign-out
+  cannot silently leave a refresh token behind.
+
+### Verification
+- Added regression coverage for midnight/time-zone rollover, teardown without network geocoding,
+  privacy-erase capture cancellation, complete device-data erasure, dense routes, multilingual voice,
+  and Unicode-safe model-context truncation.
+
 ## 4.1.0 — 2026-09-18
 
 ### Privacy and control

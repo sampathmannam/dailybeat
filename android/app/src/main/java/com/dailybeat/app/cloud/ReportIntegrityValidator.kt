@@ -1,5 +1,7 @@
 package com.dailybeat.app.cloud
 
+import com.dailybeat.app.util.InputPolicy
+
 data class ReportIntegrityCheck(
     val isValid: Boolean,
     val violations: List<String>,
@@ -44,6 +46,6 @@ object ReportIntegrityValidator {
         violations.forEach { appendLine("- $it") }
         appendLine("Rewrite the report using only citation IDs present in DATA. Do not explain the correction.")
         appendLine("INVALID REPORT:")
-        append(invalidReport.take(6_000))
+        append(InputPolicy.bounded(invalidReport, 6_000))
     }
 }

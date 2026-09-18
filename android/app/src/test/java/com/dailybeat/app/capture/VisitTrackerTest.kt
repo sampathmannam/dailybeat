@@ -171,6 +171,50 @@ class VisitTrackerTest {
     }
 
     @Test
+    fun `service teardown saves an open stay without waiting for network geocoding`() {
+        var geocoderCalls = 0
+        val teardownTracker = VisitTracker(
+            scope = scope,
+            placeRepository = PlaceRepository(db.places()),
+            osmGeocoder = object : OsmGeocoder(db.geocodes()) {
+                override suspend fun resolve(latitude: Double, longitude: Double): ResolvedPlace {
+                    geocoderCalls += 1
+                    throw AssertionError("Teardown must not make a network lookup")
+                }
+            },
+            onVisitRecorded = { visit -> recorded.add(visit) },
+        )
+        teardownTracker.onLocation(stationLat, stationLon, start)
+        teardownTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+
+        teardownTracker.flushPending(allowNetworkLookup = false)
+
+        val stay = awaitVisit("dwell")
+        assertEquals(0, geocoderCalls)
+        assertTrue(stay.address.orEmpty().startsWith("Location "))
+    }
+
+    @Test
+    fun `privacy erase discards an open stay and its checkpoint`() {
+        val store = MemoryStateStore()
+        val eraseTracker = VisitTracker(
+            scope = scope,
+            placeRepository = PlaceRepository(db.places()),
+            osmGeocoder = StubGeocoder(db.geocodes()),
+            onVisitRecorded = { visit -> recorded.add(visit) },
+            stateStore = store,
+        )
+        eraseTracker.onLocation(stationLat, stationLon, start)
+        eraseTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+
+        eraseTracker.discardPending()
+
+        Thread.sleep(250)
+        assertTrue(recorded.isEmpty())
+        assertEquals(null, store.state)
+    }
+
+    @Test
     fun `an open stay survives location service recreation`() {
         val store = MemoryStateStore()
         val firstTracker = VisitTracker(

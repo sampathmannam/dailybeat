@@ -214,6 +214,25 @@ class DayFeedBuilderTest {
     }
 
     @Test
+    fun `a dense imported route is bounded for rendering without hiding its gap`() {
+        val points = (0 until 6_000).map { index ->
+            LocationBreadcrumb(
+                timestampMs = dayStart + minutes(index.toLong() + if (index >= 3_000) 20 else 0),
+                latitude = 11.4557 + index * 0.00001,
+                longitude = 78.1856,
+                accuracyM = 20f,
+            )
+        }
+
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertTrue("The visual route must stay bounded, got ${item.route.size}", item.route.size <= 4_000)
+        assertEquals(1, item.captureGapCount)
+        assertTrue(item.route.any { it.startsAfterGap })
+        assertEquals(5_998, item.trackedMinutes)
+    }
+
+    @Test
     fun `a day with nothing captured is marked empty`() {
         val item = DayFeedBuilder.build(date, emptyList(), "   ")
 

@@ -244,8 +244,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setRecoveryPassphrase(value: String) { _uiState.update { it.copy(recoveryPassphrase = value.take(256)) } }
-    fun setRecoveryConfirmation(value: String) { _uiState.update { it.copy(recoveryConfirmation = value.take(256)) } }
+    fun setRecoveryPassphrase(value: String) {
+        _uiState.update { it.copy(recoveryPassphrase = InputPolicy.bounded(value, 256)) }
+    }
+    fun setRecoveryConfirmation(value: String) {
+        _uiState.update { it.copy(recoveryConfirmation = InputPolicy.bounded(value, 256)) }
+    }
     fun setLegacyBackupRestore(value: Boolean) { _uiState.update { it.copy(legacyBackupRestore = value) } }
 
     fun backupNow() {

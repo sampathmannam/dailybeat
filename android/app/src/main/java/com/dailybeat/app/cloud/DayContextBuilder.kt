@@ -6,6 +6,7 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.domain.OutboundVisitFilter
 import com.dailybeat.app.domain.OutboundEventFilter
+import com.dailybeat.app.util.InputPolicy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -103,12 +104,14 @@ object DayContextBuilder {
     }
 
     /** Keep user-entered records on one line and prevent them from injecting citation tokens. */
-    private fun safeInline(value: String, maxLength: Int): String = value
-        .replace('[', '(')
-        .replace(']', ')')
-        .replace(Regex("\\s+"), " ")
-        .trim()
-        .take(maxLength)
+    private fun safeInline(value: String, maxLength: Int): String = InputPolicy.bounded(
+        value
+            .replace('[', '(')
+            .replace(']', ')')
+            .replace(Regex("\\s+"), " ")
+            .trim(),
+        maxLength,
+    )
 
     private fun formatTime(epochMs: Long, zone: ZoneId): String =
         Instant.ofEpochMilli(epochMs).atZone(zone).format(timeFmt)

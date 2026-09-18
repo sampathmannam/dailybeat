@@ -41,10 +41,14 @@ object AppStorage {
      * the contents so a failed cleanup cannot leave the sensitive payload behind indefinitely.
      */
     fun clearSensitiveFile(file: File) {
-        runCatching {
-            if (file.exists() && !file.delete()) {
-                file.outputStream().use { }
-            }
-        }
+        clearSensitiveFileVerified(file)
     }
+
+    /** Same cleanup with a result for explicit privacy-erasure flows that must report failure. */
+    fun clearSensitiveFileVerified(file: File): Boolean = runCatching {
+        if (file.exists() && !file.delete()) {
+            file.outputStream().use { }
+        }
+        !file.exists() || file.length() == 0L
+    }.getOrDefault(false)
 }

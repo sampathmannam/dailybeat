@@ -9,8 +9,17 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dailybeat.app.backup.BackupSnapshotCodec
 import com.dailybeat.app.backup.LocalBackupStore
+import com.dailybeat.app.audit.CaptureAuditLog
+import com.dailybeat.app.audit.OperationalFailureLog
+import com.dailybeat.app.capture.CaptureHealth
+import com.dailybeat.app.capture.LocationSample
 import com.dailybeat.app.capture.LocationService
+import com.dailybeat.app.capture.MotionState
+import com.dailybeat.app.capture.MotionStateStore
+import com.dailybeat.app.capture.SharedPreferencesVisitTrackerStateStore
+import com.dailybeat.app.capture.VisitTrackerState
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.util.AppStorage
 import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +115,55 @@ class DailyBeatReliabilityTest {
             assertEquals(before.visits, after.visits)
             assertEquals(before.settings, after.settings)
             app.settingsRepository.secureApiKey.clearApiKey()
+        }
+    }
+
+    @Test fun erasePhoneDataRemovesRecordsSecretsCheckpointsDiagnosticsAndExports() = runBlocking {
+        withContext(Dispatchers.IO) {
+            app.eventRepository.addManualEvent("Sensitive synthetic note")
+            app.diaryRepository.saveToday("Sensitive synthetic diary")
+            app.placeRepository.add("Sensitive synthetic place", 11.4557, 78.1856, 150)
+            seedVisit()
+            app.settingsRepository.secureApiKey.setApiKey("synthetic-secret-to-erase")
+            app.captureHealthStore.accepted(
+                LocationSample(11.4557, 78.1856, System.currentTimeMillis(), 10f),
+                "good",
+            )
+            SharedPreferencesVisitTrackerStateStore(app).save(
+                VisitTrackerState(
+                    dwellLat = 11.4557,
+                    dwellLon = 78.1856,
+                    dwellStartMs = System.currentTimeMillis(),
+                    lastSampleMs = System.currentTimeMillis(),
+                    transitStartMs = 0,
+                    transitLat = null,
+                    transitLon = null,
+                    departureLat = null,
+                    departureLon = null,
+                    inTransit = false,
+                ),
+            )
+            MotionStateStore(app).record(MotionState.STILL, System.currentTimeMillis())
+            CaptureAuditLog.log(app, "test", "Sensitive audit detail")
+            OperationalFailureLog.record(app, "test", false, "Sensitive failure detail")
+            AppStorage.outputFile(app, "synthetic-sensitive-export.txt")
+                .writeText("Sensitive exported diary")
+
+            app.localDataEraser.erase()
+
+            assertTrue(app.db.events().all().isEmpty())
+            assertTrue(app.db.diaries().all().isEmpty())
+            assertTrue(app.db.places().all().isEmpty())
+            assertTrue(app.db.visits().all().isEmpty())
+            assertNull(app.settingsRepository.secureApiKey.getApiKey())
+            assertEquals(CaptureHealth(), app.captureHealthStore.health.value)
+            assertNull(SharedPreferencesVisitTrackerStateStore(app).load())
+            assertEquals(MotionState.UNKNOWN, MotionStateStore(app).state)
+            assertTrue(CaptureAuditLog.readRecent(app).isEmpty())
+            assertTrue(OperationalFailureLog.readRecent(app).isEmpty())
+            assertTrue(AppStorage.outputDir(app).listFiles().orEmpty().isEmpty())
+            assertFalse(app.settingsRepository.get().gpsCaptureEnabled)
+            assertFalse(app.settingsRepository.isOnboardingComplete())
         }
     }
 

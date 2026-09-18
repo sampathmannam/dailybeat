@@ -55,7 +55,7 @@ class EventRepository(private val eventDao: EventDao) {
         eventDao.insert(
             Event(
                 timestamp = structured.timestamp,
-                type = type.trim().take(MAX_TYPE_CHARS).ifBlank { "voice" },
+                type = InputPolicy.bounded(type.trim(), MAX_TYPE_CHARS).ifBlank { "voice" },
                 rawText = rawText,
                 placeName = structured.placeName.bounded(MAX_PLACE_CHARS),
                 peopleMentioned = structured.peopleMentioned.bounded(MAX_METADATA_CHARS),
@@ -74,6 +74,6 @@ class EventRepository(private val eventDao: EventDao) {
 
     private fun String?.bounded(maxChars: Int): String? = this
         ?.trim()
-        ?.take(maxChars)
+        ?.let { InputPolicy.bounded(it, maxChars) }
         ?.takeIf { it.isNotEmpty() }
 }

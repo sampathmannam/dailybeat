@@ -2,6 +2,7 @@ package com.dailybeat.app.data.db
 
 import androidx.room.Dao
 import androidx.room.Query
+import com.dailybeat.app.util.InputPolicy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -31,7 +32,7 @@ interface JournalSearchDao {
     suspend fun search(pattern: String): List<JournalSearchHit>
 
     companion object {
-        fun pattern(query: String): String = "%" + query.trim().take(120)
+        fun pattern(query: String): String = "%" + InputPolicy.bounded(query.trim(), 120)
             .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     }
 }

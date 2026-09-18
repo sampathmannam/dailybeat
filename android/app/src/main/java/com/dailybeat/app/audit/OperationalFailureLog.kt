@@ -3,6 +3,7 @@ package com.dailybeat.app.audit
 import android.content.Context
 import com.dailybeat.app.BuildConfig
 import com.dailybeat.app.util.AppStorage
+import com.dailybeat.app.util.InputPolicy
 import java.io.File
 import java.time.Instant
 import java.util.ArrayDeque
@@ -66,9 +67,7 @@ object OperationalFailureLog {
     }
 
     @Synchronized
-    fun clear(context: Context) {
-        AppStorage.clearSensitiveFile(logFile(context))
-    }
+    fun clear(context: Context): Boolean = AppStorage.clearSensitiveFileVerified(logFile(context))
 
     private fun sanitizeCategory(category: String): String = category
         .lowercase(Locale.ROOT)
@@ -77,19 +76,21 @@ object OperationalFailureLog {
         .take(32)
         .ifBlank { "unknown" }
 
-    private fun sanitizeMessage(message: String): String = message
-        .replace(lineBreaks, " ")
-        .replace(bearerToken, "Bearer [REDACTED]")
-        .replace(secretKeyToken, "[REDACTED-KEY]")
-        .replace(apiKey, "api-key=[REDACTED]")
-        .replace(sensitivePayload) { match -> "${match.groupValues[1].lowercase()}=[REDACTED]" }
-        .replace(labeledCoordinatePair, "coordinates=[REDACTED]")
-        .replace(reversedLabeledCoordinatePair, "coordinates=[REDACTED]")
-        .replace(labeledCoordinate, "coordinate=[REDACTED]")
-        .replace(bareCoordinatePair, "coordinates=[REDACTED]")
-        .replace(repeatedWhitespace, " ")
-        .trim()
-        .take(MAX_MESSAGE_LENGTH)
+    private fun sanitizeMessage(message: String): String = InputPolicy.bounded(
+        message
+            .replace(lineBreaks, " ")
+            .replace(bearerToken, "Bearer [REDACTED]")
+            .replace(secretKeyToken, "[REDACTED-KEY]")
+            .replace(apiKey, "api-key=[REDACTED]")
+            .replace(sensitivePayload) { match -> "${match.groupValues[1].lowercase()}=[REDACTED]" }
+            .replace(labeledCoordinatePair, "coordinates=[REDACTED]")
+            .replace(reversedLabeledCoordinatePair, "coordinates=[REDACTED]")
+            .replace(labeledCoordinate, "coordinate=[REDACTED]")
+            .replace(bareCoordinatePair, "coordinates=[REDACTED]")
+            .replace(repeatedWhitespace, " ")
+            .trim(),
+        MAX_MESSAGE_LENGTH,
+    )
 
     private fun newestLines(file: File, limit: Int): List<String> {
         if (limit == 0 || !file.isFile) return emptyList()
