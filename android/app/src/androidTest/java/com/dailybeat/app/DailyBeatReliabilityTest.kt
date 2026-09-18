@@ -123,6 +123,8 @@ class DailyBeatReliabilityTest {
     }
 
     @Test fun todayStatusChipsUseTheSameTopEdgeAndHeight() {
+        composeRule.onNodeWithTag("today_more").performClick()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasTestTag("capture_health"))
         val gpsBounds = composeRule.onNodeWithTag("status_gps")
             .fetchSemanticsNode().boundsInRoot
         val cloudBounds = composeRule.onNodeWithTag("status_cloud")
