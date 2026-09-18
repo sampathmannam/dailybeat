@@ -58,6 +58,10 @@ jobs:
   # Use the existing protected QA credentials without copying them to a developer machine.
   # API 35 is independent of the API 34 offline lanes and checks the actual Android crypto/client path.
   native-backup:
+    # Both backup gates use the same dedicated account. GitHub concurrency groups can cancel a
+    # running job when a higher-priority waiter arrives, even with cancel-in-progress disabled.
+    # An explicit dependency makes the account access deterministic and keeps both gates required.
+    needs: live-backup
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
