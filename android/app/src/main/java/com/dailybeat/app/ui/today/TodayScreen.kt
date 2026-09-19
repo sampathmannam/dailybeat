@@ -525,18 +525,20 @@ internal fun BeatSummary(
 @Composable
 private fun SummaryMetric(value: String, label: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(horizontal = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.Start,
     ) {
         Text(
             text = value,
+            modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = label,
+            modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

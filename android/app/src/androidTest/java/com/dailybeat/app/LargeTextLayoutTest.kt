@@ -37,7 +37,9 @@ class LargeTextLayoutTest {
             compose.onNodeWithText(text, useUnmergedTree = true).assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertTrue("No measured text for $text", layouts.isNotEmpty())
-            assertFalse("Text overflows at 200%: $text", layouts.single().hasVisualOverflow)
+            val result = layouts.single()
+            assertFalse("Text overflows at 200%: $text, size=${result.size}, constraints=${result.layoutInput.constraints}, " +
+                "width=${result.didOverflowWidth}, height=${result.didOverflowHeight}, lines=${result.lineCount}", result.hasVisualOverflow)
         }
     }
 }
