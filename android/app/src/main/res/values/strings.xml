@@ -90,7 +90,7 @@
     <string name="weekly_tools">Weekly tools</string>
     <string name="weekly_tools_body">Review a weekly draft or prepare a seven-day sharing copy. Private controls are checked again before export.</string>
     <string name="private_place">Private zone</string>
-    <string name="private_place_hint">Kept out of cloud reports, exports and map lookups.</string>
+    <string name="private_place_hint">Excluded from cloud reports, exports and automatic address lookups. Viewing online maps still contacts map tile providers.</string>
     <string name="pause_capture_one_hour">Pause capture for 1 hour</string>
     <string name="resume_capture_now">Resume capture now</string>
     <string name="capture_paused_body">Capture is paused for up to one hour. Open DailyBeat to resume if Android cannot restart capture.</string>

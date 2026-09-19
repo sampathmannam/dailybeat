@@ -722,7 +722,7 @@ fun SettingsScreen(
         }
         item {
             SettingsGroup(title = "Place name lookup") {
-                Text("Saved places work offline. Optional automatic lookups send coordinates outside private zones to your managed provider. Leave empty to keep lookups on this phone.", style = MaterialTheme.typography.bodySmall)
+                Text("Saved places work offline. Optional automatic address lookups send coordinates outside private zones to your managed provider. Leave empty to turn off automatic lookups. Online maps still contact map tile providers.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = state.geocodingEndpoint, onValueChange = viewModel::setGeocodingDraft,
                     label = { Text("Managed HTTPS endpoint") }, modifier = Modifier.fillMaxWidth())
                 TextButton(onClick = viewModel::saveGeocodingEndpoint) { Text("Save lookup setting") }
