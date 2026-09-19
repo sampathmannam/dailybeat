@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 4.1.3 — 2026-09-19
+
+### Refined
+- Today restores its full capture status and summary without a **More** control.
+- Each Days card stays compact around its map, Distance, Time out, and Auto stops, then reveals the
+  ordered place history through its own **More** / **Less** control.
+- Warm Butter `#EED77B` replaces the overly bright yellow across actions, journey routes, stops,
+  and launcher details while neutral Carbon dark-mode surfaces remain unchanged.
+
+### Hardened
+- Adaptive battery standby now reports that Android is watching for movement instead of claiming
+  capture is off.
+- Release assets are immutable after publication, and the Android instrumentation wrapper fails
+  closed if its expected working directory is unavailable.
+- Added project-specific OpenCodeReview coverage for capture, backup, privacy, Android UI,
+  database isolation, release workflows, and device scripts.
+
 ## 4.1.2 — 2026-09-19
 
 ### Refined

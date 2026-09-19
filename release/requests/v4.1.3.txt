@@ -1,0 +1,4 @@
+Publish DailyBeat v4.1.3 only from the protected main commit after standard and Google-free builds,
+host tests, both Android instrumentation lanes, live and native encrypted-backup recovery, release
+policy, executable backend isolation, CodeQL, dependency review, and open-source security checks
+pass. Publish the permanently signed DailyBeat-v4.1.3.apk with SHA256SUMS.txt for Obtainium.
