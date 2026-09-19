@@ -80,3 +80,6 @@ outputs/security-hardening/
 secrets/
 *.pem
 *.key
+
+# Private physical-device trial records
+deliverables/battery-field-trial-*/
