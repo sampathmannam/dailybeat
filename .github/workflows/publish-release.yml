@@ -168,17 +168,20 @@ jobs:
             exit 1
           fi
 
-          release_apk="DailyBeat-${RELEASE_TAG}.apk"
+          # Release artifacts are part of the update trust chain. A rerun may never replace a
+          # binary that an Obtainium client could already have downloaded under this version.
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "$release_apk" SHA256SUMS.txt --clobber
-          else
-            gh release create "$RELEASE_TAG" \
-              --target "$GITHUB_SHA" \
-              --title "$RELEASE_TAG" \
-              --generate-notes \
-              "$release_apk" \
-              SHA256SUMS.txt
+            echo "Release $RELEASE_TAG already exists; refusing to replace immutable assets."
+            exit 1
           fi
+
+          release_apk="DailyBeat-${RELEASE_TAG}.apk"
+          gh release create "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_TAG" \
+            --generate-notes \
+            "$release_apk" \
+            SHA256SUMS.txt
 
       # The runner is ephemeral and no artifact upload includes it, but the permanent signing key
       # should not outlive the step that needs it.

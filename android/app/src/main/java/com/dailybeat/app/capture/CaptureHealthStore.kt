@@ -21,7 +21,7 @@ data class CaptureHealth(
  * undoes itself, and it has a known end time — reporting it as "Capture is off" turned a chosen,
  * temporary, self-reversing state into what reads as a failure.
  */
-enum class CaptureHealthLevel { OFF, PAUSED, WAITING, HEALTHY, DEGRADED }
+enum class CaptureHealthLevel { OFF, PAUSED, WATCHING, WAITING, HEALTHY, DEGRADED }
 
 data class CaptureHealthStatus(
     val level: CaptureHealthLevel,
@@ -44,6 +44,7 @@ fun CaptureHealth.status(
     nowMs: Long,
     enabled: Boolean,
     pausedUntilMs: Long = 0L,
+    watcherArmed: Boolean = false,
 ): CaptureHealthStatus {
     if (!enabled) {
         return CaptureHealthStatus(CaptureHealthLevel.OFF, reason = "Tracking is off")
@@ -52,6 +53,17 @@ fun CaptureHealth.status(
         return CaptureHealthStatus(CaptureHealthLevel.PAUSED, resumesAtMs = pausedUntilMs)
     }
     if (!serviceRunning) {
+        // Battery-adaptive capture deliberately stops active location work after confirmed
+        // stillness. A successfully registered motion watcher is not the same as capture being
+        // disabled: Android is waiting for the next movement transition so route collection can
+        // resume. Keep this state cautious (it is not HEALTHY and claims no fresh point), but do
+        // not tell the officer tracking is off when the low-power handoff succeeded.
+        if (watcherArmed) {
+            return CaptureHealthStatus(
+                CaptureHealthLevel.WATCHING,
+                reason = "Waiting for movement",
+            )
+        }
         return CaptureHealthStatus(CaptureHealthLevel.OFF, reason = "Tracking is off")
     }
     if (lastStoredAtMs <= 0L) {

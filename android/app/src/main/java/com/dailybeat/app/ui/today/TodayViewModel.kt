@@ -11,6 +11,7 @@ import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.capture.CaptureHealthStatus
 import com.dailybeat.app.capture.CaptureResumeWorker
 import com.dailybeat.app.capture.CaptureHealthLevel
+import com.dailybeat.app.capture.MotionStateStore
 import com.dailybeat.app.capture.status
 import com.dailybeat.app.capture.VoiceCaptureOrchestrator
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
@@ -212,7 +213,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                 // to the live state by itself the minute the deadline passes.
                 val pausedUntil = runCatching { app.settingsRepository.capturePausedUntilMs(now) }
                     .getOrDefault(0L)
-                beat to health.copy(serviceRunning = running).status(now, enabled, pausedUntil)
+                beat to health.copy(serviceRunning = running).status(
+                    nowMs = now,
+                    enabled = enabled,
+                    pausedUntilMs = pausedUntil,
+                    watcherArmed = MotionStateStore(getApplication()).watcherArmed,
+                )
             }.collect { (beat, status) ->
                 _uiState.update {
                     it.copy(
@@ -392,7 +398,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             val status = app.captureHealthStore.health.value
                 .copy(serviceRunning = LocationService.isRunning)
-                .status(now, settings.gpsCaptureEnabled, app.settingsRepository.capturePausedUntilMs(now))
+                .status(
+                    nowMs = now,
+                    enabled = settings.gpsCaptureEnabled,
+                    pausedUntilMs = app.settingsRepository.capturePausedUntilMs(now),
+                    watcherArmed = MotionStateStore(getApplication()).watcherArmed,
+                )
             _uiState.update { current ->
                 current.copy(
                     cloudBrainReady = app.settingsRepository.isCloudBrainReady(),

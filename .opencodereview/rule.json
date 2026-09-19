@@ -1,0 +1,73 @@
+{
+  "include": [
+    "android/app/src/test/**/*.kt",
+    "android/app/src/androidTest/**/*.kt",
+    "scripts/tests/**/*.py"
+  ],
+  "exclude": [
+    "outputs/**",
+    "android/**/build/**",
+    "docs/dependency-license-inventory.json",
+    "**/*.apk",
+    "**/*.aab",
+    "**/*.jks",
+    "**/*.keystore"
+  ],
+  "rules": [
+    {
+      "path": "android/app/src/main/java/com/dailybeat/app/capture/**/*.kt",
+      "rule": "Treat this as a battery-sensitive Android continuous-location subsystem. Verify foreground-service start/stop and notification behavior across Android versions; permission revocation and process death; idempotent registration and cleanup of callbacks, receivers, jobs, wakeful work, and coroutines; bounded retry/backoff; atomic persistence and reboot recovery; clock and timezone changes; duplicate or out-of-order fixes; accuracy and impossible-speed rejection; visit state recovery; and adaptive sampling that cannot silently remain in a high-power mode. Flag any path that can lose accepted fixes, leak location, keep sensors active after capture stops, or show a duration that includes uncaptured time.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/{gms,foss}/java/com/dailybeat/app/capture/**/*.kt",
+      "rule": "Verify the GMS and FOSS capture backends preserve the same lifecycle contract. Check permission and settings failures, callback removal, cancellation, pending-intent identity and mutability, background restrictions, request intervals, batching, and fallbacks. No backend may busy-loop, retain an Activity/Context incorrectly, or report capture as healthy without a recent accepted fix.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/main/java/com/dailybeat/app/backup/**/*.kt",
+      "rule": "Treat backup and restore as security- and data-loss-critical. Verify authenticated encryption uses unique nonces and authenticated metadata; key material and passphrases are never logged, persisted in plaintext, or sent to the backend; decoding is bounded against memory abuse; snapshot and schema versions are validated; upload/download ownership is enforced; network errors are explicit; restore is validated before an atomic database replacement; local state is not erased on partial failure; and retry is idempotent. Reject silent downgrade, fail-open behavior, or partial restore.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/main/java/com/dailybeat/app/data/**/*.kt",
+      "rule": "Treat local history as irreplaceable user data. Verify Room operations that span records are transactional; migrations are additive and preserve every released schema; time-range queries have correct inclusive/exclusive boundaries and Monday-Sunday semantics; flows and dispatcher use are lifecycle-safe; retention and deletion are explicitly scoped; updates cannot cross user/day boundaries; and derived summaries do not count gaps as tracked time. Flag destructive fallback, non-atomic correction, or unbounded database work on the main thread.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/main/java/com/dailybeat/app/{cloud,geo,export}/**/*.kt",
+      "rule": "Verify privacy boundaries before all network, AI, geocoding, export, and share operations. Raw coordinates, private-zone visits, review-hidden stops, credentials, prompts, diary text, and authorization headers must not enter logs or unintended requests. Require bounded request bodies and timeouts, cancellation, explicit opt-in, truthful offline/error states, sanitized filenames/content, safe URI sharing, and deterministic local fallback without data loss.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/main/java/com/dailybeat/app/ui/**/*.kt",
+      "rule": "Verify Compose state is lifecycle-aware and stable across recomposition, navigation, rotation, font scaling, and process recreation where required. Check one-shot effects, coroutine cancellation, stale captured values, list keys, derived-state cost, map bitmap/resource cleanup, and honest loading/empty/offline states. For accessibility, verify minimum 48dp targets, TalkBack names/roles/state, color-independent meaning, Carbon dark contrast, and phone portrait/landscape layout. Never fabricate route continuity or precision.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "android/app/src/main/AndroidManifest.xml",
+      "rule": "Audit exported components, intent filters, foreground-service types and permissions, backup/data-extraction rules, cleartext traffic, FileProvider scope, notification permissions, exact package isolation, and least privilege across supported Android versions. Any externally reachable component must be intentional and protected.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "supabase/{migrations,tests}/**/*.sql",
+      "rule": "Treat every table as private per-user data. Verify RLS is enabled and forced where appropriate; SELECT/INSERT/UPDATE/DELETE policies bind ownership to auth.uid(); grants do not bypass policy intent; functions pin search_path and use the least privilege; constraints bound sizes and validate versions; migrations are additive and repeat-safe; indexes support owner/time access; and tests prove cross-user denial plus anonymous denial. Never expose plaintext location or encryption keys.",
+      "merge_system_rule": true
+    },
+    {
+      "path": ".github/workflows/**/*.yml",
+      "rule": "In addition to supply-chain checks, verify production releases can only publish an immutable requested semantic version from protected main; signing identity and package/version are verified; secrets are scoped to the minimum step; untrusted pull-request code cannot access secrets; generated artifacts are checksummed; FOSS and standard variants remain tested; and destructive instrumentation can only target the disposable .qa.e2eloop application ID.",
+      "merge_system_rule": true
+    },
+    {
+      "path": ".github/scripts/**/*.sh",
+      "rule": "Verify shell quoting, explicit target and working-directory validation, safe temporary files, non-destructive defaults, deterministic exit status, bounded subprocess/network waits, secret redaction, and correct CI behavior. Device scripts must refuse production package data and destructive actions unless the target is the disposable .qa.e2eloop package. Test wrappers must preserve the real Gradle exit status even when evidence capture fails.",
+      "merge_system_rule": true
+    },
+    {
+      "path": "scripts/**/*.{py,sh}",
+      "rule": "Verify shell quoting, explicit target validation, safe temporary files, non-destructive defaults, deterministic exit status, bounded subprocess/network waits, secret redaction, and correct macOS/Linux behavior. Device scripts must refuse production package data and destructive actions unless the target is the disposable .qa.e2eloop package. Release scripts must fail closed on version, checksum, package, and signing mismatches.",
+      "merge_system_rule": true
+    }
+  ]
+}

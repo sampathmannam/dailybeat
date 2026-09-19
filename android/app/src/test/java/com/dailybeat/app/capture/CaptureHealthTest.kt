@@ -5,9 +5,13 @@ import org.junit.Test
 
 class CaptureHealthTest {
     @Test
-    fun `status distinguishes waiting healthy degraded and off`() {
+    fun `status distinguishes watching waiting healthy degraded and off`() {
         val now = 2_000_000L
         assertEquals(CaptureHealthLevel.OFF, CaptureHealth().status(now, enabled = false).level)
+        assertEquals(
+            CaptureHealthLevel.WATCHING,
+            CaptureHealth().status(now, enabled = true, watcherArmed = true).level,
+        )
         assertEquals(
             CaptureHealthLevel.WAITING,
             CaptureHealth(serviceRunning = true).status(now, enabled = true).level,
@@ -24,6 +28,18 @@ class CaptureHealthTest {
         assertEquals(
             CaptureHealthLevel.DEGRADED,
             CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 30 * 60_000).status(now, true).level,
+        )
+    }
+
+    @Test
+    fun `disabled capture is off even when a stale watcher flag remains`() {
+        assertEquals(
+            CaptureHealthLevel.OFF,
+            CaptureHealth().status(
+                nowMs = 2_000_000L,
+                enabled = false,
+                watcherArmed = true,
+            ).level,
         )
     }
 }
