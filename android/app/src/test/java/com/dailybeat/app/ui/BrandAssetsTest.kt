@@ -49,7 +49,7 @@ class BrandAssetsTest {
 
         assertTrue("#0B2D5B" in colors)
         assertTrue("#F8FAFC" in foreground)
-        assertTrue("#FFD60A" in foreground)
+        assertTrue("#EED77B" in foreground)
         assertTrue("#0B2D5B" in foreground)
         assertTrue("M31,19" in foreground) // daily record page
         assertTrue("M37,72 C41,66" in foreground) // mapped route
@@ -58,20 +58,21 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun originalSignalYellowIsUsedForIdentityAndYellowButtons() {
+    fun warmButterIsUsedForIdentityAndYellowButtons() {
         val colors = source("ui/theme/Color.kt")
         val theme = source("ui/theme/Theme.kt")
         val buttons = source("ui/components/CommonComponents.kt")
         val mapPreview = source("ui/components/JourneyMapPreview.kt")
         val map = source("ui/components/JourneyMapStyle.kt")
 
-        assertTrue("val Gold = Color(0xFFFFD60A)" in colors)
+        assertTrue("val Gold = Color(0xFFEED77B)" in colors)
+        assertFalse("FFD60A" in colors)
         assertFalse("F0C94A" in colors)
         assertFalse("EAAA00" in colors)
         assertTrue("secondary = Gold" in theme)
         assertTrue("containerColor = Gold" in buttons)
         assertTrue("containerColor = Gold" in mapPreview)
-        assertTrue("#FFD60A" in map)
+        assertTrue("#EED77B" in map)
     }
 
     @Test
