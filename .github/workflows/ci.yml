@@ -11,7 +11,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let a live backup fixture finish its cleanup before a newer commit starts.
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   release-policy:
@@ -40,6 +42,7 @@ jobs:
     concurrency:
       group: dailybeat-backup-qa-account
       cancel-in-progress: false
+      queue: max
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -58,15 +61,16 @@ jobs:
   # Use the existing protected QA credentials without copying them to a developer machine.
   # API 36 is independent of the API 34 offline lanes and checks the actual Android crypto/client path.
   native-backup:
-    # Both backup gates use the same dedicated account. GitHub concurrency groups can cancel a
-    # running job when a higher-priority waiter arrives, even with cancel-in-progress disabled.
-    # An explicit dependency makes the account access deterministic and keeps both gates required.
+    # Both backup gates use the same dedicated account. Keep pending jobs queued across PR/main
+    # runs, rather than letting GitHub's default single pending slot cancel another required gate.
+    # The dependency and shared group keep account access serialized; both gates remain required.
     needs: live-backup
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
       group: dailybeat-backup-qa-account
       cancel-in-progress: false
+      queue: max
     env:
       DAILYBEAT_REQUIRE_LIVE_BACKUP: "1"
       DAILYBEAT_LIVE_BACKUP_ONLY: "1"
@@ -254,6 +258,7 @@ jobs:
     concurrency:
       group: dailybeat-android-instrumentation
       cancel-in-progress: false
+      queue: max
     env:
       DAILYBEAT_OFFLINE_TESTS_ONLY: "1"
     steps:

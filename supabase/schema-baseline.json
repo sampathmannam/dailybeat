@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-09-19",
+  "project": "mrhffxtuzxqzcqicchoj",
+  "release": "v4.2.0",
+  "source_commit": "b62ba9e9914fbbed337ef21ca59869b335007a5e",
+  "components": {
+    "function:begin_dailybeat_backup": "69dc97807de542bc5d037a2186618fac",
+    "function:publish_dailybeat_backup": "f9ce69fa505c2951c4efc711d3107fcd",
+    "function:put_dailybeat_backup_part": "cd0293b4449adb24a959c2d4a3a67867",
+    "function:set_dailybeat_backup_updated_at": "efa8af9e1292125003b3cb171747ce66",
+    "table:dailybeat_backup_parts": "90b580a573308e99a44d884ed410010e",
+    "table:dailybeat_backup_versions": "0f74abd6cc9a613b01344b6c9bf141ba",
+    "table:dailybeat_backups": "76f3c812f091ae5f05d0c012f402638e",
+    "table:dailybeat_encrypted_backups": "1338fd9d13838d6479b232ffa22cdf6a"
+  },
+  "migration_sha256": {
+    "202608310001_dailybeat_backups.sql": "8d2df9adb186fe2d67745e1334eb0fcc879ea7eb7f4471a3066bbbcaf4e0ea5d",
+    "202609110001_dailybeat_backups_hardening.sql": "5b2881803d00cad2e9334892419576bd422941f469c2d85fe47a354d70db1d3b",
+    "202609160001_encrypted_backups.sql": "83d79daacb4498517467c93b0cd50b9820c9006c247622bae75127074abd3df5",
+    "20260919090000_versioned_backup_archives.sql": "f128308a782cda8f231c84031c3e2a67afdcd5272a9c676f2fa1e8acc3a5ec64"
+  }
+}
