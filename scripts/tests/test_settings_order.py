@@ -1,16 +1,15 @@
-"""Guards the order of the groups on the Settings screen.
+"""Guards Settings' privacy-first, progressively disclosed information architecture.
 
-The product brief is explicit: capture/privacy and named places come before appearance, Cloud AI
-and backup. The released v3.9 screen did the opposite — Appearance opened the screen and Named
-places was dead last, below API-key configuration and a debug-only QA group.
+The Settings index must lead with capture/places and privacy/data, then journal/appearance and
+connected services. The detailed controls stay behind those focused entry points instead of
+returning to one continuous page.
 
 That ordering is not cosmetic. Named places is where a private zone is declared, and a private
 zone is the mechanism that keeps a home address out of every cloud report, geocoder call and
 shared export. Burying it under a base-URL field buries the app's privacy contract.
 
-Order is a layout property, so nothing in the JVM unit tests can see it and nothing short of a
-device can assert it in Compose. This guard reads the source instead, so a future edit that drags
-Appearance back to the top fails the local gate rather than shipping.
+Order and progressive disclosure are layout properties, so this guard reads the source while
+instrumentation verifies the real Compose interaction and Android Back behavior.
 """
 
 from pathlib import Path
@@ -41,6 +40,14 @@ MUST_COME_LATER = (
     "settings_backup_group",
 )
 
+EXPECTED_CATEGORY_TAGS = [
+    "settings_category_capture",
+    "settings_category_privacy",
+    "settings_category_journal",
+    "settings_category_connected",
+    "settings_category_developer",
+]
+
 
 def _group_order() -> list[str]:
     """Every SettingsGroup title in the order it appears in the composable."""
@@ -57,6 +64,28 @@ def _group_order() -> list[str]:
 
 def test_settings_screen_exists():
     assert SETTINGS_SCREEN.is_file(), f"{SETTINGS_SCREEN} is missing"
+
+
+def test_settings_index_uses_focused_categories_in_privacy_first_order():
+    source = SETTINGS_SCREEN.read_text(encoding="utf-8")
+    menu = source.split("private fun SettingsCategoryMenu", 1)[1].split(
+        "private fun SettingsCategoryButton", 1
+    )[0]
+    positions = [menu.index(f'\"{tag}\"') for tag in EXPECTED_CATEGORY_TAGS]
+    assert positions == sorted(positions)
+
+
+def test_settings_categories_use_progressive_disclosure_and_android_back():
+    source = SETTINGS_SCREEN.read_text(encoding="utf-8")
+    assert "BackHandler(enabled = activeSection != null)" in source
+    assert "if (activeSection == null)" in source
+    for section in (
+        "CAPTURE_AND_PLACES",
+        "PRIVACY_AND_DATA",
+        "JOURNAL_AND_APPEARANCE",
+        "BACKUP_AND_CLOUD",
+    ):
+        assert f"activeSection == SettingsSection.{section}" in source
 
 
 def test_every_expected_group_is_still_present():

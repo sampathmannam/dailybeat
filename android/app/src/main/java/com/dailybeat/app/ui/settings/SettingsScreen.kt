@@ -1,5 +1,8 @@
 package com.dailybeat.app.ui.settings
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,10 +75,20 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 
-@OptIn(ExperimentalMaterial3Api::class)
+private enum class SettingsSection {
+    CAPTURE_AND_PLACES,
+    PRIVACY_AND_DATA,
+    JOURNAL_AND_APPEARANCE,
+    BACKUP_AND_CLOUD,
+    DEVELOPER,
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
@@ -96,6 +112,12 @@ fun SettingsScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var placePendingDeletion by remember { mutableStateOf<Place?>(null) }
     var localErasePhrase by remember { mutableStateOf("") }
+    var activeSectionKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeSection = activeSectionKey?.let(SettingsSection::valueOf)
+
+    BackHandler(enabled = activeSection != null) {
+        activeSectionKey = null
+    }
 
     LaunchedEffect(state.localDataErased) {
         if (state.localDataErased) (settingsContext as? android.app.Activity)?.recreate()
@@ -280,8 +302,22 @@ fun SettingsScreen(
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            DailyBeatScreenHeader(title = stringResource(R.string.settings_title))
+        if (activeSection == null) {
+            item {
+                DailyBeatScreenHeader(
+                    title = stringResource(R.string.settings_title),
+                    subtitle = stringResource(R.string.settings_subtitle),
+                )
+            }
+        } else {
+            stickyHeader {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    SettingsDetailHeader(
+                        title = settingsSectionTitle(activeSection),
+                        onBack = { activeSectionKey = null },
+                    )
+                }
+            }
         }
 
         state.screenError?.let { error ->
@@ -295,7 +331,16 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == null) {
+            item {
+                SettingsCategoryMenu(
+                    showQaTools = showQaTools,
+                    onOpen = { activeSectionKey = it.name },
+                )
+            }
+        }
+
+        if (activeSection == SettingsSection.CAPTURE_AND_PLACES) item {
             SettingsGroup(title = stringResource(R.string.settings_capture_group)) {
                 ToggleRow(
                     label = stringResource(R.string.gps_capture_label),
@@ -361,7 +406,7 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.CAPTURE_AND_PLACES) item {
             SettingsGroup(title = stringResource(R.string.places_title)) {
                 if (state.placeSuggestions.isNotEmpty()) {
                     Text(
@@ -427,16 +472,18 @@ fun SettingsScreen(
             }
         }
 
-        items(state.places, key = { it.id }) { place ->
-            PlaceCard(
-                place = place,
-                onPrivateChange = { viewModel.setPlacePrivate(place, it) },
-                onDelete = { placePendingDeletion = place },
-                enabled = !state.placeBusy,
-            )
+        if (activeSection == SettingsSection.CAPTURE_AND_PLACES) {
+            items(state.places, key = { it.id }) { place ->
+                PlaceCard(
+                    place = place,
+                    onPrivateChange = { viewModel.setPlacePrivate(place, it) },
+                    onDelete = { placePendingDeletion = place },
+                    enabled = !state.placeBusy,
+                )
+            }
         }
 
-        item {
+        if (activeSection == SettingsSection.PRIVACY_AND_DATA) item {
             SettingsGroup(title = stringResource(R.string.settings_data_privacy_group)) {
                 Text(
                     stringResource(R.string.retention_description),
@@ -489,7 +536,7 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.JOURNAL_AND_APPEARANCE) item {
             SettingsGroup(title = stringResource(R.string.settings_appearance_group)) {
                 Text(
                     text = stringResource(R.string.settings_theme_description),
@@ -524,7 +571,7 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.JOURNAL_AND_APPEARANCE) item {
             SettingsGroup(title = stringResource(R.string.settings_identity_group)) {
                 com.dailybeat.app.ui.components.JournalProfilePicker(
                     selected = state.journalProfile,
@@ -551,7 +598,7 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.BACKUP_AND_CLOUD) item {
             SettingsGroup(title = stringResource(R.string.settings_backup_group)) {
                 Text(
                     text = stringResource(R.string.settings_backup_desc),
@@ -713,14 +760,14 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.PRIVACY_AND_DATA) item {
             val supportContext = androidx.compose.ui.platform.LocalContext.current
             SettingsGroup(title = "Support") {
                 Text("Review a small report of app settings and permissions to help diagnose capture problems.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { supportPreview = com.dailybeat.app.audit.SupportDiagnostics.build(supportContext.applicationContext as com.dailybeat.app.DailyBeatApp) }) { Text("Prepare support details") }
             }
         }
-        item {
+        if (activeSection == SettingsSection.CAPTURE_AND_PLACES) item {
             SettingsGroup(title = "Place name lookup") {
                 Text("Saved places work offline. Optional automatic address lookups send coordinates outside private zones to your managed provider. Leave empty to turn off automatic lookups. Online maps still contact map tile providers.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = state.geocodingEndpoint, onValueChange = viewModel::setGeocodingDraft,
@@ -730,7 +777,7 @@ fun SettingsScreen(
             }
         }
 
-        item {
+        if (activeSection == SettingsSection.BACKUP_AND_CLOUD) item {
             SettingsGroup(title = stringResource(R.string.settings_cloud_group)) {
                 Text(
                     text = stringResource(R.string.settings_cloud_desc),
@@ -827,7 +874,7 @@ fun SettingsScreen(
             }
         }
 
-        if (showQaTools) {
+        if (showQaTools && activeSection == SettingsSection.DEVELOPER) {
             item {
                 SettingsGroup(title = stringResource(R.string.settings_qa_group)) {
                     SecondaryButton(
@@ -847,6 +894,124 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun settingsSectionTitle(section: SettingsSection): String = when (section) {
+    SettingsSection.CAPTURE_AND_PLACES -> stringResource(R.string.settings_category_capture_title)
+    SettingsSection.PRIVACY_AND_DATA -> stringResource(R.string.settings_category_privacy_title)
+    SettingsSection.JOURNAL_AND_APPEARANCE -> stringResource(R.string.settings_category_journal_title)
+    SettingsSection.BACKUP_AND_CLOUD -> stringResource(R.string.settings_category_connected_title)
+    SettingsSection.DEVELOPER -> stringResource(R.string.settings_category_developer_title)
+}
+
+@Composable
+private fun SettingsDetailHeader(
+    title: String,
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.testTag("settings_back"),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.settings_back),
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier.padding(start = 8.dp).semantics { heading() },
+            style = MaterialTheme.typography.headlineSmall,
+        )
+    }
+}
+
+@Composable
+private fun SettingsCategoryMenu(
+    showQaTools: Boolean,
+    onOpen: (SettingsSection) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingsCategoryButton(
+            title = stringResource(R.string.settings_category_capture_title),
+            subtitle = stringResource(R.string.settings_category_capture_summary),
+            testTag = "settings_category_capture",
+            onClick = { onOpen(SettingsSection.CAPTURE_AND_PLACES) },
+        )
+        SettingsCategoryButton(
+            title = stringResource(R.string.settings_category_privacy_title),
+            subtitle = stringResource(R.string.settings_category_privacy_summary),
+            testTag = "settings_category_privacy",
+            onClick = { onOpen(SettingsSection.PRIVACY_AND_DATA) },
+        )
+        SettingsCategoryButton(
+            title = stringResource(R.string.settings_category_journal_title),
+            subtitle = stringResource(R.string.settings_category_journal_summary),
+            testTag = "settings_category_journal",
+            onClick = { onOpen(SettingsSection.JOURNAL_AND_APPEARANCE) },
+        )
+        SettingsCategoryButton(
+            title = stringResource(R.string.settings_category_connected_title),
+            subtitle = stringResource(R.string.settings_category_connected_summary),
+            testTag = "settings_category_connected",
+            onClick = { onOpen(SettingsSection.BACKUP_AND_CLOUD) },
+        )
+        if (showQaTools) {
+            SettingsCategoryButton(
+                title = stringResource(R.string.settings_category_developer_title),
+                subtitle = stringResource(R.string.settings_category_developer_summary),
+                testTag = "settings_category_developer",
+                onClick = { onOpen(SettingsSection.DEVELOPER) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsCategoryButton(
+    title: String,
+    subtitle: String,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 76.dp)
+            .testTag(testTag)
+            .clickable(role = Role.Button, onClick = onClick),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

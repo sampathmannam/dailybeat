@@ -144,10 +144,6 @@ fun FeedScreen(
         item {
             Column {
                 Text("${state.throughDate.minusDays(29)} – ${state.throughDate}", style = MaterialTheme.typography.bodySmall)
-                Row {
-                    TextButton(onClick = viewModel::olderDays, enabled = !state.isLoading) { Text("Older days") }
-                    TextButton(onClick = viewModel::newerDays, enabled = !state.isLoading && state.throughDate < DateKeys.today()) { Text("Newer days") }
-                }
                 TextButton(onClick = {
                     val date = state.throughDate
                     android.app.DatePickerDialog(context, { _, year, month, day ->
@@ -306,6 +302,7 @@ private fun DayFeedCard(
                     )
                     Text(
                         text = Formatters.dayHeading(day.date, locale),
+                        modifier = Modifier.testTag("feed_date_${day.date}"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )

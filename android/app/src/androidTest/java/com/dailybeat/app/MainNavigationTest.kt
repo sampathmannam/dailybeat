@@ -78,6 +78,31 @@ class MainNavigationTest {
     }
 
     @Test
+    fun settingsOpensFocusedCategoriesAndBackReturnsToTheIndex() {
+        composeRule.onNodeWithTag("nav_settings").performClick()
+
+        composeRule.onNodeWithTag("settings_category_capture").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_category_connected"))
+        composeRule.onNodeWithTag("settings_category_connected").assertIsDisplayed()
+        composeRule.onNodeWithText("Capture").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_category_capture"))
+        composeRule.onNodeWithTag("settings_category_capture").performClick()
+        composeRule.onNodeWithText("Capture").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_category_privacy").assertDoesNotExist()
+
+        composeRule.activityRule.scenario.onActivity {
+            it.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_category_privacy"))
+        composeRule.onNodeWithTag("settings_category_privacy").assertIsDisplayed()
+        composeRule.onNodeWithText("Capture").assertDoesNotExist()
+    }
+
+    @Test
     fun todayShowsBothMetricsWithoutHorizontalClipping() {
         composeRule.onNodeWithTag("today_list").performScrollToNode(hasTestTag("today_summary"))
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
@@ -140,6 +165,7 @@ class MainNavigationTest {
     @Test
     fun settingsAddPlaceNeedsANameAndACapturedLocation() {
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_capture").performClick()
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Place name") and hasSetTextAction())
         composeRule.onNode(hasText("Place name") and hasSetTextAction()).performTextInput("Command HQ")
@@ -198,9 +224,12 @@ class MainNavigationTest {
     @Test
     fun settingsOfficerNameFieldVisible() {
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_journal").performClick()
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasText("Officer name") and hasSetTextAction())
         composeRule.onNode(hasText("Officer name") and hasSetTextAction()).assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.onNodeWithTag("settings_category_connected").performClick()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud AI"))
         composeRule.onNodeWithText("Cloud AI").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Cloud backup"))
@@ -214,6 +243,8 @@ class MainNavigationTest {
         } else {
             composeRule.onNodeWithText("Cloud backup is unavailable in this build.").assertIsDisplayed()
         }
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.onNodeWithTag("settings_category_capture").performClick()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Capture"))
         composeRule.onNodeWithText("Capture").assertIsDisplayed()
     }
@@ -222,6 +253,7 @@ class MainNavigationTest {
     fun retentionChangeExplainsDeletionBeforeApplyingIt() {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_privacy").performClick()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Data & privacy"))
         composeRule.onNodeWithText("Data & privacy").assertIsDisplayed()
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("retention_30"))
@@ -240,10 +272,10 @@ class MainNavigationTest {
     fun appearanceSelectorChangesThemeAndSurvivesActivityRecreation() {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_journal").performClick()
         composeRule.waitForIdle()
 
-        // Appearance is deliberately below capture and named places, so scroll directly to the
-        // tagged control after Settings has settled instead of querying an intermediate heading.
+        // Open the focused journal/appearance section and address the tagged control directly.
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").performClick()
         composeRule.waitUntil(5_000) {
@@ -257,8 +289,7 @@ class MainNavigationTest {
 
         composeRule.activityRule.scenario.recreate()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("nav_settings").performClick()
-        composeRule.waitForIdle()
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("theme_dark"), timeoutMillis = 5_000)
         composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("theme_dark"))
         composeRule.onNodeWithTag("theme_dark").assertIsSelected()
 
@@ -283,6 +314,7 @@ class MainNavigationTest {
         composeRule.activityRule.scenario.recreate()
 
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_connected").performClick()
         composeRule.onNodeWithTag("settings_list")
             .performScrollToNode(hasTestTag("remove_api_key"))
         composeRule.onNodeWithTag("remove_api_key").performClick()
@@ -310,6 +342,7 @@ class MainNavigationTest {
         }
 
         composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.onNodeWithTag("settings_category_capture").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("settings_list"), timeoutMillis = 10_000)
         // Named places are below the fold on the physical phone. Ask the lazy list to compose
         // the target before asserting or tapping it.
