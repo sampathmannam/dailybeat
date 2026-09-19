@@ -88,7 +88,7 @@
         <item quantity="other">%1$d visits</item>
     </plurals>
     <string name="insights_privacy_note">Calculated on this phone from your DailyBeat history. Your location patterns are not published.</string>
-    <string name="last_seven_days">Distance by day</string>
+    <string name="last_seven_days">This week · Monday–Sunday</string>
     <string name="weekly_tools">Weekly tools</string>
     <string name="weekly_tools_body">Review a weekly draft or prepare a seven-day sharing copy. Private controls are checked again before export.</string>
     <string name="private_place">Private zone</string>
@@ -201,6 +201,8 @@
     <string name="delete_place_confirm">Delete place</string>
     <string name="location_service_title">DailyBeat location</string>
     <string name="location_service_passive">Tracking visits and transit for your daily report</string>
+    <string name="location_channel_name">Passive location capture</string>
+    <string name="location_channel_description">Shows when DailyBeat is observing location in the background. This status does not create an app-icon badge.</string>
     <string name="reminder_title">DailyBeat</string>
     <string name="reminder_body_report">Your daily AI report is ready — open DailyBeat to review.</string>
     <string name="settings_cloud_group">Cloud AI</string>
@@ -293,6 +295,19 @@
     <string name="erase_phone_data_warning">This permanently removes local history, diary versions, named places, settings, exports, API key, and the saved cloud session. Cloud backups remain unless you delete them first. Type DELETE to continue.</string>
     <string name="type_delete">Type DELETE</string>
     <string name="data_working">Applying data change…</string>
-    <string name="legal_notices_title">Licences &amp; source</string>
-    <string name="legal_notices_subtitle">DailyBeat and third-party software notices</string>
+    <string name="legal_notices_title">Licences &amp; resources</string>
+    <string name="legal_notices_subtitle">Clear, offline access to DailyBeat’s licence and the terms for included open-source software.</string>
+    <string name="legal_intro_title">Open-source information</string>
+    <string name="legal_project_title">DailyBeat · GPL-3.0-only</string>
+    <string name="legal_project_summary">You may inspect, use, modify, and redistribute DailyBeat under GNU GPL version 3. Distributed modified versions must provide their corresponding source under the same licence.</string>
+    <string name="legal_open_source">View source repository</string>
+    <string name="legal_open_source_error">No browser could open the source repository. The complete licence text remains available below.</string>
+    <string name="legal_third_party_title">Third-party notices</string>
+    <string name="legal_third_party_summary">Attribution and terms for AndroidX, Jetpack Compose, Kotlin, MapLibre, OkHttp, and other packaged dependencies.</string>
+    <string name="legal_gpl_title">GNU General Public License v3</string>
+    <string name="legal_gpl_summary">The complete licence governing DailyBeat’s original source code.</string>
+    <string name="legal_apache_title">Apache License 2.0</string>
+    <string name="legal_apache_summary">The complete licence used by AndroidX, Jetpack Compose, Kotlin, and supporting libraries.</string>
+    <string name="legal_read_full_text">Read full text</string>
+    <string name="legal_hide_full_text">Hide full text</string>
 </resources>

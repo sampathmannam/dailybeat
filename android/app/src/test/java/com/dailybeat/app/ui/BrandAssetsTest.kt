@@ -49,7 +49,7 @@ class BrandAssetsTest {
 
         assertTrue("#0B2D5B" in colors)
         assertTrue("#F8FAFC" in foreground)
-        assertTrue("#F0C94A" in foreground)
+        assertTrue("#FFD60A" in foreground)
         assertTrue("#0B2D5B" in foreground)
         assertTrue("M31,19" in foreground) // daily record page
         assertTrue("M37,72 C41,66" in foreground) // mapped route
@@ -58,20 +58,20 @@ class BrandAssetsTest {
     }
 
     @Test
-    fun softSunYellowIsUsedForIdentityAndYellowButtons() {
+    fun originalSignalYellowIsUsedForIdentityAndYellowButtons() {
         val colors = source("ui/theme/Color.kt")
         val theme = source("ui/theme/Theme.kt")
         val buttons = source("ui/components/CommonComponents.kt")
         val mapPreview = source("ui/components/JourneyMapPreview.kt")
         val map = source("ui/components/JourneyMapStyle.kt")
 
-        assertTrue("val Gold = Color(0xFFF0C94A)" in colors)
-        assertFalse("FFD60A" in colors)
+        assertTrue("val Gold = Color(0xFFFFD60A)" in colors)
+        assertFalse("F0C94A" in colors)
         assertFalse("EAAA00" in colors)
         assertTrue("secondary = Gold" in theme)
         assertTrue("containerColor = Gold" in buttons)
         assertTrue("containerColor = Gold" in mapPreview)
-        assertTrue("#F0C94A" in map)
+        assertTrue("#FFD60A" in map)
     }
 
     @Test
@@ -124,5 +124,17 @@ class BrandAssetsTest {
         assertFalse("emulatorDemoTranscript" in orchestrator)
         assertFalse(File("src/main/java/com/dailybeat/app/capture/WhisperBridge.kt").exists())
         assertFalse(File("src/main/java/com/dailybeat/app/capture/VoiceRecorder.kt").exists())
+    }
+
+    @Test
+    fun passiveCaptureNotificationDoesNotPretendToBeUnread() {
+        val app = source("DailyBeatApp.kt")
+        val service = source("capture/LocationService.kt")
+
+        assertTrue("setShowBadge(false)" in app)
+        assertTrue("location_capture_status_v2" in service)
+        assertTrue(".setCategory(NotificationCompat.CATEGORY_SERVICE)" in service)
+        assertTrue(".setNumber(0)" in service)
+        assertTrue(".setOngoing(true)" in service)
     }
 }

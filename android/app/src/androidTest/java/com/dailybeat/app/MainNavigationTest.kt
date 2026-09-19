@@ -233,8 +233,8 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Cancel").performClick()
 
         assertEquals(0, app.settingsRepository.get().historyRetentionDays)
-        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Licences & source"))
-        composeRule.onNodeWithText("Licences & source").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_list").performScrollToNode(hasText("Licences & resources"))
+        composeRule.onNodeWithText("Licences & resources").assertIsDisplayed()
     }
 
     @Test
