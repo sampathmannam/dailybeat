@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.1.1 / code 29** is the current production release line. It upgrades the permanently signed
+**4.1.2 / code 30** is the current production release line. It upgrades the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -20,8 +20,9 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Separate controls to delete cloud backups, the cloud account, or every local DailyBeat record.
 - Midnight and time-zone rollover without reopening Today; bounded, memory-safe route rendering.
 - Verified local erasure of records, capture checkpoints, credentials, diagnostics, and exports.
+- Monday–Sunday Insights and a no-badge passive-capture status notification.
 - Standard Google location backend and a separate Android-platform-only build.
-- Soft Sun accent and Carbon dark mode retained; no DSR features added.
+- Original Signal Yellow accents and neutral Carbon dark mode; no DSR features added.
 
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
 [validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),

@@ -10,7 +10,7 @@ assumptions, make corrections quick, and produce a diary the officer can confide
 Its growing history should answer useful questions and retain confirmed follow-ups. Battery use
 and privacy are part of that outcome, not separate polish tasks.
 
-Keep the current Soft Sun accent, Carbon dark mode, phone-only navigation, Android typography,
+Keep the current Signal Yellow accent, Carbon dark mode, phone-only navigation, Android typography,
 and DSR separation. Focus design work on task clarity, truthful states, and fewer decisions.
 
 ## Verified starting point
