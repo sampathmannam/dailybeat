@@ -113,10 +113,10 @@ def main() -> None:
     pmtiles.chmod(0o755)
     tiles = work / "tamil-nadu.pmtiles"
     if not tiles.exists():
-        subprocess.run([str(pmtiles), "extract", "https://build.protomaps.com/" + config["source"]["objectName"],
-            str(tiles), f"--region={boundary}", "--maxzoom=15", "--download-threads=2"], check=True)
-    subprocess.run([str(pmtiles), "verify", str(tiles)], check=True)
-    header = json.loads(subprocess.check_output([str(pmtiles), "show", str(tiles), "--header-json"]))
+        subprocess.run(["./pmtiles", "extract", "https://build.protomaps.com/" + config["source"]["objectName"],
+            str(tiles), f"--region={boundary}", "--maxzoom=15", "--download-threads=2"], cwd=tool_dir, shell=False, check=True)
+    subprocess.run(["./pmtiles", "verify", str(tiles)], cwd=tool_dir, shell=False, check=True)
+    header = json.loads(subprocess.check_output(["./pmtiles", "show", str(tiles), "--header-json"], cwd=tool_dir, shell=False))
     assert header["minzoom"] == 0 and header["maxzoom"] == 15 and header["tile_type"] == "mvt"
 
     asset_archive = work / "basemaps-assets.zip"

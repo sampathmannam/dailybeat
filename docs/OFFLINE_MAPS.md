@@ -57,3 +57,10 @@ limits, cancellation, resume, corrupt downloads, low storage, rollback, deletion
 
 Attribution: OpenStreetMap contributors (ODbL 1.0), Protomaps (BSD-3-Clause/CC0), Noto fonts (OFL),
 Mapzen sprites (MIT), and DataMeet/geoBoundaries boundary (CC BY 2.5 India). See package licenses.
+
+For the full-package device gate, copy the built archive and resource ZIP into the disposable test
+app's private `files/full-map` directory as `tamil-nadu.pmtiles` and `resources.zip`. Run
+`NativeOfflineMapTest` with instrumentation argument `fullMapDirectory` set to that absolute device
+path. It verifies activation and deletion while the actual journey map is open, in addition to the
+nine-location native rendering checks. Without that argument, CI uses the smaller regional viewport
+fixture for rendering and the full-package activation test is skipped. Never seed a user's diary app.

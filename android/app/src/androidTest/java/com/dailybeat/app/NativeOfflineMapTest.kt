@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithText
+import kotlinx.coroutines.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -84,6 +87,38 @@ class NativeOfflineMapTest {
         bitmap.recycle()
         assertNull(com.dailybeat.app.ui.components.decodeMapTile(bytes.toByteArray()))
     }
+    /** Optional full-package gate: pass fullMapDirectory containing the published artifacts. */
+    @Test fun verifiedFullPackageActivatesAndCanBeDeletedWhileTheJourneyMapIsOpen() {
+        val full = InstrumentationRegistry.getArguments().getString("fullMapDirectory")
+        org.junit.Assume.assumeNotNull(full)
+        runBlocking { app.offlineMaps.delete() }
+        val staging = File(app.noBackupFilesDir, "offline-maps/staging/${app.offlineMaps.catalog.version}").apply { mkdirs() }
+        File(full!!, "tamil-nadu.pmtiles").copyTo(File(staging, "tamil-nadu.pmtiles"), overwrite = true)
+        File(full, "resources.zip").copyTo(File(staging, "assets.zip"), overwrite = true)
+        runBlocking { app.offlineMaps.install { _, _ -> } }
+        assertEquals(app.offlineMaps.catalog, app.offlineMaps.state.value.installed)
+        val model = com.dailybeat.app.ui.components.JourneyMapModel.fromPoints(listOf(
+            com.dailybeat.app.ui.components.JourneyPoint(0, 11.4557, 78.1856, "stay"),
+            com.dailybeat.app.ui.components.JourneyPoint(60_000, 11.46, 78.19, "stay"),
+        ))
+        compose.setContent {
+            com.dailybeat.app.ui.theme.DailyBeatTheme {
+                com.dailybeat.app.ui.components.JourneyMapPreview(model, Modifier.fillMaxSize())
+            }
+        }
+        compose.waitUntil(20_000) { compose.onAllNodesWithTag("journey_map_ready", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(app.getString(R.string.map_using_offline)).assertExists()
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            val deleting = scope.async { app.offlineMaps.delete() }
+            compose.waitUntil(15_000) { deleting.isCompleted }
+            runBlocking { deleting.await() }
+            assertNull(app.offlineMaps.state.value.installed)
+            assertFalse(File(app.noBackupFilesDir, "offline-maps").exists())
+            compose.onNodeWithText(app.getString(R.string.map_local_route_only)).assertExists()
+        } finally { scope.cancel() }
+    }
+
     @Test fun streetMapsRenderAcrossTamilNaduWithoutAnyHttpRequests() {
         val ready = CountDownLatch(1)
         var map: MapLibreMap? = null
@@ -141,6 +176,7 @@ class NativeOfflineMapTest {
             assertTrue("No roads rendered in $name ($theme); errors=$errors", roads > 0)
             assertTrue("No labels rendered in $name ($theme); errors=$errors", labels > 0)
             if (InstrumentationRegistry.getArguments().getString("screenshots") == "true") {
+                Thread.sleep(400) // Allow label fade-in to finish before collecting visual evidence.
                 val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
                 val output = File(app.filesDir, "map-evidence").apply { mkdirs() }
                 File(output, "$name-$theme.png").outputStream().use {
