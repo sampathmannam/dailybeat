@@ -130,6 +130,9 @@ class MapHardeningTest {
             catch (_: IllegalArgumentException) { }
         }
         check("../outside", 2048)
+        check("../resources-evil/outside", 2048)
+        check("/absolute/outside", 2048)
+        check("./tamil-nadu.pmtiles", 2048)
         assertFalse(File(directory, "outside").exists())
         check("fonts/font.pbf", 1024)
     }

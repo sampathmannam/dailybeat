@@ -112,11 +112,17 @@ internal class MapPackInstaller(private val client: OkHttpClient) {
                 currentCoroutineContext().ensureActive()
                 val entry = input.nextEntry ?: break
                 require(++entries <= 4096) { "Too many map resources." }
-                val target = File(destination, entry.name)
-                require(!entry.name.startsWith('/') && !entry.name.split('/').contains("..") &&
-                    target.canonicalPath.startsWith(destination.canonicalPath + File.separator)) { "Invalid map resource path." }
+                val target = File(destination, entry.name).canonicalFile
+                // Compare canonical path components, not a string prefix (which could admit a
+                // sibling directory). Keep the rejecting branch explicit for static analysis.
+                if (!target.toPath().startsWith(destination.canonicalFile.toPath())) {
+                    throw IllegalArgumentException("Invalid map resource path.")
+                }
+                if (entry.name.startsWith('/') || entry.name.split('/').contains("..") || target == destination.canonicalFile) {
+                    throw IllegalArgumentException("Invalid map resource path.")
+                }
                 require(paths.add(target.canonicalPath)) { "Duplicate map resource." }
-                require(entry.name !in setOf("tamil-nadu.pmtiles", "assets.zip", "manifest.json")) { "Reserved map resource path." }
+                require(target.parentFile != destination.canonicalFile || target.name !in setOf("tamil-nadu.pmtiles", "assets.zip", "manifest.json")) { "Reserved map resource path." }
                 if (entry.isDirectory) { target.mkdirs(); continue }
                 target.parentFile!!.mkdirs()
                 target.outputStream().buffered().use { output ->
