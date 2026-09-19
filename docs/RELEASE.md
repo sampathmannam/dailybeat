@@ -1,4 +1,9 @@
-# DailyBeat v4.2.0 — install and verify
+# DailyBeat v4.2.1 — install and verify
+
+Version 4.2.1 simplifies navigation without changing DailyBeat's capture, privacy, or recovery
+contracts. Days keeps the direct **Go to date** picker and removes the redundant Older days / Newer
+days controls. Settings opens as four focused categories, with every existing control retained and
+a pinned back action that remains available while scrolling on smaller phones.
 
 Version 4.2.0 hardens capture persistence, privacy and cloud recovery. Observations are journaled
 before processing, battery sleep preserves observed stays, and a failed or stalled Google provider
@@ -79,14 +84,14 @@ replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For the exact release contents and validation contract, see [the v4.2.0 release report](V4_2_0_RELEASE_REPORT.md).
+For the exact release contents and validation contract, see [the v4.2.1 release report](V4_2_1_RELEASE_REPORT.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.2.0`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.2.1`):
 
-- `DailyBeat-v4.2.0.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.2.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
