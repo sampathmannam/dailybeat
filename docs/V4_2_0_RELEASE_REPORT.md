@@ -34,9 +34,16 @@ An unauthenticated production POST returned HTTP 401. No real user account was d
 verification. The ten handler tests cover recent/old/refreshed authentication and failure paths;
 a destructive production account-deletion drill was not performed.
 
-The SQL editor deployment does not repair historical CLI migration tracking. Do not blindly replay
-old migrations or reset production. See [operations](hardening/OPERATIONS.md) for deployment and
-recovery procedures.
+The later 2026-09-19 operational verification found that the legacy size-limit/privilege migration
+had not reached production, despite passing local tests. That missing hardening was applied and
+verified, then all four tables and four functions matched a fresh migration-built database.
+The three missing migration-history entries were reconciled only after that match; stored source
+hashes matched the repository and the original history entry was preserved. No backup payload was
+rewritten or deleted. See the [operational verification](hardening/2026-09-19-operations.md).
+The hosted password policy was also aligned with the repository. Production email delivery still
+needs custom SMTP; the default test mail service is insufficient for general public signup.
+Do not blindly replay old migrations or reset production. See [operations](hardening/OPERATIONS.md)
+for deployment and recovery procedures.
 
 ## Validation and publication contract
 

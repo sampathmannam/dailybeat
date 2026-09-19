@@ -126,6 +126,16 @@ def test_native_cloud_recovery_uses_isolated_foss_build_and_serializes_qa_accoun
     assert "native-backup" in publisher.split("required_checks=(", 1)[1].split(")", 1)[0]
 
 
+def test_required_ci_jobs_queue_without_interrupting_live_fixture_cleanup():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    # The workflow-level setting must not override the job's cleanup protection on a new push.
+    locks = [workflow["concurrency"]] + [workflow["jobs"][name]["concurrency"]
+             for name in ("live-backup", "native-backup", "instrumentation")]
+    for lock in locks:
+        assert lock["cancel-in-progress"] is False
+        assert lock["queue"] == "max"
+
+
 def test_phone_live_gate_rejects_missing_configuration_before_any_device_action():
     import os
     import subprocess
