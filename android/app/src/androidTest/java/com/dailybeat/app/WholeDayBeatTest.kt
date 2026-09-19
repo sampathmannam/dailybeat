@@ -61,6 +61,10 @@ class WholeDayBeatTest {
         composeRule.waitUntil(10_000) {
             runBlocking { app.beatRepository.get(DateKeys.today())?.state == "complete" }
         }
+        // The database commits before the asynchronous screen refresh finishes. Assert the
+        // rendered outcome after it arrives, and bring the lazy-list action into view.
+        composeRule.waitUntilAtLeastOneExists(hasText("Reopen for corrections"), 10_000)
+        composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasText("Reopen for corrections"))
         composeRule.onNodeWithText("Reopen for corrections").assertIsDisplayed()
 
         composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasTestTag("review_day_back"))

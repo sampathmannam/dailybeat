@@ -155,7 +155,7 @@ class FeedScreenTest {
             timeoutMillis = 20_000,
         )
         composeRule.onNodeWithText("Stop 1").assertDoesNotExist()
-        composeRule.onNodeWithText("More").assertIsDisplayed()
+        composeRule.onNodeWithText("More").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithTag("feed_toggle_stops_${DateKeys.today()}")
             .performScrollTo().performClick()

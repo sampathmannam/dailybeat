@@ -57,6 +57,34 @@ class BackupCoordinatorTest {
         assertEquals(expected, local.restored)
     }
 
+    @Test fun `archive capable app restores existing v1 backup when no archive exists`() = runBlocking {
+        val expected = BackupSnapshot.empty(9L)
+        val local = FakeLocalStore(BackupSnapshot.empty(1L))
+        val oldRemote = FakeRemote().apply {
+            downloaded = RemoteBackup(BackupEnvelope.seal(BackupSnapshotCodec.encode(expected),
+                "harbour comet velvet cedar orbit lantern".toCharArray()), "existing-v1")
+        }
+        val paged = object : PagedSnapshotStore, SnapshotStore by local {
+            override suspend fun forEachPage(emit: suspend (BackupSnapshot) -> Unit) = error("unused")
+            override suspend fun restorePages(pages: Sequence<BackupSnapshot>) = error("must restore v1")
+        }
+        val remote = object : ArchiveBackupRemote, BackupRemote by oldRemote {
+            override suspend fun versions(): List<BackupVersion> = emptyList()
+            override suspend fun beginVersion(id: String) = error("unused")
+            override suspend fun uploadPart(id: String, index: Int, payload: String) = error("unused")
+            override suspend fun publishVersion(id: String, manifest: String, parts: Int) = error("unused")
+            override suspend fun downloadPart(id: String, index: Int): String = error("unused")
+        }
+        val directory = java.nio.file.Files.createTempDirectory("legacy-archive-recovery").toFile()
+        try {
+            val coordinator = BackupCoordinator(paged, remote, directory)
+            assertTrue(coordinator.restoreNow("harbour comet velvet cedar orbit lantern".toCharArray(), "missing-version").isFailure)
+            assertEquals(null, local.restored)
+            assertEquals("existing-v1", coordinator.restoreNow("harbour comet velvet cedar orbit lantern".toCharArray()).getOrThrow())
+            assertEquals(expected, local.restored)
+        } finally { directory.deleteRecursively() }
+    }
+
     private class FakeLocalStore(private val snapshot: BackupSnapshot) : SnapshotStore {
         var restored: BackupSnapshot? = null
 
