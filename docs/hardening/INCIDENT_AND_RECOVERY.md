@@ -118,4 +118,10 @@ Backend CI automatically exercises `scripts/local_database_recovery_drill.py` on
 container naming convention, verifies that Auth and SQL refer to the same fixture, creates a new
 restore database, compares payload/schema hashes, verifies RLS and cleans up its fixture. It uses
 the existing local cluster superuser to restore Auth default privileges. No remote project is accepted.
+It preserves the original object owners and tests Auth service-role read/update access; removing
+ownership during restore would otherwise strand Auth without its implicit table privileges.
 Its private dump is not uploaded as an artifact or counted as a production backup.
+
+Required CI groups use `queue: max` with cancellation disabled. Let live fixture work finish its
+cleanup before updating or manually canceling a run. GitHub's queue is bounded; a canceled or
+skipped required gate is not a success and must be rerun after its cause is resolved.

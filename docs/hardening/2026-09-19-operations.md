@@ -61,6 +61,12 @@ database. Auth records and backup payload hashes matched, schema/grants matched,
 read all eight pages, and another identity could read none. The temporary database and account
 were removed and cleanup verified. This test now runs in the Backend RLS workflow.
 
+An additional Auth-role check caught an error in the newly prepared restore procedure:
+`--no-owner` preserved data but removed the Auth service's implicit owner privileges. The procedure
+now preserves original ownership in a single restore transaction and verifies that
+`supabase_auth_admin` can read and update its restored fixture. The old procedure fails this check;
+the corrected procedure passes along with payload/schema/isolation checks and cleanup.
+
 This is evidence for the restore procedure on a pre-provisioned local Supabase cluster. It does
 not establish production backup availability, disaster recovery time, encryption-key recovery,
 provider outage recovery or performance at production scale.
@@ -70,9 +76,24 @@ The analyzer excludes unknown/charging states and no longer bridges intermediate
 phase changes, upgrades, backend changes or reboots. False-positive stops no longer inflate the
 recall denominator. Raw trial files are private and ignored by Git.
 
-Local validation: 93 Python tests passed; 40 pgTAP assertions passed; the schema comparison and
+Local validation on the branch combined with the latest UI changes: 96 Python tests passed;
+40 pgTAP assertions passed; the schema comparison and
 the complete synthetic restore passed. The protected PR's required CI results remain authoritative
 for the merged change.
+
+## Required-check reliability
+
+The protected-main ruleset now requires all eleven workflow gates, adding `foss-build`,
+`native-backup` and `rls-tests` to the previous eight requirements. Strict branch freshness,
+verified signatures, no bypass actors and all existing protections were preserved.
+
+Concurrent PR/main runs exposed a CI queue defect: a pending required backup job was canceled by
+GitHub's default one-pending-job policy, even with `cancel-in-progress: false`. CI now opts into
+`queue: max` for the shared backup/instrumentation groups and its per-ref workflow group. The
+workflow also lets an active cloud fixture finish cleanup when a newer commit arrives. This keeps
+serialized access without replacing an older pending gate. GitHub permits up to 100 queued jobs;
+overflow still fails closed and must be investigated.
+[GitHub concurrency behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
 ## Open acceptance evidence
 

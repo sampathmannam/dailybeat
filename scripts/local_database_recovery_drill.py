@@ -60,8 +60,8 @@ def run(status_file: Path, container: str, output: Path):
         if len(data)>1048576:raise DrillError('Unexpected response size')
         return json.loads(data) if data else None
 
-    def sql(db,text):
-        return subprocess.check_output(['docker','exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d',db,'-A','-t'],input=text,text=True,stderr=subprocess.PIPE).strip()
+    def sql(db,text,role='postgres'):
+        return subprocess.check_output(['docker','exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U',role,'-d',db,'-A','-t'],input=text,text=True,stderr=subprocess.PIPE).strip()
 
     fingerprint_sql='\n'.join([
         "select 'users|'||md5(coalesce(jsonb_agg(to_jsonb(t) order by id)::text,'[]')) from auth.users t where id='"+uid+"';",
@@ -88,7 +88,7 @@ def run(status_file: Path, container: str, output: Path):
         source_schema=sql('postgres',schema)
         start=time.monotonic();dump=output/'synthetic-database.dump'
         with dump.open('wb') as handle:
-            subprocess.run(['docker','exec',container,'pg_dump','-U','postgres','-d','postgres','--format=custom','--no-owner','--schema=public','--schema=auth','--schema=supabase_migrations'],stdout=handle,stderr=subprocess.PIPE,check=True)
+            subprocess.run(['docker','exec',container,'pg_dump','-U','postgres','-d','postgres','--format=custom','--schema=public','--schema=auth','--schema=supabase_migrations'],stdout=handle,stderr=subprocess.PIPE,check=True)
         report['dump_seconds']=round(time.monotonic()-start,3)
         sql('postgres','CREATE DATABASE '+database+' TEMPLATE template0;');created=True
         # The target is brand new; pg_restore --clean tries dropping policies on absent tables.
@@ -97,16 +97,24 @@ def run(status_file: Path, container: str, output: Path):
         with dump.open('rb') as handle:
             # Restoring Auth default privileges needs the existing local cluster superuser.
             # No role or permission is created, and no remote database is accepted.
-            subprocess.run(['docker','exec','-i',container,'pg_restore','-U','supabase_admin','--dbname='+database,'--no-owner','--exit-on-error'],stdin=handle,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
+            # Preserve original ownership: --no-owner would remove Auth's implicit owner grants.
+            subprocess.run(['docker','exec','-i',container,'pg_restore','-U','supabase_admin','--dbname='+database,'--single-transaction','--exit-on-error'],stdin=handle,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
         report['restore_seconds']=round(time.monotonic()-start,3)
         if before!=sql(database,fingerprint_sql):raise DrillError('Restored Auth or backup payload differs')
         if source_schema!=sql(database,schema):raise DrillError('Restored schema, RLS, grants or functions differ')
+        try:
+            auth_access=sql(database,"BEGIN; SET LOCAL ROLE supabase_auth_admin; SELECT count(*) FROM auth.users WHERE id='"+uid+"'; UPDATE auth.users SET updated_at=updated_at WHERE id='"+uid+"'; ROLLBACK;",role='supabase_admin')
+        except subprocess.CalledProcessError:
+            raise DrillError('Restored Auth service role lacks required table access') from None
+        if '\n1\n' not in '\n'+auth_access+'\n' or 'UPDATE 1' not in auth_access:
+            raise DrillError('Restored Auth service role cannot read and update its fixture')
         visible=sql(database,"BEGIN; SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claim.sub','"+uid+"',true); SELECT count(*) FROM public.dailybeat_backup_parts; ROLLBACK;")
         if '\n8\n' not in '\n'+visible+'\n':raise DrillError('Restored owner cannot read all archive pages')
         denied=sql(database,"BEGIN; SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claim.sub','"+str(uuid.uuid4())+"',true); SELECT count(*) FROM public.dailybeat_backup_parts; ROLLBACK;")
         if '\n0\n' not in '\n'+denied+'\n':raise DrillError('Restored RLS exposed another owner\'s pages')
         report.update(result='passed',schema_and_grants_match=True,auth_and_backup_payloads_match=True,archive_pages_restored=8,
                       owner_access_verified=True,cross_user_access_denied=True,dump_sha256=hashlib.sha256(dump.read_bytes()).hexdigest(),
+                      auth_service_role_access_verified=True,
                       limitations='Synthetic application/Auth schema restore on a pre-provisioned local Supabase cluster; not a production backup, provider outage drill or production RTO guarantee.')
     finally:
         cleanup_errors=[]
