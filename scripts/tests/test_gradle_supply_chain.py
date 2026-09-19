@@ -85,3 +85,14 @@ def test_the_linux_aapt2_variant_is_pinned_for_ci():
         "no linux aapt2 variant is pinned. CI runs on ubuntu-latest and will fail dependency "
         "verification even though a macOS build passes."
     )
+
+
+def test_active_agp_linux_aapt2_is_pinned():
+    import re
+    gradle = (ROOT / "android/build.gradle.kts").read_text()
+    version = re.search(r'id\("com.android.application"\) version "([^"]+)"', gradle).group(1)
+    root = ET.parse(METADATA).getroot()
+    active = [component for component in root.findall("v:components/v:component", NS)
+              if component.get("name") == "aapt2" and component.get("version", "").startswith(version + "-")]
+    assert active and any("-linux.jar" in artifact.get("name", "")
+                          for component in active for artifact in component.findall("v:artifact", NS))

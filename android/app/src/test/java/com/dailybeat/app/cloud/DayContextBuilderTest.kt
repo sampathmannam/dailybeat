@@ -32,4 +32,15 @@ class DayContextBuilderTest {
         assertTrue(built.text.contains("[E1]"))
         assertTrue(built.text.contains("CITATION RULE"))
     }
+    @org.junit.Test
+    fun `legacy geocoder coordinate labels never enter a cloud prompt`() {
+        val context = DayContextBuilder.build(java.time.LocalDate.of(2026,9,19), "",
+            listOf(com.dailybeat.app.data.model.LocationVisit(startMs=1000,endMs=601000,
+                latitude=11.4557,longitude=78.1856,placeName="Location 11.4557",address="Location 11.4557, 78.1856")),
+            emptyList(),emptyList())
+        org.junit.Assert.assertFalse(context.contains("11.4557"))
+        org.junit.Assert.assertFalse(context.contains("78.1856"))
+        org.junit.Assert.assertTrue(context.contains("Unnamed place"))
+    }
+
 }

@@ -40,6 +40,34 @@ class SupabaseBackupClientTest {
     }
 
     @Test
+    fun `archive calls bind UUID and index and cleanup only uncommitted version`() = runBlocking {
+        sessions.current = activeSession()
+        repeat(4) { server.enqueue(MockResponse().setResponseCode(204)) }
+        val id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        client.beginVersion(id)
+        client.uploadPart(id, 0, "{\"nonce\":\"abc\",\"ciphertext\":\"cipher\"}")
+        client.publishVersion(id, "{\"format\":\"dailybeat-archive\"}", 1)
+        client.abandonVersion(id)
+        assertEquals("/rest/v1/rpc/begin_dailybeat_backup", server.takeRequest().path)
+        val part = server.takeRequest()
+        assertEquals("/rest/v1/rpc/put_dailybeat_backup_part", part.path)
+        val json = org.json.JSONObject(part.body.readUtf8())
+        assertEquals(id, json.getString("backup_id"))
+        assertEquals(0, json.getInt("part_index"))
+        assertEquals("Bearer access-one", part.getHeader("Authorization"))
+        assertEquals("/rest/v1/rpc/publish_dailybeat_backup", server.takeRequest().path)
+        assertEquals("/rest/v1/dailybeat_backup_versions?id=eq.$id&manifest=is.null", server.takeRequest().path)
+    }
+
+    @Test
+    fun `temporary refresh failure keeps session for retry`() = runBlocking {
+        sessions.current = activeSession().copy(expiresAtMs=0)
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertTrue(client.download().isFailure)
+        assertEquals("refresh-one", sessions.current?.refreshToken)
+    }
+
+    @Test
     fun `sign in saves session without persisting password`() = runBlocking {
         server.enqueue(
             jsonResponse(
@@ -176,8 +204,11 @@ class SupabaseBackupClientTest {
         server.enqueue(MockResponse().setResponseCode(204))
         server.enqueue(MockResponse().setResponseCode(204))
 
+        server.enqueue(MockResponse().setResponseCode(204))
         assertTrue(client.deleteCloudData().isSuccess)
 
+        val archive = server.takeRequest()
+        assertEquals("/rest/v1/dailybeat_backup_versions?user_id=eq.user-1", archive.path)
         val encrypted = server.takeRequest()
         val legacy = server.takeRequest()
         assertEquals("DELETE", encrypted.method)

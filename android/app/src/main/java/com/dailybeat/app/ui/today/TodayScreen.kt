@@ -39,13 +39,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -402,7 +402,9 @@ private fun CaptureOverview(
             stringResource(R.string.capture_watching_detail)
         CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
             stringResource(R.string.capture_waiting_detail)
-        CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
+        CaptureHealthLevel.DEGRADED -> if (status.storageUnavailable) {
+            stringResource(R.string.capture_storage_failed) to stringResource(R.string.capture_storage_failed_detail)
+        } else stringResource(R.string.capture_degraded) to
             (
                 captureFixAgeText(status)?.let {
                     stringResource(
@@ -462,7 +464,7 @@ private fun CaptureOverview(
 }
 
 @Composable
-private fun BeatSummary(
+internal fun BeatSummary(
     title: String,
     status: String,
     distanceLabel: String,
@@ -498,15 +500,23 @@ private fun BeatSummary(
                 modifier = Modifier.fillMaxWidth().height(1.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
-                MetricDivider()
-                SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
-                MetricDivider()
-                SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+            if (LocalDensity.current.fontScale >= 1.5f) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SummaryMetric(distanceValue, distanceLabel)
+                    SummaryMetric(timeValue, timeLabel)
+                    SummaryMetric(stopsValue, stopsLabel)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
+                    MetricDivider()
+                    SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
+                    MetricDivider()
+                    SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+                }
             }
         }
     }
@@ -515,24 +525,22 @@ private fun BeatSummary(
 @Composable
 private fun SummaryMetric(value: String, label: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(horizontal = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.Start,
     ) {
         Text(
             text = value,
+            modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = label,
+            modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -662,8 +670,6 @@ private fun StatusChip(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }

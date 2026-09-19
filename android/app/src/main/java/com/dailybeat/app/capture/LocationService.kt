@@ -10,99 +10,76 @@ import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
 import com.dailybeat.app.R
-import com.dailybeat.app.audit.CaptureAuditLog
 import com.dailybeat.app.audit.OperationalFailureLog
-import com.dailybeat.app.data.model.Event
-import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.util.PermissionHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
-import java.util.Collections
+import kotlinx.coroutines.sync.withLock
+import com.dailybeat.app.data.db.CaptureFix
+import com.dailybeat.app.data.db.CaptureCheckpoint
 import java.util.concurrent.atomic.AtomicBoolean
 
 class LocationService : Service() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var visitTracker: VisitTracker
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + kotlinx.coroutines.CoroutineExceptionHandler { _, error ->
+        OperationalFailureLog.record(this, "capture-recovery", true,
+            "Capture recovery deferred (${error.javaClass.simpleName}).")
+        CaptureRecoveryWorker.schedule(this)
+    })
     private lateinit var app: DailyBeatApp
     @Volatile
     private var previousAccepted: LocationSample? = null
     @Volatile
-    private var previousPersisted: LocationSample? = null
-    @Volatile
     private var lastMeaningfulMovementMs: Long = 0L
     @Volatile
     private var activeProfile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING
-    private val breadcrumbWrites = Collections.synchronizedSet(mutableSetOf<Job>())
 
     private lateinit var backend: LocationBackend
 
     private fun onLocations(locations: List<android.location.Location>) {
-            if (!::app.isInitialized || !app.settingsRepository.get().gpsCaptureEnabled ||
-                app.settingsRepository.isCapturePaused()) return
-            // Fused Location may batch several fixes to save battery. Feeding only lastLocation
-            // drops the intermediate path and can turn a real stay into a single point.
-            val breadcrumbs = mutableListOf<LocationBreadcrumb>()
-            locations
-                .sortedBy { it.time }
-                .forEach { location ->
-                    val sample = LocationSample(
-                        latitude = location.latitude,
-                        longitude = location.longitude,
-                        timestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
-                        accuracyM = location.accuracy,
-                        isMock = location.isMockLocation(),
-                    )
-                    app.captureHealthStore.fixObserved(sample.timestampMs)
-                    val decision = LocationQualityFilter.assess(sample, previousAccepted)
-                    if (!decision.accepted) {
-                        app.captureHealthStore.rejected(sample.timestampMs, decision.reason ?: "unknown")
-                        return@forEach
+        val generation = CaptureStorageGate.generation.get()
+        val fixes = locations.map { location ->
+            CaptureFix(location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
+                location.latitude, location.longitude, location.accuracy, location.isMockLocation())
+        }
+        scope.launch {
+            try {
+                CaptureStorageGate.mutex.withLock {
+                    if (generation != CaptureStorageGate.generation.get() || !app.settingsRepository.get().gpsCaptureEnabled || app.settingsRepository.isCapturePaused()) return@withLock
+                    // Persist before changing sampler/tracker state. Failed work stays in this inbox.
+                    app.db.captureJournal().enqueue(fixes)
+                    app.captureProcessor.drain(onRejected = app.captureHealthStore::rejected) { sample, quality ->
+                        app.captureHealthStore.fixObserved(sample.timestampMs)
+                        app.captureHealthStore.accepted(sample, quality)
+                        val prior = previousAccepted
+                        if (prior == null || RoutePointSampler.distanceM(sample, prior) >= AdaptiveCapturePolicy.MEANINGFUL_MOVEMENT_M) {
+                            lastMeaningfulMovementMs = sample.timestampMs
+                        }
+                        previousAccepted = sample
                     }
-                    val priorAccepted = previousAccepted
-                    previousAccepted = sample
-                    app.captureHealthStore.accepted(sample, decision.quality)
-                    if (priorAccepted == null) {
-                        lastMeaningfulMovementMs = sample.timestampMs
-                    } else if (
-                        RoutePointSampler.distanceM(sample, priorAccepted) >=
-                        AdaptiveCapturePolicy.MEANINGFUL_MOVEMENT_M
-                    ) {
-                        lastMeaningfulMovementMs = sample.timestampMs
-                    }
-                    if (RoutePointSampler.shouldPersist(sample, previousPersisted)) {
-                        previousPersisted = sample
-                        breadcrumbs += LocationBreadcrumb(
-                            timestampMs = sample.timestampMs,
-                            latitude = sample.latitude,
-                            longitude = sample.longitude,
-                            accuracyM = sample.accuracyM,
-                            quality = decision.quality,
-                        )
-                    }
-                    visitTracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs)
                 }
-            enqueueBreadcrumbWrite(breadcrumbs)
-            if (
-                AdaptiveCapturePolicy.shouldStopForLocationIdle(
-                    lastMeaningfulMovementMs = lastMeaningfulMovementMs,
-                    nowMs = System.currentTimeMillis(),
-                    hasMotionWatcher = MotionStateStore(this@LocationService).watcherArmed,
-                )
-            ) {
-                // A transition callback normally stops us sooner. This is a conservative fallback
-                // for handsets which keep delivering location but never emit STILL.
-                stopSelf()
+                if (CaptureController.canSleep(this@LocationService) &&
+                    CaptureController.hasConfirmedStay(this@LocationService) &&
+                    AdaptiveCapturePolicy.shouldStopForLocationIdle(lastMeaningfulMovementMs,
+                        System.currentTimeMillis(), hasMotionWatcher = true)) {
+                    CaptureStorageGate.mutex.withLock { app.captureProcessor.suspendCapture() }
+                    withContext(Dispatchers.Main) { stopSelf() }
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error
+            } catch (error: Exception) {
+                app.captureHealthStore.storageFailed()
+                CaptureRecoveryWorker.schedule(this@LocationService)
+                OperationalFailureLog.record(this@LocationService, "capture-persist", true,
+                    "Capture is queued for retry (${error.javaClass.simpleName}).")
             }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -133,69 +110,19 @@ class LocationService : Service() {
         backend = LocationBackend(this)
         app.captureHealthStore.serviceStarted()
         scope.launch {
-            app.breadcrumbRepository.latest()?.let { latest ->
-                val restored = LocationSample(
-                    latitude = latest.latitude,
-                    longitude = latest.longitude,
-                    timestampMs = latest.timestampMs,
-                    accuracyM = latest.accuracyM,
-                )
-                withContext(Dispatchers.Main.immediate) {
-                    if (previousAccepted == null || restored.timestampMs > previousAccepted!!.timestampMs) {
-                        previousAccepted = restored
-                    }
-                    if (previousPersisted == null || restored.timestampMs > previousPersisted!!.timestampMs) {
-                        previousPersisted = restored
-                    }
+            CaptureStorageGate.mutex.withLock {
+                val journal = app.db.captureJournal()
+                if (journal.checkpoint() == null) {
+                    val legacy = SharedPreferencesVisitTrackerStateStore(this@LocationService)
+                    val memory = BufferedCheckpoint()
+                    legacy.load()?.let(memory::save)
+                    journal.checkpoint(CaptureCheckpoint(payload = memory.encode()))
+                    legacy.clearSynchronously()
                 }
             }
+            // Replays a batch accepted before an earlier process died, even before a new GPS fix.
+            onLocations(emptyList())
         }
-        visitTracker = VisitTracker(
-            scope = scope,
-            placeRepository = app.placeRepository,
-            osmGeocoder = app.osmGeocoder,
-            onVisitRecorded = { visit ->
-                app.visitRepository.insert(visit)
-                CaptureAuditLog.log(
-                    this,
-                    "visit",
-                    "Visit recorded (${visit.visitType})",
-                )
-                val summary = when (visit.visitType) {
-                    "transit" -> "Transit: ${visit.address ?: "en route"}"
-                    else -> "Stay at ${visit.placeName ?: visit.address ?: "location"}"
-                }
-                runCatching {
-                    app.db.events().insert(
-                        Event(
-                            timestamp = visit.startMs,
-                            type = "visit",
-                            rawText = summary,
-                            placeName = visit.placeName,
-                            latitude = visit.latitude,
-                            longitude = visit.longitude,
-                        ),
-                    )
-                }.onFailure { error ->
-                    OperationalFailureLog.record(
-                        context = this,
-                        category = "capture-event-index",
-                        retryable = true,
-                        message = "Visit saved but timeline indexing failed " +
-                            "(${error.javaClass.simpleName}).",
-                    )
-                }
-            },
-            stateStore = SharedPreferencesVisitTrackerStateStore(this),
-            onWriteFailure = { error ->
-                OperationalFailureLog.record(
-                    context = this,
-                    category = "capture-persist",
-                    retryable = true,
-                    message = "Captured visit could not be saved (${error.javaClass.simpleName}).",
-                )
-            },
-        )
 
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
@@ -227,49 +154,28 @@ class LocationService : Service() {
         }
     }
 
-    private fun enqueueBreadcrumbWrite(points: List<LocationBreadcrumb>) {
-        if (points.isEmpty()) return
-        val write = scope.launch {
-            runCatching {
-                app.breadcrumbRepository.insertAll(points)
-            }.onFailure { error ->
-                OperationalFailureLog.record(
-                    context = this@LocationService,
-                    category = "capture-breadcrumb",
-                    retryable = true,
-                    message = "Route points could not be saved (${error.javaClass.simpleName}).",
-                )
-            }
-        }
-        breadcrumbWrites += write
-        write.invokeOnCompletion { breadcrumbWrites -= write }
-    }
-
     override fun onDestroy() {
         _running.value = false
         if (::app.isInitialized) app.captureHealthStore.serviceStopped()
-        runCatching {
-            if (::backend.isInitialized) backend.stop()
-        }
-        if (::visitTracker.isInitialized) {
-            if (discardPendingOnDestroy.getAndSet(false)) {
-                visitTracker.discardPending()
-                scope.cancel()
-            } else {
-                // Service teardown must persist the open visit without waiting up to 20 seconds
-                // for reverse geocoding. A coordinate label is honest and can be renamed later;
-                // losing the visit because Android reclaimed the process is not recoverable.
-                visitTracker.flushPending(allowNetworkLookup = false)
-                scope.launch {
-                    visitTracker.awaitPendingWrites()
-                    synchronized(breadcrumbWrites) { breadcrumbWrites.toList() }.joinAll()
-                    scope.cancel()
-                }
+        runCatching { if (::backend.isInitialized) backend.stop() }
+        val discard = discardPendingOnDestroy.getAndSet(false)
+        if (::app.isInitialized && !discard) {
+            scope.launch {
+                try {
+                    CaptureStorageGate.mutex.withLock {
+                        if (!app.settingsRepository.get().gpsCaptureEnabled || app.settingsRepository.isCapturePaused()) {
+                            app.captureProcessor.finish()
+                        } else app.captureProcessor.suspendCapture()
+                        // A battery sleep or unexpected teardown keeps the durable open stay.
+                    }
+                } catch (error: Exception) {
+                    app.captureHealthStore.storageFailed()
+                    CaptureRecoveryWorker.schedule(this@LocationService)
+                    OperationalFailureLog.record(this@LocationService, "capture-stop", true,
+                        "Pending capture retained for retry (${error.javaClass.simpleName}).")
+                } finally { scope.cancel() }
             }
-        } else {
-            discardPendingOnDestroy.set(false)
-            scope.cancel()
-        }
+        } else scope.cancel()
         super.onDestroy()
     }
 

@@ -191,7 +191,7 @@ class VisitTrackerTest {
 
         val stay = awaitVisit("dwell")
         assertEquals(0, geocoderCalls)
-        assertTrue(stay.address.orEmpty().startsWith("Location "))
+        assertEquals("Unnamed place", stay.address)
     }
 
     @Test

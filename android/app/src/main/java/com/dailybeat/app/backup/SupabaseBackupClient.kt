@@ -50,13 +50,15 @@ interface BackupRemote {
     fun signOut()
 }
 
+private class BackupHttpException(val status: Int, message: String) : IllegalStateException(message)
+
 class SupabaseBackupClient(
     private val configuration: BackupConfiguration,
     private val sessionStore: BackupSessionStore,
     private val httpClient: OkHttpClient = defaultBackupHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
-) : BackupRemote {
+) : ArchiveBackupRemote {
     override val isConfigured: Boolean get() = configuration.isConfigured
 
     override fun currentSession(): BackupSession? = sessionStore.get()
@@ -133,7 +135,7 @@ class SupabaseBackupClient(
         runCatching {
             ensureConfigured()
             val session = validSession()
-            listOf("dailybeat_encrypted_backups", "dailybeat_backups").forEach { table ->
+            listOf("dailybeat_backup_versions", "dailybeat_encrypted_backups", "dailybeat_backups").forEach { table ->
                 val request = authorizedRequestBuilder(
                     "/rest/v1/$table?user_id=eq.${session.userId}",
                     session,
@@ -179,6 +181,41 @@ class SupabaseBackupClient(
         }
     }
 
+    override suspend fun abandonVersion(id: String) = withContext(Dispatchers.IO) {
+        execute(authorizedRequestBuilder("/rest/v1/dailybeat_backup_versions?id=eq.${checkedId(id)}&manifest=is.null", validSession()).delete().build())
+        Unit
+    }
+    override suspend fun beginVersion(id: String) = archiveRequest("/rest/v1/rpc/begin_dailybeat_backup", JSONObject().put("backup_id", checkedId(id))).let { Unit }
+    override suspend fun uploadPart(id: String, index: Int, payload: String) {
+        require(index in 0 until ArchiveCipher.MAX_PARTS && payload.length <= ArchiveCipher.MAX_PART_BYTES)
+        archiveRequest("/rest/v1/rpc/put_dailybeat_backup_part", JSONObject().put("backup_id", checkedId(id))
+            .put("part_index", index).put("part_payload", JSONObject(payload)))
+    }
+    override suspend fun publishVersion(id: String, manifest: String, parts: Int) {
+        archiveRequest("/rest/v1/rpc/publish_dailybeat_backup", JSONObject().put("backup_id", checkedId(id))
+            .put("backup_manifest", JSONObject(manifest)).put("part_count", parts))
+    }
+    override suspend fun versions(): List<BackupVersion> = withContext(Dispatchers.IO) {
+        ensureConfigured()
+        val rows = JSONArray(execute(authorizedRequestBuilder(
+            "/rest/v1/dailybeat_backup_versions?select=id,created_at,manifest&manifest=not.is.null&order=created_at.desc&limit=5", validSession()).get().build()))
+        (0 until rows.length()).map { index -> rows.getJSONObject(index).let {
+            BackupVersion(checkedId(it.getString("id")), it.getString("created_at"), it.getJSONObject("manifest").toString())
+        } }
+    }
+    override suspend fun downloadPart(id: String, index: Int): String = withContext(Dispatchers.IO) {
+        require(index in 0 until ArchiveCipher.MAX_PARTS)
+        val rows = JSONArray(execute(authorizedRequestBuilder(
+            "/rest/v1/dailybeat_backup_parts?select=payload&version_id=eq.${checkedId(id)}&part_index=eq.$index&limit=1", validSession()).get().build()))
+        check(rows.length() == 1) { "A backup page is missing. Nothing was restored." }
+        rows.getJSONObject(0).getJSONObject("payload").toString()
+    }
+    private suspend fun archiveRequest(path: String, body: JSONObject): String = withContext(Dispatchers.IO) {
+        ensureConfigured()
+        execute(authorizedRequestBuilder(path, validSession()).post(body.toString().toRequestBody(JSON)).build())
+    }
+    private fun checkedId(id: String): String = java.util.UUID.fromString(id).toString().also { require(it == id) }
+
     override fun signOut() {
         sessionStore.clear()
     }
@@ -197,7 +234,7 @@ class SupabaseBackupClient(
         return try {
             parseSession(execute(request), current).also(sessionStore::save)
         } catch (error: Exception) {
-            sessionStore.clear()
+            if (error is BackupHttpException && error.status in setOf(400, 401, 403)) sessionStore.clear()
             throw error
         }
     }
@@ -256,7 +293,7 @@ class SupabaseBackupClient(
     private fun executeOnce(request: Request, authRequest: Boolean): String =
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException(
+                throw BackupHttpException(response.code,
                     when {
                         authRequest && response.code in 400..499 -> "Email or password is incorrect."
                         response.code == 401 || response.code == 403 ->

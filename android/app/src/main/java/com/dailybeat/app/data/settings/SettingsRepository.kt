@@ -15,6 +15,21 @@ class SettingsRepository(
     private val _themePreference = MutableStateFlow(readThemePreference())
     val themePreference: StateFlow<ThemePreference> = _themePreference.asStateFlow()
 
+    fun geocodingEndpoint(): String = prefs.getString("geocoding_endpoint", "").orEmpty()
+
+    fun setGeocodingEndpoint(value: String) {
+        val endpoint = value.trim()
+        if (endpoint.isNotEmpty()) {
+            val uri = java.net.URI(endpoint)
+            require(endpoint.length <= 2048 && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+                uri.userInfo == null && uri.query == null && uri.fragment == null &&
+                !uri.host.trimEnd('.').equals("nominatim.openstreetmap.org", ignoreCase = true)) {
+                "Use a managed HTTPS geocoding endpoint without credentials or query parameters."
+            }
+        }
+        check(prefs.edit().putString("geocoding_endpoint", endpoint).commit()) { "Could not save the lookup setting." }
+    }
+
     fun get(): AppSettings = AppSettings(
         officerName = (prefs.getString(KEY_OFFICER, "") ?: "")
             .let { InputPolicy.singleLine(it, InputPolicy.PERSON_NAME_CHARS) },

@@ -15,8 +15,10 @@ def test_account_deletion_is_server_only_and_requires_recent_verified_user():
 
     assert 'Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")' in function
     assert ".auth.getUser(accessToken)" in function
-    assert "issuedRecently(accessToken)" in function
-    assert ".auth.admin.deleteUser(data.user.id, false)" in function
+    assert "createDeleteAccountHandler" in function
+    handler = (ROOT / "supabase/functions/delete-account/handler.ts").read_text()
+    assert "hasRecentPasswordAuthentication(token, userId" in handler
+    assert ".auth.admin.deleteUser(userId, false)" in function
     assert '[functions.delete-account]' in config
     assert "verify_jwt = true" in config
     assert "SUPABASE_SERVICE_ROLE_KEY" not in android

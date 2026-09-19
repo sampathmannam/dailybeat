@@ -46,7 +46,7 @@ require(Regex("\\.qa(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*").matches(debugApplicationIdSu
 
 android {
     namespace = "com.dailybeat.app"
-    compileSdk = 35
+    compileSdk = 36
 
     sourceSets.getByName("main") {
         java.srcDir(if (dailybeatFoss) "src/foss/java" else "src/gms/java")
@@ -57,9 +57,9 @@ android {
     defaultConfig {
         applicationId = "com.dailybeat.app"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 31
-        versionName = "4.1.3"
+        targetSdk = 36
+        versionCode = 32
+        versionName = "4.2.0"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))

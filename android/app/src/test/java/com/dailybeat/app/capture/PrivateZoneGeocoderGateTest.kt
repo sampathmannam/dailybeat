@@ -122,6 +122,15 @@ class PrivateZoneGeocoderGateTest {
         assertEquals("Rasipuram Police Station", stay.placeName)
     }
 
+    @Test
+    fun `a nearer public place cannot override an overlapping private zone`() = runBlocking {
+        places.add("Home", lat + 0.0005, lon, 200)
+        places.setPrivate(places.all().first(), true)
+        places.add("Public shop", lat, lon, 100)
+        driveOneDwell()
+        assertTrue(geocoder.asked.none { (a, b) -> GeofenceMatcher.distanceMeters(a, b, lat, lon) < 100 })
+    }
+
     private fun savePlace(name: String, isPrivate: Boolean) = runBlocking {
         places.add(name = name, latitude = lat, longitude = lon, radiusM = PRIVATE_RADIUS_M.toInt())
         val saved = places.all().first { it.name == name }

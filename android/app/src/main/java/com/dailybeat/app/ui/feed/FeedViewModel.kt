@@ -19,6 +19,7 @@ import com.dailybeat.app.util.userMessage
 import com.dailybeat.app.util.InputPolicy
 
 data class FeedUiState(
+    val throughDate: LocalDate = DateKeys.today(),
     val days: List<DayFeedItem> = emptyList(),
     val searchQuery: String = "",
     val searchResults: List<com.dailybeat.app.data.db.JournalSearchHit> = emptyList(),
@@ -84,26 +85,13 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun loadDays(): List<DayFeedItem> {
-        val today = DateKeys.today()
-        val places = app.placeRepository.all()
-        return (0 until DAYS_IN_FEED)
-            .map { today.minusDays(it.toLong()) }
-            .map { date -> buildDay(date, places) }
-            .filterNot { it.isEmpty }
+    fun browseThrough(date: LocalDate) {
+        _uiState.value = _uiState.value.copy(throughDate = minOf(date, DateKeys.today()))
+        refresh()
     }
-
-    private suspend fun buildDay(date: LocalDate, places: List<Place>): DayFeedItem {
-        return DayFeedBuilder.build(
-            date = date,
-            visits = app.visitRepository.visitsForDate(date),
-            diaryText = app.diaryRepository.textForDate(date),
-            places = places,
-            breadcrumbs = app.breadcrumbRepository.forDate(date),
-            review = app.beatRepository.get(date),
-            noteCount = app.eventRepository.eventsForDate(date).count { it.type != "visit" },
-        )
-    }
+    fun olderDays() = browseThrough(_uiState.value.throughDate.minusDays(30))
+    fun newerDays() = browseThrough(_uiState.value.throughDate.plusDays(30))
+    private suspend fun loadDays(): List<DayFeedItem> = DayFeedLoader(app.db).load(_uiState.value.throughDate)
 
     fun generateWeeklyRollup() {
         if (_uiState.value.isGeneratingWeekly || _uiState.value.isExporting) return

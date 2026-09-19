@@ -6,6 +6,16 @@ import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.util.PermissionHelper
 
 object CaptureController {
+    fun canSleep(context: Context): Boolean = AdaptiveCapturePolicy.canSleep(
+        MotionStateStore(context).watcherArmed,
+        PermissionHelper.canStartLocationCaptureFromBackground(context),
+    )
+
+    suspend fun hasConfirmedStay(context: Context): Boolean {
+        val app = context.applicationContext as DailyBeatApp
+        return AdaptiveCapturePolicy.hasConfirmedStay(BufferedCheckpoint(app.db.captureJournal().checkpoint()).load())
+    }
+
 
     /**
      * Confirmed privacy erasure must not use the normal stop path: that path finalizes the open
@@ -41,6 +51,7 @@ object CaptureController {
             false
         }
         val operation = if (shouldStart) {
+            CaptureResumeNotification.clear(context)
             MotionTransitionManager.arm(context)
             val profile = if (MotionStateStore(context).state == MotionState.STILL) {
                 ActiveCaptureProfile.SETTLING
@@ -88,6 +99,7 @@ object CaptureController {
         }.getOrElse { false }
         if (shouldWatch) {
             MotionTransitionManager.arm(context)
+            if (!LocationService.isRunning) CaptureResumeNotification.show(context)
         } else {
             MotionTransitionManager.disarm(context)
             StillnessConfirmationWorker.cancel(context)
@@ -112,8 +124,10 @@ object CaptureController {
                 if (LocationService.isRunning) {
                     LocationService.updateProfile(context, ActiveCaptureProfile.MOVING)
                 } else if (PermissionHelper.canStartLocationCaptureFromBackground(context)) {
-                    LocationService.start(context, ActiveCaptureProfile.MOVING)
-                }
+                    LocationService.start(context, ActiveCaptureProfile.MOVING).onFailure {
+                        CaptureResumeNotification.show(context)
+                    }
+                } else CaptureResumeNotification.show(context)
             }
             MotionState.STILL -> {
                 if (LocationService.isRunning) {

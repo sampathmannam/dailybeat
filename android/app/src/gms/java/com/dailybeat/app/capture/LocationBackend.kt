@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.os.Looper
+import android.os.Handler
+import com.dailybeat.app.audit.OperationalFailureLog
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -16,12 +18,29 @@ import kotlin.coroutines.resume
 
 /** All proprietary location types live in this source set, never in the FOSS compile graph. */
 @SuppressLint("MissingPermission")
-class LocationBackend(context: Context) {
+class LocationBackend(context: Context) : LocationSource by RecoveringLocationSource(
+    primary = GoogleLocationSource(context),
+    fallback = PlatformLocationSource(context.applicationContext, preferGps = true),
+    schedule = { delayMs, action ->
+        val handler = Handler(Looper.getMainLooper())
+        val task = Runnable { action() }
+        handler.postDelayed(task, delayMs)
+        val cancel: () -> Unit = { handler.removeCallbacks(task) }
+        cancel
+    },
+    onFallback = { error ->
+        OperationalFailureLog.record(context.applicationContext, "capture-provider-fallback", true,
+            "Using Android location while Google location is unavailable (${error.javaClass.simpleName}).")
+    },
+)
+
+@SuppressLint("MissingPermission")
+private class GoogleLocationSource(context: Context) : LocationSource {
     private val client = LocationServices.getFusedLocationProviderClient(context.applicationContext)
     private var callback: LocationCallback? = null
     private var generation = 0
 
-    fun start(profile: ActiveCaptureProfile, onLocations: (List<Location>) -> Unit,
+    override fun start(profile: ActiveCaptureProfile, onLocations: (List<Location>) -> Unit,
               onReady: () -> Unit, onError: (Exception) -> Unit) {
         stop()
         val epoch = generation
@@ -40,13 +59,13 @@ class LocationBackend(context: Context) {
             .addOnFailureListener { if (generation == epoch) onError(it) }
     }
 
-    fun stop() {
+    override fun stop() {
         generation++
         callback?.let { client.removeLocationUpdates(it) }
         callback = null
     }
 
-    suspend fun current(): Location? {
+    override suspend fun current(): Location? {
         val cancellation = CancellationTokenSource()
         return try {
             withTimeoutOrNull(15_000L) {
