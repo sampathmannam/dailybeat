@@ -257,9 +257,9 @@ private fun DayFeedCard(
     // Reading LocalConfiguration makes this card recompose after a language/region change.
     // Do not cache the startup locale in a top-level formatter.
     val locale = LocalConfiguration.current.locales[0]
-    // Lazy cards leave composition while scrolling. Preserve the officer's expansion choice
-    // across scrolling, rotation and refreshed visits instead of silently collapsing the day.
-    var showAllStays by rememberSaveable(day.date) { mutableStateOf(false) }
+    // Days stay scan-friendly by default. Preserve an explicit expansion across scrolling,
+    // rotation and refreshed visits so the user does not have to reopen the same route details.
+    var showRouteDetails by rememberSaveable(day.date) { mutableStateOf(false) }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -344,7 +344,7 @@ private fun DayFeedCard(
                 StatDivider()
                 StatBlock(
                     value = Formatters.count(day.stayCount),
-                    label = stringResource(R.string.feed_stat_stops),
+                    label = stringResource(R.string.feed_stat_auto_stops),
                     modifier = Modifier.weight(1f),
                     alignment = Alignment.End,
                 )
@@ -358,31 +358,28 @@ private fun DayFeedCard(
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    val shownStays = if (showAllStays) day.stays else day.stays.take(MAX_STAYS_SHOWN)
-                    shownStays.forEach { stay ->
-                        StayRow(stay = stay, onNameStay = { onNameStay(stay) })
-                    }
-                    if (day.stays.size > MAX_STAYS_SHOWN) {
-                        TextButton(
-                            onClick = { showAllStays = !showAllStays },
-                            modifier = Modifier.testTag("feed_toggle_stops_${day.date}"),
-                        ) {
-                            Text(
-                                text = if (showAllStays) {
-                                    stringResource(R.string.feed_show_fewer_stops)
-                                } else {
-                                    val hiddenCount = day.stays.size - MAX_STAYS_SHOWN
-                                    pluralStringResource(
-                                        R.plurals.feed_more_stops,
-                                        hiddenCount,
-                                        hiddenCount,
-                                    )
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                    if (showRouteDetails) {
+                        Text(
+                            text = stringResource(R.string.feed_where_you_went),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        day.stays.forEach { stay ->
+                            StayRow(stay = stay, onNameStay = { onNameStay(stay) })
                         }
+                    }
+                    TextButton(
+                        onClick = { showRouteDetails = !showRouteDetails },
+                        modifier = Modifier.testTag("feed_toggle_stops_${day.date}"),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (showRouteDetails) R.string.feed_less else R.string.feed_more,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
@@ -481,8 +478,6 @@ private fun StatDivider() {
             .background(MaterialTheme.colorScheme.outlineVariant),
     )
 }
-
-private const val MAX_STAYS_SHOWN = 5
 
 @Composable
 internal fun relativeDayLabel(date: LocalDate, today: LocalDate = DateKeys.today()): String =

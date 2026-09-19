@@ -11,11 +11,6 @@
     <string name="beat_complete_status">Reviewed and complete</string>
     <string name="beat_tracked_time">Time</string>
     <string name="feed_stat_auto_stops">Auto stops</string>
-    <string name="today_more">More</string>
-    <string name="today_less">Less</string>
-    <string name="today_where_you_went">Where you went</string>
-    <string name="today_no_auto_stops">No automatic stops detected yet.</string>
-    <string name="today_stop_time">%1$s–%2$s · %3$s</string>
     <string name="review_my_day">Review my day</string>
     <string name="view_completed_beat">View completed Beat</string>
     <string name="add_moment">Add moment</string>
@@ -27,6 +22,8 @@
     <string name="map_location_permission_body">Location permission is off. Allow it in Android app settings if you want to build today’s Beat.</string>
     <string name="capture_healthy">Capture is healthy</string>
     <string name="capture_healthy_detail">DailyBeat is recording reliable points.</string>
+    <string name="capture_watching">Battery saver is active</string>
+    <string name="capture_watching_detail">Watching for movement. Route capture resumes when Android detects that you are moving.</string>
     <string name="capture_accuracy">Last point accurate to about %1$d m</string>
     <string name="capture_fix_just_now">Last reliable fix just now</string>
     <string name="capture_fix_ago">Last reliable fix %1$s ago</string>
@@ -161,16 +158,14 @@
     <string name="feed_stat_distance">Distance</string>
     <string name="feed_stat_time_out">Time out</string>
     <string name="feed_stat_stops">Stops</string>
+    <string name="feed_more">More</string>
+    <string name="feed_less">Less</string>
+    <string name="feed_where_you_went">Where you went</string>
     <string name="feed_name_place_title">Name this place</string>
     <string name="feed_name_place_body">The map has no name for some spots, so it falls back to the road. Name it once and every later stay here uses it.</string>
     <string name="feed_name_place_label">Place name</string>
     <string name="feed_name_place_save">Save place</string>
     <string name="feed_name_place_cancel">Cancel</string>
-    <plurals name="feed_more_stops">
-        <item quantity="one">+%1$d more stop</item>
-        <item quantity="other">+%1$d more stops</item>
-    </plurals>
-    <string name="feed_show_fewer_stops">Show fewer stops</string>
     <string name="feed_location_unreliable">GPS needs review</string>
     <plurals name="feed_route_content_description">
         <item quantity="one">Route map for the day with %1$d stop</item>
