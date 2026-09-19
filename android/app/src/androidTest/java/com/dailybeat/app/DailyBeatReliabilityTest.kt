@@ -180,14 +180,13 @@ class DailyBeatReliabilityTest {
         composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
     }
 
-    @Test fun todayMoreRevealsOnlyRouteDetailsNotCaptureDiagnostics() {
+    @Test fun todayKeepsDiagnosticsVisibleWithoutAMoreControl() {
         composeRule.onNodeWithTag("today_route_details").assertDoesNotExist()
-        composeRule.onNodeWithTag("today_more").performClick()
-        composeRule.onNodeWithTag("today_route_details").assertIsDisplayed()
-        composeRule.onNodeWithText("Where you went").assertIsDisplayed()
-        composeRule.onNodeWithTag("capture_health").assertDoesNotExist()
-        composeRule.onNodeWithTag("status_gps").assertDoesNotExist()
-        composeRule.onNodeWithTag("status_cloud").assertDoesNotExist()
+        composeRule.onNodeWithTag("today_more").assertDoesNotExist()
+        composeRule.onNodeWithTag("today_list").performScrollToNode(hasTestTag("capture_health"))
+        composeRule.onNodeWithTag("capture_health").assertExists()
+        composeRule.onNodeWithTag("status_gps").assertExists()
+        composeRule.onNodeWithTag("status_cloud").assertExists()
     }
 
     private fun waitForDiary(text: String) {

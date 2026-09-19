@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.today
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,18 +12,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -35,11 +34,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
@@ -56,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
+import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
@@ -63,9 +63,9 @@ import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
-import com.dailybeat.app.ui.feed.DayStay
 import com.dailybeat.app.util.Formatters
 import com.dailybeat.app.util.InputPolicy
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,9 +84,6 @@ fun TodayScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var showCaptureSheet by rememberSaveable { mutableStateOf(false) }
-    // Place names are deliberately collapsed whenever Today is opened. Saving this expansion
-    // across process recreation made a previously opened list look like permanent map content.
-    var showRouteDetails by remember(beat.date) { mutableStateOf(false) }
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
@@ -156,17 +153,46 @@ fun TodayScreen(
         }
 
         item {
-            TodaySummaryCard(
+            CaptureOverview(
+                status = uiState.captureStatus,
+                gpsOn = uiState.gpsActive,
+                cloudReady = uiState.cloudBrainReady,
+                onResumeCapture = viewModel::resumeCaptureNow,
+            )
+        }
+
+        item {
+            BeatSummary(
+                title = beat.title,
+                status = if (uiState.beatState == "complete") {
+                    stringResource(R.string.beat_complete_status)
+                } else {
+                    stringResource(R.string.beat_live_status)
+                },
                 distanceLabel = stringResource(R.string.feed_stat_distance),
                 distanceValue = Formatters.distance(uiState.distanceMeters, uiState.distanceEstimated),
                 timeLabel = stringResource(R.string.beat_tracked_time),
                 timeValue = Formatters.durationCompact(uiState.trackedMinutes),
                 stopsLabel = stringResource(R.string.feed_stat_auto_stops),
                 stopsValue = Formatters.count(beat.stays.size),
-                stays = beat.stays,
-                expanded = showRouteDetails,
-                onToggleDetails = { showRouteDetails = !showRouteDetails },
             )
+        }
+
+        item {
+            CaptureCoverageNote(
+                gapCount = uiState.captureGapCount,
+                hasCapture = beat.hasRoute || visits.isNotEmpty(),
+            )
+        }
+
+        if (beat.hasRoute && uiState.distanceEstimated) {
+            item {
+                Text(
+                    stringResource(R.string.distance_estimated_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         item {
@@ -331,98 +357,156 @@ private fun WaitingForRouteCard(
     }
 }
 
+/**
+ * "Last reliable fix 4 min ago · accurate to about 6 m". Either half can be missing: the age is
+ * absent until a point has been stored, and accuracy is absent when the provider did not report
+ * it. Returns null only when neither is known, so the caller can fall back.
+ */
 @Composable
-private fun TodaySummaryCard(
+private fun captureFixAgeText(status: CaptureHealthStatus): String? =
+    status.lastPointAgeMs?.let { ageMs ->
+        when (val classified = Formatters.fixAge(ageMs)) {
+            Formatters.FixAge.JustNow -> stringResource(R.string.capture_fix_just_now)
+            is Formatters.FixAge.Ago -> stringResource(
+                R.string.capture_fix_ago,
+                Formatters.duration(classified.minutes),
+            )
+        }
+    }
+
+@Composable
+private fun captureFreshnessDetail(status: CaptureHealthStatus): String? {
+    val age = captureFixAgeText(status)
+    val accuracy = status.accuracyM?.let {
+        stringResource(R.string.capture_accuracy_suffix, it.roundToInt())
+    }
+    return when {
+        age != null && accuracy != null -> stringResource(R.string.capture_detail_join, age, accuracy)
+        age != null -> age
+        accuracy != null -> stringResource(R.string.capture_accuracy, status.accuracyM.roundToInt())
+        else -> null
+    }
+}
+
+@Composable
+private fun CaptureOverview(
+    status: CaptureHealthStatus,
+    gpsOn: Boolean,
+    cloudReady: Boolean,
+    onResumeCapture: () -> Unit,
+) {
+    val (title, detail) = when (status.level) {
+        CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
+            captureFreshnessDetail(status)
+        CaptureHealthLevel.WATCHING -> stringResource(R.string.capture_watching) to
+            stringResource(R.string.capture_watching_detail)
+        CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
+            stringResource(R.string.capture_waiting_detail)
+        CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
+            (
+                captureFixAgeText(status)?.let {
+                    stringResource(
+                        R.string.capture_detail_join,
+                        it,
+                        stringResource(R.string.capture_degraded_reassurance),
+                    )
+                } ?: stringResource(R.string.capture_degraded_detail)
+                )
+        CaptureHealthLevel.PAUSED -> stringResource(R.string.capture_paused) to
+            status.resumesAtMs?.let {
+                stringResource(R.string.capture_paused_until, Formatters.clock(it))
+            }
+        CaptureHealthLevel.OFF -> stringResource(R.string.capture_off) to
+            stringResource(R.string.capture_off_detail)
+    }
+    val color = when (status.level) {
+        CaptureHealthLevel.HEALTHY, CaptureHealthLevel.WATCHING -> MaterialTheme.colorScheme.primary
+        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
+            MaterialTheme.colorScheme.tertiary
+        CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("capture_health"),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = color) {}
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = detail ?: stringResource(R.string.capture_healthy_detail),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (status.level == CaptureHealthLevel.PAUSED) {
+                SecondaryButton(
+                    text = stringResource(R.string.resume_capture_now),
+                    onClick = onResumeCapture,
+                    modifier = Modifier.testTag("resume_capture"),
+                )
+            }
+            StatusStrip(gpsOn = gpsOn, cloudReady = cloudReady)
+        }
+    }
+}
+
+@Composable
+private fun BeatSummary(
+    title: String,
+    status: String,
     distanceLabel: String,
     distanceValue: String,
     timeLabel: String,
     timeValue: String,
     stopsLabel: String,
     stopsValue: String,
-    stays: List<DayStay>,
-    expanded: Boolean,
-    onToggleDetails: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().testTag("today_summary"),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
+                MetricDivider()
                 SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
+                MetricDivider()
                 SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(
-                    onClick = onToggleDetails,
-                    modifier = Modifier.testTag("today_more"),
-                ) {
-                    Text(stringResource(if (expanded) R.string.today_less else R.string.today_more))
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                    )
-                }
-            }
-            if (expanded) {
-                RouteDetails(stays)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RouteDetails(stays: List<DayStay>) {
-    Column(
-        modifier = Modifier.fillMaxWidth().testTag("today_route_details"),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.today_where_you_went),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        if (stays.isEmpty()) {
-            Text(
-                text = stringResource(R.string.today_no_auto_stops),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            stays.forEachIndexed { index, stay ->
-                if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stay.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.today_stop_time,
-                            Formatters.clock(stay.startMs),
-                            Formatters.clock(stay.endMs),
-                            Formatters.duration(stay.durationMinutes),
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
     }
@@ -451,6 +535,14 @@ private fun SummaryMetric(value: String, label: String, modifier: Modifier = Mod
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun MetricDivider() {
+    Box(
+        modifier = Modifier.width(1.dp).height(36.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
 }
 
 @Composable
@@ -518,6 +610,61 @@ private fun CaptureMomentSheet(
                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                 Text(stringResource(R.string.generate_ai_report), Modifier.padding(start = 8.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun StatusStrip(gpsOn: Boolean, cloudReady: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusChip(
+            label = if (gpsOn) stringResource(R.string.status_gps_on) else stringResource(R.string.status_gps_off),
+            active = gpsOn,
+            icon = Icons.Default.MyLocation,
+            testTag = "status_gps",
+            modifier = Modifier.weight(1f),
+        )
+        StatusChip(
+            label = if (cloudReady) stringResource(R.string.status_cloud_on) else stringResource(R.string.status_cloud_off),
+            active = cloudReady,
+            icon = Icons.Default.AutoAwesome,
+            testTag = "status_cloud",
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun StatusChip(
+    label: String,
+    active: Boolean,
+    icon: ImageVector,
+    testTag: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.heightIn(min = 40.dp).testTag(testTag),
+        shape = MaterialTheme.shapes.small,
+        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, null, Modifier.size(16.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

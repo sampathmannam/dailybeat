@@ -60,7 +60,7 @@ class FeedScreenTest {
     }
 
     @Test
-    fun feedShowsTodayAsACardWithStopsAndDurations() {
+    fun feedShowsACompactDayCardAndRevealsStopsOnDemand() {
         composeRule.onNodeWithTag("nav_days").performClick()
 
         composeRule.waitUntilAtLeastOneExists(
@@ -70,14 +70,18 @@ class FeedScreenTest {
         composeRule.onNodeWithTag("feed_list")
             .performScrollToNode(hasTestTag("feed_card_${DateKeys.today()}"))
 
-        // Seeded stays come from the synthetic day and must be named, not coordinates.
-        composeRule.onNodeWithText("Police Headquarters").assertIsDisplayed()
-        composeRule.onNodeWithText("Stops").assertIsDisplayed()
+        composeRule.onNodeWithText("Police Headquarters").assertDoesNotExist()
+        composeRule.onNodeWithText("Auto stops").assertIsDisplayed()
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
         composeRule.onNodeWithText("Time out").assertIsDisplayed()
         composeRule.onNodeWithTag("feed_route_map", useUnmergedTree = true)
             .performScrollTo()
             .assertIsDisplayed()
+
+        composeRule.onNodeWithTag("feed_toggle_stops_${DateKeys.today()}")
+            .performScrollTo().performClick()
+        // Seeded stays come from the synthetic day and must be named, not coordinates.
+        composeRule.onNodeWithText("Police Headquarters").assertIsDisplayed()
     }
 
     @Test
@@ -146,13 +150,17 @@ class FeedScreenTest {
         }
         composeRule.activityRule.scenario.recreate()
         composeRule.onNodeWithTag("nav_days").performClick()
-        composeRule.waitUntilAtLeastOneExists(hasText("+3 more stops"), timeoutMillis = 20_000)
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("feed_toggle_stops_${DateKeys.today()}"),
+            timeoutMillis = 20_000,
+        )
+        composeRule.onNodeWithText("Stop 1").assertDoesNotExist()
+        composeRule.onNodeWithText("More").assertIsDisplayed()
 
-        // A lazy card may exist below the viewport. Scroll the actual control into view
-        // before tapping; otherwise the gesture can hit the bottom navigation instead.
         composeRule.onNodeWithTag("feed_toggle_stops_${DateKeys.today()}")
             .performScrollTo().performClick()
         composeRule.onNodeWithTag("feed_list").performScrollToNode(hasText("Stop 8"))
+        composeRule.onNodeWithText("Less").assertExists()
 
         // On compact hosted devices the last row can sit under the viewport edge even though it
         // is expanded and composed. Existence proves it is no longer hidden; other tests cover
@@ -229,6 +237,7 @@ class FeedScreenTest {
         waitForFeedRefresh()
         composeRule.onNodeWithTag("feed_list").performScrollToNode(hasTestTag("feed_card_$yesterday"))
         composeRule.onNodeWithTag("feed_card_$yesterday").assertIsDisplayed()
+        composeRule.onNodeWithTag("feed_toggle_stops_$yesterday").performScrollTo().performClick()
         composeRule.onNodeWithText("Background Station").assertIsDisplayed()
     }
 
