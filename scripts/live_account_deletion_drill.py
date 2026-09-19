@@ -105,7 +105,7 @@ class Client:
 
 def make_fixture():
     uid = str(uuid.uuid4())
-    return {'id': uid, 'email': f'dailybeat-delete-drill-{uid}@example.invalid', 'password': secrets.token_urlsafe(40), 'archive_id': str(uuid.uuid4())}
+    return {'id': uid, 'email': f'dailybeat-delete-drill-{uid}@example.invalid', 'password': 'Aa1!' + secrets.token_urlsafe(40), 'archive_id': str(uuid.uuid4())}
 
 
 def public_state(fixtures, marker):

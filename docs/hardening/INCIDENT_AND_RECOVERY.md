@@ -64,6 +64,26 @@ subsecond synthetic restore is not a production timing estimate. Test off-site a
 provider provisioning and deleted-account handling, not just SQL import. Repeat after schema/Auth
 changes and on the agreed cadence. Track backup failures and overdue restore tests privately.
 
+## Hosted authentication and email acceptance
+
+Production now enforces the repository's 12-character password policy with character classes and
+secure password changes. Confirm those settings after deployments; local `supabase/config.toml`
+does not configure the hosted project. Preserve email confirmation, secure email changes,
+disabled anonymous/manual linking, the eight-digit production OTP and the checked request limits.
+
+Custom SMTP is still unconfigured. The default Supabase email service permits only authorized
+team recipients, is limited to two messages per hour and has no production delivery SLA.
+[Provider requirements](https://supabase.com/docs/guides/auth/auth-smtp).
+
+The owner must select an existing provider and verified sending domain or authorize provisioning.
+Then configure host, TLS port, username, existing SMTP credential, sender address and sender name
+through the authenticated Supabase settings. Keep credentials in provider-managed settings, never
+in an APK, Git file or public CI artifact. Verify the provider's domain authentication records,
+sender authorization, applicable quota and delivery monitoring. Use only explicitly designated
+test inboxes to exercise signup confirmation and recovery/reauthentication. Record delivered,
+expired and reused-link behavior before accepting email readiness. Do not weaken email confirmation
+or add people to the Supabase organization merely to bypass restricted default delivery.
+
 ## Scoped production account-deletion drill
 
 `scripts/live_account_deletion_drill.py` requires the explicit production project identifier and

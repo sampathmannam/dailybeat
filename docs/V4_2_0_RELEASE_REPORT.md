@@ -40,6 +40,8 @@ verified, then all four tables and four functions matched a fresh migration-buil
 The three missing migration-history entries were reconciled only after that match; stored source
 hashes matched the repository and the original history entry was preserved. No backup payload was
 rewritten or deleted. See the [operational verification](hardening/2026-09-19-operations.md).
+The hosted password policy was also aligned with the repository. Production email delivery still
+needs custom SMTP; the default test mail service is insufficient for general public signup.
 Do not blindly replay old migrations or reset production. See [operations](hardening/OPERATIONS.md)
 for deployment and recovery procedures.
 

@@ -42,6 +42,14 @@ def test_journal_does_not_persist_fixture_passwords_or_tokens():
     assert state['fixtures'][0]['archive_id']==fixture['archive_id']
 
 
+def test_generated_password_meets_policy_even_without_random_symbols(monkeypatch):
+    monkeypatch.setattr(m.secrets,'token_urlsafe',lambda _: 'x'*40)
+    password=m.make_fixture()['password']
+    assert len(password)>=12
+    assert all(any(test(c) for c in password) for test in (str.islower,str.isupper,str.isdigit))
+    assert '!' in password
+
+
 def test_scoped_cleanup_verifies_account_is_gone(monkeypatch):
     c=m.Client('public',key());f=m.make_fixture();calls=[]
     user={'id':f['id'],'email':f['email'],'app_metadata':{'dailybeat_drill':'ours'}}

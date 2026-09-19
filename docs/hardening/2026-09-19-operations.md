@@ -32,6 +32,27 @@ exact migration source, while preserving the original entry. The schema still ma
 MD5 here compares database text; it is not a signature. Reviewed migration SHA-256 hashes and the
 schema component fingerprints are stored in `supabase/schema-baseline.json` and checked in CI.
 
+## Hosted authentication configuration
+
+A separate dashboard check found minimum password length 6, no required character classes and
+secure password changes disabled. Production now matches the reviewed repository policy: minimum
+12 characters, lowercase/uppercase/digits/symbols, and secure password changes enabled. The saved
+values were verified after reloading the dashboard. This changes policy, not anyone's password.
+Existing passwords remain usable for sign-in; new/changed passwords must meet the stronger rules.
+[Supabase password-policy behavior](https://supabase.com/docs/guides/auth/password-security).
+
+Email confirmation and secure email changes were already enabled; anonymous sign-in and manual
+identity linking were disabled. Sign-in/sign-up and verification limits were 30 requests per five
+minutes per IP, and refresh was 150, matching the repository. Production's eight-digit OTP is
+stronger than the six-digit local test setting and was preserved. Paid leaked-password protection
+is unavailable on the current plan. No key was rotated and no password/account was changed.
+
+Custom SMTP was disabled, with the default email limit of two per hour. Supabase restricts its
+default email service to authorized team recipients and does not intend it for production.
+Public signup and email recovery therefore remain blocked on a verified sending domain/provider;
+turning off email confirmation is not an acceptable workaround.
+[Supabase email-delivery requirements](https://supabase.com/docs/guides/auth/auth-smtp).
+
 ## Recovery and field-trial tooling
 
 The local recovery drill created a synthetic Auth account and legacy, encrypted and eight-page
@@ -49,7 +70,7 @@ The analyzer excludes unknown/charging states and no longer bridges intermediate
 phase changes, upgrades, backend changes or reboots. False-positive stops no longer inflate the
 recall denominator. Raw trial files are private and ignored by Git.
 
-Local validation: 92 Python tests passed; 40 pgTAP assertions passed; the schema comparison and
+Local validation: 93 Python tests passed; 40 pgTAP assertions passed; the schema comparison and
 the complete synthetic restore passed. The protected PR's required CI results remain authoritative
 for the merged change.
 
@@ -58,6 +79,8 @@ for the merged change.
 | Gate | Status on 2026-09-19 | Required completion evidence |
 |---|---|---|
 | Production migration state | Verified and reconciled | Four recorded versions and eight matching components |
+| Hosted password/auth policy | Corrected and verified | Minimum 12, character classes, secure password changes; existing protective settings preserved |
+| Production authentication email | Custom SMTP is off; default service is restricted | Configured provider/domain and authorized signup/recovery delivery tests |
 | Synthetic database recovery | Passed locally; added to CI | Matching Auth/data/schema plus verified isolation and cleanup |
 | Production account deletion | Script and guard tests ready; awaiting secure administrative credential hand-off | Newly generated accounts only; fresh/old session checks, cascade and sentinel verification |
 | Physical battery/capture trial | Awaiting physical ADB connection; emulator excluded | 14 days of real observations and independently recorded stops |

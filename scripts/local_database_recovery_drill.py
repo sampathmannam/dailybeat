@@ -40,7 +40,7 @@ def run(status_file: Path, container: str, output: Path):
     validate_target(origin, container)
     public=config['ANON_KEY'];admin=config['SERVICE_ROLE_KEY']
     uid=str(uuid.uuid4());archive=str(uuid.uuid4());marker='dailybeat-local-drill-'+secrets.token_hex(20)
-    email=f'{marker}@example.invalid';password=secrets.token_urlsafe(40)
+    email=f'{marker}@example.invalid';password='Aa1!'+secrets.token_urlsafe(40)
     database='dailybeat_restore_'+uuid.uuid4().hex
     os.umask(0o077);output.mkdir(parents=True,exist_ok=False)
     report={'environment':'isolated local Supabase, synthetic data only','remote_project_accessed':False,'restore_database':database,'result':'failed'}
