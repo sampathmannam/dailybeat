@@ -68,10 +68,12 @@ a complete third-party licence audit.
 
 1. Choose a template; a name is optional.
 2. Enable location permissions only if you want background journey capture. Notes and diaries work without them.
-3. Add a moment or a text note. Use Days to review, name or hide stops, or search older records.
+3. Add a moment or a text note. Use Days to review, name or hide stops, search records, or browse older dates.
 4. Generate a local draft, edit it, then inspect the sharing copy before choosing a destination.
 5. Cloud AI is optional and off by default. A configured provider receives selected journal text.
    Unlinked custom text and voice enrichment stay local while privacy controls are active.
+6. Saved place names work offline. Automatic place lookup is off unless you configure a managed
+   HTTPS endpoint in Settings; coordinates within any private zone are never sent.
 
 Old automatic-report preferences require a fresh opt-in; restoring a backup never re-enables the
 automatic report. GPS is an observation, not proof of what someone did at a place. Cloud citations
@@ -79,17 +81,21 @@ are structural links and do not prove that a model's claims are true.
 
 ## Backup and recovery
 
-Deploy [the encrypted-backup migration](supabase/migrations/202609160001_encrypted_backups.sql) before
-using the new cloud backup path. It has independent owner-only RLS and cannot be overwritten by
-older clients targeting the legacy table. New backups are encrypted locally with AES-256-GCM and a
-passphrase-derived key; the passphrase is not uploaded or saved in settings. Losing it makes recovery
-impossible. Keep it in a password manager.
+Deploy the [archive migration](supabase/migrations/20260919090000_versioned_backup_archives.sql) and
+updated `delete-account` function before releasing this branch. The archive path streams bounded
+database pages, compresses them, and encrypts each page with AES-256-GCM. Its authenticated manifest
+binds every page to one version. Five completed versions remain available in Settings → Backup
+history. Failed uploads preserve the previous completed backup. Recovery validates all pages first
+and restores records in one transaction. The passphrase is never uploaded or saved in settings;
+losing it makes recovery impossible. Keep it in a password manager.
 
-Legacy backup restore is explicit. It does not delete or encrypt older cloud copies retroactively.
-Settings can delete both cloud formats. Cloud-account deletion reauthenticates and calls the
-server-only `delete-account` Edge Function. That function was deployed to the production Supabase
-project with JWT verification on 18 September 2026; an unauthenticated POST was rejected with HTTP
-401. A destructive authenticated probe still requires an explicitly disposable QA account.
+Previous v1 encrypted backups remain readable. Unencrypted legacy restore is explicit. Neither is
+removed automatically by an archive upload. Settings can delete all formats. Account deletion uses
+a verified Supabase identity and requires a password authentication event within five minutes;
+refreshing an old session does not satisfy that requirement. The previously deployed function
+predates this hardening and must be updated as part of rollout. See the
+[hardening implementation and validation](docs/hardening/2026-09-19.md).
+
 API keys, recovery passphrases, auth sessions and dormant DSR records are excluded from snapshots.
 
 The app packages its GPL text and offline third-party notices. The coordinate-level POM inventory

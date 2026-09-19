@@ -29,7 +29,7 @@ data class CaptureHealthStatus(
     val accuracyM: Float? = null,
     val rejectedCount: Int = 0,
     val reason: String? = null,
-    /** When a [CaptureHealthLevel.PAUSED] capture resumes by itself. Null for every other level. */
+    /** When a [CaptureHealthLevel.PAUSED] privacy pause expires. Null for every other level. */
     val resumesAtMs: Long? = null,
 )
 

@@ -187,7 +187,7 @@ class VisitTracker(
         val resolved = when {
             OutboundVisitFilter.isPrivateLocation(lat, lon, places) -> null
             allowNetworkLookup -> resolveSafely(lat, lon)
-            else -> coordinateFallback(lat, lon)
+            else -> coordinateFallback()
         }
         onVisitRecorded(
             LocationVisit(
@@ -215,7 +215,7 @@ class VisitTracker(
         val resolved = when {
             OutboundVisitFilter.isPrivateLocation(lat, lon, places) -> null
             allowNetworkLookup -> resolveSafely(lat, lon)
-            else -> coordinateFallback(lat, lon)
+            else -> coordinateFallback()
         }
         onVisitRecorded(
             LocationVisit(
@@ -236,10 +236,10 @@ class VisitTracker(
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            coordinateFallback(latitude, longitude)
+            coordinateFallback()
         }
 
-    private fun coordinateFallback(latitude: Double, longitude: Double): ResolvedPlace =
+    private fun coordinateFallback(): ResolvedPlace =
         ResolvedPlace(name = null, address = "Unnamed place")
 
     private fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

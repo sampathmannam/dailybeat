@@ -23,7 +23,7 @@ class SettingsRepository(
             val uri = java.net.URI(endpoint)
             require(endpoint.length <= 2048 && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
                 uri.userInfo == null && uri.query == null && uri.fragment == null &&
-                !uri.host.equals("nominatim.openstreetmap.org", ignoreCase = true)) {
+                !uri.host.trimEnd('.').equals("nominatim.openstreetmap.org", ignoreCase = true)) {
                 "Use a managed HTTPS geocoding endpoint without credentials or query parameters."
             }
         }

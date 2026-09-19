@@ -463,7 +463,7 @@ private fun CaptureOverview(
 }
 
 @Composable
-private fun BeatSummary(
+internal fun BeatSummary(
     title: String,
     status: String,
     distanceLabel: String,

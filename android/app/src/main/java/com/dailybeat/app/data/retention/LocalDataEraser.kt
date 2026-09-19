@@ -56,6 +56,10 @@ class LocalDataEraser(private val app: DailyBeatApp) {
                 }
                 check(uncleared.isEmpty()) { "Unable to clear ${uncleared.size} exported file(s)." }
             }
+            attempt {
+                val staging = java.io.File(app.cacheDir, "encrypted-backup-staging")
+                check(!staging.exists() || staging.deleteRecursively()) { "Unable to clear backup staging files." }
+            }
             attempt { app.settingsRepository.resetAfterLocalDataDeletion() }
         }
         }

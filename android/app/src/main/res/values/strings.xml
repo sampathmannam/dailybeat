@@ -36,7 +36,7 @@
     <string name="capture_degraded_reassurance">DailyBeat is still watching and keeps everything it captured.</string>
     <string name="capture_off">Capture is off</string>
     <string name="capture_paused">Capture paused for privacy</string>
-    <string name="capture_paused_until">Resumes automatically at %1$s</string>
+    <string name="capture_paused_until">Pause ends at %1$s</string>
     <string name="map_paused_body">Capture is paused for privacy. Today\'s route continues when it resumes.</string>
     <string name="map_watching_body">Battery saver is watching for movement. Route capture resumes when Android detects that you are moving.</string>
     <string name="capture_off_detail">DailyBeat is not recording your route.</string>
@@ -93,7 +93,7 @@
     <string name="private_place_hint">Kept out of cloud reports, exports and map lookups.</string>
     <string name="pause_capture_one_hour">Pause capture for 1 hour</string>
     <string name="resume_capture_now">Resume capture now</string>
-    <string name="capture_paused_body">Capture is paused for privacy. It will resume automatically within one hour.</string>
+    <string name="capture_paused_body">Capture is paused for up to one hour. Open DailyBeat to resume if Android cannot restart capture.</string>
     <string name="generate_ai_report">Generate AI daily report</string>
     <string name="generating_ai_report">Generating your daily report…</string>
     <plurals name="journey_map_points">
@@ -233,7 +233,7 @@
     <string name="diary_cloud_hint">Cloud AI sends the selected day’s place names and notes to your configured provider. Generated text is a draft, not verified activity.</string>
     <string name="diary_local_hint">Create a source-linked draft on this phone, without an account or AI. Review locations and notes before sharing.</string>
     <string name="onboarding_welcome_title">Welcome to DailyBeat</string>
-    <string name="onboarding_welcome_body">Remember where your day took you, add notes and review a journal on your phone. No account or AI is needed. Online maps and place lookup contact map providers. Cloud AI and cloud backup are optional and have separate privacy choices.</string>
+    <string name="onboarding_welcome_body">Remember where your day took you, add notes and review a journal on your phone. No account or AI is needed. Online maps contact map providers. Automatic place lookup is off until you configure it. Cloud AI and cloud backup are optional and have separate privacy choices.</string>
     <string name="onboarding_officer_title">Make it your journal</string>
     <string name="onboarding_officer_body">Choose a template. Your optional name appears on exports. You can change both in Settings.</string>
     <string name="onboarding_privacy_title">Capture is your choice</string>
@@ -280,7 +280,7 @@
     <string name="delete_older_history">Delete older history</string>
     <string name="delete_cloud_data">Delete cloud backups</string>
     <string name="delete_cloud_data_title">Delete all cloud backups?</string>
-    <string name="delete_cloud_data_warning">This permanently deletes both encrypted and older unencrypted DailyBeat backups. Your account and this phone’s data remain.</string>
+    <string name="delete_cloud_data_warning">This permanently deletes all archive versions, previous encrypted backups, and older unencrypted DailyBeat backups. Your account and this phone’s data remain.</string>
     <string name="delete_cloud_account">Delete cloud account</string>
     <string name="delete_cloud_account_title">Permanently delete cloud account?</string>
     <string name="delete_cloud_account_warning">All DailyBeat cloud backups and this sign-in will be permanently deleted. Data on this phone remains. Enter your current account password to continue.</string>

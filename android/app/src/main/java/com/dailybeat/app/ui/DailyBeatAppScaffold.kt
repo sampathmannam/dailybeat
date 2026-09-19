@@ -68,7 +68,7 @@ object Routes {
     fun review(dateKey: String = "today"): String = "review/$dateKey"
 }
 
-private data class TopLevelDestination(
+internal data class TopLevelDestination(
     val route: String,
     val labelRes: Int,
     val testTag: String,
@@ -155,7 +155,7 @@ fun DailyBeatAppScaffold() {
 }
 
 @Composable
-private fun DailyBeatNavigationBar(
+internal fun DailyBeatNavigationBar(
     currentRoute: String,
     onDestinationSelected: (TopLevelDestination) -> Unit,
 ) {

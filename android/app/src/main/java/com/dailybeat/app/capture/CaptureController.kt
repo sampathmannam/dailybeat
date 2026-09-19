@@ -124,8 +124,10 @@ object CaptureController {
                 if (LocationService.isRunning) {
                     LocationService.updateProfile(context, ActiveCaptureProfile.MOVING)
                 } else if (PermissionHelper.canStartLocationCaptureFromBackground(context)) {
-                    LocationService.start(context, ActiveCaptureProfile.MOVING)
-                }
+                    LocationService.start(context, ActiveCaptureProfile.MOVING).onFailure {
+                        CaptureResumeNotification.show(context)
+                    }
+                } else CaptureResumeNotification.show(context)
             }
             MotionState.STILL -> {
                 if (LocationService.isRunning) {

@@ -27,6 +27,8 @@ interface CaptureJournalDao {
     suspend fun checkpoint(): String?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun checkpoint(checkpoint: CaptureCheckpoint)
+    @Query("DELETE FROM capture_inbox WHERE timestampMs < :cutoffMs")
+    suspend fun deleteBefore(cutoffMs: Long): Int
     @Query("DELETE FROM capture_inbox")
     suspend fun clearInbox()
     @Query("DELETE FROM capture_checkpoint")

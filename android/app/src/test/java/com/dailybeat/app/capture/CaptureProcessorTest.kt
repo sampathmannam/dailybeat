@@ -54,6 +54,23 @@ class CaptureProcessorTest {
         assertEquals(start + 10*60_000, db.visits().all().first { it.visitType == "dwell" }.endMs)
         assertTrue(db.visits().all().none { it.visitType == "transit" })
     }
+    @Test fun `failed privacy lookup prevents network and leaves fix available for retry`() = runBlocking {
+        db.captureJournal().enqueue(listOf(fix(0), fix(10)))
+        processor().drain()
+        db.openHelper.writableDatabase.execSQL("DROP TABLE places")
+        var calls = 0
+        val network = object : OsmGeocoder(db.geocodes()) {
+            override suspend fun resolve(latitude: Double, longitude: Double): com.dailybeat.app.geo.ResolvedPlace {
+                calls++
+                return com.dailybeat.app.geo.ResolvedPlace("Unexpected", "Unexpected")
+            }
+        }
+        db.captureJournal().enqueue(listOf(fix(11,11.4600)))
+        assertTrue(runCatching { CaptureProcessor(db,network).drain() }.isFailure)
+        assertEquals(0,calls)
+        assertEquals(1,db.captureJournal().pending().size)
+        assertTrue(db.visits().all().isEmpty())
+    }
     @Test fun `foreground only and watcher absent configurations never sleep`() {
         assertFalse(AdaptiveCapturePolicy.canSleep(false, false))
         assertFalse(AdaptiveCapturePolicy.canSleep(false, true))

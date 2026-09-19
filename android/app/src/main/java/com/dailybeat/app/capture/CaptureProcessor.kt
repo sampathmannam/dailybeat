@@ -29,7 +29,6 @@ object CaptureStorageGate {
 class CaptureProcessor(
     private val db: DailyBeatDb,
     private val geocoder: OsmGeocoder,
-    private val beforeCommit: suspend () -> Unit = {},
 ) {
     suspend fun drain(onAccepted: (LocationSample, String) -> Unit = { _, _ -> }) {
         val journal = db.captureJournal()
@@ -61,7 +60,6 @@ class CaptureProcessor(
                         longitude = sample.longitude, accuracyM = sample.accuracyM, quality = decision.quality)
                 } else null
                 db.withTransaction {
-                    beforeCommit()
                     visits.forEach { visit ->
                         db.visits().insert(visit)
                         db.events().insert(Event(timestamp = visit.startMs, type = "visit",

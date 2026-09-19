@@ -141,7 +141,7 @@ class LocalBackupStore(
                 }
                 requireNotNull(settings) { "Backup has no pages." }
                 if (settings!!.historyRetentionDays > 0) {
-                    com.dailybeat.app.data.retention.HistoryRetentionManager(db).prune(settings!!.historyRetentionDays)
+                    com.dailybeat.app.data.retention.HistoryRetentionManager(db).pruneInsideCaptureLock(settings!!.historyRetentionDays)
                 }
             }
             applySettings(requireNotNull(settings))

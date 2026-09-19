@@ -46,7 +46,7 @@ open class OsmGeocoder(
     open suspend fun resolve(latitude: Double, longitude: Double): ResolvedPlace =
         withContext(Dispatchers.IO) {
             if (!isValidCoordinate(latitude, longitude)) {
-                return@withContext ResolvedPlace(null, fallbackLabel(latitude, longitude))
+                return@withContext ResolvedPlace(null, fallbackLabel())
             }
             val configuredEndpoint = endpoint()
             if (configuredEndpoint.isBlank() || !permitsLookup(latitude, longitude)) {
@@ -78,7 +78,7 @@ open class OsmGeocoder(
                 .header("Accept-Language", "en")
                 .build()
 
-            val fallback = ResolvedPlace(null, fallbackLabel(latitude, longitude))
+            val fallback = ResolvedPlace(null, fallbackLabel())
             // Recheck after the throttle; privacy settings may have changed while waiting.
             if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) return@withContext fallback
             val body = try {
@@ -113,7 +113,7 @@ open class OsmGeocoder(
     internal fun parse(json: JSONObject, latitude: Double, longitude: Double): ResolvedPlace {
         val address = json.optString("display_name").trimOrNull()
             ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
-            ?: fallbackLabel(latitude, longitude)
+            ?: fallbackLabel()
         return ResolvedPlace(name = extractName(json), address = address)
     }
 
@@ -149,7 +149,7 @@ open class OsmGeocoder(
     private fun cacheKey(lat: Double, lon: Double): String =
         String.format(Locale.US, "%.4f,%.4f", lat, lon)
 
-    private fun fallbackLabel(lat: Double, lon: Double): String =
+    private fun fallbackLabel(): String =
         "Unnamed place"
 
     private fun isValidCoordinate(lat: Double, lon: Double): Boolean =
@@ -157,7 +157,6 @@ open class OsmGeocoder(
             !(lat == 0.0 && lon == 0.0)
 
     private companion object {
-        const val NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
         const val MAX_NAME_CHARS = 80
         const val MAX_ADDRESS_CHARS = 1_000
         const val MAX_RESPONSE_BYTES = 1L * 1024L * 1024L
