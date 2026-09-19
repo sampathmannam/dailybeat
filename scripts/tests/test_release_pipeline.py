@@ -27,6 +27,7 @@ def test_android_instrumentation_and_live_backup_are_independent_required_gates(
     )
     assert "Offline-only mode cannot bypass the required live backup gate." in runner
     assert "notClass=com.dailybeat.app.CloudBackupLiveTest" in runner
+    assert 'if ! cd "$GITHUB_WORKSPACE/android"; then' in runner
 
 
 def test_android_version_advances_for_obtainium_update():
@@ -211,6 +212,9 @@ def test_release_publishes_only_the_stable_apk_and_verifies_its_certificate():
     )
     assert 'if existing_tag_sha="$(gh api' in workflow
     assert "2>/dev/null || true" not in workflow
+    assert "gh release upload" not in workflow
+    assert "--clobber" not in workflow
+    assert "refusing to replace immutable assets" in workflow
 
 
 def test_cloud_backup_schema_enforces_owner_only_row_level_security():

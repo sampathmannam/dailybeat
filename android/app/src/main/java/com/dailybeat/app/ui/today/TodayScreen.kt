@@ -320,6 +320,7 @@ private fun WaitingForRouteCard(
                         stringResource(R.string.map_location_permission_body)
                     }
                     CaptureHealthLevel.PAUSED -> stringResource(R.string.map_paused_body)
+                    CaptureHealthLevel.WATCHING -> stringResource(R.string.map_watching_body)
                     else -> stringResource(R.string.map_waiting_body)
                 },
                 modifier = Modifier.padding(top = 4.dp),

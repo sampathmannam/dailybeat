@@ -35,6 +35,18 @@ class CapturePausedStatusTest {
     }
 
     @Test
+    fun `privacy pause wins over an armed movement watcher`() {
+        val status = CaptureHealth(serviceRunning = false).status(
+            nowMs = now,
+            enabled = true,
+            pausedUntilMs = now + 60_000L,
+            watcherArmed = true,
+        )
+
+        assertEquals(CaptureHealthLevel.PAUSED, status.level)
+    }
+
+    @Test
     fun `an expired deadline falls through to the real underlying state`() {
         // One tick after the hour is up the card must go back to describing capture itself,
         // without anyone having to clear the deadline first.

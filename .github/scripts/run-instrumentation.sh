@@ -24,7 +24,11 @@ if [ "$android_ready_status" -ne 0 ]; then
   exit "$android_ready_status"
 fi
 
-cd "$GITHUB_WORKSPACE/android"
+if ! cd "$GITHUB_WORKSPACE/android"; then
+  echo "Android project directory is unavailable."
+  capture_evidence 2
+  exit 2
+fi
 
 instrumentation_args=()
 if [ "${DAILYBEAT_LIVE_BACKUP_ONLY:-0}" = "1" ]; then
