@@ -19,7 +19,7 @@ The editable design handoff is in [DailyBeat — Product Architecture & UI v4](h
 | Canvas | `#F8FAFC` | Quiet screen background |
 | Navy | `#0B2D5B` | Primary actions, emphasis, route edge |
 | Ink | `#0B1B33` | High-contrast text |
-| Soft Sun yellow | `#F0C94A` | Route, stops, key moments, identity, and yellow-toned buttons |
+| Signal Yellow | `#FFD60A` | Route, stops, key moments, identity, and yellow-toned buttons |
 | Carbon canvas | `#090A0C` | Neutral dark-mode background |
 | Carbon surface | `#121418` | Neutral dark-mode cards and sheets |
 | Carbon elevated | `#1A1D23` | Neutral dark-mode tonal elevation |
@@ -45,8 +45,8 @@ Today has four visual levels:
 
 1. Date and purpose.
 2. Route map or an honest capture-empty state.
-3. A compact capture overview containing health, GPS, and optional cloud readiness.
-4. One Beat summary containing title, review state, distance, tracked time, and stops.
+3. One compact Distance / Time / Auto stops summary; ordered place details stay behind **More**.
+4. One Beat summary containing title and review state.
 
 Only Review My Day receives primary-action styling. Repeated metric cards are avoided because distance, time, and stops describe one object—the Beat—and should scan as one unit.
 

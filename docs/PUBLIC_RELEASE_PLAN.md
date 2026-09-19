@@ -20,7 +20,7 @@ Prioritise voluntary use by field engineers, service/sales professionals and ins
 journaling available from the same core. Police users keep their existing template and data.
 
 The promise is a reviewable location-assisted journal, not proof of activity or a tracking guarantee.
-Keep Soft Sun and Carbon, current navigation and DSR separation.
+Keep Signal Yellow and Carbon, current navigation and DSR separation.
 
 ## Implemented in this candidate
 

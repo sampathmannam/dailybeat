@@ -1,4 +1,10 @@
-# DailyBeat v4.1.1 — install and verify
+# DailyBeat v4.1.2 — install and verify
+
+Version 4.1.2 makes the daily UI more predictable and removes a misleading launcher badge. Insights
+uses a fixed Monday–Sunday calendar week; Today keeps only ordered place details behind **More**;
+Licences & resources has a structured, offline-readable Material layout; and the original Signal
+Yellow `#FFD60A` is restored. Android's required passive-capture notification remains visible while
+tracking, but its status channel no longer counts as an unread app-icon notification.
 
 Version 4.1.1 keeps the adaptive capture and client-encrypted recovery introduced in v4.1.0, and
 hardens long-running use: Today crosses midnight and time-zone changes without reopening, map
@@ -8,10 +14,10 @@ and complete local erasure cancels pending writes before verifying every auxilia
 Version 4.1.0 made all-day capture adaptive to movement and stillness, added client-encrypted cloud
 recovery and explicit data-lifecycle controls, and introduced Personal, Field work and Police diary
 templates. Today now leads with the route map and a compact Distance / Time / Auto stops card;
-place details and capture diagnostics remain available under **More**. The Time metric totals measured
+ordered place details remain available under **More**. The Time metric totals measured
 capture intervals rather than the wall-clock span from the first fix to the last.
 
-The Soft Sun yellow `#F0C94A` remains consistent across the launcher, route, stops, selected states,
+The original Signal Yellow `#FFD60A` is consistent across the launcher, route, stops, selected states,
 identity accents, and buttons. Neutral Carbon dark-mode layers remain unchanged, with accessible
 foreground/background contrast in both themes.
 
@@ -59,14 +65,14 @@ replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For the exact release contents and validation contract, see [the v4.1.1 release report](V4_1_1_RELEASE_REPORT.md).
+For the exact release contents and validation contract, see [the v4.1.2 release report](V4_1_2_RELEASE_REPORT.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.1.1`):
+After every release gate passes, download these assets from GitHub Releases (tag `v4.1.2`):
 
-- `DailyBeat-v4.1.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.1.2.apk` — signed universal APK for arm64, armv7, x86, and x86_64
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
@@ -120,7 +126,7 @@ by CI; credential values are never committed.
    Days card update after returning.
 4. Verify the four tabs: Today, Days, Insights and Settings. DSR must not appear.
 5. Open Review My Day, rename one stop, hide and restore it, name the Beat, and mark it complete.
-6. Open the full map and verify a Soft Sun yellow route appears immediately while interactive tiles load;
+6. Open the full map and verify a Signal Yellow route appears immediately while interactive tiles load;
    when the street map is ready, tap **Replay route** and verify the route draws from start to finish.
 7. Export a week package and open the shared ZIP; existing diary text must remain unchanged.
 8. Deny map/network access; the diary, route list, notes, and export must remain usable.

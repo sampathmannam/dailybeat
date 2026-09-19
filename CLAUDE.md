@@ -8,7 +8,7 @@ encrypted backup/recovery, adaptive capture validation, quick notes, confirmed f
 search. The user has now authorised implementation. The active public-beta branch and completed
 changes are described in [the public release plan](docs/PUBLIC_RELEASE_PLAN.md); use it before the
 older handoff below. No production release is authorised. The v3.9 starting points and design phases below are historical context, not instructions
-to reset the branch or redo completed work. Preserve the current Soft Sun palette and Carbon dark mode.
+to reset the branch or redo completed work. Preserve the current Signal Yellow palette and Carbon dark mode.
 
 This file is the active handoff for Claude Code. Work autonomously through the plan below, keep the user’s production data safe, and leave an evidence-backed QA build. Do not create or publish a production release unless the user explicitly asks for that after reviewing the QA result.
 

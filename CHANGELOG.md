@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.1.2 — 2026-09-19
+
 ### Refined
 - Insights now presents the current calendar week from Monday through Sunday instead of a rolling
   seven-day window, with unambiguous three-letter day labels.
