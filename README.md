@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.2.0 / code 32** is the current production release line. It upgrades the permanently signed
+**4.2.1 / code 33** is the current production release line. It upgrades the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -23,6 +23,8 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Verified local erasure of records, capture checkpoints, credentials, diagnostics, and exports.
 - Monday–Sunday Insights, truthful low-power movement-watching status, and a no-badge
   passive-capture notification.
+- Direct date selection in Days without redundant older/newer paging controls.
+- Four focused Settings categories with a pinned back action instead of one continuous page.
 - Standard Google location backend and a separate Android-platform-only build.
 - Warm Butter accents and neutral Carbon dark mode; no DSR features added.
 

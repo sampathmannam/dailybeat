@@ -2,10 +2,12 @@
 
 ## Unreleased
 
+## 4.2.1 — 2026-09-19
+
 ### Refined
 - Days keeps the direct **Go to date** picker and removes the confusing Older days / Newer days controls.
 - Settings now opens with four focused categories instead of one continuous page, while preserving
-  every existing control and standard in-app and Android back navigation.
+  every existing control, a pinned in-app back action, and standard Android back navigation.
 
 ## 4.2.0 — 2026-09-19
 
