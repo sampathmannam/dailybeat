@@ -9,6 +9,7 @@ import androidx.work.WorkerParameters
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.util.PermissionHelper
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.sync.withLock
 
 /** Stops the active foreground service only after Android's STILL state has remained stable. */
 class StillnessConfirmationWorker(
@@ -20,6 +21,7 @@ class StillnessConfirmationWorker(
         val settings = app.settingsRepository.get()
         val motion = MotionStateStore(app)
         if (
+            CaptureController.canSleep(app) &&
             motion.state == MotionState.STILL &&
             AdaptiveCapturePolicy.shouldStopForStillness(
                 stillSinceMs = motion.changedAtMs,
@@ -29,6 +31,8 @@ class StillnessConfirmationWorker(
                     PermissionHelper.canCaptureLocation(app),
             )
         ) {
+            if (!CaptureController.hasConfirmedStay(app)) return Result.retry()
+            CaptureStorageGate.mutex.withLock { app.captureProcessor.suspendCapture() }
             LocationService.stop(app)
         }
         return Result.success()

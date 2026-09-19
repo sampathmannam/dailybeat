@@ -31,6 +31,13 @@ class CaptureHealthTest {
         )
     }
 
+    @Test fun `storage failure cannot appear healthy after a recent fix`() {
+        val status = CaptureHealth(serviceRunning = true, lastStoredAtMs = 1_999_999,
+            storageUnavailable = true).status(nowMs = 2_000_000, enabled = true)
+        assertEquals(CaptureHealthLevel.DEGRADED, status.level)
+        assertEquals(true, status.storageUnavailable)
+    }
+
     @Test
     fun `disabled capture is off even when a stale watcher flag remains`() {
         assertEquals(

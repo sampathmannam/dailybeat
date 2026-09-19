@@ -110,6 +110,23 @@ class LocalBackupStoreTest {
         assertEquals(listOf(2L), db.events().all().map { it.id })
     }
 
+    @Test
+    fun `duplicate IDs across restored pages roll back the whole replacement`() = runBlocking {
+        seedOriginalData()
+        val page = BackupSnapshot.empty(123).copy(events = listOf(Event(id=77,timestamp=100,type="manual",rawText="replacement")))
+        assertThrows(Exception::class.java) { runBlocking { store.restorePages(sequenceOf(page, page)) } }
+        assertEquals(listOf(1L), db.events().all().map { it.id })
+        assertEquals("Sampath", settings.get().officerName)
+    }
+
+    @Test
+    fun `paged snapshot preserves records without assuming positive IDs`() = runBlocking {
+        db.events().insert(Event(id=-12,timestamp=100,type="manual",rawText="legacy record"))
+        val pages = mutableListOf<BackupSnapshot>()
+        store.forEachPage { pages += it }
+        assertEquals(listOf(-12L), pages.flatMap { it.events }.map { it.id })
+    }
+
     private suspend fun seedOriginalData() {
         db.events().insert(Event(id = 1, timestamp = 1_000L, type = "manual", rawText = "original"))
         db.places().insert(Place(id = 2, name = "HQ", latitude = 17.4, longitude = 78.5))

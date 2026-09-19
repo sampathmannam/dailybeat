@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 4.2.0 — 2026-09-19
+
+### Reliability and recovery
+- Persist capture observations before processing and commit derived records/checkpoints together; retry queued storage failures and show degraded storage status.
+- Preserve observed stays across battery sleep, avoid unsupported automatic resume, and fall back to Android location if Google subscription startup fails or stalls.
+- Back up bounded encrypted pages, retain five completed cloud versions, validate all pages before transactional restore, and preserve existing encrypted/legacy recovery.
+- Require a verified recent password authentication event before cloud-account deletion.
+
+### Privacy and usability
+- Respect overlapping private zones and failed privacy reads; prevent generated coordinate labels from entering cloud prompts.
+- Keep automatic external address lookup off unless a managed HTTPS provider is configured; clarify that online maps still contact tile providers.
+- Browse older 30-day history windows or choose a date, using batched history queries.
+- Reflow large-text metrics and navigation, and provide an explicit content-free support preview.
+
+### Delivery
+- Target Android 16/API 36; verify 16 KiB native/APK alignment, strict dependency checksums and permanent production signing.
+- Extend mandatory native cloud QA to cover versioned archive upload, fresh-client restore, wrong-passphrase rejection and cleanup limited to its own fixture.
+
 ## 4.1.3 — 2026-09-19
 
 ### Refined

@@ -29,6 +29,8 @@ import com.dailybeat.app.data.model.Place
 @Database(
     entities = [
         Event::class,
+        CaptureFix::class,
+        CaptureCheckpoint::class,
         Place::class,
         DiaryEntry::class,
         LocationVisit::class,
@@ -49,10 +51,12 @@ import com.dailybeat.app.data.model.Place
         DiaryRevision::class,
         VisitCorrection::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class DailyBeatDb : RoomDatabase() {
+    abstract fun backupPages(): BackupPageDao
+    abstract fun captureJournal(): CaptureJournalDao
     abstract fun events(): EventDao
     abstract fun places(): PlaceDao
     abstract fun diaries(): DiaryDao

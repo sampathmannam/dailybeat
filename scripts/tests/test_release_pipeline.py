@@ -34,9 +34,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 31" in gradle
-    assert 'versionName = "4.1.3"' in gradle
-    assert release_marker == "4.1.3"
+    assert "versionCode = 32" in gradle
+    assert 'versionName = "4.2.0"' in gradle
+    assert release_marker == "4.2.0"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -180,7 +180,7 @@ def test_android_setup_never_requests_the_retired_tools_package():
                 if step.get("uses", "").startswith("android-actions/setup-android@"):
                     packages = step.get("with", {}).get("packages", "").split()
                     assert "tools" not in packages and "platform-tools" in packages
-                    assert {"platforms;android-35", "build-tools;35.0.0"}.issubset(packages)
+                    assert {"platforms;android-36", "build-tools;35.0.0"}.issubset(packages)
                     found += 1
     assert found >= 6
 

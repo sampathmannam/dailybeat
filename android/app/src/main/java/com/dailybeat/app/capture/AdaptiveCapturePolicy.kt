@@ -18,27 +18,33 @@ enum class ActiveCaptureProfile(
     MOVING(
         intervalMs = 45_000L,
         minIntervalMs = 45_000L,
-        minDistanceM = 75f,
+        minDistanceM = 0f,
         maxDelayMs = 120_000L,
     ),
     SETTLING(
         intervalMs = 120_000L,
         minIntervalMs = 120_000L,
-        minDistanceM = 100f,
-        maxDelayMs = 600_000L,
+        minDistanceM = 0f,
+        maxDelayMs = 120_000L,
     ),
 }
 
 /** Pure policy boundaries; Android callbacks and database writes live elsewhere. */
 object AdaptiveCapturePolicy {
     /** Android needs to report sustained stillness before DailyBeat turns off the active service. */
-    const val STILL_CONFIRMATION_MS = 5 * 60 * 1_000L
+    const val STILL_CONFIRMATION_MS = 10 * 60 * 1_000L
 
     /** Safety net if a handset never delivers a STILL activity-transition callback. */
     const val LOCATION_IDLE_TIMEOUT_MS = 8 * 60 * 1_000L
 
     /** A new location this far from the prior accepted fix resets the idle safety-net timer. */
     const val MEANINGFUL_MOVEMENT_M = 60.0
+
+    fun canSleep(watcherArmed: Boolean, backgroundLocationGranted: Boolean): Boolean =
+        watcherArmed && backgroundLocationGranted
+
+    fun hasConfirmedStay(state: VisitTrackerState?): Boolean = state != null && !state.inTransit &&
+        state.dwellStartMs > 0 && state.lastSampleMs - state.dwellStartMs >= 8 * 60_000L
 
     fun shouldStopForStillness(
         stillSinceMs: Long,

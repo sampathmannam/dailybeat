@@ -33,6 +33,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test destructive-action authentication
+        run: npx --yes deno@2.5.6 test supabase/functions/delete-account/handler_test.ts
+
       - name: Start Postgres and Auth
         run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" start
           --exclude studio,imgproxy,storage-api,realtime,edge-runtime,logflare,vector,supavisor,mailpit,postgres-meta
@@ -42,6 +45,9 @@ jobs:
 
       - name: Run row-level-security pgTAP suite
         run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" test db
+
+      - name: Exercise archive Auth and HTTP protocol
+        run: npx --yes "supabase@${SUPABASE_CLI_VERSION}" status -o json | python3 scripts/archive_backend_smoke.py
 
       - name: Stop the stack
         if: always()

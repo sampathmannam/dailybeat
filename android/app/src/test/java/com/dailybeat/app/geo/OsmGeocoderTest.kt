@@ -120,27 +120,27 @@ class OsmGeocoderTest {
     }
 
     @Test
-    fun `a failed lookup degrades to coordinates instead of throwing`() = runBlocking {
+    fun `a failed lookup keeps coordinates out of text labels`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(503))
 
         val resolved = geocoder.resolve(lat, lon)
 
         assertNull(resolved.name)
-        assertTrue("Expected a coordinate fallback, got ${resolved.address}", resolved.address.startsWith("Location "))
+        assertEquals("Unnamed place", resolved.address)
     }
 
     @Test
     fun `malformed map data degrades instead of throwing`() = runBlocking {
         server.enqueue(MockResponse().setBody("not json at all"))
 
-        assertTrue(geocoder.resolve(lat, lon).address.startsWith("Location "))
+        assertEquals("Unnamed place", geocoder.resolve(lat, lon).address)
     }
 
     @Test
     fun `oversized map response degrades without buffering it`() = runBlocking {
         server.enqueue(MockResponse().setBody("x".repeat(1_100_000)))
 
-        assertTrue(geocoder.resolve(lat, lon).address.startsWith("Location "))
+        assertEquals("Unnamed place", geocoder.resolve(lat, lon).address)
     }
 
     @Test

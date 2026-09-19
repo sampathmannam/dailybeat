@@ -12,6 +12,8 @@ import com.dailybeat.app.util.AppStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
+import com.dailybeat.app.capture.CaptureStorageGate
 
 class LocalDataEraser(private val app: DailyBeatApp) {
     suspend fun erase() {
@@ -36,6 +38,8 @@ class LocalDataEraser(private val app: DailyBeatApp) {
                 "Unable to remove the cloud backup session from this phone."
             }
         }
+        CaptureStorageGate.mutex.withLock {
+        CaptureStorageGate.generation.incrementAndGet()
         withContext(Dispatchers.IO) {
             attempt { app.db.clearAllTables() }
             attempt { app.settingsRepository.secureApiKey.clearApiKey() }
@@ -52,7 +56,12 @@ class LocalDataEraser(private val app: DailyBeatApp) {
                 }
                 check(uncleared.isEmpty()) { "Unable to clear ${uncleared.size} exported file(s)." }
             }
+            attempt {
+                val staging = java.io.File(app.cacheDir, "encrypted-backup-staging")
+                check(!staging.exists() || staging.deleteRecursively()) { "Unable to clear backup staging files." }
+            }
             attempt { app.settingsRepository.resetAfterLocalDataDeletion() }
+        }
         }
         attempt { HistoryRetentionWorker.applySchedule(app, 0) }
 

@@ -217,7 +217,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                     nowMs = now,
                     enabled = enabled,
                     pausedUntilMs = pausedUntil,
-                    watcherArmed = MotionStateStore(getApplication()).watcherArmed,
+                    watcherArmed = MotionStateStore(getApplication()).watcherArmed &&
+                        PermissionHelper.canStartLocationCaptureFromBackground(getApplication()),
                 )
             }.collect { (beat, status) ->
                 _uiState.update {
@@ -402,7 +403,8 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
                     nowMs = now,
                     enabled = settings.gpsCaptureEnabled,
                     pausedUntilMs = app.settingsRepository.capturePausedUntilMs(now),
-                    watcherArmed = MotionStateStore(getApplication()).watcherArmed,
+                    watcherArmed = MotionStateStore(getApplication()).watcherArmed &&
+                        PermissionHelper.canStartLocationCaptureFromBackground(getApplication()),
                 )
             _uiState.update { current ->
                 current.copy(

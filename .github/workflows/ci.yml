@@ -56,7 +56,7 @@ jobs:
         run: python3 scripts/live_backup_e2e.py
 
   # Use the existing protected QA credentials without copying them to a developer machine.
-  # API 35 is independent of the API 34 offline lanes and checks the actual Android crypto/client path.
+  # API 36 is independent of the API 34 offline lanes and checks the actual Android crypto/client path.
   native-backup:
     # Both backup gates use the same dedicated account. GitHub concurrency groups can cancel a
     # running job when a higher-priority waiter arrives, even with cancel-in-progress disabled.
@@ -85,7 +85,7 @@ jobs:
           java-version: 17
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build isolated Google-free recovery test
@@ -99,7 +99,7 @@ jobs:
       - name: Native encrypted recovery and verified QA cleanup
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
-          api-level: 35
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: Nexus 6
@@ -128,7 +128,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -136,6 +136,11 @@ jobs:
       - name: Build, unit test, and lint
         working-directory: android
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon --stacktrace
+
+      - name: Verify Android 16 native alignment
+        run: |
+          python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload QA APK and reports
         if: always()
@@ -167,7 +172,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -175,6 +180,11 @@ jobs:
       - name: Build, unit test, and lint
         working-directory: android
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug verifyGoogleFreeDependencies -PdailybeatFoss=true --no-daemon --stacktrace
+
+      - name: Verify Android 16 native alignment
+        run: |
+          python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload QA APK and reports
         if: always()
@@ -205,7 +215,7 @@ jobs:
           java-version: 17
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build disposable offline test APKs
@@ -261,7 +271,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
