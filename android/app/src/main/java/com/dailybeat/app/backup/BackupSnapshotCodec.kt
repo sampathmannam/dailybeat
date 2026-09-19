@@ -59,7 +59,7 @@ object BackupSnapshotCodec {
                 diaries = root.getJSONArray("diaries").mapObjects(::diary),
                 visits = root.getJSONArray("visits").mapObjects(::visit),
                 settings = settings(root.getJSONObject("settings")),
-                breadcrumbs = root.optJSONArray("breadcrumbs")?.mapObjects(::breadcrumb).orEmpty(),
+                breadcrumbs = root.optJSONArray("breadcrumbs")?.mapObjects(::breadcrumb, MAX_BREADCRUMBS).orEmpty(),
                 beatReviews = root.optJSONArray("beatReviews")?.mapObjects(::beatReview).orEmpty(),
                 diaryRevisions = root.optJSONArray("diaryRevisions")?.mapObjects(::diaryRevision).orEmpty(),
                 visitCorrections = root.optJSONArray("visitCorrections")?.mapObjects(::visitCorrection).orEmpty(),
@@ -285,8 +285,8 @@ object BackupSnapshotCodec {
     private fun JSONObject.nullableLong(name: String): Long? =
         if (!has(name) || isNull(name)) null else getLong(name)
 
-    private fun <T> JSONArray.mapObjects(mapper: (JSONObject) -> T): List<T> {
-        require(length() <= MAX_RECORDS_PER_TABLE) { "Backup contains too many records." }
+    private fun <T> JSONArray.mapObjects(mapper: (JSONObject) -> T, maximum: Int = MAX_RECORDS_PER_TABLE): List<T> {
+        require(length() <= maximum) { "Backup contains too many records." }
         return (0 until length()).map { mapper(getJSONObject(it)) }
     }
 

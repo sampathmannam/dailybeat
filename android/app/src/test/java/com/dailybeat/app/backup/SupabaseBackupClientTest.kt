@@ -176,8 +176,11 @@ class SupabaseBackupClientTest {
         server.enqueue(MockResponse().setResponseCode(204))
         server.enqueue(MockResponse().setResponseCode(204))
 
+        server.enqueue(MockResponse().setResponseCode(204))
         assertTrue(client.deleteCloudData().isSuccess)
 
+        val archive = server.takeRequest()
+        assertEquals("/rest/v1/dailybeat_backup_versions?user_id=eq.user-1", archive.path)
         val encrypted = server.takeRequest()
         val legacy = server.takeRequest()
         assertEquals("DELETE", encrypted.method)

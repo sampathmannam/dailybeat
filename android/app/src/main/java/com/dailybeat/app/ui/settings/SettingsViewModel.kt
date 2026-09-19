@@ -30,6 +30,8 @@ import com.dailybeat.app.util.userMessage
 import com.dailybeat.app.data.retention.HistoryRetentionWorker
 
 data class SettingsUiState(
+    val geocodingEndpoint: String = "",
+    val geocodingMessage: String? = null,
     val journalProfile: JournalProfile = JournalProfile.PERSONAL,
     val officerName: String = "",
     val supervisorName: String = "",
@@ -63,6 +65,8 @@ data class SettingsUiState(
     val syntheticResult: String? = null,
     val isSeedingSynthetic: Boolean = false,
     val placeSuggestions: List<PlaceSuggestion> = emptyList(),
+    val backupVersions: List<com.dailybeat.app.backup.BackupVersion> = emptyList(),
+    val selectedBackupVersion: String? = null,
     val backupConfigured: Boolean = false,
     val backupEmailDraft: String = "",
     val backupPasswordDraft: String = "",
@@ -98,6 +102,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         refresh()
     }
 
+    fun setGeocodingDraft(value: String) { _uiState.update { it.copy(geocodingEndpoint = value.take(2048), geocodingMessage = null) } }
+    fun saveGeocodingEndpoint() {
+        runCatching { app.settingsRepository.setGeocodingEndpoint(_uiState.value.geocodingEndpoint) }
+            .onSuccess { _uiState.update { it.copy(geocodingMessage = "Place lookup setting saved.") } }
+            .onFailure { error -> _uiState.update { it.copy(geocodingMessage = error.message ?: "Could not save the endpoint.") } }
+    }
+
     fun setJournalProfile(profile: JournalProfile) {
         app.settingsRepository.setJournalProfile(profile)
         _uiState.update { it.copy(journalProfile = profile) }
@@ -121,6 +132,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 // middle of, such as a half-typed place or the result of a connection test.
                 _uiState.update { current ->
                     current.copy(
+                        geocodingEndpoint = app.settingsRepository.geocodingEndpoint(),
                         officerName = settings.officerName,
                         journalProfile = settings.journalProfile,
                         supervisorName = settings.supervisorName,
@@ -176,7 +188,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun signInToBackup() {
         val state = _uiState.value
-        if (state.backupBusy) return
+        if (state.backupBusy || state.dataBusy) return
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
         viewModelScope.launch {
             val result = runCatching {
@@ -209,7 +221,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun createBackupAccount() {
         val state = _uiState.value
-        if (state.backupBusy) return
+        if (state.backupBusy || state.dataBusy) return
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
         viewModelScope.launch {
             val result = runCatching {
@@ -253,7 +265,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setLegacyBackupRestore(value: Boolean) { _uiState.update { it.copy(legacyBackupRestore = value) } }
 
     fun backupNow() {
-        if (_uiState.value.backupBusy) return
+        if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
         val current = _uiState.value
         if (current.recoveryPassphrase.length < 20 || current.recoveryPassphrase != current.recoveryConfirmation) {
             _uiState.update { it.copy(backupMessage = "Enter a recovery passphrase of at least 20 characters and confirm it.", backupMessageIsError = true) }
@@ -288,6 +300,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun selectBackupVersion(id: String?) { _uiState.update { it.copy(selectedBackupVersion = id) } }
+    fun loadBackupHistory() {
+        if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
+        _uiState.update { it.copy(backupBusy = true) }
+        viewModelScope.launch {
+            app.backupCoordinator.versions().fold(
+                onSuccess = { versions -> _uiState.update { it.copy(backupVersions = versions, backupBusy = false,
+                    backupMessage = if (versions.isEmpty()) "No archive versions yet. Restore can still read an older encrypted backup." else "Choose a completed backup to restore.", backupMessageIsError = false) } },
+                onFailure = { error -> _uiState.update { it.copy(backupBusy = false, backupMessage = error.userMessage("Could not load backup history."), backupMessageIsError = true) } })
+        }
+    }
+
     fun requestBackupRestore() {
         _uiState.update { it.copy(backupRestoreConfirmation = true, backupMessage = null) }
     }
@@ -297,9 +321,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmBackupRestore() {
-        if (_uiState.value.backupBusy) return
+        if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
         val passphrase = _uiState.value.recoveryPassphrase.toCharArray()
         val legacy = _uiState.value.legacyBackupRestore
+        val versionId = _uiState.value.selectedBackupVersion
         _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
         _uiState.update {
             it.copy(backupBusy = true, backupRestoreConfirmation = false, backupMessage = null)
@@ -308,7 +333,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val result = runCatching { if (legacy) {
                 passphrase.fill('\u0000')
                 app.backupCoordinator.restoreLegacyNow()
-            } else app.backupCoordinator.restoreNow(passphrase) }
+            } else app.backupCoordinator.restoreNow(passphrase, versionId) }
                 .getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
@@ -360,7 +385,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun signOutOfBackup() {
         _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
-        if (_uiState.value.backupBusy) return
+        if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
         app.backupCoordinator.signOut()
         _uiState.update {
             it.copy(
@@ -384,7 +409,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmCloudDataDeletion() {
-        if (_uiState.value.dataBusy) return
+        if (_uiState.value.dataBusy || _uiState.value.backupBusy) return
         _uiState.update {
             it.copy(dataBusy = true, cloudDeleteConfirmation = false, dataMessage = null)
         }
@@ -436,7 +461,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun confirmAccountDeletion() {
         val state = _uiState.value
         val email = state.backupSignedInEmail ?: return
-        if (state.dataBusy || state.accountDeletePassword.isBlank()) return
+        if (state.dataBusy || state.backupBusy || state.accountDeletePassword.isBlank()) return
         val password = state.accountDeletePassword
         _uiState.update {
             it.copy(
@@ -501,7 +526,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun confirmRetentionChange() {
         val days = _uiState.value.pendingRetentionDays ?: return
-        if (_uiState.value.dataBusy) return
+        if (_uiState.value.dataBusy || _uiState.value.backupBusy) return
         val previousDays = _uiState.value.historyRetentionDays
         _uiState.update { it.copy(dataBusy = true, pendingRetentionDays = null, dataMessage = null) }
         viewModelScope.launch {
@@ -548,7 +573,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmLocalDataErase() {
-        if (_uiState.value.dataBusy) return
+        if (_uiState.value.dataBusy || _uiState.value.backupBusy) return
         _uiState.update { it.copy(dataBusy = true, localEraseConfirmation = false, dataMessage = null) }
         viewModelScope.launch {
             runCatching { app.localDataEraser.erase() }.fold(

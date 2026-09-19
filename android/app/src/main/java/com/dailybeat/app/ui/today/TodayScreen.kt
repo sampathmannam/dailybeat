@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
@@ -498,15 +499,23 @@ private fun BeatSummary(
                 modifier = Modifier.fillMaxWidth().height(1.dp)
                     .background(MaterialTheme.colorScheme.outlineVariant),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
-                MetricDivider()
-                SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
-                MetricDivider()
-                SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+            if (LocalDensity.current.fontScale >= 1.5f) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SummaryMetric(distanceValue, distanceLabel)
+                    SummaryMetric(timeValue, timeLabel)
+                    SummaryMetric(stopsValue, stopsLabel)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SummaryMetric(distanceValue, distanceLabel, Modifier.weight(1f))
+                    MetricDivider()
+                    SummaryMetric(timeValue, timeLabel, Modifier.weight(1f))
+                    MetricDivider()
+                    SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
+                }
             }
         }
     }
@@ -524,15 +533,11 @@ private fun SummaryMetric(value: String, label: String, modifier: Modifier = Mod
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }

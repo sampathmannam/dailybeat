@@ -142,6 +142,21 @@ fun FeedScreen(
         }
 
         item {
+            Column {
+                Text("${state.throughDate.minusDays(29)} – ${state.throughDate}", style = MaterialTheme.typography.bodySmall)
+                Row {
+                    TextButton(onClick = viewModel::olderDays, enabled = !state.isLoading) { Text("Older days") }
+                    TextButton(onClick = viewModel::newerDays, enabled = !state.isLoading && state.throughDate < DateKeys.today()) { Text("Newer days") }
+                }
+                TextButton(onClick = {
+                    val date = state.throughDate
+                    android.app.DatePickerDialog(context, { _, year, month, day ->
+                        viewModel.browseThrough(LocalDate.of(year, month + 1, day))
+                    }, date.year, date.monthValue - 1, date.dayOfMonth).show()
+                }, modifier = Modifier.testTag("history_choose_date")) { Text("Go to date") }
+            }
+        }
+        item {
             OutlinedTextField(value = state.searchQuery, onValueChange = viewModel::search,
                 modifier = Modifier.fillMaxWidth().testTag("history_search"), singleLine = true,
                 label = { Text("Search notes, diaries and places") },

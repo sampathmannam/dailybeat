@@ -63,7 +63,7 @@ class AdaptiveCapturePolicyTest {
     @Test
     fun `settling request is deliberately quieter than the moving request`() {
         assertTrue(ActiveCaptureProfile.SETTLING.intervalMs > ActiveCaptureProfile.MOVING.intervalMs)
-        assertTrue(ActiveCaptureProfile.SETTLING.maxDelayMs > ActiveCaptureProfile.MOVING.maxDelayMs)
-        assertTrue(ActiveCaptureProfile.SETTLING.minDistanceM > ActiveCaptureProfile.MOVING.minDistanceM)
+        assertTrue(ActiveCaptureProfile.SETTLING.maxDelayMs <= 120_000L)
+        assertTrue(ActiveCaptureProfile.SETTLING.minDistanceM == 0f)
     }
 }

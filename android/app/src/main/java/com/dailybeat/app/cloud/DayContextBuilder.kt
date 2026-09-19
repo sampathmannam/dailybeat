@@ -4,6 +4,7 @@ import com.dailybeat.app.data.settings.JournalProfile
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.domain.OutboundPlaceLabel
 import com.dailybeat.app.domain.OutboundVisitFilter
 import com.dailybeat.app.domain.OutboundEventFilter
 import com.dailybeat.app.util.InputPolicy
@@ -89,8 +90,8 @@ object DayContextBuilder {
         val end = formatTime(visit.endMs, zone)
         val durationMin = ((visit.endMs - visit.startMs).coerceAtLeast(0L) / 60000.0).roundToInt()
         val label = when (visit.visitType) {
-            "transit" -> "Transit near ${visit.address ?: "route"}"
-            else -> visit.placeName ?: visit.address ?: "Unknown place"
+            "transit" -> "Transit near ${OutboundPlaceLabel.safe(visit.address) ?: "route"}"
+            else -> OutboundPlaceLabel.safe(visit.placeName) ?: OutboundPlaceLabel.safe(visit.address) ?: "Unnamed place"
         }
         // No coordinates. The model cites sources as [V#] and never needs the numbers, so sending
         // them was pure leakage of ~11 m positions for a police officer's whole day.

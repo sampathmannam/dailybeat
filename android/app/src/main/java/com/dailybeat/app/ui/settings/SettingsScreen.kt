@@ -77,6 +77,18 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var supportPreview by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    supportPreview?.let { preview ->
+        val supportContext = androidx.compose.ui.platform.LocalContext.current
+        AlertDialog(onDismissRequest = { supportPreview = null }, title = { Text("Review support details") },
+            text = { Column { Text("No locations, notes, names, accounts or credentials are included."); Text(preview) } },
+            confirmButton = { TextButton(onClick = {
+                supportContext.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, preview), "Share support details"))
+                supportPreview = null
+            }) { Text("Choose sharing app") } },
+            dismissButton = { TextButton(onClick = { supportPreview = null }) { Text("Cancel") } })
+    }
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val settingsContext = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -679,6 +691,15 @@ fun SettingsScreen(
                 state.backupMessage?.let { message ->
                     InlineFeedback(message = message, isError = state.backupMessageIsError)
                 }
+                if (state.backupSignedInEmail != null) {
+                    TextButton(onClick = viewModel::loadBackupHistory, enabled = !state.backupBusy && !state.dataBusy) { Text("Backup history · latest five versions") }
+                    state.backupVersions.forEach { version ->
+                        TextButton(onClick = { viewModel.selectBackupVersion(version.id) }, enabled = !state.backupBusy && !state.dataBusy) {
+                            Text((if (state.selectedBackupVersion == version.id) "Selected · " else "") + version.createdAt)
+                        }
+                    }
+                    if (state.selectedBackupVersion != null) TextButton(onClick = { viewModel.selectBackupVersion(null) }) { Text("Use latest backup") }
+                }
                 if (state.backupBusy) {
                     BusyRow(stringResource(R.string.backup_working))
                 }
@@ -687,6 +708,23 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        item {
+            val supportContext = androidx.compose.ui.platform.LocalContext.current
+            SettingsGroup(title = "Support") {
+                Text("Review a small report of app settings and permissions to help diagnose capture problems.", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { supportPreview = com.dailybeat.app.audit.SupportDiagnostics.build(supportContext.applicationContext as com.dailybeat.app.DailyBeatApp) }) { Text("Prepare support details") }
+            }
+        }
+        item {
+            SettingsGroup(title = "Place name lookup") {
+                Text("Saved places work offline. Optional automatic lookups send coordinates outside private zones to your managed provider. Leave empty to keep lookups on this phone.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = state.geocodingEndpoint, onValueChange = viewModel::setGeocodingDraft,
+                    label = { Text("Managed HTTPS endpoint") }, modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = viewModel::saveGeocodingEndpoint) { Text("Save lookup setting") }
+                state.geocodingMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
 

@@ -183,8 +183,8 @@ private fun DailyBeatNavigationBar(
                 label = {
                     Text(
                         text = stringResource(destination.labelRes),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 2,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                 },
                 colors = colors,

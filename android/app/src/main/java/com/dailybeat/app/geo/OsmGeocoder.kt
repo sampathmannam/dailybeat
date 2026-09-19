@@ -23,11 +23,13 @@ data class ResolvedPlace(
 }
 
 /**
- * OpenStreetMap Nominatim reverse geocoding (free). Respects 1 req/s policy via mutex delay.
+ * Optional Nominatim-compatible managed endpoint. No public service is contacted by default.
  */
 open class OsmGeocoder(
     private val geocodeDao: GeocodeDao,
-    private val baseUrl: String = NOMINATIM_URL,
+    private val baseUrl: String = "",
+    private val endpoint: () -> String = { baseUrl },
+    private val permitsLookup: suspend (Double, Double) -> Boolean = { _, _ -> true },
 ) {
 
     private val client = OkHttpClient.Builder()
@@ -46,7 +48,11 @@ open class OsmGeocoder(
             if (!isValidCoordinate(latitude, longitude)) {
                 return@withContext ResolvedPlace(null, fallbackLabel(latitude, longitude))
             }
-            val key = cacheKey(latitude, longitude)
+            val configuredEndpoint = endpoint()
+            if (configuredEndpoint.isBlank() || !permitsLookup(latitude, longitude)) {
+                return@withContext ResolvedPlace(null, "Unnamed place")
+            }
+            val key = configuredEndpoint + ":" + cacheKey(latitude, longitude)
             runCatching { geocodeDao.get(key) }.getOrNull()?.let { cached ->
                 return@withContext ResolvedPlace(cached.placeName, cached.displayName)
             }
@@ -62,7 +68,7 @@ open class OsmGeocoder(
             val url = String.format(
                 Locale.US,
                 "%s?lat=%.6f&lon=%.6f&format=json&addressdetails=1&namedetails=1&zoom=18",
-                baseUrl,
+                configuredEndpoint,
                 latitude,
                 longitude,
             )
@@ -73,6 +79,8 @@ open class OsmGeocoder(
                 .build()
 
             val fallback = ResolvedPlace(null, fallbackLabel(latitude, longitude))
+            // Recheck after the throttle; privacy settings may have changed while waiting.
+            if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) return@withContext fallback
             val body = try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@withContext fallback
@@ -142,7 +150,7 @@ open class OsmGeocoder(
         String.format(Locale.US, "%.4f,%.4f", lat, lon)
 
     private fun fallbackLabel(lat: Double, lon: Double): String =
-        String.format(Locale.US, "Location %.4f, %.4f", lat, lon)
+        "Unnamed place"
 
     private fun isValidCoordinate(lat: Double, lon: Double): Boolean =
         lat in -90.0..90.0 && lon in -180.0..180.0 &&

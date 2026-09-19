@@ -13,6 +13,7 @@ data class VisitTrackerState(
     val departureLat: Double?,
     val departureLon: Double?,
     val inTransit: Boolean,
+    val suspended: Boolean = false,
 )
 
 interface VisitTrackerStateStore {

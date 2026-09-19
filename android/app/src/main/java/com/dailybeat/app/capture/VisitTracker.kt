@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.cos
 import kotlin.math.sqrt
-import java.util.Locale
+import kotlinx.coroutines.CancellationException
 
 /**
  * Passive visit detection: dwell at a place (≥8 min within ~150m) and transit between places.
@@ -49,7 +49,9 @@ class VisitTracker(
     private var departureLat: Double? = null
     private var departureLon: Double? = null
     private var inTransit = false
+    private var suspended = false
     private val pendingWrites = mutableSetOf<Job>()
+    private val writeFailures = mutableListOf<Throwable>()
 
     init {
         restoreCheckpoint()
@@ -58,8 +60,8 @@ class VisitTracker(
     fun onLocation(latitude: Double, longitude: Double, timestampMs: Long) {
         if (!isValidCoordinate(latitude, longitude) || timestampMs <= 0L) return
         if (lastSampleMs > 0L && timestampMs <= lastSampleMs) return
-        if (lastSampleMs > 0L && timestampMs - lastSampleMs > MAX_SAMPLE_GAP_MS) {
-            flushPending()
+        if (suspended || (lastSampleMs > 0L && timestampMs - lastSampleMs > MAX_SAMPLE_GAP_MS)) {
+            flushPending(allowNetworkLookup = false)
             startDwell(latitude, longitude, timestampMs)
             persistCheckpoint()
             return
@@ -176,14 +178,14 @@ class VisitTracker(
         lon: Double,
         allowNetworkLookup: Boolean,
     ) {
-        val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
+        val places = placeRepository.all()
         val matched = GeofenceMatcher.matchPlace(lat, lon, places)
         // A private zone is never sent to the geocoder. Resolving it would hand the officer's
         // home, or an informant's meeting point, to a third-party service at capture time —
         // before any outbound filter downstream ever gets a say. Their own saved name is the
         // label, and no third-party address is stored for it.
         val resolved = when {
-            matched?.isPrivate == true -> null
+            OutboundVisitFilter.isPrivateLocation(lat, lon, places) -> null
             allowNetworkLookup -> resolveSafely(lat, lon)
             else -> coordinateFallback(lat, lon)
         }
@@ -208,7 +210,7 @@ class VisitTracker(
         lon: Double,
         allowNetworkLookup: Boolean = true,
     ) {
-        val places = runCatching { placeRepository.all() }.getOrDefault(emptyList())
+        val places = placeRepository.all()
         // Same rule for a transit sample that happens to fall inside a private zone.
         val resolved = when {
             OutboundVisitFilter.isPrivateLocation(lat, lon, places) -> null
@@ -229,19 +231,16 @@ class VisitTracker(
     }
 
     private suspend fun resolveSafely(latitude: Double, longitude: Double): ResolvedPlace =
-        runCatching { osmGeocoder.resolve(latitude, longitude) }
-            .getOrElse { coordinateFallback(latitude, longitude) }
+        try {
+            osmGeocoder.resolve(latitude, longitude)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            coordinateFallback(latitude, longitude)
+        }
 
     private fun coordinateFallback(latitude: Double, longitude: Double): ResolvedPlace =
-        ResolvedPlace(
-            name = null,
-            address = String.format(
-                Locale.US,
-                "Location %.4f, %.4f",
-                latitude,
-                longitude,
-            ),
-        )
+        ResolvedPlace(name = null, address = "Unnamed place")
 
     private fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val earth = 6_371_000.0
@@ -271,7 +270,7 @@ class VisitTracker(
                 launchWrite { recordTransit(startMs, endMs, lat, lon, allowNetworkLookup) }
             }
         } else {
-            val endMs = lastSampleMs.takeIf { it > dwellStartMs } ?: System.currentTimeMillis()
+            val endMs = lastSampleMs // Unobserved time must never lengthen a stay.
             finalizeDwell(endMs, allowNetworkLookup)
         }
         clearState()
@@ -281,7 +280,12 @@ class VisitTracker(
     suspend fun awaitPendingWrites() {
         while (true) {
             val jobs = synchronized(pendingWrites) { pendingWrites.toList() }
-            if (jobs.isEmpty()) return
+            if (jobs.isEmpty()) {
+                synchronized(writeFailures) {
+                    writeFailures.firstOrNull()?.let { throw it }
+                }
+                return
+            }
             jobs.joinAll()
         }
     }
@@ -298,7 +302,12 @@ class VisitTracker(
     }
 
     private fun launchWrite(block: suspend () -> Unit) {
-        val job = scope.launch(ioContext, start = CoroutineStart.LAZY) { block() }
+        val job = scope.launch(ioContext, start = CoroutineStart.LAZY) {
+            try { block() } catch (error: Throwable) {
+                synchronized(writeFailures) { writeFailures += error }
+                onWriteFailure(error)
+            }
+        }
         synchronized(pendingWrites) { pendingWrites += job }
         job.invokeOnCompletion { error ->
             synchronized(pendingWrites) { pendingWrites -= job }
@@ -336,6 +345,7 @@ class VisitTracker(
         departureLat = state.departureLat
         departureLon = state.departureLon
         inTransit = state.inTransit
+        suspended = state.suspended
     }
 
     private fun persistCheckpoint() {
@@ -351,11 +361,13 @@ class VisitTracker(
                 departureLat = departureLat,
                 departureLon = departureLon,
                 inTransit = inTransit,
+                suspended = suspended,
             ),
         )
     }
 
     private fun clearState() {
+        suspended = false
         resetDwell()
         lastSampleMs = 0L
         transitStartMs = 0L

@@ -59,6 +59,8 @@ class DailyBeatApp : Application() {
 
     val beatRepository: BeatRepository by lazy { BeatRepository(db.beatReviews()) }
 
+    val captureProcessor by lazy { com.dailybeat.app.capture.CaptureProcessor(db, osmGeocoder) }
+
     val captureHealthStore: CaptureHealthStore by lazy { CaptureHealthStore(this) }
 
     val historyRetentionManager by lazy { HistoryRetentionManager(db) }
@@ -78,11 +80,12 @@ class DailyBeatApp : Application() {
         )
     }
 
-    val backupCoordinator by lazy { BackupCoordinator(localBackupStore, backupClient) }
+    val backupCoordinator by lazy { BackupCoordinator(localBackupStore, backupClient, java.io.File(cacheDir, "encrypted-backup-staging")) }
 
     val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
 
-    val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes()) }
+    val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes(), endpoint = settingsRepository::geocodingEndpoint,
+        permitsLookup = { lat, lon -> !com.dailybeat.app.domain.OutboundVisitFilter.isPrivateLocation(lat, lon, placeRepository.all()) }) }
 
     val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
 
@@ -141,6 +144,7 @@ class DailyBeatApp : Application() {
         settingsRepository.setAutoMiddayPulse(false)
         PulseScheduler.cancel(this)
         HistoryRetentionWorker.applySchedule(this, settingsRepository.get().historyRetentionDays)
+        com.dailybeat.app.capture.CaptureRecoveryWorker.schedule(this)
     }
 
     private fun createNotificationChannels() {
