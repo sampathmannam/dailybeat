@@ -41,9 +41,15 @@ These are proposed pilot acceptance thresholds, not measured production promises
 Use `scripts/benchmark_qa.py SERIAL OUTPUT.json` for repeatable launch timing. It refuses the
 production package. Emulator numbers are diagnostics, not release performance claims. Use
 `docs/BATTERY_FIELD_TRIAL.md` and the existing trial scripts for physical-device evidence. Re-test
-foreground-only permission, activity permission denied, GMS unavailable, FOSS, Doze, reboot, time
+foreground-only permission, activity permission denied, GMS unavailable/restarting, FOSS, Doze, reboot, time
 change, forced stop, no network, weak signal and pause expiry. A force-stopped app requires user
 interaction to restart; this is an Android constraint, not a background guarantee.
+
+The standard build falls back to Android location if Google subscription startup fails or takes
+more than five seconds. With precise permission it prefers the platform GPS provider during
+that fallback. This preserves capture startup without assuming Play Services is healthy; compare
+battery and fix quality during the physical-device trial. A registered subscription is not proof
+of a fresh fix: inspect capture health and permission/device-location state as well.
 
 ## Support without telemetry
 
