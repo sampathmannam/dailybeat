@@ -68,6 +68,9 @@ class DailyBeatApp : Application() {
     val localDataEraser by lazy { LocalDataEraser(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+    val mapSettings by lazy { com.dailybeat.app.maps.MapSettingsRepository(this) }
+    val mapNetwork by lazy { com.dailybeat.app.maps.MapNetwork(this, mapSettings) }
+    val offlineMaps by lazy { com.dailybeat.app.maps.OfflineMapRepository(this) }
 
     private val backupSessionStore by lazy { EncryptedBackupSessionStore(this) }
 

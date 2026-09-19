@@ -77,6 +77,14 @@ import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
+import com.dailybeat.app.ui.theme.LocalDarkTheme
+import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.maps.MapPreferences
+import com.dailybeat.app.maps.LocalMapLease
+import kotlinx.coroutines.delay
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import kotlinx.coroutines.launch
@@ -99,9 +107,31 @@ fun JourneyMapPreview(
     modifier: Modifier = Modifier,
     onFailure: (String) -> Unit = {},
 ) {
-    val context = LocalContext.current
-    if (model.points.isEmpty()) return
+    val app = LocalContext.current.applicationContext as DailyBeatApp
+    val preferences by app.mapSettings.state.collectAsState()
+    val offline by app.offlineMaps.state.collectAsState()
+    key(preferences, offline.installed?.version) {
+        val lease = remember { app.offlineMaps.acquire() }
+        JourneyMapPreviewContent(model, modifier, onFailure, preferences, lease)
+    }
+}
 
+@Composable
+private fun JourneyMapPreviewContent(
+    model: JourneyMapModel,
+    modifier: Modifier,
+    onFailure: (String) -> Unit,
+    preferences: MapPreferences,
+    lease: LocalMapLease?,
+) {
+    val context = LocalContext.current
+    val app = context.applicationContext as DailyBeatApp
+    val dark = LocalDarkTheme.current
+    var insideCoverage by remember { mutableStateOf(lease?.contains(model.centerLatitude ?: 0.0, model.centerLongitude ?: 0.0) == true) }
+    val useOffline = lease != null && (!preferences.allowOnlineMaps || insideCoverage)
+    var loadAttempt by remember { mutableStateOf(0) }
+    val styleGeneration = remember { java.util.concurrent.atomic.AtomicInteger() }
+    var fittedModel by remember { mutableStateOf<JourneyMapModel?>(null) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var mapError by remember { mutableStateOf(false) }
@@ -115,24 +145,49 @@ fun JourneyMapPreview(
     val canReplay = mapRendered && replayablePointCount >= 2
     val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
-    val loadStyle: (MapLibreMap) -> Unit = { readyMap ->
-        mapError = false
-        mapRendered = false
-        readyMap.setStyle(JOURNEY_MAP_STYLE_URL) { style ->
-            loadedStyle = style
-            mapError = false
-        }
-    }
     val mapView = rememberMapViewWithLifecycle(
-        onMapReady = { readyMap ->
-            map = readyMap
-            loadStyle(readyMap)
-        },
+        onMapReady = { readyMap -> map = readyMap },
         onMapError = {
             mapError = true
-            onFailure("MapLibre map loading failed.")
+            onFailure("Map could not load. Your route is still available.")
         },
+        onDisposeMap = { lease?.close() },
     )
+    LaunchedEffect(map, useOffline, dark, loadAttempt) {
+        val readyMap = map ?: return@LaunchedEffect
+        val generation = styleGeneration.incrementAndGet()
+        loadedStyle = null
+        mapError = false
+        mapRendered = false
+        try {
+            val builder = when {
+                useOffline -> Style.Builder().fromJson(requireNotNull(lease).style(dark))
+                preferences.allowOnlineMaps -> Style.Builder().fromUri(preferences.provider.styleUrl)
+                else -> Style.Builder().fromJson("{\"version\":8,\"sources\":{},\"layers\":[]}")
+            }
+            readyMap.setStyle(builder) {
+                if (styleGeneration.get() == generation) { loadedStyle = it; mapError = false }
+            }
+            delay(12_000)
+            if (!mapRendered) {
+                mapError = true
+                app.mapNetwork.resources.dispatcher.cancelAll()
+                onFailure("Map took too long to load. Try again.")
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { mapError = true; onFailure("Map could not load. Try again.") }
+        finally { styleGeneration.compareAndSet(generation, generation + 1) }
+    }
+    DisposableEffect(map) {
+        val readyMap = map
+        val listener = MapLibreMap.OnCameraIdleListener {
+            readyMap?.cameraPosition?.target?.let {
+                insideCoverage = lease?.contains(it.latitude, it.longitude) == true
+            }
+        }
+        readyMap?.addOnCameraIdleListener(listener)
+        onDispose { readyMap?.removeOnCameraIdleListener(listener) }
+    }
 
     LaunchedEffect(model.points) {
         isPlaying = false
@@ -180,6 +235,7 @@ fun JourneyMapPreview(
                 viewportWidthPx = mapViewportSize.width,
                 viewportHeightPx = mapViewportSize.height,
                 cameraPaddingPx = cameraPaddingPx,
+                fitCamera = fittedModel != model,
                 onError = {
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
@@ -188,6 +244,7 @@ fun JourneyMapPreview(
                     onFailure("MapLibre journey render failed.")
                 },
             )
+            fittedModel = model
             onDispose {
                 mapView.removeOnDidFinishRenderingMapListener(renderListener)
             }
@@ -250,6 +307,7 @@ fun JourneyMapPreview(
                         testTag = "journey_map_fallback",
                         readyTestTag = "journey_map_fallback_ready",
                         onFailure = onFailure,
+                        allowNetwork = !useOffline,
                     )
                     Surface(
                         modifier = Modifier
@@ -270,9 +328,7 @@ fun JourneyMapPreview(
                                 )
                                 TextButton(
                                     onClick = {
-                                        loadedStyle = null
-                                        mapView.contentDescription = mapDescription
-                                        map?.let(loadStyle)
+                                        loadAttempt += 1
                                     },
                                 ) {
                                     Text(stringResource(R.string.journey_map_retry))
@@ -312,6 +368,14 @@ fun JourneyMapPreview(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (!preferences.allowOnlineMaps || useOffline) {
+                    Text(
+                        text = if (useOffline && insideCoverage) stringResource(R.string.map_using_offline)
+                            else if (lease != null) stringResource(R.string.map_outside_coverage)
+                            else stringResource(R.string.map_local_route_only),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 LinearProgressIndicator(
                     progress = { playbackProgress.value },
                     modifier = Modifier
@@ -477,16 +541,20 @@ private fun MapLibreMap.renderPlaybackFrame(
 private fun rememberMapViewWithLifecycle(
     onMapReady: (MapLibreMap) -> Unit,
     onMapError: () -> Unit,
+    onDisposeMap: () -> Unit,
 ): MapView {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val latestReady by rememberUpdatedState(onMapReady)
+    val latestError by rememberUpdatedState(onMapError)
     val mapView = remember {
+        (context.applicationContext as DailyBeatApp).mapNetwork.installNativeClient()
         MapLibre.getInstance(context)
         MapView(context).apply {
             contentDescription = context.getString(R.string.journey_map_content_description)
             onCreate(Bundle())
-            addOnDidFailLoadingMapListener { onMapError() }
-            getMapAsync(onMapReady)
+            addOnDidFailLoadingMapListener { latestError() }
+            getMapAsync { latestReady(it) }
         }
     }
 
@@ -541,6 +609,7 @@ private fun rememberMapViewWithLifecycle(
             lifecycle.removeObserver(observer)
             stop()
             if (!destroyed) mapView.onDestroy()
+            onDisposeMap()
         }
     }
     return mapView
@@ -552,6 +621,7 @@ private fun MapLibreMap.renderJourney(
     viewportWidthPx: Int,
     viewportHeightPx: Int,
     cameraPaddingPx: Int,
+    fitCamera: Boolean,
     onError: () -> Unit,
 ) {
     runCatching {
@@ -652,6 +722,7 @@ private fun MapLibreMap.renderJourney(
             stopSource.setGeoJson(stops)
         }
 
+        if (!fitCamera) return@runCatching
         if (model.points.size == 1 || model.crossesAntimeridian) {
             animateCamera(
                 CameraUpdateFactory.newCameraPosition(

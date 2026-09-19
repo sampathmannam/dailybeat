@@ -33,6 +33,9 @@ jobs:
           pip install -e ".[dev]"
           python3 -m pytest scripts/tests/ -q
 
+      - name: Verify offline map package matches the signed catalog
+        run: python3 scripts/build_offline_map.py --work-dir "$RUNNER_TEMP/dailybeat-map-build" --prefer-published
+
   # The hosted Android emulator currently has a known external-network regression. Exercise the
   # exact authenticated Supabase protocol from the runner and restore the dedicated QA backup in
   # a verified finally block, while the Android jobs independently cover all app/UI behavior.

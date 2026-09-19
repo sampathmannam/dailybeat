@@ -114,6 +114,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
+      - name: Verify immutable offline map package against the APK catalog
+        run: python3 scripts/build_offline_map.py --work-dir "$RUNNER_TEMP/dailybeat-map-build" --prefer-published
+
       - name: Restore permanent signing key
         env:
           DAILYBEAT_KEYSTORE_BASE64: ${{ secrets.DAILYBEAT_KEYSTORE_BASE64 }}
@@ -186,7 +189,8 @@ jobs:
             --title "$RELEASE_TAG" \
             --generate-notes \
             "$release_apk" \
-            SHA256SUMS.txt
+            SHA256SUMS.txt \
+            "$RUNNER_TEMP/dailybeat-map-build/release-assets/"*
 
       # The runner is ephemeral and no artifact upload includes it, but the permanent signing key
       # should not outlive the step that needs it.

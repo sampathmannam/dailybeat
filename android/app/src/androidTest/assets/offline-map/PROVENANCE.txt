@@ -1,0 +1,2 @@
+Synthetic test viewports from the Tamil Nadu 2026-09-19 Protomaps/OSM package.
+Contains map data only; no user history. OSM ODbL, Protomaps BSD, Noto fonts OFL, sprites MIT; resource licenses are in resources.zip.

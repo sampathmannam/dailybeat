@@ -1,0 +1,80 @@
+{
+  "source": {
+    "objectName": "20260919.pmtiles",
+    "size": 138139970338,
+    "md5sum": "eDwp0EK4As3p+7gdaAobMg==",
+    "b3sum": "60fd23d0766f3955ad2f84dc9694f3a9c698c048d0e68705f75e18e8f837cc32",
+    "uploaded": "2026-09-19T09:04:11.212Z",
+    "version": "4.15.2"
+  },
+  "boundary": {
+    "boundaryID": "IND-ADM1-1811400",
+    "boundaryName": "India",
+    "boundaryISO": "IND",
+    "boundaryYearRepresented": "2011",
+    "boundaryType": "ADM1",
+    "boundaryCanonical": "State / Union Territory",
+    "boundarySource": "DataMeet India community, Election Commission of India",
+    "boundaryLicense": "Creative Commons Attribution 2.5 India (CC BY 2.5 IN)",
+    "licenseDetail": "nan",
+    "licenseSource": "github.com/datameet/maps",
+    "boundarySourceURL": "github.com/datameet/maps",
+    "sourceDataUpdateDate": "Thu Jan 19 07:31:04 2023",
+    "buildDate": "Dec 12, 2023",
+    "Continent": "Asia",
+    "UNSDG-region": "Central and Southern Asia",
+    "UNSDG-subregion": "Southern Asia",
+    "worldBankIncomeGroup": "Lower-middle-income Countries",
+    "admUnitCount": "36",
+    "meanVertices": "29240.0",
+    "minVertices": "1465",
+    "maxVertices": "111946",
+    "meanPerimeterLengthKM": "2898.9877860855454",
+    "minPerimeterLengthKM": "68.40903557904203",
+    "maxPerimeterLengthKM": "7834.207729775352",
+    "meanAreaSqKM": "90835.83327140144",
+    "minAreaSqKM": "29.90223802178997",
+    "maxAreaSqKM": "342169.5548314523",
+    "staticDownloadLink": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IND/ADM1/geoBoundaries-IND-ADM1-all.zip",
+    "gjDownloadURL": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IND/ADM1/geoBoundaries-IND-ADM1.geojson",
+    "tjDownloadURL": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IND/ADM1/geoBoundaries-IND-ADM1.topojson",
+    "imagePreview": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IND/ADM1/geoBoundaries-IND-ADM1-PREVIEW.png",
+    "simplifiedGeometryGeoJSON": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/IND/ADM1/geoBoundaries-IND-ADM1_simplified.geojson"
+  },
+  "boundarySha256": "36381c65173e571752474603d333dd5301cdf91019187f78845598b416e48aa3",
+  "assetsCommit": "028c18f713baecad011301ff7a69acc39bcc2ae7",
+  "assetsZipSha256": "442753e04d435c7d95536679ba179700db31875cca6ec0b6fdda8c1367115eeb",
+  "style": {
+    "version": "5.7.2",
+    "tarball": "https://registry.npmjs.org/@protomaps/basemaps/-/basemaps-5.7.2.tgz",
+    "integrity": "sha512-K1Yk6bWdULulYg+R2QRVXx4NzJZan5YQhpejEG0c1/sXruJrfPIPZuakpf3jwAgVmjIRVQwAv+yRafDeN0aaUQ=="
+  },
+  "pmtiles": {
+    "go-pmtiles-1.31.2_Darwin_arm64.zip": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles-1.31.2_Darwin_arm64.zip",
+      "sha256": "40528f7f616fcbf91207cd48c8fc023d213f6d86c0cbf1f748732803d1880f3d"
+    },
+    "go-pmtiles-1.31.2_Darwin_x86_64.zip": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles-1.31.2_Darwin_x86_64.zip",
+      "sha256": "1f0dc02eee6c58312dd6c509faee1b5c32f0596568af1bf51f1b034e7a88a65b"
+    },
+    "go-pmtiles_1.31.2_Linux_arm64.tar.gz": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_arm64.tar.gz",
+      "sha256": "f8bd47e7ea866863489cad588fbaf2f31f42e5821f7a03f009b3769f05801cb1"
+    },
+    "go-pmtiles_1.31.2_Linux_x86_64.tar.gz": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz",
+      "sha256": "3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a312f"
+    },
+    "go-pmtiles_1.31.2_Windows_arm64.zip": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Windows_arm64.zip",
+      "sha256": "8780a17453c63af757917a694cbbb50b943db89cc3f1b07e6fd62c1ff8e6963b"
+    },
+    "go-pmtiles_1.31.2_Windows_x86_64.zip": {
+      "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Windows_x86_64.zip",
+      "sha256": "a658baa4d7e55020aef6ca17bd9ff9faa1582671266b36f58c52db0ac8e785a1"
+    }
+  },
+  "version": "tn-20260919-v1",
+  "releaseTag": "v4.3.0"
+}

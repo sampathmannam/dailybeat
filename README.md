@@ -30,7 +30,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
 [validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),
-[privacy information](PRIVACY.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
+[privacy information](PRIVACY.md), [offline Tamil Nadu maps](docs/OFFLINE_MAPS.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
 
 ## Build and test
 
