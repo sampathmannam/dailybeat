@@ -1,5 +1,7 @@
 package com.dailybeat.app.ui.settings
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -81,7 +83,7 @@ fun SettingsScreen(
     supportPreview?.let { preview ->
         val supportContext = androidx.compose.ui.platform.LocalContext.current
         AlertDialog(onDismissRequest = { supportPreview = null }, title = { Text("Review support details") },
-            text = { Column { Text("No locations, notes, names, accounts or credentials are included."); Text(preview) } },
+            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) { Text("No locations, notes, names, accounts or credentials are included."); Text(preview) } },
             confirmButton = { TextButton(onClick = {
                 supportContext.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
                     .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, preview), "Share support details"))

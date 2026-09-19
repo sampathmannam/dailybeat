@@ -46,7 +46,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -403,7 +402,9 @@ private fun CaptureOverview(
             stringResource(R.string.capture_watching_detail)
         CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
             stringResource(R.string.capture_waiting_detail)
-        CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
+        CaptureHealthLevel.DEGRADED -> if (status.storageUnavailable) {
+            stringResource(R.string.capture_storage_failed) to stringResource(R.string.capture_storage_failed_detail)
+        } else stringResource(R.string.capture_degraded) to
             (
                 captureFixAgeText(status)?.let {
                     stringResource(
@@ -667,8 +668,6 @@ private fun StatusChip(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }

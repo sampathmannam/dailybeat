@@ -390,6 +390,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.update {
             it.copy(
                 backupSignedInEmail = null,
+                backupVersions = emptyList(),
+                selectedBackupVersion = null,
                 backupPasswordDraft = "",
                 backupMessage = "Signed out. Local DailyBeat data remains on this phone.",
                 backupMessageIsError = false,
@@ -482,6 +484,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         it.copy(
                             dataBusy = false,
                             backupSignedInEmail = null,
+                backupVersions = emptyList(),
+                selectedBackupVersion = null,
                             backupPasswordDraft = "",
                             dataMessage = "Cloud account and all cloud backups were deleted. Data on this phone remains.",
                             dataMessageIsError = false,

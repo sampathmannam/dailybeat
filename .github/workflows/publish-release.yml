@@ -135,6 +135,11 @@ jobs:
           cd android
           ./gradlew assembleRelease testReleaseUnitTest --no-daemon --stacktrace
 
+      - name: Verify Android 16 native alignment
+        run: |
+          python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release.apk
+
       - name: Verify permanent signing certificate
         run: |
           build_tools_dir="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)"

@@ -88,7 +88,7 @@ internal class ArchiveCipher(passphrase: CharArray, salt: ByteArray = ByteArray(
     }
     override fun close() { key.fill(0) }
     companion object {
-        const val MAX_PLAIN = 2 * 1024 * 1024
+        const val MAX_PLAIN = 4 * 1024 * 1024
         const val MAX_PART_BYTES = 1024 * 1024
         const val MAX_PARTS = 2048
         const val MAX_ARCHIVE_BYTES = 64L * 1024 * 1024

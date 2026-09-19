@@ -30,7 +30,7 @@ class CaptureProcessor(
     private val db: DailyBeatDb,
     private val geocoder: OsmGeocoder,
 ) {
-    suspend fun drain(onAccepted: (LocationSample, String) -> Unit = { _, _ -> }) {
+    suspend fun drain(onRejected: (Long, String) -> Unit = { _, _ -> }, onAccepted: (LocationSample, String) -> Unit = { _, _ -> }) {
         val journal = db.captureJournal()
         while (true) {
             val batch = journal.pending()
@@ -46,6 +46,7 @@ class CaptureProcessor(
                 val duplicate = memory.load()?.lastSampleMs?.let { sample.timestampMs <= it } == true
                 if (!decision.accepted || duplicate) {
                     journal.acknowledge(fix.timestampMs)
+                    if (!decision.accepted) onRejected(sample.timestampMs, decision.reason ?: "Unreliable location")
                     continue
                 }
                 val visits = java.util.Collections.synchronizedList(mutableListOf<LocationVisit>())

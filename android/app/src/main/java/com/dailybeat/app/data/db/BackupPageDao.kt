@@ -5,11 +5,11 @@ import com.dailybeat.app.data.model.*
 
 @Dao
 interface BackupPageDao {
-    @Query("SELECT * FROM events WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 8")
+    @Query("SELECT * FROM events WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 4")
     suspend fun events(after: Long?): List<Event>
     @Query("SELECT * FROM places WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 500")
     suspend fun places(after: Long?): List<Place>
-    @Query("SELECT * FROM diaries WHERE dateKey > :after ORDER BY dateKey LIMIT 8")
+    @Query("SELECT * FROM diaries WHERE dateKey > :after ORDER BY dateKey LIMIT 4")
     suspend fun diaries(after: String): List<DiaryEntry>
     @Query("SELECT * FROM location_visits WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 500")
     suspend fun visits(after: Long?): List<LocationVisit>
@@ -17,7 +17,7 @@ interface BackupPageDao {
     suspend fun breadcrumbs(after: Long?): List<LocationBreadcrumb>
     @Query("SELECT * FROM beat_reviews WHERE dateKey > :after ORDER BY dateKey LIMIT 500")
     suspend fun beatReviews(after: String): List<BeatReview>
-    @Query("SELECT * FROM diary_revisions WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 8")
+    @Query("SELECT * FROM diary_revisions WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 4")
     suspend fun diaryRevisions(after: Long?): List<DiaryRevision>
     @Query("SELECT * FROM visit_corrections WHERE (:after IS NULL OR id > :after) ORDER BY id LIMIT 500")
     suspend fun visitCorrections(after: Long?): List<VisitCorrection>

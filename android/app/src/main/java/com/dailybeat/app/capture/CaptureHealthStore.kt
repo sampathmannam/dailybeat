@@ -14,6 +14,7 @@ data class CaptureHealth(
     val lastQuality: String? = null,
     val lastRejectionReason: String? = null,
     val rejectedCountToday: Int = 0,
+    val storageUnavailable: Boolean = false,
 )
 
 /**
@@ -29,6 +30,7 @@ data class CaptureHealthStatus(
     val accuracyM: Float? = null,
     val rejectedCount: Int = 0,
     val reason: String? = null,
+    val storageUnavailable: Boolean = false,
     /** When a [CaptureHealthLevel.PAUSED] privacy pause expires. Null for every other level. */
     val resumesAtMs: Long? = null,
 )
@@ -51,6 +53,10 @@ fun CaptureHealth.status(
     }
     if (pausedUntilMs > nowMs) {
         return CaptureHealthStatus(CaptureHealthLevel.PAUSED, resumesAtMs = pausedUntilMs)
+    }
+    if (storageUnavailable) {
+        return CaptureHealthStatus(CaptureHealthLevel.DEGRADED, storageUnavailable = true,
+            reason = "Capture could not be saved")
     }
     if (!serviceRunning) {
         // Battery-adaptive capture deliberately stops active location work after confirmed
@@ -111,8 +117,12 @@ class CaptureHealthStore(context: Context) {
             lastAccuracyM = sample.accuracyM,
             lastQuality = quality,
             lastRejectionReason = null,
+            storageUnavailable = false,
         )
     }
+
+    @Synchronized
+    fun storageFailed() = update { it.copy(storageUnavailable = true) }
 
     @Synchronized
     fun rejected(timestampMs: Long, reason: String) = update { current ->
@@ -145,6 +155,7 @@ class CaptureHealthStore(context: Context) {
             .putString(KEY_QUALITY, next.lastQuality)
             .putString(KEY_REJECTION, next.lastRejectionReason)
             .putInt(KEY_REJECTION_COUNT, next.rejectedCountToday)
+            .putBoolean(KEY_STORAGE_FAILED, next.storageUnavailable)
             .apply()
         _health.value = next
     }
@@ -164,6 +175,7 @@ class CaptureHealthStore(context: Context) {
             lastQuality = prefs.getString(KEY_QUALITY, null),
             lastRejectionReason = prefs.getString(KEY_REJECTION, null),
             rejectedCountToday = todayRejections,
+            storageUnavailable = prefs.getBoolean(KEY_STORAGE_FAILED, false),
         )
     }
 
@@ -173,6 +185,7 @@ class CaptureHealthStore(context: Context) {
     companion object {
         const val HEALTHY_AGE_MS = 5 * 60_000L
         private const val PREFS_NAME = "capture_health"
+        private const val KEY_STORAGE_FAILED = "storage_failed"
         private const val KEY_RUNNING = "service_running"
         private const val KEY_STARTED = "service_started_at"
         private const val KEY_LAST_FIX = "last_fix_at"

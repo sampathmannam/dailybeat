@@ -79,6 +79,27 @@ class BackupArchiveTest {
         assertEquals(-1,store.restored)
         assertTrue(directory.listFiles().orEmpty().isEmpty())
     }
+    @Test fun `maximum length escaped diary records are split without losing text`() = runBlocking {
+        // JSON expands a control character to six bytes: four legal 500k-character
+        // diary records must be split before encryption, including a single 3 MB row.
+        val entries = (1..4).map { com.dailybeat.app.data.model.DiaryEntry("2026-01-0$it", "\u0001".repeat(500_000), 1234) }
+        var restored = emptyList<com.dailybeat.app.data.model.DiaryEntry>()
+        val store = object : PagedSnapshotStore {
+            override suspend fun createSnapshot(): BackupSnapshot = error("whole snapshot")
+            override suspend fun restore(snapshot: BackupSnapshot) = error("whole restore")
+            override suspend fun forEachPage(emit: suspend (BackupSnapshot) -> Unit) {
+                emit(BackupSnapshot.empty(1234).copy(diaries = entries))
+            }
+            override suspend fun restorePages(pages: Sequence<BackupSnapshot>) { restored = pages.flatMap { it.diaries }.toList() }
+        }
+        val remote = Remote()
+        val archive = BackupArchive(store, remote, directory)
+        archive.backup(passphrase)
+        assertEquals(4, remote.parts.size)
+        archive.restore(passphrase, remote.versions().first())
+        assertEquals(entries, restored)
+        assertTrue(directory.listFiles().orEmpty().isEmpty())
+    }
     @Test fun `authentication binds version id and page index and bounds expansion`() {
         val id = UUID.randomUUID().toString()
         ArchiveCipher(passphrase).use { crypto ->

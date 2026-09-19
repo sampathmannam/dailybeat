@@ -306,4 +306,6 @@
     <string name="legal_apache_summary">The complete licence used by AndroidX, Jetpack Compose, Kotlin, and supporting libraries.</string>
     <string name="legal_read_full_text">Read full text</string>
     <string name="legal_hide_full_text">Hide full text</string>
+    <string name="capture_storage_failed">Capture could not be saved</string>
+    <string name="capture_storage_failed_detail">Check free storage on this phone. Queued records will retry; some new observations may be missing while storage is unavailable.</string>
 </resources>

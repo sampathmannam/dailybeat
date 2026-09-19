@@ -55,7 +55,7 @@ class LocationService : Service() {
                     if (generation != CaptureStorageGate.generation.get() || !app.settingsRepository.get().gpsCaptureEnabled || app.settingsRepository.isCapturePaused()) return@withLock
                     // Persist before changing sampler/tracker state. Failed work stays in this inbox.
                     app.db.captureJournal().enqueue(fixes)
-                    app.captureProcessor.drain { sample, quality ->
+                    app.captureProcessor.drain(onRejected = app.captureHealthStore::rejected) { sample, quality ->
                         app.captureHealthStore.fixObserved(sample.timestampMs)
                         app.captureHealthStore.accepted(sample, quality)
                         val prior = previousAccepted
@@ -74,6 +74,7 @@ class LocationService : Service() {
                 }
             } catch (error: kotlinx.coroutines.CancellationException) { throw error
             } catch (error: Exception) {
+                app.captureHealthStore.storageFailed()
                 CaptureRecoveryWorker.schedule(this@LocationService)
                 OperationalFailureLog.record(this@LocationService, "capture-persist", true,
                     "Capture is queued for retry (${error.javaClass.simpleName}).")
@@ -168,6 +169,8 @@ class LocationService : Service() {
                         // A battery sleep or unexpected teardown keeps the durable open stay.
                     }
                 } catch (error: Exception) {
+                    app.captureHealthStore.storageFailed()
+                    CaptureRecoveryWorker.schedule(this@LocationService)
                     OperationalFailureLog.record(this@LocationService, "capture-stop", true,
                         "Pending capture retained for retry (${error.javaClass.simpleName}).")
                 } finally { scope.cancel() }

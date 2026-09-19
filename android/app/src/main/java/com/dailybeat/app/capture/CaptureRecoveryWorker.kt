@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 class CaptureRecoveryWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = try {
         val app = applicationContext as DailyBeatApp
-        CaptureStorageGate.mutex.withLock { app.captureProcessor.drain() }
+        CaptureStorageGate.mutex.withLock { app.captureProcessor.drain(onRejected = app.captureHealthStore::rejected, onAccepted = app.captureHealthStore::accepted) }
         Result.success()
     } catch (error: CancellationException) { throw error
     } catch (_: Exception) { Result.retry() }

@@ -71,6 +71,14 @@ class CaptureProcessorTest {
         assertEquals(1,db.captureJournal().pending().size)
         assertTrue(db.visits().all().isEmpty())
     }
+    @Test fun `rejected fixes update health without becoming stored history`() = runBlocking {
+        db.captureJournal().enqueue(listOf(fix(0).copy(accuracyM = 10_000f)))
+        var rejections = 0
+        processor().drain(onRejected = { _, _ -> rejections++ })
+        assertEquals(1, rejections)
+        assertTrue(db.breadcrumbs().all().isEmpty())
+        assertTrue(db.captureJournal().pending().isEmpty())
+    }
     @Test fun `foreground only and watcher absent configurations never sleep`() {
         assertFalse(AdaptiveCapturePolicy.canSleep(false, false))
         assertFalse(AdaptiveCapturePolicy.canSleep(false, true))
