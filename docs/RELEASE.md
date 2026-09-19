@@ -1,3 +1,12 @@
+# Version 4.3.0 maps
+
+Online maps now have a device-local off switch, bounded/cancellable thumbnail transfers, configurable
+providers and interactive-map retry deadlines. Safe Canvas route previews remain available during failures.
+Download Tamil Nadu once in Settings → Capture & Places for offline streets, labels and available
+building detail at zooms 0–15. The package is separate from the APK, defaults to Wi-Fi, resumes after
+interruption and is verified before activation. Updates retain the previous working package.
+See [offline map details](OFFLINE_MAPS.md) for coverage, data provenance and limitations.
+
 # DailyBeat v4.2.1 — install and verify
 
 Version 4.2.1 simplifies navigation without changing DailyBeat's capture, privacy, or recovery

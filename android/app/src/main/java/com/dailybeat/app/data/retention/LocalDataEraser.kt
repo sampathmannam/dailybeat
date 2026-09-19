@@ -28,6 +28,10 @@ class LocalDataEraser(private val app: DailyBeatApp) {
             }
         }
 
+        attempt { app.mapSettings.resetForErase(); app.mapNetwork.cancelRequests() }
+        try { app.offlineMaps.delete(); app.mapNetwork.clearCache(); app.mapNetwork.clearNativeCache() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { failures += error }
         attempt { app.settingsRepository.setGpsEnabled(false) }
         CaptureController.stopForDataErase(app).exceptionOrNull()?.let(failures::add)
         attempt { CaptureResumeWorker.cancel(app) }

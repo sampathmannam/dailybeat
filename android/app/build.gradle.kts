@@ -58,8 +58,8 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 33
-        versionName = "4.2.1"
+        versionCode = 34
+        versionName = "4.3.0"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))

@@ -10,10 +10,10 @@ import android.graphics.Path
 import android.graphics.DashPathEffect
 import android.graphics.RectF
 import androidx.compose.ui.unit.IntSize
-import com.dailybeat.app.BuildConfig
-import java.io.File
+import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.maps.awaitBoundedBytes
+import kotlinx.coroutines.withTimeout
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
@@ -21,22 +21,15 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.tan
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import okhttp3.Cache
-import okhttp3.Call
-import okhttp3.OkHttpClient
 import okhttp3.Request
 
 private const val TILE_SIZE_LOGICAL_PX = 256.0
 private const val MAP_PADDING_LOGICAL_PX = 40
-private const val TILE_CACHE_BYTES = 64L * 1024L * 1024L
 private const val MAX_TILE_RESPONSE_BYTES = 2L * 1024L * 1024L
 private const val MAX_TILE_DIMENSION_PX = 1_024
 private const val MAX_TILE_PIXELS = 1_048_576L
-private const val ATTRIBUTION = "© OpenStreetMap contributors"
 
 /**
  * Builds card-sized maps without MapLibre's native snapshotter. The interactive full map still
@@ -48,8 +41,9 @@ internal suspend fun renderJourneyMapRaster(
     model: JourneyMapModel,
     viewportSize: IntSize,
     density: Float,
-): Bitmap {
+): Bitmap = withTimeout(8_000) {
     require(viewportSize.width > 0 && viewportSize.height > 0)
+    require(viewportSize.width.toLong() * viewportSize.height <= 8_000_000)
     val safeDensity = density.coerceAtLeast(1f)
     val logicalWidth = (viewportSize.width / safeDensity).roundToInt().coerceAtLeast(1)
     val logicalHeight = (viewportSize.height / safeDensity).roundToInt().coerceAtLeast(1)
@@ -117,8 +111,8 @@ internal suspend fun renderJourneyMapRaster(
             viewportTop = viewportTop,
             density = safeDensity,
         )
-        drawAttribution(canvas, viewportSize, safeDensity)
-        return bitmap
+        drawAttribution(canvas, viewportSize, safeDensity, (context.applicationContext as DailyBeatApp).mapSettings.state.value.provider.attribution)
+        bitmap
     } catch (error: Throwable) {
         // Cancellation while a card scrolls off screen used to strand a partially rendered
         // bitmap until a future GC. A fast scroll through Days could therefore spike memory.
@@ -186,7 +180,7 @@ private fun routePaint(colorValue: String, width: Float) = Paint(Paint.ANTI_ALIA
     strokeJoin = Paint.Join.ROUND
 }
 
-private fun drawAttribution(canvas: Canvas, viewportSize: IntSize, density: Float) {
+private fun drawAttribution(canvas: Canvas, viewportSize: IntSize, density: Float, attribution: String) {
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(35, 50, 62)
         textSize = 9f * density
@@ -194,7 +188,7 @@ private fun drawAttribution(canvas: Canvas, viewportSize: IntSize, density: Floa
     val horizontalPadding = 5f * density
     val verticalPadding = 3f * density
     val margin = 4f * density
-    val textWidth = textPaint.measureText(ATTRIBUTION)
+    val textWidth = textPaint.measureText(attribution)
     val metrics = textPaint.fontMetrics
     val textHeight = metrics.descent - metrics.ascent
     val right = viewportSize.width - margin
@@ -208,7 +202,7 @@ private fun drawAttribution(canvas: Canvas, viewportSize: IntSize, density: Floa
     val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xDDFDFDFD.toInt() }
     canvas.drawRoundRect(background, 4f * density, 4f * density, backgroundPaint)
     canvas.drawText(
-        ATTRIBUTION,
+        attribution,
         background.left + horizontalPadding,
         background.top + verticalPadding - metrics.ascent,
         textPaint,
@@ -236,68 +230,28 @@ private fun worldY(latitude: Double, worldSizePx: Double): Double {
 }
 
 private object OsmRasterTileClient {
-    private val lock = Any()
-    @Volatile private var sharedClient: OkHttpClient? = null
-
     suspend fun load(context: Context, zoom: Int, x: Int, y: Int): Bitmap? {
+        val app = context.applicationContext as DailyBeatApp
+        val preferences = app.mapSettings.state.value
+        if (!preferences.allowOnlineMaps) return null
         val request = Request.Builder()
-            .url(
-                JOURNEY_RASTER_TILE_URL_TEMPLATE
-                    .replace("{z}", zoom.toString())
-                    .replace("{x}", x.toString())
-                    .replace("{y}", y.toString()),
-            )
-            .header(
-                "User-Agent",
-                "DailyBeat/${BuildConfig.VERSION_NAME} (+https://github.com/sampathmannam/dailybeat)",
-            )
-            .header("Accept", "image/png")
-            .build()
-        val call = client(context).newCall(request)
-        val cancellationHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
-            if (cause is CancellationException) call.cancel()
-        }
-        return try {
-            call.decodeBitmapResponse()
+            .url(preferences.provider.rasterTileTemplate.replace("{z}", zoom.toString())
+                .replace("{x}", x.toString()).replace("{y}", y.toString()))
+            .header("Accept", "image/png").build()
+        val bytes = try {
+            app.mapNetwork.tiles.newCall(request).awaitBoundedBytes(MAX_TILE_RESPONSE_BYTES)
         } catch (_: IOException) {
             currentCoroutineContext().ensureActive()
-            null
-        } finally {
-            cancellationHandle?.dispose()
-        }
-    }
-
-    private fun client(context: Context): OkHttpClient = sharedClient ?: synchronized(lock) {
-        sharedClient ?: OkHttpClient.Builder()
-            .cache(
-                Cache(
-                    directory = File(context.cacheDir, "osm-journey-map-tiles"),
-                    maxSize = TILE_CACHE_BYTES,
-                ),
-            )
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.SECONDS)
-            .build()
-            .also { sharedClient = it }
-    }
-
-    private fun Call.decodeBitmapResponse(): Bitmap? = execute().use { response ->
-        if (!response.isSuccessful) return null
-        val body = response.body ?: return null
-        val contentLength = body.contentLength()
-        if (contentLength > MAX_TILE_RESPONSE_BYTES) return null
-        val bytes = body.bytes()
-        if (bytes.size > MAX_TILE_RESPONSE_BYTES) return null
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (
-            bounds.outWidth !in 1..MAX_TILE_DIMENSION_PX ||
-            bounds.outHeight !in 1..MAX_TILE_DIMENSION_PX ||
-            bounds.outWidth.toLong() * bounds.outHeight.toLong() > MAX_TILE_PIXELS
-        ) {
             return null
         }
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        return decodeMapTile(bytes)
     }
 }
+
+internal fun decodeMapTile(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth !in 1..MAX_TILE_DIMENSION_PX || bounds.outHeight !in 1..MAX_TILE_DIMENSION_PX ||
+            bounds.outWidth.toLong() * bounds.outHeight.toLong() > MAX_TILE_PIXELS) return null
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }

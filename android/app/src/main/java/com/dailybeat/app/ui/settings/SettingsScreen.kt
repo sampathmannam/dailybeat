@@ -767,6 +767,7 @@ fun SettingsScreen(
                 TextButton(onClick = { supportPreview = com.dailybeat.app.audit.SupportDiagnostics.build(supportContext.applicationContext as com.dailybeat.app.DailyBeatApp) }) { Text("Prepare support details") }
             }
         }
+        if (activeSection == SettingsSection.CAPTURE_AND_PLACES) item { MapSettingsSection() }
         if (activeSection == SettingsSection.CAPTURE_AND_PLACES) item {
             SettingsGroup(title = "Place name lookup") {
                 Text("Saved places work offline. Optional automatic address lookups send coordinates outside private zones to your managed provider. Leave empty to turn off automatic lookups. Online maps still contact map tile providers.", style = MaterialTheme.typography.bodySmall)

@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "region": "tamil-nadu",
+  "version": "tn-20260919-v1",
+  "dataDate": "2026-09-19",
+  "bounds": [
+    76.2334053,
+    8.076252,
+    80.3467768,
+    13.5653112
+  ],
+  "tileBytes": 195369966,
+  "tileSha256": "41f97513b0e9b2f71731eed38f9650071e4bc05f7995ba076f37972c57ddcb45",
+  "tiles": [
+    {
+      "name": "TamilNadu-map.pmtiles.part00",
+      "url": "https://github.com/sampathmannam/dailybeat/releases/download/v4.3.0/TamilNadu-map.pmtiles.part00",
+      "bytes": 195369966,
+      "sha256": "41f97513b0e9b2f71731eed38f9650071e4bc05f7995ba076f37972c57ddcb45"
+    }
+  ],
+  "assets": {
+    "name": "TamilNadu-map-assets.zip",
+    "url": "https://github.com/sampathmannam/dailybeat/releases/download/v4.3.0/TamilNadu-map-assets.zip",
+    "bytes": 13377420,
+    "sha256": "bc1d43604784b580b885746dc45bb363ddf032e7eaa1b5344f7b5f83f2625bfe"
+  },
+  "unpackedAssetBytes": 13211226
+}

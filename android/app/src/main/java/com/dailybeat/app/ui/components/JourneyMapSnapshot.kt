@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.collectAsState
+import com.dailybeat.app.DailyBeatApp
+import kotlinx.coroutines.TimeoutCancellationException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -58,9 +61,11 @@ fun JourneyMapSnapshot(
     testTag: String = "journey_map_snapshot",
     readyTestTag: String = "journey_map_snapshot_ready",
     onFailure: (String) -> Unit = {},
+    allowNetwork: Boolean = true,
 ) {
     if (model.points.isEmpty()) return
     val context = LocalContext.current
+    val mapPreferences by (context.applicationContext as DailyBeatApp).mapSettings.state.collectAsState()
     val density = context.resources.displayMetrics.density
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var snapshotBitmap by remember(model) { mutableStateOf<Bitmap?>(null) }
@@ -74,18 +79,28 @@ fun JourneyMapSnapshot(
         }
     }
 
-    LaunchedEffect(context, model, viewportSize) {
+    LaunchedEffect(context, model, viewportSize, mapPreferences, allowNetwork) {
         if (viewportSize == IntSize.Zero) return@LaunchedEffect
         snapshotBitmap = null
+        if (!allowNetwork || !mapPreferences.allowOnlineMaps) return@LaunchedEffect
         try {
-            snapshotBitmap = withContext(Dispatchers.IO) {
-                renderJourneyMapRaster(
+            var rendered: Bitmap? = null
+            try {
+                withContext(Dispatchers.IO) {
+                    rendered = renderJourneyMapRaster(
                     context = context.applicationContext,
                     model = model,
                     viewportSize = viewportSize,
                     density = density,
-                )
+                    )
+                }
+                snapshotBitmap = rendered
+                rendered = null
+            } finally {
+                rendered?.takeUnless { it.isRecycled }?.recycle()
             }
+        } catch (_: TimeoutCancellationException) {
+            onFailure("Map tiles took too long to load")
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {

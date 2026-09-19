@@ -101,13 +101,17 @@ class DailyBeatReliabilityTest {
             app.placeRepository.add("Synthetic station", 11.4557, 78.1856, 150)
             seedVisit()
             app.settingsRepository.secureApiKey.setApiKey("synthetic-secret-never-export")
+            app.mapSettings.setOnline(true)
             val store = LocalBackupStore(app.db, app.settingsRepository)
             val before = store.createSnapshot()
             val encoded = BackupSnapshotCodec.encode(before)
             assertFalse(encoded.contains("synthetic-secret-never-export"))
             val decoded = BackupSnapshotCodec.decode(encoded)
             app.db.clearAllTables()
+            app.mapSettings.setOnline(false)
             store.restore(decoded)
+            assertFalse(app.mapSettings.state.value.allowOnlineMaps)
+            assertFalse(com.dailybeat.app.maps.MapSettingsRepository(app).state.value.allowOnlineMaps)
             val after = store.createSnapshot()
             assertEquals(before.events, after.events)
             assertEquals(before.diaries, after.diaries)
@@ -149,7 +153,14 @@ class DailyBeatReliabilityTest {
             AppStorage.outputFile(app, "synthetic-sensitive-export.txt")
                 .writeText("Sensitive exported diary")
 
+            app.mapSettings.setProvider(com.dailybeat.app.maps.MapProviderConfig(styleUrl = "https://maps.example/private-provider.json"))
+            val mapStaging = java.io.File(app.noBackupFilesDir, "offline-maps/staging/test/partial").apply {
+                parentFile!!.mkdirs(); writeText("partial map")
+            }
             app.localDataEraser.erase()
+            assertFalse(mapStaging.exists())
+            assertFalse(app.mapSettings.state.value.allowOnlineMaps)
+            assertEquals(com.dailybeat.app.maps.MapProviderConfig(), app.mapSettings.state.value.provider)
 
             assertTrue(app.db.events().all().isEmpty())
             assertTrue(app.db.diaries().all().isEmpty())
@@ -169,13 +180,16 @@ class DailyBeatReliabilityTest {
 
     @Test fun fullMapReturnsToTodayAndDoesNotRestoreRemovedDsrRoute() {
         runBlocking(Dispatchers.IO) { seedVisit() }
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
-        composeRule.onNodeWithTag("today_journey_map").assertIsDisplayed()
-        composeRule.onNodeWithText("Open full map").performClick()
-        composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
-        composeRule.activityRule.scenario.recreate()
-        composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
-        composeRule.onNodeWithTag("journey_map_back").performClick()
+        repeat(5) { iteration ->
+            composeRule.onNodeWithTag("today_list").performScrollToNode(hasText("Open full map"))
+            composeRule.onNodeWithTag("today_journey_map").assertIsDisplayed()
+            composeRule.onNodeWithText("Open full map").performClick()
+            composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+            composeRule.runOnUiThread { app.mapSettings.setOnline(iteration % 2 == 0) }
+            composeRule.activityRule.scenario.recreate()
+            composeRule.onNodeWithTag("journey_map_screen").assertIsDisplayed()
+            composeRule.onNodeWithTag("journey_map_back").performClick()
+        }
         composeRule.onNodeWithTag("today_list").assertIsDisplayed()
         composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
     }
