@@ -110,7 +110,7 @@ fun InsightsScreen(
                 }
             }
 
-            item { WeeklyBars(state.days.take(7)) }
+            item { WeeklyBars(state.weekDays) }
 
             item {
                 Surface(
@@ -182,12 +182,16 @@ fun InsightsScreen(
 
 @Composable
 private fun WeeklyBars(days: List<com.dailybeat.app.ui.feed.DayFeedItem>) {
-    // Oldest on the left, most recent on the right — the direction people read a week.
-    val ordered = days.reversed()
+    // Calendar order is fixed: Monday at the left edge, Sunday at the right edge.
+    val ordered = days.sortedBy { it.date }
     val maximum = ordered.maxOfOrNull { it.distanceKm }?.takeIf { it > 0 } ?: 1.0
-    // Tapping a bar selects that day; the readout above the chart names it. Start on the most
-    // recent day so the chart says something before it is touched.
-    var selected by rememberSaveable(ordered.size) { mutableIntStateOf(ordered.lastIndex.coerceAtLeast(0)) }
+    // Start on today (or the most recent available date in previews/tests), never on a future
+    // Sunday just because the chart always reserves all seven calendar-day positions.
+    val initialSelection = ordered.indexOfLast { !it.date.isAfter(java.time.LocalDate.now()) }
+        .coerceAtLeast(0)
+    var selected by rememberSaveable(ordered.map { it.date }) {
+        mutableIntStateOf(initialSelection)
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth().testTag("weekly_bars"),
@@ -246,7 +250,7 @@ private fun WeeklyBars(days: List<com.dailybeat.app.ui.feed.DayFeedItem>) {
                                 ),
                         )
                         Text(
-                            day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
+                            day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                             Modifier.padding(top = 6.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

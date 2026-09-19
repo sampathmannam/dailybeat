@@ -148,9 +148,17 @@ class DailyBeatApp : Application() {
         manager.createNotificationChannel(
             NotificationChannel(
                 com.dailybeat.app.capture.LocationService.CHANNEL_ID,
-                "Location capture",
+                getString(R.string.location_channel_name),
                 NotificationManager.IMPORTANCE_LOW,
-            ),
+            ).apply {
+                description = getString(R.string.location_channel_description)
+                // The foreground-service notification must remain in the shade while capture is
+                // active, but it is a status indicator—not an unread item. Counting it on the
+                // launcher icon made DailyBeat appear to have a mystery notification forever.
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+            },
         )
         manager.createNotificationChannel(
             NotificationChannel(

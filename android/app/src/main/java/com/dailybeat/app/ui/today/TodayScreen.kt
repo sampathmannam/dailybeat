@@ -35,11 +35,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringResource
@@ -56,7 +56,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.capture.CaptureHealthLevel
 import com.dailybeat.app.capture.CaptureHealthStatus
-import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.EventCard
 import com.dailybeat.app.ui.components.InlineFeedback
 import com.dailybeat.app.ui.components.DailyBeatScreenHeader
@@ -65,7 +64,6 @@ import com.dailybeat.app.ui.components.PrimaryButton
 import com.dailybeat.app.ui.components.readableContentWidth
 import com.dailybeat.app.ui.components.SecondaryButton
 import com.dailybeat.app.ui.feed.DayStay
-import kotlin.math.roundToInt
 import com.dailybeat.app.util.Formatters
 import com.dailybeat.app.util.InputPolicy
 
@@ -86,7 +84,9 @@ fun TodayScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var showCaptureSheet by rememberSaveable { mutableStateOf(false) }
-    var showRouteDetails by rememberSaveable { mutableStateOf(false) }
+    // Place names are deliberately collapsed whenever Today is opened. Saving this expansion
+    // across process recreation made a previously opened list look like permanent map content.
+    var showRouteDetails by remember(beat.date) { mutableStateOf(false) }
     val showQaTools = booleanResource(R.bool.show_qa_tools)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
@@ -167,34 +167,6 @@ fun TodayScreen(
                 expanded = showRouteDetails,
                 onToggleDetails = { showRouteDetails = !showRouteDetails },
             )
-        }
-
-        if (showRouteDetails) {
-            item {
-                CaptureOverview(
-                    status = uiState.captureStatus,
-                    gpsOn = uiState.gpsActive,
-                    cloudReady = uiState.cloudBrainReady,
-                    onResumeCapture = viewModel::resumeCaptureNow,
-                )
-            }
-
-            item {
-                CaptureCoverageNote(
-                    gapCount = uiState.captureGapCount,
-                    hasCapture = beat.hasRoute || visits.isNotEmpty(),
-                )
-            }
-
-            if (beat.hasRoute && uiState.distanceEstimated) {
-                item {
-                    Text(
-                        stringResource(R.string.distance_estimated_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
         }
 
         item {
@@ -358,117 +330,6 @@ private fun WaitingForRouteCard(
     }
 }
 
-/**
- * "Last reliable fix 4 min ago · accurate to about 6 m". Either half can be missing: the age is
- * absent until a point has been stored, and accuracy is absent when the provider did not report
- * it. Returns null only when neither is known, so the caller can fall back.
- */
-@Composable
-private fun captureFixAgeText(status: CaptureHealthStatus): String? =
-    status.lastPointAgeMs?.let { ageMs ->
-        when (val classified = Formatters.fixAge(ageMs)) {
-            Formatters.FixAge.JustNow -> stringResource(R.string.capture_fix_just_now)
-            is Formatters.FixAge.Ago -> stringResource(
-                R.string.capture_fix_ago,
-                Formatters.duration(classified.minutes),
-            )
-        }
-    }
-
-@Composable
-private fun captureFreshnessDetail(status: CaptureHealthStatus): String? {
-    val age = captureFixAgeText(status)
-    val accuracy = status.accuracyM?.let {
-        stringResource(R.string.capture_accuracy_suffix, it.roundToInt())
-    }
-    return when {
-        age != null && accuracy != null -> stringResource(R.string.capture_detail_join, age, accuracy)
-        age != null -> age
-        accuracy != null -> stringResource(R.string.capture_accuracy, status.accuracyM.roundToInt())
-        else -> null
-    }
-}
-
-@Composable
-private fun CaptureOverview(
-    status: CaptureHealthStatus,
-    gpsOn: Boolean,
-    cloudReady: Boolean,
-    onResumeCapture: () -> Unit,
-) {
-    val (title, detail) = when (status.level) {
-        // Lead with how current the fix is, then how precise it was. Accuracy alone cannot tell
-        // the officer whether what they are looking at is live.
-        CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
-            captureFreshnessDetail(status)
-        CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
-            stringResource(R.string.capture_waiting_detail)
-        // Say how stale it is, but keep the reassurance: nothing captured is ever lost, and
-        // DailyBeat has not stopped watching. A number without that reads as an alarm.
-        CaptureHealthLevel.DEGRADED -> stringResource(R.string.capture_degraded) to
-            (
-                captureFixAgeText(status)?.let {
-                    stringResource(
-                        R.string.capture_detail_join,
-                        it,
-                        stringResource(R.string.capture_degraded_reassurance),
-                    )
-                } ?: stringResource(R.string.capture_degraded_detail)
-                )
-        // Name the clock time capture comes back, not a vague "within one hour". The single most
-        // reassuring fact about a privacy pause is exactly when it ends.
-        CaptureHealthLevel.PAUSED -> stringResource(R.string.capture_paused) to
-            status.resumesAtMs?.let {
-                stringResource(R.string.capture_paused_until, Formatters.clock(it))
-            }
-        CaptureHealthLevel.OFF -> stringResource(R.string.capture_off) to
-            stringResource(R.string.capture_off_detail)
-    }
-    val color = when (status.level) {
-        CaptureHealthLevel.HEALTHY -> MaterialTheme.colorScheme.primary
-        // Tertiary, never error: a pause is a state the officer chose, not a fault to fix.
-        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
-            MaterialTheme.colorScheme.tertiary
-        CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth().testTag("capture_health"),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = color) {}
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        text = detail ?: stringResource(R.string.capture_healthy_detail),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (status.level == CaptureHealthLevel.PAUSED) {
-                // The undo lives next to the state it undoes. Previously the only way back was to
-                // go find the Settings row that started the pause.
-                SecondaryButton(
-                    text = stringResource(R.string.resume_capture_now),
-                    onClick = onResumeCapture,
-                    modifier = Modifier.testTag("resume_capture"),
-                )
-            }
-            StatusStrip(gpsOn = gpsOn, cloudReady = cloudReady)
-        }
-    }
-}
-
 @Composable
 private fun TodaySummaryCard(
     distanceLabel: String,
@@ -500,18 +361,20 @@ private fun TodaySummaryCard(
                 SummaryMetric(stopsValue, stopsLabel, Modifier.weight(1f))
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            TextButton(
-                onClick = onToggleDetails,
-                modifier = Modifier.fillMaxWidth().testTag("today_more"),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text(
-                    text = stringResource(if (expanded) R.string.today_less else R.string.today_more),
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                )
+                TextButton(
+                    onClick = onToggleDetails,
+                    modifier = Modifier.testTag("today_more"),
+                ) {
+                    Text(stringResource(if (expanded) R.string.today_less else R.string.today_more))
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                    )
+                }
             }
             if (expanded) {
                 RouteDetails(stays)
@@ -654,61 +517,6 @@ private fun CaptureMomentSheet(
                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                 Text(stringResource(R.string.generate_ai_report), Modifier.padding(start = 8.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun StatusStrip(gpsOn: Boolean, cloudReady: Boolean) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StatusChip(
-            label = if (gpsOn) stringResource(R.string.status_gps_on) else stringResource(R.string.status_gps_off),
-            active = gpsOn,
-            icon = Icons.Default.MyLocation,
-            testTag = "status_gps",
-            modifier = Modifier.weight(1f),
-        )
-        StatusChip(
-            label = if (cloudReady) stringResource(R.string.status_cloud_on) else stringResource(R.string.status_cloud_off),
-            active = cloudReady,
-            icon = Icons.Default.AutoAwesome,
-            testTag = "status_cloud",
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun StatusChip(
-    label: String,
-    active: Boolean,
-    icon: ImageVector,
-    testTag: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.heightIn(min = 40.dp).testTag(testTag),
-        shape = MaterialTheme.shapes.small,
-        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        else MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, null, Modifier.size(16.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }

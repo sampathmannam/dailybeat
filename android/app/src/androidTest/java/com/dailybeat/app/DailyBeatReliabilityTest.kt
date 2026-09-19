@@ -180,16 +180,14 @@ class DailyBeatReliabilityTest {
         composeRule.onNodeWithTag("nav_dsr").assertDoesNotExist()
     }
 
-    @Test fun todayStatusChipsUseTheSameTopEdgeAndHeight() {
+    @Test fun todayMoreRevealsOnlyRouteDetailsNotCaptureDiagnostics() {
+        composeRule.onNodeWithTag("today_route_details").assertDoesNotExist()
         composeRule.onNodeWithTag("today_more").performClick()
-        composeRule.onNodeWithTag("today_list").performScrollToNode(hasTestTag("capture_health"))
-        val gpsBounds = composeRule.onNodeWithTag("status_gps")
-            .fetchSemanticsNode().boundsInRoot
-        val cloudBounds = composeRule.onNodeWithTag("status_cloud")
-            .fetchSemanticsNode().boundsInRoot
-
-        assertEquals(gpsBounds.top, cloudBounds.top, 0.5f)
-        assertEquals(gpsBounds.height, cloudBounds.height, 0.5f)
+        composeRule.onNodeWithTag("today_route_details").assertIsDisplayed()
+        composeRule.onNodeWithText("Where you went").assertIsDisplayed()
+        composeRule.onNodeWithTag("capture_health").assertDoesNotExist()
+        composeRule.onNodeWithTag("status_gps").assertDoesNotExist()
+        composeRule.onNodeWithTag("status_cloud").assertDoesNotExist()
     }
 
     private fun waitForDiary(text: String) {

@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 import com.dailybeat.app.util.userMessage
 
 data class PlacePattern(val name: String, val visits: Int)
@@ -22,6 +24,7 @@ data class PlacePattern(val name: String, val visits: Int)
 data class InsightsUiState(
     val isLoading: Boolean = true,
     val days: List<DayFeedItem> = emptyList(),
+    val weekDays: List<DayFeedItem> = emptyList(),
     val reviewedDays: Int = 0,
     val reviewStreak: Int = 0,
     val weeklyDistanceKm: Double = 0.0,
@@ -64,7 +67,9 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         val today = DateKeys.today()
         val places = app.placeRepository.all()
         val reviews = app.beatRepository.all().associateBy { it.dateKey }
-        val days = (0 until 28).map { today.minusDays(it.toLong()) }.map { date ->
+        val historyDates = (0 until 28).map { today.minusDays(it.toLong()) }
+        val weekDates = mondayToSundayWeek(today)
+        val daysByDate = (historyDates + weekDates).distinct().associateWith { date ->
             DayFeedBuilder.build(
                 date = date,
                 visits = app.visitRepository.visitsForDate(date),
@@ -74,12 +79,13 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
                 review = reviews[date.toString()],
             )
         }
+        val days = historyDates.map(daysByDate::getValue)
         val activeDays = days.filterNot { it.isEmpty }
-        val recentWeek = days.take(7)
+        val currentWeek = weekDates.map(daysByDate::getValue)
         val reviewedDays = activeDays.count { it.state == "complete" }
         val nextReviewDay = activeDays.firstOrNull { it.state != "complete" }
         val streak = reviewStreak(today, reviews.mapValues { it.value.state })
-        val gaps = recentWeek.sumOf { it.captureGapCount }
+        val gaps = currentWeek.sumOf { it.captureGapCount }
         val patterns = activeDays.flatMap { it.stays }
             .groupingBy { it.name }
             .eachCount()
@@ -91,10 +97,11 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         return InsightsUiState(
             isLoading = false,
             days = activeDays,
+            weekDays = currentWeek,
             reviewedDays = reviewedDays,
             reviewStreak = streak,
-            weeklyDistanceKm = recentWeek.sumOf { it.distanceKm },
-            weeklyTrackedMinutes = recentWeek.sumOf { it.trackedMinutes },
+            weeklyDistanceKm = currentWeek.sumOf { it.distanceKm },
+            weeklyTrackedMinutes = currentWeek.sumOf { it.trackedMinutes },
             captureGapCount = gaps,
             recurringPlaces = patterns,
             insightTitle = insight.title,
@@ -113,6 +120,12 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         }
         return result
     }
+}
+
+/** A calendar week is always Monday through Sunday, independent of locale and today's weekday. */
+internal fun mondayToSundayWeek(date: LocalDate): List<LocalDate> {
+    val monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    return (0L..6L).map(monday::plusDays)
 }
 
 internal data class ActionableInsight(

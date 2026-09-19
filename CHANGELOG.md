@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Refined
+- Insights now presents the current calendar week from Monday through Sunday instead of a rolling
+  seven-day window, with unambiguous three-letter day labels.
+- Restored DailyBeat's original Signal Yellow `#FFD60A` across identity accents, map routes, and
+  primary actions while preserving neutral Carbon dark-mode surfaces.
+- Today keeps place names collapsed behind a compact More control and expands only the ordered
+  “Where you went” details below the map and Distance / Time / Auto stops summary.
+- Licences & resources now uses a structured Material screen with a project licence summary,
+  source link, and expandable offline third-party, GPL, and Apache texts.
+
+### Reliability
+- Passive location capture remains honestly visible as Android's required ongoing notification but
+  no longer creates a misleading unread count on the DailyBeat launcher icon.
+- Added calendar-week, Today disclosure, legal-screen, and notification-channel regression checks.
+
 ## 4.1.1 — 2026-09-19
 
 ### Reliability and privacy

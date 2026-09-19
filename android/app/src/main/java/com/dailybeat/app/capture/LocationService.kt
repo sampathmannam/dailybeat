@@ -285,12 +285,19 @@ class LocationService : Service() {
             .setContentText(getString(R.string.location_service_passive))
             .setSmallIcon(R.drawable.ic_stat_dailybeat)
             .setContentIntent(openIntent)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setNumber(0)
             .setOngoing(true)
             .build()
     }
 
     companion object {
-        const val CHANNEL_ID = "location_capture"
+        // A new channel ID applies the no-badge policy to existing installations too; Android
+        // intentionally freezes most behaviour after a notification channel is first created.
+        const val CHANNEL_ID = "location_capture_status_v2"
         const val NOTIFICATION_ID = 1002
         private const val ACTION_UPDATE_PROFILE = "com.dailybeat.app.capture.UPDATE_PROFILE"
         private const val EXTRA_PROFILE = "capture_profile"
