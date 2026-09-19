@@ -180,7 +180,7 @@ def test_android_setup_never_requests_the_retired_tools_package():
                 if step.get("uses", "").startswith("android-actions/setup-android@"):
                     packages = step.get("with", {}).get("packages", "").split()
                     assert "tools" not in packages and "platform-tools" in packages
-                    assert {"platforms;android-35", "build-tools;35.0.0"}.issubset(packages)
+                    assert {"platforms;android-36", "build-tools;35.0.0"}.issubset(packages)
                     found += 1
     assert found >= 6
 
