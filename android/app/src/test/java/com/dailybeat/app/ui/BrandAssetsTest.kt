@@ -76,6 +76,18 @@ class BrandAssetsTest {
     }
 
     @Test
+    fun daysKeepsGoToDateWithoutOlderOrNewerControls() {
+        val feed = source("ui/feed/FeedScreen.kt")
+
+        assertTrue("history_choose_date" in feed)
+        assertTrue("Go to date" in feed)
+        assertTrue("Formatters.dayHeading(day.date, locale)" in feed)
+        assertTrue("feed_date_\${day.date}" in feed)
+        assertFalse("Older days" in feed)
+        assertFalse("Newer days" in feed)
+    }
+
+    @Test
     fun adaptiveLaunchersSupportAndroidThemedIcons() {
         val launcher = resource("mipmap-anydpi-v26/ic_launcher.xml")
         val roundLauncher = resource("mipmap-anydpi-v26/ic_launcher_round.xml")
