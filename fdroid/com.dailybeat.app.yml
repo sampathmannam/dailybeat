@@ -24,9 +24,9 @@ Binaries:
   https://github.com/sampathmannam/dailybeat/releases/download/fdroid-v%v/DailyBeat-FDroid-v%v.apk
 
 Builds:
-  - versionName: 4.3.2
-    versionCode: 36
-    commit: v4.3.2
+  - versionName: 4.3.3
+    versionCode: 37
+    commit: v4.3.3
     subdir: android/app
     gradle:
       - yes
@@ -53,5 +53,5 @@ MaintainerNotes: |-
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
-CurrentVersion: 4.3.2
-CurrentVersionCode: 36
+CurrentVersion: 4.3.3
+CurrentVersionCode: 37

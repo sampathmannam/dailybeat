@@ -1,0 +1,1 @@
+Recognizes nearby named venues before roads, shows stop names and durations on journey maps, learns corrected place names for future visits, repairs older Transit labels, and adds private on-device pattern analysis to Today. Existing data, offline maps, capture and signing identity are preserved.

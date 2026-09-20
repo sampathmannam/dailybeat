@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.3.2 / code 36** is the current source release line. It upgrades the permanently signed
+**4.3.3 / code 37** is the current source release line. It uses the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
