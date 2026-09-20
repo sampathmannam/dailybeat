@@ -145,6 +145,7 @@ jobs:
 
       - name: Verify permanent signing certificate
         run: |
+          python3 scripts/check_apk_signing_block.py android/app/build/outputs/apk/release/app-release.apk --require-signed
           build_tools_dir="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)"
           apksigner="$build_tools_dir/apksigner"
           "$apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk \
@@ -231,6 +232,7 @@ jobs:
           test -n "$DAILYBEAT_STORE_PASSWORD"
           test -n "$DAILYBEAT_KEY_PASSWORD"
           ./android/gradlew -p android assembleRelease testReleaseUnitTest verifyGoogleFreeDependencies -PdailybeatFoss=true -PdailybeatStore=true --no-daemon --stacktrace
+          python3 scripts/check_apk_signing_block.py android/app/build/outputs/apk/release/app-release.apk --require-signed
           python3 scripts/check_store_apk.py android/app/build/outputs/apk/release/app-release.apk --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt"
           python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release.apk

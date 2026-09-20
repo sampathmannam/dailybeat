@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.3.2 — 2026-09-20
+
+- Remove opaque, Google-encrypted dependency metadata from APK/AAB packaging for F-Droid.
+- Verify the actual signed APK structure in CI and before either release is published.
+- Correct the F-Droid reference URL and application-module output discovery.
+
 ## 4.3.1 — 2026-09-20
 
 - Add a reproducible Google-free F-Droid candidate, unsigned build support, a public recipe and

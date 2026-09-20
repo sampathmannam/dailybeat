@@ -53,6 +53,13 @@ android {
     compileSdk = 36
     buildToolsVersion = "35.0.0"
 
+    // Google Play encrypts this optional metadata, making it opaque to F-Droid.
+    // Keep dependency auditing in the public inventory and CI instead.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     sourceSets.getByName("main") {
         java.srcDir(if (dailybeatFoss) "src/foss/java" else "src/gms/java")
         res.srcDir(generatedLegalResources)
@@ -63,8 +70,8 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 35
-        versionName = "4.3.1"
+        versionCode = 36
+        versionName = "4.3.2"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         buildConfigField("boolean", "STORE_DISTRIBUTION", dailybeatStore.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

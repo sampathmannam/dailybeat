@@ -44,7 +44,11 @@ immutability is enabled. Tags matching stable `vMAJOR.MINOR.PATCH` drive the pro
 
 CI builds the unsigned store APK twice in independent checkout paths, removing exactly the files
 removed by the F-Droid recipe for the second build, and compares the APK bytes. It also runs the
-actual F-Droid source and binary scanners. F-Droid's own rebuild remains authoritative.
+actual F-Droid source and binary scanners. CI also signs through AGP using a disposable key
+and checks the final signing block; unsigned comparisons alone cannot detect opaque metadata
+added during signing. Both publishers reject nonstandard signing blocks before publication.
+Google-encrypted dependency metadata is disabled for APKs and bundles; dependency auditing remains
+in the public inventory, checksum verification and security CI. F-Droid's own rebuild remains authoritative.
 
 ## Feature and network disclosures
 
@@ -97,3 +101,7 @@ reference APK URL, signing certificate and current Fastlane listing. Run metadat
 scanners, reproducibility checks and the upstream CI. If GitLab blocks a fork's runners behind
 account verification, request a maintainer-run pipeline as the F-Droid MR template instructs.
 Acceptance, signing verification and final publication require F-Droid's review and build cycle.
+
+The active inclusion request is [fdroiddata !49457](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/49457).
+Regenerate external metadata with the current F-Droid CI formatter before submission; its YAML
+library may format long URLs differently from the PyPI fdroidserver release.
