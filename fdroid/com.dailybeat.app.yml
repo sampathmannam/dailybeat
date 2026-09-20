@@ -20,7 +20,7 @@ AutoName: DailyBeat
 
 RepoType: git
 Repo: https://github.com/sampathmannam/dailybeat.git
-Binaries: https://github.com/sampathmannam/dailybeat/releases/download/fdroid-v%v%/DailyBeat-FDroid-v%v%.apk
+Binaries: https://github.com/sampathmannam/dailybeat/releases/download/fdroid-v%v/DailyBeat-FDroid-v%v.apk
 
 Builds:
   - versionName: 4.3.1

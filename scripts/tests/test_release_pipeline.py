@@ -295,3 +295,17 @@ def test_ci_requires_a_live_cloud_backup_round_trip():
     assert "client.upload(session, original)" in runner
     assert "client.delete(session)" in runner
     assert "if client.download(session) != original" in runner
+
+
+def test_fdroid_reference_url_matches_the_signed_release_asset():
+    recipe = yaml.safe_load((ROOT / "fdroid/com.dailybeat.app.yml").read_text())
+    version = (ROOT / "release/version.txt").read_text().strip()
+    build = recipe["Builds"][-1]
+    assert build["versionName"] == version
+    # fdroidserver expands %v and %c, with no trailing percent delimiter.
+    # Check the expanded URL against our publisher's tag and asset contract.
+    reference = recipe["Binaries"].replace("%v", version).replace("%c", str(build["versionCode"]))
+    assert reference == (
+        f"https://github.com/sampathmannam/dailybeat/releases/download/"
+        f"fdroid-v{version}/DailyBeat-FDroid-v{version}.apk"
+    )
