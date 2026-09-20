@@ -11,6 +11,7 @@ import com.dailybeat.app.data.settings.SettingsRepository
 import java.security.MessageDigest
 import java.time.LocalDate
 import androidx.room.withTransaction
+import com.dailybeat.app.capture.CaptureStorageGate
 
 data class DiarySharePreview(
     val date: LocalDate,
@@ -20,6 +21,7 @@ data class DiarySharePreview(
     val supervisor: String,
     val profile: JournalProfile,
     internal val fingerprint: String,
+    internal val dataGeneration: Long = CaptureStorageGate.dataGeneration.get(),
 )
 
 /** Prepare once, show exactly this text, then validate immediately before and after rendering.
@@ -66,6 +68,9 @@ class DiaryShareService(
         diaries.weekEnding(end).map { prepare(LocalDate.parse(it.dateKey), it.text) }
 
     suspend fun requireCurrent(preview: DiarySharePreview) {
+        check(preview.dataGeneration == CaptureStorageGate.dataGeneration.get()) {
+            "Local data changed. Review a new sharing copy."
+        }
         check(preview.fingerprint == database.withTransaction { fingerprint(preview.date) }) {
             "Records or privacy settings changed. Close this preview and review a fresh sharing copy."
         }

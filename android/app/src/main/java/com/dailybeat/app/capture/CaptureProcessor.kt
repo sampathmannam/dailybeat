@@ -12,12 +12,27 @@ import com.dailybeat.app.geo.OsmGeocoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /** Also held during restore/erase: a delayed capture callback cannot resurrect replaced data. */
 object CaptureStorageGate {
     val mutex = Mutex()
     val generation = java.util.concurrent.atomic.AtomicLong(0)
+    /** Only erase/restore replace personal data; ordinary GPS pause does not invalidate editing. */
+    val dataGeneration = java.util.concurrent.atomic.AtomicLong(0)
+    private val _dataChanges = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val dataChanges: kotlinx.coroutines.flow.StateFlow<Long> = _dataChanges
+
+    /** Call under mutex only after replacement commits (or before an irreversible erase). */
+    fun invalidatePersonalData() {
+        _dataChanges.value = dataGeneration.incrementAndGet()
+    }
+
+    suspend fun <T> writeIfCurrent(expected: Long, write: suspend () -> T): T = mutex.withLock {
+        check(expected == dataGeneration.get()) { "Local data changed. Review this day again before saving." }
+        write()
+    }
 }
 
 /**
@@ -29,20 +44,37 @@ object CaptureStorageGate {
 class CaptureProcessor(
     private val db: DailyBeatDb,
     private val geocoder: OsmGeocoder,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    suspend fun drain(onRejected: (Long, String) -> Unit = { _, _ -> }, onAccepted: (LocationSample, String) -> Unit = { _, _ -> }) {
+    /** Validate before SQLite binding: NaN is bound as NULL and would abort a whole GPS batch. */
+    suspend fun enqueue(fixes: List<CaptureFix>, onRejected: (Long, String) -> Unit = { _, _ -> }) {
+        val nowMs = clock()
+        val accepted = fixes.filter { fix ->
+            val decision = LocationQualityFilter.assess(fix.toSample(), previous = null, nowMs = nowMs)
+            if (!decision.accepted) onRejected(fix.timestampMs, decision.reason ?: "Unreliable location")
+            decision.accepted
+        }
+        if (accepted.isNotEmpty()) db.captureJournal().enqueue(accepted)
+    }
+
+    suspend fun drain(
+        onRejected: (Long, String) -> Unit = { _, _ -> },
+        allowNetworkLookup: Boolean = true,
+        onAccepted: (LocationSample, String) -> Unit = { _, _ -> },
+    ) {
         val journal = db.captureJournal()
         while (true) {
             val batch = journal.pending()
             if (batch.isEmpty()) return
             for (fix in batch) {
-                val memory = BufferedCheckpoint(journal.checkpoint())
-                val latest = db.breadcrumbs().latest()
+                val nowMs = clock()
+                val memory = BufferedCheckpoint(journal.checkpoint(), nowMs)
+                val latest = db.breadcrumbs().latestAtOrBefore(LocationQualityFilter.latestAllowedTime(nowMs))
                 val previous = latest?.let {
                     LocationSample(it.latitude, it.longitude, it.timestampMs, it.accuracyM)
                 }
-                val sample = LocationSample(fix.latitude, fix.longitude, fix.timestampMs, fix.accuracyM, fix.isMock)
-                val decision = LocationQualityFilter.assess(sample, previous)
+                val sample = fix.toSample()
+                val decision = LocationQualityFilter.assess(sample, previous, nowMs)
                 val duplicate = memory.load()?.lastSampleMs?.let { sample.timestampMs <= it } == true
                 if (!decision.accepted || duplicate) {
                     journal.acknowledge(fix.timestampMs)
@@ -53,6 +85,7 @@ class CaptureProcessor(
                 val tracker = VisitTracker(
                     CoroutineScope(currentCoroutineContext()), PlaceRepository(db.places()), geocoder,
                     onVisitRecorded = { visits += it }, stateStore = memory,
+                    allowNetworkLookup = allowNetworkLookup,
                 )
                 tracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs)
                 tracker.awaitPendingWrites()
@@ -76,15 +109,15 @@ class CaptureProcessor(
 
     suspend fun suspendCapture() {
         val journal = db.captureJournal()
-        val memory = BufferedCheckpoint(journal.checkpoint())
+        val memory = BufferedCheckpoint(journal.checkpoint(), clock())
         memory.load()?.let { memory.save(it.copy(suspended = true)) }
         journal.checkpoint(CaptureCheckpoint(payload = memory.encode()))
     }
 
     /** Explicit pause/off ends observed history. Battery sleep simply leaves the checkpoint. */
     suspend fun finish() {
-        drain()
-        val memory = BufferedCheckpoint(db.captureJournal().checkpoint())
+        drain(allowNetworkLookup = false)
+        val memory = BufferedCheckpoint(db.captureJournal().checkpoint(), clock())
         val visits = java.util.Collections.synchronizedList(mutableListOf<LocationVisit>())
         val tracker = VisitTracker(CoroutineScope(currentCoroutineContext()), PlaceRepository(db.places()),
             geocoder, onVisitRecorded = { visits += it }, stateStore = memory)
@@ -99,6 +132,8 @@ class CaptureProcessor(
         }
     }
 }
+
+private fun CaptureFix.toSample() = LocationSample(latitude, longitude, timestampMs, accuracyM, isMock)
 
 /** Keep the visit timeline and moments timeline equally informative. */
 internal fun capturedVisitEvent(visit: LocationVisit): Event {
@@ -118,8 +153,8 @@ private fun String?.usableCapturedLabel(): String? = this
     ?.trim()
     ?.takeIf { it.isNotEmpty() && !it.equals("Unnamed place", ignoreCase = true) }
 
-internal class BufferedCheckpoint(payload: String? = null) : VisitTrackerStateStore {
-    private var state: VisitTrackerState? = payload?.let(::decode)
+internal class BufferedCheckpoint(payload: String? = null, nowMs: Long = System.currentTimeMillis()) : VisitTrackerStateStore {
+    private var state: VisitTrackerState? = payload?.let(::decode)?.takeIf { it.isUsable(nowMs) }
     override fun load() = state
     override fun save(state: VisitTrackerState) { this.state = state }
     override fun clear() { state = null }
@@ -130,12 +165,27 @@ internal class BufferedCheckpoint(payload: String? = null) : VisitTrackerStateSt
         put("departureLat", s.departureLat); put("departureLon", s.departureLon); put("inTransit", s.inTransit); put("suspended", s.suspended)
     }.toString() } ?: "{}"
 
-    private fun decode(payload: String): VisitTrackerState? {
+    private fun decode(payload: String): VisitTrackerState? = try {
         val j = JSONObject(payload)
-        if (!j.has("lastSampleMs")) return null
-        fun coordinate(key: String) = if (j.has(key) && !j.isNull(key)) j.getDouble(key) else null
-        return VisitTrackerState(coordinate("dwellLat"), coordinate("dwellLon"), j.getLong("dwellStartMs"),
-            j.getLong("lastSampleMs"), j.getLong("transitStartMs"), coordinate("transitLat"),
-            coordinate("transitLon"), coordinate("departureLat"), coordinate("departureLon"), j.getBoolean("inTransit"), j.optBoolean("suspended", false))
+        if (!j.has("lastSampleMs")) null else {
+            fun coordinate(key: String) = if (j.has(key) && !j.isNull(key)) j.getDouble(key) else null
+            VisitTrackerState(
+                dwellLat = coordinate("dwellLat"),
+                dwellLon = coordinate("dwellLon"),
+                dwellStartMs = j.getLong("dwellStartMs"),
+                lastSampleMs = j.getLong("lastSampleMs"),
+                transitStartMs = j.getLong("transitStartMs"),
+                transitLat = coordinate("transitLat"),
+                transitLon = coordinate("transitLon"),
+                departureLat = coordinate("departureLat"),
+                departureLon = coordinate("departureLon"),
+                inTransit = j.getBoolean("inTransit"),
+                suspended = j.optBoolean("suspended", false),
+            )
+        }
+    } catch (_: org.json.JSONException) {
+        // A broken checkpoint must not prevent the durable inbox from being replayed. Finalized
+        // visits remain intact; the next trustworthy fix starts a fresh observed interval.
+        null
     }
 }

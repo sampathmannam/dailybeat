@@ -7,6 +7,21 @@ import org.junit.Test
 
 class ReportIntegrityValidatorTest {
 
+    @Test(timeout = 2_000)
+    fun `large source counts are checked without allocating every citation`() {
+        assertTrue(ReportIntegrityValidator.validate("A note [E1].", Int.MAX_VALUE, Int.MAX_VALUE).isValid)
+        assertFalse(ReportIntegrityValidator.validate("A note [E2147483648].", 0, Int.MAX_VALUE).isValid)
+        assertFalse(ReportIntegrityValidator.validate("A note [E01].", 0, 1).isValid)
+    }
+
+    @Test
+    fun `malicious citations cannot create an unbounded correction prompt`() {
+        val report = (1..10_000).joinToString(" ") { "[V$it]" }
+        val result = ReportIntegrityValidator.validate(report, 0, 1)
+        assertFalse(result.isValid)
+        assertTrue(result.violations.size <= 21)
+    }
+
     @Test
     fun `rejects references absent from source`() {
         val result = ReportIntegrityValidator.validate(

@@ -1,10 +1,18 @@
 package com.dailybeat.app.capture
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoutePointSamplerTest {
+    @Test
+    fun `antipodal route distance remains finite`() {
+        val first = sample(lat = 2.5, lon = 78.1856)
+        val opposite = sample(lat = -2.5, lon = -101.8144)
+        assertEquals(Math.PI * 6_371_000.0, RoutePointSampler.distanceM(first, opposite), 0.1)
+    }
+
     @Test
     fun `first point and a route point after five minutes are always retained`() {
         val first = sample(timestamp = 1_000L)

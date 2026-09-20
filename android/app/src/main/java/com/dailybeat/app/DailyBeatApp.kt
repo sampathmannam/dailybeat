@@ -33,8 +33,16 @@ import com.dailybeat.app.capture.CaptureHealthStore
 import com.dailybeat.app.data.retention.HistoryRetentionManager
 import com.dailybeat.app.data.retention.HistoryRetentionWorker
 import com.dailybeat.app.data.retention.LocalDataEraser
+import com.dailybeat.app.data.retention.PrivateStorageMigration
+import com.dailybeat.app.audit.OperationalFailureLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class DailyBeatApp : Application() {
+
+    private val maintenanceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val db: DailyBeatDb by lazy {
         Room.databaseBuilder(this, DailyBeatDb::class.java, "dailybeat.db")
@@ -87,10 +95,22 @@ class DailyBeatApp : Application() {
 
     val pdfExporter: PdfExporter by lazy { PdfExporter(this) }
 
-    val osmGeocoder: OsmGeocoder by lazy { OsmGeocoder(db.geocodes(), endpoint = settingsRepository::geocodingEndpoint,
-        permitsLookup = { lat, lon -> !com.dailybeat.app.domain.OutboundVisitFilter.isPrivateLocation(lat, lon, placeRepository.all()) }) }
+    val osmGeocoder: OsmGeocoder by lazy {
+        OsmGeocoder(db.geocodes(), endpoint = settingsRepository::geocodingEndpoint,
+            permitsLookup = ::permitsGeocoding)
+    }
 
-    val cloudLlm: CloudLlmClient by lazy { CloudLlmClient(settingsRepository.secureApiKey) }
+    internal suspend fun permitsGeocoding(latitude: Double, longitude: Double): Boolean {
+        val places = placeRepository.all()
+        // Querying Room can suspend; check live consent after it, not before a potentially long wait.
+        return settingsRepository.get().gpsCaptureEnabled && !settingsRepository.isCapturePaused() &&
+            com.dailybeat.app.util.PermissionHelper.hasLocation(this) &&
+            !com.dailybeat.app.domain.OutboundVisitFilter.isPrivateLocation(latitude, longitude, places)
+    }
+
+    val cloudLlm: CloudLlmClient by lazy {
+        CloudLlmClient(settingsRepository.secureApiKey, currentSettings = settingsRepository::get)
+    }
 
     private val validatedReportClient by lazy { ValidatedReportClient(cloudLlm) }
 
@@ -139,6 +159,12 @@ class DailyBeatApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        maintenanceScope.launch {
+            if (!runCatching { PrivateStorageMigration.migrate(this@DailyBeatApp) }.getOrDefault(false)) {
+                OperationalFailureLog.record(this@DailyBeatApp, "private-storage-upgrade", retryable = true,
+                    message = "Some older generated files could not be moved into private storage.")
+            }
+        }
         createNotificationChannels()
         DailyReminderScheduler.createChannel(this)
         DailyReminderScheduler.scheduleNext(this)

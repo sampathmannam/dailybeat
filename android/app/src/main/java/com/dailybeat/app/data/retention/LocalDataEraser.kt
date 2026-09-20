@@ -44,6 +44,7 @@ class LocalDataEraser(private val app: DailyBeatApp) {
         }
         CaptureStorageGate.mutex.withLock {
         CaptureStorageGate.generation.incrementAndGet()
+        CaptureStorageGate.invalidatePersonalData()
         withContext(Dispatchers.IO) {
             attempt { app.db.clearAllTables() }
             attempt { app.settingsRepository.secureApiKey.clearApiKey() }
@@ -55,10 +56,9 @@ class LocalDataEraser(private val app: DailyBeatApp) {
                 check(OperationalFailureLog.clear(app)) { "Unable to clear operational diagnostics." }
             }
             attempt {
-                val uncleared = AppStorage.outputDir(app).listFiles().orEmpty().filterNot {
-                    AppStorage.clearSensitiveFileVerified(it)
+                check(AppStorage.clearGeneratedFiles(app)) {
+                    "Unable to clear exported documents or temporary export files."
                 }
-                check(uncleared.isEmpty()) { "Unable to clear ${uncleared.size} exported file(s)." }
             }
             attempt {
                 val staging = java.io.File(app.cacheDir, "encrypted-backup-staging")

@@ -16,6 +16,22 @@ data class VisitTrackerState(
     val suspended: Boolean = false,
 )
 
+/** Validate before duplicate detection as well as before restoring the visit state machine. */
+internal fun VisitTrackerState.isUsable(nowMs: Long = System.currentTimeMillis()): Boolean {
+    if (lastSampleMs <= 0L || lastSampleMs > LocationQualityFilter.latestAllowedTime(nowMs)) return false
+    val pairs = listOf(dwellLat to dwellLon, transitLat to transitLon, departureLat to departureLon)
+    if (pairs.any { (lat, lon) ->
+            (lat == null) != (lon == null) || (lat != null && lon != null &&
+                (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0))
+        }) return false
+    return if (inTransit) {
+        dwellLat == null && transitLat != null && departureLat != null &&
+            transitStartMs > 0L && transitStartMs <= lastSampleMs
+    } else {
+        dwellLat != null && dwellStartMs > 0L && dwellStartMs <= lastSampleMs
+    }
+}
+
 interface VisitTrackerStateStore {
     fun load(): VisitTrackerState?
     fun save(state: VisitTrackerState)

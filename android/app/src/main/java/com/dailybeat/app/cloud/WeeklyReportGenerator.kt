@@ -1,5 +1,6 @@
 package com.dailybeat.app.cloud
 
+import com.dailybeat.app.capture.CaptureStorageGate
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
@@ -19,6 +20,7 @@ class WeeklyReportGenerator(
 ) {
 
     suspend fun generateAndSave(): Result<String> {
+        val generation = CaptureStorageGate.dataGeneration.get()
         val end = DateKeys.today()
         val start = end.minusDays(6)
         val settings = settingsRepository.get()
@@ -59,11 +61,13 @@ class WeeklyReportGenerator(
             maxOutputTokens = CloudTokenBudgets.WEEKLY_ROLLUP,
         )
         return generated.mapCatching { report ->
-            val block = "$ROLLUP_START_BOUNDARY$ROLLUP_MARKER${DateKeys.format(start)} – " +
-                "${DateKeys.format(end)}) —\n${report.trim()}\n$ROLLUP_END_BOUNDARY"
-            val existing = diaryRepository.textForDate(end).orEmpty()
-            diaryRepository.saveForDate(end, mergeRollup(existing, block))
-            block
+            CaptureStorageGate.writeIfCurrent(generation) {
+                val block = "$ROLLUP_START_BOUNDARY$ROLLUP_MARKER${DateKeys.format(start)} – " +
+                    "${DateKeys.format(end)}) —\n${report.trim()}\n$ROLLUP_END_BOUNDARY"
+                val existing = diaryRepository.textForDate(end).orEmpty()
+                diaryRepository.saveForDate(end, mergeRollup(existing, block))
+                block
+            }
         }
     }
 

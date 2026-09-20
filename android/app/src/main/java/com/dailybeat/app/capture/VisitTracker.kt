@@ -29,6 +29,7 @@ class VisitTracker(
     private val ioContext: CoroutineContext = Dispatchers.IO,
     private val stateStore: VisitTrackerStateStore = NoOpVisitTrackerStateStore,
     private val onWriteFailure: (Throwable) -> Unit = {},
+    private val allowNetworkLookup: Boolean = true,
 ) {
 
     companion object {
@@ -153,7 +154,7 @@ class VisitTracker(
         departureLon = null
     }
 
-    private fun finalizeDwell(dwellEndMs: Long, allowNetworkLookup: Boolean = true) {
+    private fun finalizeDwell(dwellEndMs: Long, allowNetworkLookup: Boolean = this.allowNetworkLookup) {
         val lat = dwellLat ?: return
         val lon = dwellLon ?: return
         // Read the start time now: resetDwell() zeroes it before the coroutine below gets to
@@ -208,7 +209,7 @@ class VisitTracker(
         endMs: Long,
         lat: Double,
         lon: Double,
-        allowNetworkLookup: Boolean = true,
+        allowNetworkLookup: Boolean = this.allowNetworkLookup,
     ) {
         val places = placeRepository.all()
         // Same rule for a transit sample that happens to fall inside a private zone.
@@ -246,14 +247,14 @@ class VisitTracker(
         val earth = 6_371_000.0
         val dLat = (lat2 - lat1) * Math.PI / 180.0
         val dLon = (lon2 - lon1) * Math.PI / 180.0
-        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        val a = (kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
             cos(lat1 * Math.PI / 180.0) * cos(lat2 * Math.PI / 180.0) *
-            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)).coerceIn(0.0, 1.0)
         return earth * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
 
     /** Flush open dwell when location service stops (e.g. app killed). */
-    fun flushPending(allowNetworkLookup: Boolean = true) {
+    fun flushPending(allowNetworkLookup: Boolean = this.allowNetworkLookup) {
         if (inTransit) {
             val fromLat = departureLat
             val fromLon = departureLon
@@ -318,20 +319,7 @@ class VisitTracker(
 
     private fun restoreCheckpoint() {
         val state = stateStore.load() ?: return
-        val coordinatePairsAreComplete = listOf(
-            state.dwellLat to state.dwellLon,
-            state.transitLat to state.transitLon,
-            state.departureLat to state.departureLon,
-        ).all { (lat, lon) -> (lat == null) == (lon == null) }
-        val coordinates = listOfNotNull(
-            state.dwellLat?.let { it to state.dwellLon },
-            state.transitLat?.let { it to state.transitLon },
-            state.departureLat?.let { it to state.departureLon },
-        )
-        val valid = state.lastSampleMs > 0L && coordinatePairsAreComplete && coordinates.all { (lat, lon) ->
-            lon != null && isValidCoordinate(lat, lon)
-        }
-        if (!valid) {
+        if (!state.isUsable()) {
             stateStore.clear()
             return
         }

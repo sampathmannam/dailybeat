@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Security and reliability
+- Restore keeps the phone's trusted Cloud AI destination and requires fresh cloud consent;
+  delayed authentication responses cannot undo sign-out or a newer sign-in.
+- Cloud requests recheck consent, destination and keys before sending, reject ambiguous endpoints,
+  and close active network reads when cancelled.
+- Generated documents move to internal storage; only completed exports are shareable. Unique
+  filenames protect older URI grants, and erasure includes legacy roots and interrupted exports.
+- In-flight AI results, stale editor drafts and queued exports cannot recreate erased data or
+  overwrite a newly restored history. Ordinary tracking pause/resume does not invalidate editing.
+- Capture isolates malformed fixes, recovers from invalid/future checkpoints, and respects pause
+  and permission changes during queued work. Stop flushing does not perform network lookups.
+- Citation metadata and diagnostic log reads have bounded handling for hostile or corrupt input.
+
 ## 4.3.3 — 2026-09-20
 
 ### Today and places

@@ -144,6 +144,7 @@ class LocalBackupStore(
                     com.dailybeat.app.data.retention.HistoryRetentionManager(db).pruneInsideCaptureLock(settings!!.historyRetentionDays)
                 }
             }
+            CaptureStorageGate.invalidatePersonalData()
             applySettings(requireNotNull(settings))
         }
     }
@@ -153,11 +154,11 @@ class LocalBackupStore(
         settingsRepository.setOfficerName(settings.officerName)
         settingsRepository.setThemePreference(ThemePreference.fromId(settings.themePreference))
         settingsRepository.setGpsEnabled(settings.gpsCaptureEnabled)
-        settingsRepository.setCloudLlmEnabled(settings.cloudLlmEnabled)
-        settingsRepository.setCloudProvider(settings.cloudProvider)
-        settingsRepository.setCloudModel(settings.cloudModel)
-        settingsRepository.setCloudBaseUrl(settings.cloudBaseUrl)
-        // Restore is not renewed consent to unattended cloud generation on a new phone.
+        // A backup is data, not permission to send this phone's API key or journal to a
+        // different server. In particular, legacy backups are not authenticated by a
+        // recovery passphrase. Keep the locally configured cloud destination and require
+        // renewed consent even when a restored backup says cloud generation was enabled.
+        settingsRepository.setCloudLlmEnabled(false)
         settingsRepository.setAutoEveningReport(false)
         settingsRepository.setAutoMiddayPulse(settings.autoMiddayPulse)
         settingsRepository.setSupervisorName(settings.supervisorName)

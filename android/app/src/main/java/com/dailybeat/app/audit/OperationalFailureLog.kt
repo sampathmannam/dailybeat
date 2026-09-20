@@ -6,7 +6,6 @@ import com.dailybeat.app.util.AppStorage
 import com.dailybeat.app.util.InputPolicy
 import java.io.File
 import java.time.Instant
-import java.util.ArrayDeque
 import java.util.Locale
 
 object OperationalFailureLog {
@@ -93,15 +92,7 @@ object OperationalFailureLog {
     )
 
     private fun newestLines(file: File, limit: Int): List<String> {
-        if (limit == 0 || !file.isFile) return emptyList()
-        val lines = ArrayDeque<String>(limit)
-        file.useLines { sequence ->
-            sequence.forEach { line ->
-                if (lines.size == limit) lines.removeFirst()
-                lines.addLast(line)
-            }
-        }
-        return lines.toList()
+        return newestLogLines(file, limit, 64 * 1024)
     }
 
     private fun logFile(context: Context): File =

@@ -1,12 +1,18 @@
 # DailyBeat privacy information — 4.3.3
 
-Updated 2026-09-20. This describes the candidate source, not a claim about older installed releases.
+Updated 2026-09-21. This describes the candidate source, not a claim about older installed releases.
 
 ## On your phone
 
 Visits, approximate route points, notes, diary drafts, named/private places and review state are
 stored in app-private storage. Cloud AI is optional and off by default on a new installation.
 There is no account requirement for capture, notes, review, local drafts or search.
+
+New PDF/ZIP exports and diagnostics use internal app storage. Only the exports directory is
+available to Android's sharing provider; diagnostics are outside it. Upgrade moves older generated
+exports from app-specific external storage into internal storage where accessible. Erasure also
+clears known older output locations and interrupted export files. Copies already shared with other
+apps, or unavailable on disconnected storage, remain outside that operation.
 
 Android permissions and device power restrictions affect capture. You can deny location, pause it,
 or turn it off. A pause does not delete earlier records. Android speech recognition may use a
@@ -74,6 +80,11 @@ API keys, auth sessions, the recovery passphrase and dormant DSR data. Exported 
 copies are not included. Map preferences, provider overrides, downloads and map caches are
 also excluded: cloud restore does not change this phone’s map-network choice. The selected local-retention period is restored with the encrypted backup;
 older restored history is pruned immediately when that setting has a finite period.
+
+Restoring any backup preserves this phone's Cloud AI provider, model and server address, and
+disables Cloud AI until you enable it again. A backup cannot authorize sending this phone's API
+key to an imported server. Queued cloud requests recheck the configured destination, cloud consent
+and API key immediately before transmission; information already sent cannot be recalled.
 
 Local history is kept until deletion by default. A user may instead choose 30 days, 90 days or one
 year. Applying a shorter period deletes complete older days immediately and a daily background task

@@ -25,9 +25,9 @@ object GeofenceMatcher {
         val earthRadiusM = 6_371_000.0
         val dLat = (lat2 - lat1) * Math.PI / 180.0
         val dLon = (lon2 - lon1) * Math.PI / 180.0
-        val a = sin(dLat / 2) * sin(dLat / 2) +
+        val a = (sin(dLat / 2) * sin(dLat / 2) +
             cos(lat1 * Math.PI / 180.0) * cos(lat2 * Math.PI / 180.0) *
-            sin(dLon / 2) * sin(dLon / 2)
+            sin(dLon / 2) * sin(dLon / 2)).coerceIn(0.0, 1.0)
         val c = 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
         return earthRadiusM * c
     }
