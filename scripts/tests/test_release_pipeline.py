@@ -309,3 +309,13 @@ def test_fdroid_reference_url_matches_the_signed_release_asset():
         f"https://github.com/sampathmannam/dailybeat/releases/download/"
         f"fdroid-v{version}/DailyBeat-FDroid-v{version}.apk"
     )
+
+
+def test_fdroid_build_directory_is_the_android_application_module():
+    recipe = yaml.safe_load((ROOT / "fdroid/com.dailybeat.app.yml").read_text())
+    build = recipe["Builds"][-1]
+    # fdroidserver searches build/outputs/apk relative to subdir, not recursively.
+    # A successful build from the parent project otherwise fails APK discovery.
+    module = ROOT / build["subdir"]
+    assert 'id("com.android.application")' in (module / "build.gradle.kts").read_text()
+    assert (module / "src/main/AndroidManifest.xml").is_file()
