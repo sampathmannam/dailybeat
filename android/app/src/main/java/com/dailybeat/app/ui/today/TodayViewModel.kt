@@ -27,12 +27,15 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import com.dailybeat.app.ui.feed.DayFeedBuilder
 import com.dailybeat.app.ui.feed.DayFeedItem
 import com.dailybeat.app.util.DateKeys
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.dailybeat.app.util.userMessage
 import java.time.Instant
 import java.time.LocalDate
@@ -148,6 +151,27 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
         SharingStarted.WhileSubscribed(5_000),
         DayFeedBuilder.build(activeDay.value.date, emptyList(), null),
     )
+
+    /**
+     * A deliberately local analysis. It refreshes when a visit is completed, but never uploads
+     * history or invokes a cloud model merely because Today is open.
+     */
+    internal val patternAnalysis = combine(activeDay, todayVisits) { day, visits -> day to visits }
+        .mapLatest { (day, visits) ->
+            withContext(Dispatchers.IO) {
+                buildTodayPatternAnalysis(
+                    today = day.date,
+                    zoneId = day.zoneId,
+                    todayVisits = visits,
+                    recentVisits = app.visitRepository.visitsLastDays(28),
+                )
+            }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            TodayPatternAnalysis(),
+        )
 
     private val _uiState = MutableStateFlow(
         TodayUiState(

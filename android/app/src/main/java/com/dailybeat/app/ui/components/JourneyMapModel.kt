@@ -20,6 +20,8 @@ data class JourneyPoint(
     val visitType: String,
     val startsAfterGap: Boolean = false,
     val drawsRoute: Boolean = true,
+    val stopLabel: String? = null,
+    val stopDurationMinutes: Long = 0,
 )
 
 data class JourneyBounds(
@@ -42,6 +44,14 @@ data class JourneyMapModel(
         get() = points.filter { it.visitType != "transit" }.ifEmpty {
             points.firstOrNull()?.let(::listOf).orEmpty()
         }
+
+    /** Keep map labels useful rather than covering the route on a busy day. */
+    val labeledStopPoints: List<JourneyPoint>
+        get() = stopPoints
+            .filter { !it.stopLabel.isNullOrBlank() }
+            .sortedByDescending { it.stopDurationMinutes }
+            .take(MAX_LABELED_STOPS)
+            .sortedBy { it.startMs }
 
     val bounds: JourneyBounds
         get() = requireNotNull(boundsOrNull)
@@ -138,6 +148,7 @@ data class JourneyMapModel(
         private const val DEFAULT_MAP_HEIGHT_PX = 220
         private const val DEFAULT_MAP_PADDING_PX = 48
         private const val MIN_PROJECTED_SPAN = 1e-9
+        private const val MAX_LABELED_STOPS = 3
 
         private fun mercatorY(latitude: Double): Double {
             val radians = Math.toRadians(latitude)
@@ -154,6 +165,17 @@ data class JourneyMapModel(
                     latitude = it.latitude,
                     longitude = it.longitude,
                     visitType = it.visitType,
+                    stopLabel = if (it.visitType != "transit") {
+                        it.placeName?.trim()?.takeIf(String::isNotEmpty)
+                            ?: it.address?.substringBefore(',')?.trim()?.takeIf(String::isNotEmpty)
+                    } else {
+                        null
+                    },
+                    stopDurationMinutes = if (it.visitType != "transit") {
+                        (it.endMs - it.startMs).coerceAtLeast(0L) / 60_000L
+                    } else {
+                        0L
+                    },
                 )
             },
         )
@@ -167,6 +189,8 @@ data class JourneyMapModel(
                     visitType = if (it.isStay) "stay" else "transit",
                     startsAfterGap = it.startsAfterGap,
                     drawsRoute = it.drawsRoute,
+                    stopLabel = it.stopLabel,
+                    stopDurationMinutes = it.stopDurationMinutes,
                 )
             },
         )

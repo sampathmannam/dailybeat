@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.today
 
 import com.dailybeat.app.data.model.Event
+import com.dailybeat.app.data.model.LocationVisit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,5 +64,57 @@ class TodayMomentsTest {
 
         assertEquals(20, todayMomentsOrder(events).size)
         assertEquals(events.map { it.id }.toSet(), todayMomentsOrder(events).map { it.id }.toSet())
+    }
+
+    @Test
+    fun `legacy transit moment uses the matching visit address`() {
+        val event = Event(
+            id = 7,
+            timestamp = 9_000,
+            type = "visit",
+            rawText = "Transit",
+            latitude = 11.4557,
+            longitude = 78.1856,
+        )
+        val visit = LocationVisit(
+            id = 12,
+            startMs = 9_000,
+            endMs = 12_000,
+            latitude = 11.4557,
+            longitude = 78.1856,
+            address = "Paramathi Road, Namakkal",
+            visitType = "transit",
+        )
+
+        val displayed = todayMomentsForDisplay(listOf(event), listOf(visit)).single()
+
+        assertEquals("Travel recorded", displayed.rawText)
+        assertEquals("Paramathi Road, Namakkal", displayed.placeName)
+    }
+
+    @Test
+    fun `legacy transit moment never borrows a place from another coordinate`() {
+        val event = Event(
+            id = 7,
+            timestamp = 9_000,
+            type = "visit",
+            rawText = "Transit",
+            latitude = 11.4557,
+            longitude = 78.1856,
+        )
+        val unrelated = LocationVisit(
+            id = 12,
+            startMs = 9_000,
+            endMs = 12_000,
+            latitude = 12.4557,
+            longitude = 79.1856,
+            address = "Wrong road",
+            visitType = "transit",
+        )
+
+        val displayed = todayMomentsForDisplay(listOf(event), listOf(unrelated)).single()
+
+        assertEquals("Travel recorded", displayed.rawText)
+        assertEquals(null, displayed.placeName)
     }
 }

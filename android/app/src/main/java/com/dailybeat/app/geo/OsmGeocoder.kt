@@ -12,6 +12,8 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.cos
+import kotlin.math.sqrt
 
 /** What the map knows about a spot: its own name for it, plus the full postal address. */
 data class ResolvedPlace(
@@ -30,6 +32,7 @@ open class OsmGeocoder(
     private val baseUrl: String = "",
     private val endpoint: () -> String = { baseUrl },
     private val permitsLookup: suspend (Double, Double) -> Boolean = { _, _ -> true },
+    private val minimumRequestIntervalMs: Long = 1_100L,
 ) {
 
     private val client = OkHttpClient.Builder()
@@ -52,57 +55,52 @@ open class OsmGeocoder(
             if (configuredEndpoint.isBlank() || !permitsLookup(latitude, longitude)) {
                 return@withContext ResolvedPlace(null, "Unnamed place")
             }
-            val key = configuredEndpoint + ":" + cacheKey(latitude, longitude)
+            // v2 keeps venue-aware results separate from the older road-first cache entries.
+            val key = configuredEndpoint + ":v2:" + cacheKey(latitude, longitude)
             runCatching { geocodeDao.get(key) }.getOrNull()?.let { cached ->
                 return@withContext ResolvedPlace(cached.placeName, cached.displayName)
             }
 
-            throttle.withLock {
-                val wait = 1100L - (System.currentTimeMillis() - lastRequestMs)
-                if (wait > 0) kotlinx.coroutines.delay(wait)
-                lastRequestMs = System.currentTimeMillis()
-            }
-
-            // zoom=18 asks for building/POI granularity so named places such as a police
-            // station come back as a name instead of just the street they sit on.
-            val url = String.format(
-                Locale.US,
-                "%s?lat=%.6f&lon=%.6f&format=json&addressdetails=1&namedetails=1&zoom=18",
-                configuredEndpoint,
-                latitude,
-                longitude,
-            )
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
-                .header("Accept-Language", "en")
-                .build()
-
             val fallback = ResolvedPlace(null, fallbackLabel())
-            // Recheck after the throttle; privacy settings may have changed while waiting.
-            if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) return@withContext fallback
-            val body = try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@withContext fallback
-                    val responseBody = response.body ?: return@withContext fallback
-                    if (responseBody.contentLength() > MAX_RESPONSE_BYTES) {
-                        return@withContext fallback
+            // A normal reverse lookup may choose a road even when the user is inside a shop or
+            // restaurant. Ask for a POI first, but accept it only when its mapped point is close
+            // enough to the captured stop; otherwise fall back to the nearest address.
+            val poiLookup = requestJson(configuredEndpoint, latitude, longitude, layer = "poi")
+            val resolved = when (poiLookup) {
+                is LookupResult.Found -> {
+                    val nearbyPoi = parsePoi(poiLookup.json)
+                        ?.takeIf { it.name != null && poiLookup.json.isNear(latitude, longitude) }
+                    nearbyPoi ?: when (
+                        val addressLookup = requestJson(
+                            configuredEndpoint,
+                            latitude,
+                            longitude,
+                            layer = "address",
+                        )
+                    ) {
+                        is LookupResult.Found -> runCatching {
+                            parse(addressLookup.json)
+                        }.getOrNull() ?: fallback
+                        LookupResult.Empty, LookupResult.Failed -> fallback
                     }
-                    val source = responseBody.source()
-                    if (source.request(MAX_RESPONSE_BYTES + 1L)) return@withContext fallback
-                    source.readUtf8()
                 }
-            } catch (_: Exception) {
-                return@withContext fallback
+                LookupResult.Empty -> when (
+                    val addressLookup = requestJson(
+                        configuredEndpoint,
+                        latitude,
+                        longitude,
+                        layer = "address",
+                    )
+                ) {
+                    is LookupResult.Found -> runCatching {
+                        parse(addressLookup.json)
+                    }.getOrNull() ?: fallback
+                    LookupResult.Empty, LookupResult.Failed -> fallback
+                }
+                LookupResult.Failed -> fallback
             }
 
-            val resolved = try {
-                parse(JSONObject(body), latitude, longitude)
-            } catch (_: Exception) {
-                return@withContext fallback
-            }
-
-            runCatching {
+            if (resolved != fallback) runCatching {
                 geocodeDao.put(
                     GeocodeCache(key = key, displayName = resolved.address, placeName = resolved.name),
                 )
@@ -110,11 +108,97 @@ open class OsmGeocoder(
             resolved
         }
 
-    internal fun parse(json: JSONObject, latitude: Double, longitude: Double): ResolvedPlace {
+    private suspend fun requestJson(
+        configuredEndpoint: String,
+        latitude: Double,
+        longitude: Double,
+        layer: String,
+    ): LookupResult {
+        throttle.withLock {
+            val wait = minimumRequestIntervalMs.coerceAtLeast(0L) -
+                (System.currentTimeMillis() - lastRequestMs)
+            if (wait > 0) kotlinx.coroutines.delay(wait)
+            lastRequestMs = System.currentTimeMillis()
+        }
+        // Recheck after the throttle; privacy settings may have changed while waiting.
+        if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) {
+            return LookupResult.Failed
+        }
+        val url = String.format(
+            Locale.US,
+            "%s?lat=%.6f&lon=%.6f&format=jsonv2&addressdetails=1&namedetails=1&extratags=1&zoom=18&layer=%s",
+            configuredEndpoint,
+            latitude,
+            longitude,
+            layer,
+        )
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
+            .header("Accept-Language", "en")
+            .build()
+        val body = try {
+            client.newCall(request).execute().use { response ->
+                if (response.code == 404) return LookupResult.Empty
+                if (!response.isSuccessful) return LookupResult.Failed
+                val responseBody = response.body ?: return LookupResult.Empty
+                if (responseBody.contentLength() > MAX_RESPONSE_BYTES) return LookupResult.Failed
+                val source = responseBody.source()
+                if (source.request(MAX_RESPONSE_BYTES + 1L)) return LookupResult.Failed
+                source.readUtf8()
+            }
+        } catch (_: Exception) {
+            return LookupResult.Failed
+        }
+        return try {
+            val json = JSONObject(body)
+            if (json.has("error")) LookupResult.Empty else LookupResult.Found(json)
+        } catch (_: Exception) {
+            LookupResult.Failed
+        }
+    }
+
+    internal fun parse(json: JSONObject): ResolvedPlace {
         val address = json.optString("display_name").trimOrNull()
             ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
             ?: fallbackLabel()
         return ResolvedPlace(name = extractName(json), address = address)
+    }
+
+    private fun parsePoi(json: JSONObject): ResolvedPlace? {
+        val name = extractPoiName(json) ?: return null
+        val address = json.optString("display_name").trimOrNull()
+            ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
+            ?: name
+        return ResolvedPlace(name = name, address = address)
+    }
+
+    private fun extractPoiName(json: JSONObject): String? {
+        json.optJSONObject("namedetails")?.let { names ->
+            listOf("name", "name:en", "brand", "operator").forEach { key ->
+                names.optString(key).trimOrNull()?.let {
+                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
+                }
+            }
+        }
+        json.optString("name").trimOrNull()?.let {
+            return InputPolicy.bounded(it, MAX_NAME_CHARS)
+        }
+        json.optJSONObject("extratags")?.let { extras ->
+            listOf("brand", "operator").forEach { key ->
+                extras.optString(key).trimOrNull()?.let {
+                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
+                }
+            }
+        }
+        json.optJSONObject("address")?.let { address ->
+            NAMED_POI_KEYS.forEach { key ->
+                address.optString(key).trimOrNull()?.let {
+                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
+                }
+            }
+        }
+        return null
     }
 
     /**
@@ -149,6 +233,21 @@ open class OsmGeocoder(
     private fun cacheKey(lat: Double, lon: Double): String =
         String.format(Locale.US, "%.4f,%.4f", lat, lon)
 
+    private fun JSONObject.isNear(latitude: Double, longitude: Double): Boolean {
+        val resultLatitude = optString("lat").toDoubleOrNull() ?: return false
+        val resultLongitude = optString("lon").toDoubleOrNull() ?: return false
+        return distanceMeters(latitude, longitude, resultLatitude, resultLongitude) <= MAX_POI_DISTANCE_M
+    }
+
+    private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+        return 6_371_000.0 * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
+    }
+
     private fun fallbackLabel(): String =
         "Unnamed place"
 
@@ -160,12 +259,19 @@ open class OsmGeocoder(
         const val MAX_NAME_CHARS = 80
         const val MAX_ADDRESS_CHARS = 1_000
         const val MAX_RESPONSE_BYTES = 1L * 1024L * 1024L
+        const val MAX_POI_DISTANCE_M = 200.0
+
+        sealed interface LookupResult {
+            data class Found(val json: JSONObject) : LookupResult
+            data object Empty : LookupResult
+            data object Failed : LookupResult
+        }
 
         /**
          * Address keys that name a place rather than locate it, most specific first. Ordered so
          * a police station wins over the road it is on and the town it is in.
          */
-        val NAMED_FEATURE_KEYS = listOf(
+        val NAMED_POI_KEYS = listOf(
             "police",
             "amenity",
             "office",
@@ -181,6 +287,9 @@ open class OsmGeocoder(
             "college",
             "university",
             "place_of_worship",
+        )
+
+        val NAMED_FEATURE_KEYS = NAMED_POI_KEYS + listOf(
             "neighbourhood",
             "hamlet",
             "suburb",

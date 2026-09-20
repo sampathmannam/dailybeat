@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.data.db.*
 import com.dailybeat.app.geo.OsmGeocoder
+import com.dailybeat.app.data.model.LocationVisit
 import kotlinx.coroutines.runBlocking
 import org.junit.*
 import org.junit.Assert.*
@@ -84,5 +85,33 @@ class CaptureProcessorTest {
         assertFalse(AdaptiveCapturePolicy.canSleep(false, true))
         assertFalse(AdaptiveCapturePolicy.canSleep(true, false))
         assertTrue(AdaptiveCapturePolicy.canSleep(true, true))
+    }
+    @Test fun `captured transit event keeps its resolved place`() {
+        val event = capturedVisitEvent(
+            LocationVisit(
+                startMs = start,
+                endMs = start + 60_000,
+                latitude = 11.4557,
+                longitude = 78.1856,
+                address = "Paramathi Road, Namakkal",
+                visitType = "transit",
+            ),
+        )
+        assertEquals("Travel recorded", event.rawText)
+        assertEquals("Paramathi Road, Namakkal", event.placeName)
+    }
+    @Test fun `captured transit event does not present an unresolved placeholder as a place`() {
+        val event = capturedVisitEvent(
+            LocationVisit(
+                startMs = start,
+                endMs = start + 60_000,
+                latitude = 11.4557,
+                longitude = 78.1856,
+                address = "Unnamed place",
+                visitType = "transit",
+            ),
+        )
+        assertEquals("Travel recorded", event.rawText)
+        assertNull(event.placeName)
     }
 }

@@ -106,6 +106,27 @@ class WholeDayBeatTest {
     }
 
     @Test
+    fun correctedVenueNameIsLearnedForFutureStops() {
+        val firstVisit = runBlocking(Dispatchers.IO) {
+            app.visitRepository.visitsForDate(DateKeys.today()).first { it.visitType != "transit" }
+        }
+        openTodayReview()
+        composeRule.onNodeWithTag("review_day_screen")
+            .performScrollToNode(hasTestTag("review_visit_${firstVisit.id}"))
+        composeRule.onNodeWithTag("rename_visit_${firstVisit.id}").performClick()
+        composeRule.onNodeWithTag("rename_stop_name").performTextReplacement("Royal Oak Namakkal")
+        composeRule.onNodeWithTag("rename_stop_save").performClick()
+
+        composeRule.waitUntil(10_000) {
+            runBlocking(Dispatchers.IO) {
+                app.visitRepository.visitsForDate(DateKeys.today())
+                    .first { it.id == firstVisit.id }.placeName == "Royal Oak Namakkal" &&
+                    app.placeRepository.all().any { it.name == "Royal Oak Namakkal" }
+            }
+        }
+    }
+
+    @Test
     fun insightsTurnHistoryIntoAConcreteNextAction() {
         composeRule.onNodeWithTag("nav_insights").performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("actionable_insight"), timeoutMillis = 20_000)
@@ -113,6 +134,16 @@ class WholeDayBeatTest {
             .performScrollToNode(hasTestTag("actionable_insight"))
         composeRule.onNodeWithText("Close today’s loop").assertIsDisplayed()
         composeRule.onNodeWithText("Review my day").assertIsDisplayed()
+    }
+
+    @Test
+    fun todayEndsWithPrivatePatternAnalysis() {
+        composeRule.onNodeWithTag("nav_today").performClick()
+        composeRule.onNodeWithTag("today_list")
+            .performScrollToNode(hasTestTag("today_pattern_dashboard"))
+        composeRule.onNodeWithTag("today_pattern_dashboard").assertIsDisplayed()
+        composeRule.onNodeWithText("AI pattern analysis").assertIsDisplayed()
+        composeRule.onNodeWithText("On-device").assertIsDisplayed()
     }
 
     private fun openTodayReview() {

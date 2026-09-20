@@ -40,6 +40,8 @@ class DayFeedBuilderTest {
         assertEquals(1, item.stayCount)
         assertEquals("Rasipuram Police Station", item.stays.single().name)
         assertEquals(40, item.stays.single().durationMinutes)
+        assertEquals("Rasipuram Police Station", item.route.single().stopLabel)
+        assertEquals(40, item.route.single().stopDurationMinutes)
     }
 
     @Test

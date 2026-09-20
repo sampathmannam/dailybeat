@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Today and places
+- Today repairs older bare “Transit” moments from their matching local visit so the recorded place
+  appears immediately, while new transit moments retain their place label at capture time.
+- Today ends with a restrained on-device AI pattern dashboard covering recent stop rhythm,
+  recurring places and common movement windows without automatically contacting cloud AI.
+- Automatic managed place lookup now prefers a nearby named POI over a road, rejects POIs more
+  than 200 m from the recorded stop, and safely falls back to the address when needed.
+- Journey maps label the three longest stops with place and duration. Correcting a stop name during
+  review also teaches DailyBeat to recognise future visits near that location.
+
 ## 4.3.2 — 2026-09-20
 
 - Remove opaque, Google-encrypted dependency metadata from APK/AAB packaging for F-Droid.
