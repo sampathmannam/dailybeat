@@ -23,6 +23,21 @@ class JourneyMapModelTest {
     }
 
     @Test
+    fun fromRoute_labelsTheThreeLongestStopsWithTheirDurations() {
+        val model = JourneyMapModel.fromRoute(
+            listOf(
+                RoutePoint(11.45, 78.18, true, 100, stopLabel = "Tea", stopDurationMinutes = 10),
+                RoutePoint(11.46, 78.19, true, 200, stopLabel = "Royal Oak", stopDurationMinutes = 45),
+                RoutePoint(11.47, 78.20, true, 300, stopLabel = "Restaurant", stopDurationMinutes = 30),
+                RoutePoint(11.48, 78.21, true, 400, stopLabel = "Office", stopDurationMinutes = 60),
+            ),
+        )
+
+        assertEquals(listOf("Royal Oak", "Restaurant", "Office"), model.labeledStopPoints.map { it.stopLabel })
+        assertEquals(listOf(45L, 30L, 60L), model.labeledStopPoints.map { it.stopDurationMinutes })
+    }
+
+    @Test
     fun fromPoints_preservesRouteBreadcrumbsButMarksOnlyStops() {
         val model = JourneyMapModel.fromPoints(
             listOf(

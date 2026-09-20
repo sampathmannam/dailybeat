@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.feed.RoutePoint
+import com.dailybeat.app.util.Formatters
 
 /** A stable Strava-style map card; the dedicated map screen remains interactive. */
 @Composable
@@ -30,10 +31,18 @@ fun JourneyRoutePreview(
 ) {
     val model = remember(route) { JourneyMapModel.fromRoute(route) }
     if (model.points.isEmpty()) return
-    val previewDescription = pluralStringResource(
+    val routeDescription = pluralStringResource(
         R.plurals.journey_preview_content_description,
         model.points.size,
         model.points.size,
+    )
+    val namedStops = model.labeledStopPoints.joinToString { stop ->
+        "${stop.stopLabel}, ${Formatters.duration(stop.stopDurationMinutes)}"
+    }
+    val previewDescription = if (namedStops.isBlank()) routeDescription else stringResource(
+        R.string.journey_preview_named_stops_content_description,
+        routeDescription,
+        namedStops,
     )
 
     Surface(

@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.domain.GeofenceMatcher
 import com.dailybeat.app.ui.feed.DayFeedBuilder
 import com.dailybeat.app.ui.feed.DayFeedItem
 import com.dailybeat.app.util.DateKeys
@@ -92,7 +93,23 @@ class ReviewDayViewModel(
     fun renameVisit(visit: LocationVisit, name: String) {
         val cleanName = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS).trim()
         if (cleanName.isEmpty()) return
-        launchAction("Stop updated.", "Unable to update this stop.") {
+        launchAction(
+            "Stop updated. Future visits near this location will use this name.",
+            "Unable to update this stop.",
+        ) {
+            val existingPlace = GeofenceMatcher.matchPlace(
+                visit.latitude,
+                visit.longitude,
+                app.placeRepository.all(),
+            )
+            if (existingPlace == null) {
+                app.placeRepository.add(
+                    cleanName,
+                    visit.latitude,
+                    visit.longitude,
+                    radiusM = LEARNED_PLACE_RADIUS_M,
+                )
+            }
             app.visitRepository.rename(visit, cleanName)
         }
     }
@@ -128,5 +145,9 @@ class ReviewDayViewModel(
                 },
             )
         }
+    }
+
+    private companion object {
+        const val LEARNED_PLACE_RADIUS_M = 150
     }
 }

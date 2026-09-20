@@ -81,6 +81,7 @@ fun TodayScreen(
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
     val events by viewModel.todayEvents.collectAsStateWithLifecycle()
     val beat by viewModel.todayBeat.collectAsStateWithLifecycle()
+    val patternAnalysis by viewModel.patternAnalysis.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var note by rememberSaveable { mutableStateOf("") }
     var showCaptureSheet by rememberSaveable { mutableStateOf(false) }
@@ -239,9 +240,13 @@ fun TodayScreen(
                 )
             }
         } else {
-            items(todayMomentsOrder(events), key = { it.id }) { event ->
+            items(todayMomentsForDisplay(events, visits), key = { it.id }) { event ->
                 EventCard(event = event)
             }
+        }
+
+        item {
+            TodayPatternDashboard(analysis = patternAnalysis)
         }
 
         if (showQaTools) {

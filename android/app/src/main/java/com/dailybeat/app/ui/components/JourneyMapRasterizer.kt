@@ -105,6 +105,7 @@ internal suspend fun renderJourneyMapRaster(
         drawRoute(
             canvas = canvas,
             model = model,
+            viewportSize = viewportSize,
             centerX = centerX,
             worldSizePx = worldSizePx,
             viewportLeft = viewportLeft,
@@ -124,6 +125,7 @@ internal suspend fun renderJourneyMapRaster(
 private fun drawRoute(
     canvas: Canvas,
     model: JourneyMapModel,
+    viewportSize: IntSize,
     centerX: Double,
     worldSizePx: Double,
     viewportLeft: Double,
@@ -170,6 +172,85 @@ private fun drawRoute(
         canvas.drawCircle(x, y, 7f * density, stopOuterPaint)
         canvas.drawCircle(x, y, 4.5f * density, stopInnerPaint)
     }
+    drawStopLabels(
+        canvas = canvas,
+        points = model.labeledStopPoints,
+        viewportSize = viewportSize,
+        centerX = centerX,
+        worldSizePx = worldSizePx,
+        viewportLeft = viewportLeft,
+        viewportTop = viewportTop,
+        density = density,
+    )
+}
+
+private fun drawStopLabels(
+    canvas: Canvas,
+    points: List<JourneyPoint>,
+    viewportSize: IntSize,
+    centerX: Double,
+    worldSizePx: Double,
+    viewportLeft: Double,
+    viewportTop: Double,
+    density: Float,
+) {
+    if (points.isEmpty()) return
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 11f * density
+    }
+    val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#E6172630")
+        style = Paint.Style.FILL
+    }
+    val horizontalPadding = 7f * density
+    val verticalPadding = 5f * density
+    val margin = 8f * density
+    val markerGap = 10f * density
+    val availableLabelWidth = (viewportSize.width - margin * 2).coerceAtLeast(1f)
+    val maximumTextWidth = minOf(
+        160f * density,
+        (availableLabelWidth - horizontalPadding * 2).coerceAtLeast(1f),
+    )
+    val metrics = textPaint.fontMetrics
+    val labelHeight = metrics.descent - metrics.ascent + verticalPadding * 2
+
+    points.forEachIndexed { index, point ->
+        val place = point.stopLabel.orEmpty()
+        val duration = com.dailybeat.app.util.Formatters.durationCompact(point.stopDurationMinutes)
+        val text = fitMapLabel("$place · $duration", textPaint, maximumTextWidth)
+        val textWidth = textPaint.measureText(text)
+        val markerX = (alignedWorldX(point.longitude, centerX, worldSizePx) - viewportLeft).toFloat()
+        val markerY = (worldY(point.latitude, worldSizePx) - viewportTop).toFloat()
+        val labelWidth = (textWidth + horizontalPadding * 2).coerceAtMost(availableLabelWidth)
+        val maximumLeft = (viewportSize.width - margin - labelWidth).coerceAtLeast(margin)
+        val left = (markerX - labelWidth / 2).coerceIn(margin, maximumLeft)
+        val preferBelow = markerY - markerGap - labelHeight < margin || index % 2 == 1
+        val top = if (preferBelow) markerY + markerGap else markerY - markerGap - labelHeight
+        val maximumTop = (viewportSize.height - margin - labelHeight).coerceAtLeast(margin)
+        val safeTop = top.coerceIn(margin, maximumTop)
+        val background = RectF(
+            left,
+            safeTop,
+            left + labelWidth,
+            safeTop + labelHeight,
+        )
+        canvas.drawRoundRect(background, 7f * density, 7f * density, backgroundPaint)
+        canvas.drawText(
+            text,
+            background.left + horizontalPadding,
+            background.top + verticalPadding - metrics.ascent,
+            textPaint,
+        )
+    }
+}
+
+private fun fitMapLabel(text: String, paint: Paint, maximumWidth: Float): String {
+    if (paint.measureText(text) <= maximumWidth) return text
+    val ellipsis = "…"
+    val available = (maximumWidth - paint.measureText(ellipsis)).coerceAtLeast(0f)
+    val characters = paint.breakText(text, true, available, null).coerceAtLeast(0)
+    return text.take(characters).trimEnd() + ellipsis
 }
 
 private fun routePaint(colorValue: String, width: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {

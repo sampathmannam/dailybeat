@@ -63,10 +63,7 @@ class CaptureProcessor(
                 db.withTransaction {
                     visits.forEach { visit ->
                         db.visits().insert(visit)
-                        db.events().insert(Event(timestamp = visit.startMs, type = "visit",
-                            rawText = if (visit.visitType == "transit") "Transit" else
-                                "Stay at ${visit.placeName ?: visit.address ?: "unnamed place"}",
-                            placeName = visit.placeName, latitude = visit.latitude, longitude = visit.longitude))
+                        db.events().insert(capturedVisitEvent(visit))
                     }
                     point?.let { db.breadcrumbs().insert(it) }
                     journal.checkpoint(CaptureCheckpoint(payload = memory.encode()))
@@ -96,13 +93,30 @@ class CaptureProcessor(
         db.withTransaction {
             visits.forEach { visit ->
                 db.visits().insert(visit)
-                db.events().insert(Event(timestamp = visit.startMs, type = "visit", rawText = "Recorded ${visit.visitType}",
-                    placeName = visit.placeName, latitude = visit.latitude, longitude = visit.longitude))
+                db.events().insert(capturedVisitEvent(visit))
             }
             db.captureJournal().checkpoint(CaptureCheckpoint(payload = memory.encode()))
         }
     }
 }
+
+/** Keep the visit timeline and moments timeline equally informative. */
+internal fun capturedVisitEvent(visit: LocationVisit): Event {
+    val place = visit.placeName.usableCapturedLabel() ?: visit.address.usableCapturedLabel()
+    val transit = visit.visitType.equals("transit", ignoreCase = true)
+    return Event(
+        timestamp = visit.startMs,
+        type = "visit",
+        rawText = if (transit) "Travel recorded" else "Stay at ${place ?: "unnamed place"}",
+        placeName = place,
+        latitude = visit.latitude,
+        longitude = visit.longitude,
+    )
+}
+
+private fun String?.usableCapturedLabel(): String? = this
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() && !it.equals("Unnamed place", ignoreCase = true) }
 
 internal class BufferedCheckpoint(payload: String? = null) : VisitTrackerStateStore {
     private var state: VisitTrackerState? = payload?.let(::decode)

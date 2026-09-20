@@ -72,6 +72,34 @@
     <string name="today_moments_title">Today\'s moments</string>
     <string name="today_moments_provenance">Local to this phone</string>
     <string name="today_moments_empty">Nothing noted yet. Anything you add from \"Add moment\" appears here.</string>
+    <string name="today_pattern_title">AI pattern analysis</string>
+    <string name="today_pattern_subtitle">Private signals from your recent days</string>
+    <string name="today_pattern_on_device">On-device</string>
+    <string name="today_pattern_learning_title">Learning your routine</string>
+    <string name="today_pattern_learning_body">Capture at least two active days to compare today with your usual stops, places and movement times.</string>
+    <string name="today_pattern_rhythm_label">Today’s rhythm</string>
+    <plurals name="today_pattern_stops">
+        <item quantity="one">%1$d stop today</item>
+        <item quantity="other">%1$d stops today</item>
+    </plurals>
+    <string name="today_pattern_rhythm_detail">Your recent average is %1$s stops per active day across %2$d days.</string>
+    <string name="today_pattern_place_label">Most recurring place</string>
+    <string name="today_pattern_place_learning">No repeated place yet</string>
+    <string name="today_pattern_place_learning_detail">A place appears here after it is recorded more than once.</string>
+    <plurals name="today_pattern_place_visits">
+        <item quantity="one">Seen once in the last 28 days</item>
+        <item quantity="other">Seen %1$d times in the last 28 days</item>
+    </plurals>
+    <string name="today_pattern_window_label">Common movement time</string>
+    <string name="today_pattern_window_morning">Morning</string>
+    <string name="today_pattern_window_afternoon">Afternoon</string>
+    <string name="today_pattern_window_evening">Evening</string>
+    <string name="today_pattern_window_night">Night</string>
+    <plurals name="today_pattern_window_journeys">
+        <item quantity="one">One recorded journey began in this window.</item>
+        <item quantity="other">%1$d recorded journeys began in this window.</item>
+    </plurals>
+    <string name="today_pattern_privacy">Built from the last 28 days on this phone. DailyBeat never contacts cloud AI automatically. These are observations, not conclusions.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
@@ -108,6 +136,7 @@
         <item quantity="one">Route preview with %1$d recorded point</item>
         <item quantity="other">Route preview with %1$d recorded points</item>
     </plurals>
+    <string name="journey_preview_named_stops_content_description">%1$s. Named stops: %2$s.</string>
     <string name="journey_map_unavailable">Interactive map unavailable.</string>
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_loading_interactive">Preparing interactive map…</string>

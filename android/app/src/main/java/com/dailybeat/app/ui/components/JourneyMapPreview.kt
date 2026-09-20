@@ -54,6 +54,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.theme.Gold
 import com.dailybeat.app.ui.theme.Ink
+import com.dailybeat.app.util.Formatters
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -64,7 +65,9 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
@@ -74,6 +77,15 @@ import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineDasharray
 import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.PropertyFactory.textAnchor
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textMaxWidth
+import org.maplibre.android.style.layers.PropertyFactory.textOffset
+import org.maplibre.android.style.layers.PropertyFactory.textOptional
+import org.maplibre.android.style.layers.PropertyFactory.textSize
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -98,6 +110,8 @@ private const val GAP_SOURCE_ID = "dailybeat-gap-source"
 private const val GAP_LAYER_ID = "dailybeat-gap-layer"
 private const val STOP_SOURCE_ID = "dailybeat-stop-source"
 private const val STOP_LAYER_ID = "dailybeat-stop-layer"
+private const val STOP_LABEL_LAYER_ID = "dailybeat-stop-label-layer"
+private const val STOP_LABEL_PROPERTY = "dailybeat-stop-label"
 private const val PLAYBACK_SOURCE_ID = "dailybeat-playback-source"
 private const val PLAYBACK_LAYER_ID = "dailybeat-playback-layer"
 
@@ -628,7 +642,7 @@ private fun MapLibreMap.renderJourney(
         uiSettings.isAttributionEnabled = true
         uiSettings.isLogoEnabled = true
 
-        val points = model.stopPoints.map { Point.fromLngLat(it.longitude, it.latitude) }
+        val labeledStops = model.labeledStopPoints.toSet()
         val routeFeatures = model.routeSegments
             .filter { it.size >= 2 }
             .map { segment ->
@@ -701,7 +715,17 @@ private fun MapLibreMap.renderJourney(
             style.removeSource(GAP_SOURCE_ID)
         }
 
-        val stops = FeatureCollection.fromFeatures(points.map(Feature::fromGeometry))
+        val stops = FeatureCollection.fromFeatures(
+            model.stopPoints.map { point ->
+                Feature.fromGeometry(Point.fromLngLat(point.longitude, point.latitude)).apply {
+                    if (point in labeledStops) {
+                        val label = point.stopLabel.orEmpty() + " · " +
+                            Formatters.durationCompact(point.stopDurationMinutes)
+                        addStringProperty(STOP_LABEL_PROPERTY, label)
+                    }
+                }
+            },
+        )
         val stopSource = style.getSourceAs<GeoJsonSource>(STOP_SOURCE_ID)
         if (stopSource == null) {
             style.addSource(
@@ -717,6 +741,20 @@ private fun MapLibreMap.renderJourney(
                     circleStrokeColor(JOURNEY_STOP_STROKE_COLOR),
                     circleStrokeWidth(2f),
                 ),
+            )
+            style.addLayerAbove(
+                SymbolLayer(STOP_LABEL_LAYER_ID, STOP_SOURCE_ID).withProperties(
+                    textField(Expression.get(STOP_LABEL_PROPERTY)),
+                    textSize(12f),
+                    textColor("#172630"),
+                    textHaloColor("#FFFDF7"),
+                    textHaloWidth(1.5f),
+                    textMaxWidth(12f),
+                    textOffset(arrayOf(0f, 1.2f)),
+                    textAnchor(Property.TEXT_ANCHOR_TOP),
+                    textOptional(true),
+                ),
+                STOP_LAYER_ID,
             )
         } else {
             stopSource.setGeoJson(stops)

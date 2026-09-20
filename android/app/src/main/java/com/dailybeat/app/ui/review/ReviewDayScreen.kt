@@ -266,7 +266,12 @@ private fun ReviewVisitRow(
                     )
                 }
                 Row {
-                    TextButton(onClick = onRename) { Text(stringResource(R.string.rename_stop)) }
+                    TextButton(
+                        onClick = onRename,
+                        modifier = Modifier.testTag("rename_visit_${visit.id}"),
+                    ) {
+                        Text(stringResource(R.string.rename_stop))
+                    }
                     TextButton(
                         onClick = onToggleHidden,
                         modifier = Modifier.testTag("hide_visit_${visit.id}"),
@@ -292,11 +297,16 @@ private fun RenameStopDialog(visit: LocationVisit, onDismiss: () -> Unit, onSave
                     name = InputPolicy.singleLine(it, InputPolicy.PLACE_NAME_CHARS)
                 },
                 label = { Text(stringResource(R.string.place_name_label)) },
+                modifier = Modifier.testTag("rename_stop_name"),
                 singleLine = true,
             )
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) {
+            TextButton(
+                onClick = { onSave(name) },
+                enabled = name.isNotBlank(),
+                modifier = Modifier.testTag("rename_stop_save"),
+            ) {
                 Text(stringResource(R.string.save_title))
             }
         },

@@ -34,6 +34,8 @@ data class RoutePoint(
     val timestampMs: Long = 0,
     val startsAfterGap: Boolean = false,
     val drawsRoute: Boolean = true,
+    val stopLabel: String? = null,
+    val stopDurationMinutes: Long = 0,
 )
 
 /** Everything one day's card in the feed shows. */
@@ -122,6 +124,9 @@ object DayFeedBuilder {
                     isStay = true,
                     timestampMs = it.startMs,
                     drawsRoute = false,
+                    stopLabel = it.displayName(places),
+                    stopDurationMinutes = TimeUnit.MILLISECONDS
+                        .toMinutes((it.endMs - it.startMs).coerceAtLeast(0L)),
                 )
             }
             (sampleBreadcrumbsForRoute(orderedBreadcrumbs, gapStarts).map { sampled ->
@@ -141,6 +146,12 @@ object DayFeedBuilder {
                     longitude = it.longitude,
                     isStay = it.visitType != "transit",
                     timestampMs = it.startMs,
+                    stopLabel = if (it.visitType != "transit") it.displayName(places) else null,
+                    stopDurationMinutes = if (it.visitType != "transit") {
+                        TimeUnit.MILLISECONDS.toMinutes((it.endMs - it.startMs).coerceAtLeast(0L))
+                    } else {
+                        0L
+                    },
                 )
             }
         }
