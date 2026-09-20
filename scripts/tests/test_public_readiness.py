@@ -15,7 +15,8 @@ def test_owner_approved_gpl_licence_is_bundled_and_scope_is_explicit():
 
 def test_foss_build_has_its_own_required_dependency_verification():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text()
-    assert 'if (!dailybeatFoss) implementation("com.google.android.gms:play-services-location:21.3.0")' in gradle
+    assert 'if (!dailybeatFoss) apply(from = "gms-dependencies.gradle.kts")' in gradle
+    assert 'play-services-location:21.3.0' in (ROOT / "android/app/gms-dependencies.gradle.kts").read_text()
     assert 'tasks.register("verifyGoogleFreeDependencies")' in gradle
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     steps = workflow["jobs"]["foss-build"]["steps"]

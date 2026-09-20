@@ -1850,5 +1850,8 @@
       },
       "missing": []
     }
-  }
+  },
+  "verifiedRelease": "4.3.1",
+  "verifiedDate": "2026-09-20",
+  "runtimeCoordinatesUnchanged": true
 }

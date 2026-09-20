@@ -197,3 +197,62 @@ jobs:
       - name: Remove the decoded signing key
         if: always()
         run: rm -f android/release.keystore
+
+  fdroid-release:
+    # The protected standard publisher must succeed first. A separate prerelease channel
+    # keeps Obtainium's existing stable APK selection unambiguous during F-Droid review.
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: 'false'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Restore permanent signing key
+        env:
+          DAILYBEAT_KEYSTORE_BASE64: ${{ secrets.DAILYBEAT_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$DAILYBEAT_KEYSTORE_BASE64"
+          printf '%s' "$DAILYBEAT_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
+      - name: Build signed F-Droid candidate
+        env:
+          DAILYBEAT_STORE_PASSWORD: ${{ secrets.DAILYBEAT_STORE_PASSWORD }}
+          DAILYBEAT_KEY_PASSWORD: ${{ secrets.DAILYBEAT_KEY_PASSWORD }}
+        run: |
+          test -n "$DAILYBEAT_STORE_PASSWORD"
+          test -n "$DAILYBEAT_KEY_PASSWORD"
+          ./android/gradlew -p android assembleRelease testReleaseUnitTest verifyGoogleFreeDependencies -PdailybeatFoss=true -PdailybeatStore=true --no-daemon --stacktrace
+          python3 scripts/check_store_apk.py android/app/build/outputs/apk/release/app-release.apk --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt"
+          python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee certificate.txt
+          grep -qi '44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f' certificate.txt
+      - name: Publish immutable F-Droid candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < release/version.txt)"
+          tag="fdroid-v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "F-Droid candidate already exists; refusing to replace assets."
+            exit 1
+          fi
+          apk="DailyBeat-FDroid-v$version.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > FDROID-SHA256SUMS.txt
+          gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "DailyBeat $version — F-Droid candidate" --notes-file fdroid/RELEASE_NOTES.md \
+            "$apk" FDROID-SHA256SUMS.txt
+      - name: Remove the decoded signing key
+        if: always()
+        run: rm -f android/release.keystore

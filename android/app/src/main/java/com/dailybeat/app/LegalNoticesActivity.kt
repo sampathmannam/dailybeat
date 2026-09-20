@@ -56,7 +56,8 @@ class LegalNoticesActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as DailyBeatApp
-        val thirdPartyNotices = readRawText(R.raw.third_party_notices)
+        val thirdPartyNotices = readRawText(R.raw.third_party_notices) +
+            "\n\n" + readRawText(R.raw.maplibre_notices)
         val gpl = readRawText(R.raw.gpl_3_0)
         val apache = readRawText(R.raw.apache_license_2_0)
 
