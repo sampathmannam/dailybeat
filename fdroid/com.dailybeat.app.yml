@@ -38,7 +38,7 @@ Builds:
       - dailybeatStore=true
       - dailybeatUnsigned=true
 
-AllowedAPKSigningKeys: 44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f
+AllowedAPKSigningKeys: 44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f # gitleaks:allow -- public certificate digest
 
 MaintainerNotes: |-
   Upstream recipe template. Replace the commit tag with its full immutable commit

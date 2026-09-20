@@ -1,3 +1,5 @@
 # Public Protomaps object filename 20260919.pmtiles, not a credential.
 # Exact historical finding only; the current metadata field is named objectName.
 c163e5bbc38390740eb167f4eb14602125e5948b:scripts/maps/sources.json:generic-api-key:3
+# Public APK signing-certificate SHA-256, not signing-key material. Exact historical finding.
+80fd691b74acd7a263e84b632d28a4d582aee5c4:fdroid/com.dailybeat.app.yml:generic-api-key:41
