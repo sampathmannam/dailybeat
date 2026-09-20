@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.3.3 — 2026-09-20
+
 ### Today and places
 - Today repairs older bare “Transit” moments from their matching local visit so the recorded place
   appears immediately, while new transit moments retain their place label at capture time.
