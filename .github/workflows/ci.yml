@@ -200,6 +200,8 @@ jobs:
         run: |
           ./android/gradlew -p android assembleRelease testReleaseUnitTest lintRelease -PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true --no-daemon
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/store-first.apk"
+          mkdir -p android/app/build/outputs/store-reproducibility
+          cp "$RUNNER_TEMP/store-first.apk" android/app/build/outputs/store-reproducibility/app-release-unsigned.apk
           python3 scripts/check_store_apk.py "$RUNNER_TEMP/store-first.apk" --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt"
 
       - name: Run F-Droid source and APK scanners
@@ -219,6 +221,21 @@ jobs:
           cmp "$RUNNER_TEMP/store-first.apk" android/app/build/outputs/apk/release/app-release-unsigned.apk
           sha256sum "$RUNNER_TEMP/store-first.apk"
 
+      - name: Verify AGP signing with a disposable CI key
+        env:
+          DAILYBEAT_STORE_PASSWORD: disposable-ci-only
+          DAILYBEAT_KEY_PASSWORD: disposable-ci-only
+        run: |
+          test ! -e android/release.keystore
+          trap 'rm -f android/release.keystore' EXIT
+          keytool -genkeypair -keystore android/release.keystore -storetype PKCS12 \
+            -storepass "$DAILYBEAT_STORE_PASSWORD" -keypass "$DAILYBEAT_KEY_PASSWORD" \
+            -alias dailybeat -keyalg RSA -keysize 2048 -validity 1 -dname 'CN=Disposable CI'
+          ./android/gradlew -p android assembleRelease -PdailybeatFoss=true -PdailybeatStore=true --no-daemon
+          python3 scripts/check_apk_signing_block.py android/app/build/outputs/apk/release/app-release.apk --require-signed
+          python3 scripts/check_store_apk.py android/app/build/outputs/apk/release/app-release.apk --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify android/app/build/outputs/apk/release/app-release.apk
+
       - name: Upload QA APK and reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -230,7 +247,7 @@ jobs:
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/reports/tests/
             android/app/build/reports/lint-results-debug.html
-            android/app/build/outputs/apk/release/app-release-unsigned.apk
+            android/app/build/outputs/store-reproducibility/app-release-unsigned.apk
 
   # Keep the established offline check name for branch-protection compatibility while the
   # separate live-backup job verifies the external service.

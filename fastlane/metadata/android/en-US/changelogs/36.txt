@@ -1,0 +1,1 @@
+Removes opaque build metadata required to be absent by F-Droid. Adds verification of signed APK contents before publication and corrects the store build recipe. Journey capture, offline Tamil Nadu maps and your existing data are preserved.

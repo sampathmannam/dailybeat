@@ -7,8 +7,11 @@ import re
 import subprocess
 import zipfile
 
+from check_apk_signing_block import verify_signing_block
+
 
 def verify(apk: Path, aapt: Path):
+    verify_signing_block(apk)
     manifest = subprocess.check_output([str(aapt), "dump", "xmltree", str(apk), "AndroidManifest.xml"], text=True)
     badging = subprocess.check_output([str(aapt), "dump", "badging", str(apk)], text=True)
     assert "name='com.dailybeat.app'" in badging, "Wrong store application ID"

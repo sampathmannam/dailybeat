@@ -36,9 +36,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 35" in gradle
-    assert 'versionName = "4.3.1"' in gradle
-    assert release_marker == "4.3.1"
+    assert "versionCode = 36" in gradle
+    assert 'versionName = "4.3.2"' in gradle
+    assert release_marker == "4.3.2"
 
 
 def test_release_build_requires_the_permanent_signing_key():
@@ -309,3 +309,30 @@ def test_fdroid_reference_url_matches_the_signed_release_asset():
         f"https://github.com/sampathmannam/dailybeat/releases/download/"
         f"fdroid-v{version}/DailyBeat-FDroid-v{version}.apk"
     )
+
+
+def test_fdroid_build_directory_is_the_android_application_module():
+    recipe = yaml.safe_load((ROOT / "fdroid/com.dailybeat.app.yml").read_text())
+    build = recipe["Builds"][-1]
+    # fdroidserver searches build/outputs/apk relative to subdir, not recursively.
+    # A successful build from the parent project otherwise fails APK discovery.
+    module = ROOT / build["subdir"]
+    assert 'id("com.android.application")' in (module / "build.gradle.kts").read_text()
+    assert (module / "src/main/AndroidManifest.xml").is_file()
+
+
+def test_publishers_check_actual_signed_blocks_and_ci_exercises_agp_signing():
+    jobs = yaml.safe_load((ROOT / ".github/workflows/publish-release.yml").read_text())["jobs"]
+    for name in ("build-and-release", "fdroid-release"):
+        steps = jobs[name]["steps"]
+        checked = [i for i, step in enumerate(steps)
+                   if "check_apk_signing_block.py" in step.get("run", "")
+                   and "--require-signed" in step.get("run", "")]
+        published = [i for i, step in enumerate(steps) if "gh release create" in step.get("run", "")]
+        assert checked and published and max(checked) < min(published)
+    ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())["jobs"]["foss-build"]
+    signing = next(step for step in ci["steps"] if "keytool -genkeypair" in step.get("run", ""))
+    assert "--require-signed" in signing["run"]
+    assert "assembleRelease" in signing["run"]
+    assert "-PdailybeatUnsigned=true" not in signing["run"]
+    assert "secrets." not in str(signing)
