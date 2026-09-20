@@ -184,13 +184,26 @@ class MainNavigationTest {
         composeRule.onNodeWithText("Add diary").performClick()
         composeRule.onNode(hasText("Raw events") and hasSetTextAction())
             .performTextInput("Briefing completed at headquarters.")
-        // The multiline editor keeps the software keyboard open. On slower devices the IME can
-        // still cover the button and consume the injected tap even though Compose has composed it.
+        // Compose idleness does not include Android's asynchronous IME show/hide animation.
+        // Wait for the pending show first: hiding sooner can be followed by a late onShown,
+        // leaving the injected tap under the keyboard even though the button is composed.
+        fun keyboardHasSettled(visible: Boolean): Boolean {
+            var settled = false
+            composeRule.activityRule.scenario.onActivity { activity ->
+                val insets = androidx.core.view.ViewCompat.getRootWindowInsets(activity.window.decorView)
+                settled = insets != null &&
+                    insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == visible &&
+                    (visible || insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime()).bottom == 0)
+            }
+            return settled
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) { keyboardHasSettled(true) }
         composeRule.activityRule.scenario.onActivity { activity ->
             val inputMethodManager = activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
             val windowToken = activity.currentFocus?.windowToken ?: activity.window.decorView.windowToken
             inputMethodManager.hideSoftInputFromWindow(windowToken, 0)
         }
+        composeRule.waitUntil(timeoutMillis = 10_000) { keyboardHasSettled(false) }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("diary_list")
             .performScrollToNode(hasText("Generate from pasted text"))
