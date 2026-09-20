@@ -79,7 +79,11 @@ JSON-checker test material is not linked into the app; its runtime headers use M
 The app uses original vector icon sources and system typography, not downloaded application fonts.
 Compose/Material icons are Apache-2.0 resources. The separate Tamil Nadu package carries its own
 OpenStreetMap, boundary, style, sprite and font licences. Store screenshots must use synthetic data.
-English listing text and changelogs are maintained under `fastlane/metadata/android/en-US/`.
+English listing text, screenshots, the icon and changelogs are maintained under
+`fastlane/metadata/android/en-US/`. The 512-pixel store icon is rasterized from
+`docs/assets/store-icon.svg`, derived from the original Android vector artwork.
+Screenshots were captured on 2026-09-20 from the store-mode QA build on a disposable Android
+emulator; journal entries are fictional, with no personal location or diary data.
 
 The legacy Google-backed APK is not the F-Droid candidate. Its proprietary SDK declarations are
 separately documented and must not be presented as a wholly FLOSS distribution.
