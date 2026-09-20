@@ -1,0 +1,1 @@
+Prepare a Google-free, reproducible F-Droid build with complete native-library notices and no private build configuration. Keep verified Tamil Nadu offline maps, cancellable online maps, route fallbacks and device-local map preferences. Cloud drafting remains optional; managed cloud backup is not configured in the store build.

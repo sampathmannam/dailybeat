@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 4.3.1 — 2026-09-20
+
+- Add a reproducible Google-free F-Droid candidate, unsigned build support, a public recipe and
+  Fastlane listing. Store builds exclude private managed-backup settings, even when supplied by CI.
+- Fix the Google-free minified release's missing Tink annotation dependency.
+- Bundle complete MapLibre native notices and document asset/dependency provenance and network flags.
+- Gate the store release on F-Droid source/APK scanners and independent unsigned rebuild comparison.
+- Publish the F-Droid reference APK on a separate immutable candidate channel with the existing key.
+
+## 4.3.0 — 2026-09-20
+
+- Harden map downloads, request cancellation, image limits, deadlines and route fallback.
+- Add an online-map switch, provider settings and verified, resumable Tamil Nadu offline maps.
+- Keep map settings and packages outside diary backups and erase them with local data.
+
 ## 4.2.1 — 2026-09-19
 
 ### Refined

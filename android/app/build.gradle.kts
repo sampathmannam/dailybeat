@@ -7,6 +7,10 @@ plugins {
 // Platform-only build: ./gradlew assembleRelease -PdailybeatFoss=true
 // A property preserves the existing signed release task/artifact contract for current users.
 val dailybeatFoss = providers.gradleProperty("dailybeatFoss").orNull == "true"
+// The store build must be reproducible without private backend settings or a signing key.
+val dailybeatStore = providers.gradleProperty("dailybeatStore").orNull == "true"
+val dailybeatUnsigned = providers.gradleProperty("dailybeatUnsigned").orNull == "true"
+require(!dailybeatStore || dailybeatFoss) { "Store builds require -PdailybeatFoss=true." }
 val fossManifest = layout.buildDirectory.file("generated/foss/AndroidManifest.xml")
 val prepareFossManifest = tasks.register("prepareFossManifest") {
     inputs.file("src/main/AndroidManifest.xml")
@@ -32,10 +36,10 @@ val prepareLegalResources = tasks.register<Copy>("prepareLegalResources") {
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
-val supabaseUrl = providers.gradleProperty("SUPABASE_URL")
+val supabaseUrl = if (dailybeatStore) "" else providers.gradleProperty("SUPABASE_URL")
     .orElse(providers.environmentVariable("SUPABASE_URL"))
     .getOrElse("")
-val supabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY")
+val supabaseAnonKey = if (dailybeatStore) "" else providers.gradleProperty("SUPABASE_ANON_KEY")
     .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
     .getOrElse("")
 val debugApplicationIdSuffix = providers.gradleProperty("dailybeatDebugApplicationIdSuffix")
@@ -47,6 +51,7 @@ require(Regex("\\.qa(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*").matches(debugApplicationIdSu
 android {
     namespace = "com.dailybeat.app"
     compileSdk = 36
+    buildToolsVersion = "35.0.0"
 
     sourceSets.getByName("main") {
         java.srcDir(if (dailybeatFoss) "src/foss/java" else "src/gms/java")
@@ -58,16 +63,17 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
-        versionName = "4.3.0"
+        versionCode = 35
+        versionName = "4.3.1"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
+        buildConfigField("boolean", "STORE_DISTRIBUTION", dailybeatStore.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SUPABASE_URL", quotedBuildConfig(supabaseUrl))
         buildConfigField("String", "SUPABASE_ANON_KEY", quotedBuildConfig(supabaseAnonKey))
     }
 
     signingConfigs {
-        create("release") {
+        if (!dailybeatUnsigned) create("release") {
             storeFile = file("../release.keystore")
             storePassword = System.getenv("DAILYBEAT_STORE_PASSWORD")
             keyAlias = "dailybeat"
@@ -86,7 +92,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (!dailybeatUnsigned) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -203,10 +209,12 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
-    if (!dailybeatFoss) implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    // Tink references these FLOSS, compile-time annotations. GMS previously supplied them
+    // incidentally; declare them explicitly so the Google-free R8 release can be built.
+    compileOnly("com.google.errorprone:error_prone_annotations:2.23.0")
     implementation("org.maplibre.gl:android-sdk:11.8.0")
 
     testImplementation("junit:junit:4.13.2")
@@ -224,6 +232,10 @@ dependencies {
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
+// F-Droid removes this unused file and src/gms before scanning/building. The FOSS graph
+// never evaluates it, and its absence must not change the store APK.
+if (!dailybeatFoss) apply(from = "gms-dependencies.gradle.kts")
 
 // aapt2 is published per platform, and it is the only platform-classified artifact in the graph.
 // Regenerating gradle/verification-metadata.xml on macOS records only the osx variant, while every

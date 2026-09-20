@@ -1,4 +1,4 @@
-# DailyBeat privacy information — 4.3
+# DailyBeat privacy information — 4.3.1
 
 Updated 2026-09-20. This describes the candidate source, not a claim about older installed releases.
 
@@ -16,6 +16,9 @@ network service selected by your device; type a note if you do not want to use i
 
 - Standard builds use Google location services. The platform-only build excludes that SDK, but the
   device's own location providers are outside DailyBeat's control.
+- The F-Droid store build uses the platform-only backend and contains no advertising or analytics
+  SDK. It does not include the developer's managed cloud-backup configuration. Notes, local drafts,
+  review, capture, maps and PDF/ZIP sharing remain usable without an account.
 - **Allow online maps** is on by default, including upgrades. Online thumbnails and interactive maps
   contact map providers, which can observe your IP address and requested areas, styles, fonts and
   sprites. Turn it off in Settings → Capture & Places to cancel automatic map requests. With an

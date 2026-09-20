@@ -174,7 +174,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
@@ -193,6 +193,32 @@ jobs:
           python3 scripts/check_apk_native_alignment.py android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/debug/app-debug.apk
 
+      - name: Build the unsigned store release without private configuration
+        env:
+          SUPABASE_URL: https://must-not-ship.supabase.co
+          SUPABASE_ANON_KEY: fixture
+        run: |
+          ./android/gradlew -p android assembleRelease testReleaseUnitTest lintRelease -PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true --no-daemon
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/store-first.apk"
+          python3 scripts/check_store_apk.py "$RUNNER_TEMP/store-first.apk" --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt"
+
+      - name: Run F-Droid source and APK scanners
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fdroid-tools"
+          "$RUNNER_TEMP/fdroid-tools/bin/pip" install fdroidserver==2.4.5
+          export PATH="$RUNNER_TEMP/fdroid-tools/bin:$PATH"
+          python3 scripts/fdroid_source_check.py
+          fdroid scanner --refresh --exit-code "$RUNNER_TEMP/store-first.apk"
+
+      - name: Reproduce the store APK from an independent checkout
+        run: |
+          git clone --no-hardlinks . "$RUNNER_TEMP/store-rebuild"
+          cd "$RUNNER_TEMP/store-rebuild"
+          rm -rf android/app/src/gms android/app/gms-dependencies.gradle.kts android/app/src/androidTest/assets
+          ./android/gradlew -p android assembleRelease -PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true --no-daemon
+          cmp "$RUNNER_TEMP/store-first.apk" android/app/build/outputs/apk/release/app-release-unsigned.apk
+          sha256sum "$RUNNER_TEMP/store-first.apk"
+
       - name: Upload QA APK and reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -204,6 +230,7 @@ jobs:
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/reports/tests/
             android/app/build/reports/lint-results-debug.html
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
 
   # Keep the established offline check name for branch-protection compatibility while the
   # separate live-backup job verifies the external service.
@@ -212,6 +239,8 @@ jobs:
     timeout-minutes: 35
     env:
       DAILYBEAT_OFFLINE_TESTS_ONLY: "1"
+      DAILYBEAT_FOSS: "true"
+      DAILYBEAT_STORE: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -219,7 +248,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
@@ -227,7 +256,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build disposable offline test APKs
         working-directory: android
-        run: ./gradlew assembleDebug assembleDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop --no-daemon
+        run: ./gradlew assembleDebug assembleDebugAndroidTest -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop -PdailybeatFoss=true -PdailybeatStore=true --no-daemon
       - name: Enable KVM acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

@@ -1,0 +1,56 @@
+AntiFeatures:
+  NonFreeNet:
+    en-US: Optional cloud drafting offers presets for proprietary AI services; it
+      is off by default.
+  TetheredNet:
+    en-US: Optional verified Tamil Nadu map downloads are hosted on GitHub Releases.
+  Tracking:
+    en-US: Online maps are on by default and disclose the IP address and viewed areas
+      to map providers. They can be disabled in Settings.
+Categories:
+  - Navigation
+  - Writing
+License: GPL-3.0-only
+AuthorName: sampathmannam
+SourceCode: https://github.com/sampathmannam/dailybeat
+IssueTracker: https://github.com/sampathmannam/dailybeat/issues
+Changelog: https://github.com/sampathmannam/dailybeat/blob/HEAD/CHANGELOG.md
+
+AutoName: DailyBeat
+
+RepoType: git
+Repo: https://github.com/sampathmannam/dailybeat.git
+Binaries: https://github.com/sampathmannam/dailybeat/releases/download/fdroid-v%v%/DailyBeat-FDroid-v%v%.apk
+
+Builds:
+  - versionName: 4.3.1
+    versionCode: 35
+    commit: v4.3.1
+    subdir: android
+    gradle:
+      - yes
+    rm:
+      - android/app/src/gms
+      - android/app/gms-dependencies.gradle.kts
+      - android/app/src/androidTest/assets
+    gradleprops:
+      - dailybeatFoss=true
+      - dailybeatStore=true
+      - dailybeatUnsigned=true
+
+AllowedAPKSigningKeys: 44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f
+
+MaintainerNotes: |-
+  Upstream recipe template. Replace the commit tag with its full immutable commit
+  hash in fdroiddata. Store builds exclude Google dependencies and all private
+  build-time backup configuration. The removed files are unused GMS sources and
+  test-only map fixtures; removing them does not change the store APK.
+  MapLibre and other FLOSS dependencies come from Google Maven or Maven Central.
+  The downloaded map is data only, with hashes pinned in the APK; there is no
+  executable-code downloader or in-app updater. Network flags are deliberately
+  disclosed for review; no advertising or analytics SDK is shipped.
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+CurrentVersion: 4.3.1
+CurrentVersionCode: 35

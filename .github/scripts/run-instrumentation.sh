@@ -96,6 +96,7 @@ fi
 timeout --kill-after=30s 30m ./gradlew connectedDebugAndroidTest \
   -PdailybeatDebugApplicationIdSuffix=.qa.e2eloop \
   -PdailybeatFoss="${DAILYBEAT_FOSS:-false}" \
+  -PdailybeatStore="${DAILYBEAT_STORE:-false}" \
   "${instrumentation_args[@]}" --no-daemon --stacktrace
 test_status=$?
 capture_evidence "$test_status"

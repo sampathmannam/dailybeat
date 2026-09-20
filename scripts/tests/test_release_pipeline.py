@@ -11,7 +11,9 @@ def test_android_instrumentation_and_live_backup_are_independent_required_gates(
     )
     jobs = workflow["jobs"]
     assert jobs["offline-instrumentation"]["env"] == {
-        "DAILYBEAT_OFFLINE_TESTS_ONLY": "1"
+        "DAILYBEAT_OFFLINE_TESTS_ONLY": "1",
+        "DAILYBEAT_FOSS": "true",
+        "DAILYBEAT_STORE": "true",
     }
     assert jobs["instrumentation"]["env"] == {"DAILYBEAT_OFFLINE_TESTS_ONLY": "1"}
     assert (
@@ -34,9 +36,9 @@ def test_android_version_advances_for_obtainium_update():
     gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
     release_marker = (ROOT / "release/version.txt").read_text(encoding="utf-8").strip()
 
-    assert "versionCode = 34" in gradle
-    assert 'versionName = "4.3.0"' in gradle
-    assert release_marker == "4.3.0"
+    assert "versionCode = 35" in gradle
+    assert 'versionName = "4.3.1"' in gradle
+    assert release_marker == "4.3.1"
 
 
 def test_release_build_requires_the_permanent_signing_key():

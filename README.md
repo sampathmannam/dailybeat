@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.2.1 / code 33** is the current production release line. It upgrades the permanently signed
+**4.3.1 / code 35** is the current source release line. It upgrades the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -31,6 +31,10 @@ not certification of attendance, official submission, or an evidentiary chain of
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
 [validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),
 [privacy information](PRIVACY.md), [offline Tamil Nadu maps](docs/OFFLINE_MAPS.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
+
+The [F-Droid distribution guide](docs/FDROID.md) documents the Google-free store build, public
+build recipe, reproducibility checks, signing continuity and network disclosures. Inclusion is
+subject to F-Droid review; this repository does not claim store acceptance before publication.
 
 ## Build and test
 

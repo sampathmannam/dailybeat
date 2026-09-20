@@ -1,0 +1,32 @@
+[
+  {
+    "component": "MapLibre Native Android 11.8.0",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/platform/android/LICENSE.md",
+    "sha256": "56a91317184e72ffcfdfa3fa458ecf9ec3e8e0452950fff394e7e2d021470341"
+  },
+  {
+    "component": "PMTiles C++",
+    "url": "https://raw.githubusercontent.com/protomaps/PMTiles/60f3331ca9d5cfa4fcdf1e076a3d3059aebb17bb/LICENSE",
+    "sha256": "9500fb7d824af20acfb30e32e8350d98ba60525610a91008e91fd83e16da7bb5"
+  },
+  {
+    "component": "unordered_dense",
+    "url": "https://raw.githubusercontent.com/martinus/unordered_dense/729896c7ba8bbd9da5573679270133086d05b5dd/LICENSE",
+    "sha256": "4f5a62734899ec0ba85d3e8264a7ed1fcb4bcb8f0b4359c0afd627b6314ae599"
+  },
+  {
+    "component": "ICU",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/icu/LICENSE",
+    "sha256": "4eac19453ddf356478db3be6b101a6d872d0046cdc8222df1ff5c997dd4b9fbe"
+  },
+  {
+    "component": "nunicode",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/nunicode/LICENSE",
+    "sha256": "6eb1812397a8ab5ad53014b529e75f5e42f3196c6946f330d91d7a56e471d2ac"
+  },
+  {
+    "component": "LLVM libc++ runtime (NDK r27 generation)",
+    "url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-18.1.8/libcxx/LICENSE.TXT",
+    "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+  }
+]
