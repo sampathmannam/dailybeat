@@ -13,6 +13,7 @@ import com.dailybeat.app.data.settings.ThemePreference
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -73,6 +74,7 @@ class LocalBackupStoreTest {
     @Test
     fun `failed restore rolls back deletions`() = runBlocking {
         seedOriginalData()
+        val dataGeneration = com.dailybeat.app.capture.CaptureStorageGate.dataGeneration.get()
         val invalid = store.createSnapshot().copy(
             events = listOf(
                 Event(id = 7, timestamp = 1L, type = "manual", rawText = "one"),
@@ -83,6 +85,7 @@ class LocalBackupStoreTest {
         assertThrows(Exception::class.java) {
             runBlocking { store.restore(invalid) }
         }
+        assertEquals(dataGeneration, com.dailybeat.app.capture.CaptureStorageGate.dataGeneration.get())
 
         assertEquals(listOf(1L), db.events().all().map { it.id })
         assertEquals("Sampath", settings.get().officerName)
@@ -125,6 +128,35 @@ class LocalBackupStoreTest {
         val pages = mutableListOf<BackupSnapshot>()
         store.forEachPage { pages += it }
         assertEquals(listOf(-12L), pages.flatMap { it.events }.map { it.id })
+    }
+
+    @Test
+    fun `restoring backup cannot redirect existing cloud credentials or consent`() = runBlocking {
+        seedOriginalData()
+        settings.setCloudLlmEnabled(true)
+        settings.setCloudProvider("openai")
+        settings.setCloudModel("locally-chosen-model")
+        settings.setCloudBaseUrl("https://trusted.example/v1")
+        settings.setAutoEveningReport(true)
+        val snapshot = store.createSnapshot().copy(settings = BackupSettings(
+            cloudLlmEnabled = true,
+            cloudProvider = "compatible",
+            cloudModel = "imported-model",
+            cloudBaseUrl = "https://attacker.example/collect",
+            autoEveningReport = true,
+        ))
+
+        // The same store handles encrypted and explicit legacy restore. Even a valid
+        // legacy snapshot must never change the destination of this phone's API key.
+        store.restore(snapshot)
+
+        val restored = settings.get()
+        assertFalse(restored.cloudLlmEnabled)
+        assertFalse(restored.autoEveningReport)
+        assertEquals("openai", restored.cloudProvider)
+        assertEquals("locally-chosen-model", restored.cloudModel)
+        assertEquals("https://trusted.example/v1", restored.cloudBaseUrl)
+        assertEquals(listOf(1L), db.events().all().map { it.id })
     }
 
     private suspend fun seedOriginalData() {

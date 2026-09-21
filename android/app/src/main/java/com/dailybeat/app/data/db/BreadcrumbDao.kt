@@ -21,6 +21,10 @@ interface BreadcrumbDao {
     @Query("SELECT * FROM location_breadcrumbs ORDER BY timestampMs DESC LIMIT 1")
     suspend fun latest(): LocationBreadcrumb?
 
+    /** Ignore legacy clock-corrupted points without removing the user's recorded history. */
+    @Query("SELECT * FROM location_breadcrumbs WHERE timestampMs <= :latestAllowedMs ORDER BY timestampMs DESC LIMIT 1")
+    suspend fun latestAtOrBefore(latestAllowedMs: Long): LocationBreadcrumb?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(point: LocationBreadcrumb): Long
 

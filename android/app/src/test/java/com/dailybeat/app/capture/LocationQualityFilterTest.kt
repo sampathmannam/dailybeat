@@ -44,6 +44,32 @@ class LocationQualityFilterTest {
         )
     }
 
+    @Test
+    fun `future timestamps cannot poison route ordering but durable historical fixes still replay`() {
+        val now = 1_757_000_000_000L
+        assertEquals("future-time", LocationQualityFilter.assess(sample(timestamp = Long.MAX_VALUE), null, now).reason)
+        assertEquals("future-time", LocationQualityFilter.assess(
+            sample(timestamp = now + LocationQualityFilter.MAX_FUTURE_SKEW_MS + 1), null, now,
+        ).reason)
+        assertTrue(LocationQualityFilter.assess(
+            sample(timestamp = now + LocationQualityFilter.MAX_FUTURE_SKEW_MS), null, now,
+        ).accepted)
+        assertTrue(LocationQualityFilter.assess(sample(timestamp = now - 7 * 86_400_000L), null, now).accepted)
+    }
+
+    @Test
+    fun `antipodal rounding cannot bypass the speed limit through NaN`() {
+        val previous = sample(lat = 2.5, lon = 78.1856, timestamp = 1_000L)
+        val opposite = sample(lat = -2.5, lon = -101.8144, timestamp = 2_000L)
+        assertEquals("implausible-jump", LocationQualityFilter.assess(opposite, previous).reason)
+    }
+
+    @Test
+    fun `nonfinite derived speed fails closed`() {
+        val corruptPrevious = sample(lat = Double.NaN, timestamp = 1_000L)
+        assertEquals("implausible-jump", LocationQualityFilter.assess(sample(timestamp = 2_000L), corruptPrevious).reason)
+    }
+
     private fun sample(
         lat: Double = 11.4557,
         lon: Double = 78.1856,

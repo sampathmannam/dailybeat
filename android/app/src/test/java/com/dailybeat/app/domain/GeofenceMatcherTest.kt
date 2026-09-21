@@ -27,4 +27,10 @@ class GeofenceMatcherTest {
     fun distanceMeters_isZeroForSamePoint() {
         assertEquals(0.0, GeofenceMatcher.distanceMeters(1.0, 1.0, 1.0, 1.0), 0.01)
     }
+
+    @Test
+    fun distanceMeters_isFiniteAtAntipodes() {
+        assertEquals(Math.PI * 6_371_000.0,
+            GeofenceMatcher.distanceMeters(2.5, 78.1856, -2.5, -101.8144), 0.1)
+    }
 }

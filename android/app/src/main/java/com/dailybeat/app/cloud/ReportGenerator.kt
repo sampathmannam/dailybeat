@@ -1,6 +1,7 @@
 package com.dailybeat.app.cloud
 
 import android.content.Context
+import com.dailybeat.app.capture.CaptureStorageGate
 import com.dailybeat.app.audit.OperationalFailureLog
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
@@ -47,8 +48,8 @@ class ReportGenerator(
         // truncation. This avoids accepting a model citation to a source it never received.
         val limitedSource = source.copy(
             text = limitedText,
-            visitRefCount = largestVisibleRef(limitedText, 'V'),
-            eventRefCount = largestVisibleRef(limitedText, 'E'),
+            visitRefCount = largestVisibleRef(limitedText, 'V').coerceAtMost(source.visitRefCount),
+            eventRefCount = largestVisibleRef(limitedText, 'E').coerceAtMost(source.eventRefCount),
         )
         if (limitedSource.visitRefCount == 0 && limitedSource.eventRefCount == 0) {
             return Result.failure(
@@ -79,8 +80,9 @@ class ReportGenerator(
 
     /** Explicit, officer-initiated generation: the freshly generated report becomes the diary. */
     suspend fun generateAndSaveForDate(date: LocalDate): Result<String> {
+        val generation = CaptureStorageGate.dataGeneration.get()
         return generateForDate(date).mapCatching { text ->
-            diaryRepository.saveForDate(date, text)
+            CaptureStorageGate.writeIfCurrent(generation) { diaryRepository.saveForDate(date, text) }
             text
         }
     }
@@ -91,20 +93,23 @@ class ReportGenerator(
      * later run replaces that block instead of appending another copy.
      */
     suspend fun generateUnattendedForDate(date: LocalDate): Result<String> {
+        val generation = CaptureStorageGate.dataGeneration.get()
         return generateForDate(date).mapCatching { text ->
-            val block = "$REPORT_START_BOUNDARY$REPORT_MARKER${DateKeys.format(date)}) —\n" +
-                "$text\n$REPORT_END_BOUNDARY"
-            val existing = diaryRepository.textForDate(date).orEmpty()
-            diaryRepository.saveForDate(
-                date,
-                GeneratedDiaryBlock.merge(
-                    existing,
-                    REPORT_START_BOUNDARY,
-                    REPORT_END_BOUNDARY,
-                    block,
-                ),
-            )
-            text
+            CaptureStorageGate.writeIfCurrent(generation) {
+                val block = "$REPORT_START_BOUNDARY$REPORT_MARKER${DateKeys.format(date)}) —\n" +
+                    "$text\n$REPORT_END_BOUNDARY"
+                val existing = diaryRepository.textForDate(date).orEmpty()
+                diaryRepository.saveForDate(
+                    date,
+                    GeneratedDiaryBlock.merge(
+                        existing,
+                        REPORT_START_BOUNDARY,
+                        REPORT_END_BOUNDARY,
+                        block,
+                    ),
+                )
+                text
+            }
         }
     }
 
@@ -114,7 +119,7 @@ class ReportGenerator(
         const val REPORT_END_BOUNDARY = "\u2063\u2064\u2063"
 
         fun largestVisibleRef(text: String, prefix: Char): Int =
-            Regex("\\[$prefix(\\d+)\\]")
+            Regex("^\\[$prefix(\\d+)\\] ", RegexOption.MULTILINE)
                 .findAll(text)
                 .mapNotNull { it.groupValues[1].toIntOrNull() }
                 .maxOrNull()

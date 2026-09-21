@@ -1,7 +1,11 @@
 package com.dailybeat.app.backup
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -59,15 +63,20 @@ class SupabaseBackupClient(
     private val clock: () -> Long = System::currentTimeMillis,
     private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
 ) : ArchiveBackupRemote {
+    private val sessionLock = Any()
+    private val refreshMutex = Mutex()
+    private var sessionGeneration = 0L
+
     override val isConfigured: Boolean get() = configuration.isConfigured
 
-    override fun currentSession(): BackupSession? = sessionStore.get()
+    override fun currentSession(): BackupSession? = synchronized(sessionLock) { sessionStore.get() }
 
     override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
         withContext(Dispatchers.IO) {
             runCatching {
                 ensureConfigured()
                 validateCredentials(email, password)
+                val generation = beginAuthentication()
                 val body = JSONObject()
                     .put("email", email.trim())
                     .put("password", password)
@@ -84,7 +93,7 @@ class SupabaseBackupClient(
                 )
                 val root = JSONObject(responseBody)
                 if (root.optString("access_token").isNotBlank()) {
-                    val session = parseSession(responseBody).also(sessionStore::save)
+                    val session = saveAuthentication(parseSession(responseBody), generation)
                     BackupSignUpResult(session = session, requiresEmailConfirmation = false)
                 } else {
                     BackupSignUpResult(session = null, requiresEmailConfirmation = true)
@@ -96,6 +105,7 @@ class SupabaseBackupClient(
         runCatching {
             ensureConfigured()
             validateCredentials(email, password)
+            val generation = beginAuthentication()
             val body = JSONObject()
                 .put("email", email.trim())
                 .put("password", password)
@@ -104,7 +114,7 @@ class SupabaseBackupClient(
                 .post(body.toRequestBody(JSON))
                 .build()
             val responseBody = execute(request, authRequest = true)
-            parseSession(responseBody).also(sessionStore::save)
+            saveAuthentication(parseSession(responseBody), generation)
         }
     }
 
@@ -156,7 +166,13 @@ class SupabaseBackupClient(
                 .post("{}".toRequestBody(JSON))
                 .build()
             execute(request)
-            sessionStore.clear()
+            synchronized(sessionLock) {
+                // A different account may have signed in while deletion was in flight.
+                if (sessionStore.get()?.userId == session.userId) {
+                    sessionGeneration++
+                    sessionStore.clear()
+                }
+            }
         }
     }
 
@@ -217,13 +233,28 @@ class SupabaseBackupClient(
     private fun checkedId(id: String): String = java.util.UUID.fromString(id).toString().also { require(it == id) }
 
     override fun signOut() {
-        sessionStore.clear()
+        synchronized(sessionLock) {
+            sessionGeneration++
+            sessionStore.clear()
+        }
     }
 
-    private suspend fun validSession(): BackupSession {
-        val current = sessionStore.get()
-            ?: throw IllegalStateException("Sign in to use cloud backup.")
-        if (current.expiresAtMs > clock() + REFRESH_EARLY_MS) return current
+    private fun beginAuthentication(): Long = synchronized(sessionLock) { ++sessionGeneration }
+
+    private fun saveAuthentication(session: BackupSession, generation: Long): BackupSession =
+        synchronized(sessionLock) {
+            check(sessionGeneration == generation) { "Cloud backup sign-in changed. Try again." }
+            sessionStore.save(session)
+            session
+        }
+
+    private suspend fun validSession(): BackupSession = refreshMutex.withLock {
+        // Only one caller may rotate a refresh token. Re-read after acquiring the mutex,
+        // so other downloads/uploads use the session that the first caller refreshed.
+        val (current, generation) = synchronized(sessionLock) {
+            (sessionStore.get() ?: throw IllegalStateException("Sign in to use cloud backup.")) to sessionGeneration
+        }
+        if (current.expiresAtMs > clock() + REFRESH_EARLY_MS) return@withLock current
 
         val body = JSONObject()
             .put("refresh_token", current.refreshToken)
@@ -231,10 +262,27 @@ class SupabaseBackupClient(
         val request = requestBuilder("/auth/v1/token?grant_type=refresh_token")
             .post(body.toRequestBody(JSON))
             .build()
-        return try {
-            parseSession(execute(request), current).also(sessionStore::save)
+        try {
+            val refreshed = parseSession(execute(request), current)
+            check(refreshed.userId == current.userId) { "Cloud backup returned a different account. Sign in again." }
+            synchronized(sessionLock) {
+                // Sign out (or a newer sign-in) wins over an older response. Otherwise a
+                // late refresh would silently sign the device back in after sign out.
+                check(sessionGeneration == generation && sessionStore.get() == current) {
+                    "Cloud backup sign-in changed. Try again."
+                }
+                sessionStore.save(refreshed)
+            }
+            refreshed
         } catch (error: Exception) {
-            if (error is BackupHttpException && error.status in setOf(400, 401, 403)) sessionStore.clear()
+            if (error is BackupHttpException && error.status in setOf(400, 401, 403)) {
+                synchronized(sessionLock) {
+                    if (sessionGeneration == generation && sessionStore.get() == current) {
+                        sessionGeneration++
+                        sessionStore.clear()
+                    }
+                }
+            }
             throw error
         }
     }
@@ -276,8 +324,11 @@ class SupabaseBackupClient(
     ): String {
         var retryIndex = 0
         while (true) {
+            currentCoroutineContext().ensureActive()
             try {
-                return executeOnce(request, authRequest)
+                val result = executeOnce(request, authRequest)
+                currentCoroutineContext().ensureActive()
+                return result
             } catch (error: IOException) {
                 if (!retryNetworkFailures || retryIndex >= networkRetryDelaysMs.size) {
                     throw IllegalStateException(

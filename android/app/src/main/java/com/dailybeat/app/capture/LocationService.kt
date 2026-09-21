@@ -45,16 +45,19 @@ class LocationService : Service() {
 
     private fun onLocations(locations: List<android.location.Location>) {
         val generation = CaptureStorageGate.generation.get()
+        if (!::app.isInitialized || !app.settingsRepository.get().gpsCaptureEnabled ||
+            app.settingsRepository.isCapturePaused() || !PermissionHelper.hasLocation(this)) return
         val fixes = locations.map { location ->
-            CaptureFix(location.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
+            CaptureFix(location.time,
                 location.latitude, location.longitude, location.accuracy, location.isMockLocation())
         }
         scope.launch {
             try {
                 CaptureStorageGate.mutex.withLock {
-                    if (generation != CaptureStorageGate.generation.get() || !app.settingsRepository.get().gpsCaptureEnabled || app.settingsRepository.isCapturePaused()) return@withLock
+                    if (generation != CaptureStorageGate.generation.get() || !app.settingsRepository.get().gpsCaptureEnabled ||
+                        app.settingsRepository.isCapturePaused() || !PermissionHelper.hasLocation(this@LocationService)) return@withLock
                     // Persist before changing sampler/tracker state. Failed work stays in this inbox.
-                    app.db.captureJournal().enqueue(fixes)
+                    app.captureProcessor.enqueue(fixes, onRejected = app.captureHealthStore::rejected)
                     app.captureProcessor.drain(onRejected = app.captureHealthStore::rejected) { sample, quality ->
                         app.captureHealthStore.fixObserved(sample.timestampMs)
                         app.captureHealthStore.accepted(sample, quality)

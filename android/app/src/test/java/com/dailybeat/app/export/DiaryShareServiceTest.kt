@@ -66,4 +66,11 @@ class DiaryShareServiceTest {
             PackageExporter(context, service, PdfExporter(context)).exportWeekPackage(listOf(preview))
         }.isFailure)
     }
+
+    @Test fun replacingDataInvalidatesPreviewEvenWhenRestoredRecordsAreIdentical() = runBlocking {
+        diaries.saveForDate(date, "Original")
+        val preview = service.prepare(date, "Original")
+        com.dailybeat.app.capture.CaptureStorageGate.invalidatePersonalData()
+        assertTrue(runCatching { service.requireCurrent(preview) }.isFailure)
+    }
 }

@@ -100,7 +100,7 @@ object DayContextBuilder {
 
     private fun formatEventRef(ref: Int, event: Event, zone: ZoneId): String {
         val time = formatTime(event.timestamp, zone)
-        val typeLabel = event.type.uppercase(Locale.getDefault())
+        val typeLabel = safeInline(event.type, 120).uppercase(Locale.ROOT)
         return "[E$ref] $time ($typeLabel): ${safeInline(event.rawText, 1_000)}"
     }
 

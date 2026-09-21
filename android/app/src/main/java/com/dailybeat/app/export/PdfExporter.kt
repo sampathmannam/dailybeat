@@ -9,6 +9,7 @@ import com.dailybeat.app.util.AppStorage
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 class PdfExporter(private val context: Context) {
 
@@ -89,9 +90,10 @@ class PdfExporter(private val context: Context) {
             )
             document.finishPage(page)
 
-            val out = destination ?: AppStorage.outputFile(context, "$dateStr.pdf")
+            // A recipient's old URI grant must never reveal a later export of this same date.
+            val out = destination ?: AppStorage.outputFile(context, "dailybeat-$dateStr-${UUID.randomUUID()}.pdf")
             out.parentFile?.mkdirs()
-            val temp = File.createTempFile("dailybeat-pdf-", ".tmp", out.parentFile ?: context.cacheDir)
+            val temp = File.createTempFile("dailybeat-pdf-", ".tmp", AppStorage.exportStagingDir(context))
             try {
                 temp.outputStream().use { document.writeTo(it) }
                 if (!temp.renameTo(out)) {

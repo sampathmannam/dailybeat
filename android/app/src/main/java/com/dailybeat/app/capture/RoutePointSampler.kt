@@ -24,9 +24,9 @@ object RoutePointSampler {
         val earth = 6_371_000.0
         val dLat = Math.toRadians(one.latitude - two.latitude)
         val dLon = Math.toRadians(one.longitude - two.longitude)
-        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        val a = (kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
             cos(Math.toRadians(one.latitude)) * cos(Math.toRadians(two.latitude)) *
-            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)).coerceIn(0.0, 1.0)
         return earth * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
 }

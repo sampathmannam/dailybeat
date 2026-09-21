@@ -1,9 +1,14 @@
 package com.dailybeat.app.backup
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 class SupabaseBackupClientTest {
@@ -183,6 +189,89 @@ class SupabaseBackupClientTest {
     }
 
     @Test
+    fun `late refresh cannot restore a signed out session`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 0)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.path?.contains("grant_type=refresh_token") == true) {
+                    client.signOut()
+                    return refreshedSessionResponse()
+                }
+                return jsonResponse("[]")
+            }
+        }
+
+        assertTrue(client.download().isFailure)
+
+        assertEquals(null, client.currentSession())
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `late sign in cannot undo sign out`() = runBlocking {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                client.signOut()
+                return refreshedSessionResponse()
+            }
+        }
+
+        assertTrue(client.signIn("person@example.com", "correct horse").isFailure)
+        assertEquals(null, client.currentSession())
+    }
+
+    @Test
+    fun `concurrent cloud requests rotate an expired refresh token only once`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 0)
+        val refreshes = AtomicInteger()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                if (request.path?.contains("grant_type=refresh_token") == true) {
+                    refreshes.incrementAndGet()
+                    refreshedSessionResponse().setBodyDelay(150, TimeUnit.MILLISECONDS)
+                } else {
+                    jsonResponse("[]")
+                }
+        }
+
+        val results = (1..8).map { async(Dispatchers.Default) { client.download() } }.awaitAll()
+
+        assertTrue(results.all { it.isSuccess })
+        assertEquals(1, refreshes.get())
+        assertEquals("refresh-two", client.currentSession()?.refreshToken)
+    }
+
+    @Test
+    fun `failed old refresh does not clear a newer session`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 0)
+        val replacement = activeSession().copy(userId = "user-2", accessToken = "new-account")
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                client.signOut()
+                sessions.current = replacement
+                return MockResponse().setResponseCode(401)
+            }
+        }
+
+        assertTrue(client.download().isFailure)
+        assertEquals(replacement, client.currentSession())
+    }
+
+    @Test
+    fun `refresh cannot silently change account identity`() = runBlocking {
+        sessions.current = activeSession(expiresAtMs = 0)
+        server.enqueue(jsonResponse(
+            """{"access_token":"access-two","refresh_token":"refresh-two","expires_in":3600,"user":{"id":"different-user","email":"other@example.com"}}""",
+        ))
+
+        assertTrue(client.download().isFailure)
+
+        assertEquals("user-1", client.currentSession()?.userId)
+        assertEquals("access-one", client.currentSession()?.accessToken)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun `http failures expose a safe message`() = runBlocking {
         sessions.current = activeSession()
         server.enqueue(
@@ -253,6 +342,10 @@ class SupabaseBackupClientTest {
         .setResponseCode(200)
         .setHeader("Content-Type", "application/json")
         .setBody(body)
+
+    private fun refreshedSessionResponse() = jsonResponse(
+        """{"access_token":"access-two","refresh_token":"refresh-two","expires_in":3600,"user":{"id":"user-1","email":"person@example.com"}}""",
+    )
 
     private class MemorySessionStore : BackupSessionStore {
         var current: BackupSession? = null

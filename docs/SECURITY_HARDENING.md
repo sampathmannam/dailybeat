@@ -1,10 +1,14 @@
 # Security hardening and infrastructure decisions
 
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-21
 
-DailyBeat is an offline-first Android app. Location history and diary content stay on the phone;
-the only managed backend surface is opt-in Supabase cloud backup. Security work must preserve that
-small attack surface rather than adding servers solely because a tool appears on a generic
+See the [21 September security and reliability review](hardening/2026-09-21.md) for the latest
+verified defects, corrections, regression evidence, and remaining operational limits. Historical
+scanner results below describe their dated runs, not a permanent security guarantee.
+
+DailyBeat is an offline-first Android app. Journals are stored locally; optional cloud backup,
+Cloud AI and online place/map services have separate network and privacy boundaries documented in
+`PRIVACY.md`. Security work must preserve a small attack surface rather than adding servers solely because a tool appears on a generic
 "enterprise" checklist.
 
 ## Implemented controls
