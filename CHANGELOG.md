@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.3.4 — 2026-09-21
 
 ### Security and reliability
 - Restore keeps the phone's trusted Cloud AI destination and requires fresh cloud consent;

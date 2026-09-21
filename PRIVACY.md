@@ -1,4 +1,4 @@
-# DailyBeat privacy information — 4.3.3
+# DailyBeat privacy information — 4.3.4
 
 Updated 2026-09-21. This describes the candidate source, not a claim about older installed releases.
 
