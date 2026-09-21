@@ -1,5 +1,6 @@
 package com.dailybeat.app.cloud
 
+import com.dailybeat.app.capture.CaptureStorageGate
 import com.dailybeat.app.data.repo.DiaryRepository
 import com.dailybeat.app.data.repo.EventRepository
 import com.dailybeat.app.data.repo.PlaceRepository
@@ -17,6 +18,7 @@ class PulseReportGenerator(
 ) {
 
     suspend fun generateAndSavePulse(): Result<String> {
+        val generation = CaptureStorageGate.dataGeneration.get()
         val date = DateKeys.today()
         val settings = settingsRepository.get()
         val visits = visitRepository.outboundVisitsForDate(date)
@@ -53,17 +55,19 @@ class PulseReportGenerator(
             userPrompt = prompt,
             maxOutputTokens = CloudTokenBudgets.MIDDAY_PULSE,
         ).mapCatching { pulse ->
-            val block = "$PULSE_START_BOUNDARY$PULSE_MARKER${date} —\n" +
-                "${pulse.trim()}\n$PULSE_END_BOUNDARY"
-            val existing = diaryRepository.textForDate(date).orEmpty()
-            val merged = GeneratedDiaryBlock.merge(
-                existing = existing,
-                startPrefix = PULSE_START_BOUNDARY,
-                endMarker = PULSE_END_BOUNDARY,
-                replacement = block,
-            )
-            diaryRepository.saveForDate(date, merged)
-            block
+            CaptureStorageGate.writeIfCurrent(generation) {
+                val block = "$PULSE_START_BOUNDARY$PULSE_MARKER${date} —\n" +
+                    "${pulse.trim()}\n$PULSE_END_BOUNDARY"
+                val existing = diaryRepository.textForDate(date).orEmpty()
+                val merged = GeneratedDiaryBlock.merge(
+                    existing = existing,
+                    startPrefix = PULSE_START_BOUNDARY,
+                    endMarker = PULSE_END_BOUNDARY,
+                    replacement = block,
+                )
+                diaryRepository.saveForDate(date, merged)
+                block
+            }
         }
     }
 

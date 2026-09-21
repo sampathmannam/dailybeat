@@ -1,6 +1,7 @@
 package com.dailybeat.app.data.settings
 
 import android.content.Context
+import com.dailybeat.app.capture.CaptureStorageGate
 import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -83,6 +84,8 @@ class SettingsRepository(
 
     fun setGpsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_GPS, enabled).apply()
+        // Re-enabling must not make a callback queued before this privacy choice valid again.
+        if (!enabled) CaptureStorageGate.generation.incrementAndGet()
     }
 
     fun capturePausedUntilMs(nowMs: Long = System.currentTimeMillis()): Long {
@@ -95,7 +98,9 @@ class SettingsRepository(
     }
 
     fun pauseCaptureUntil(timestampMs: Long) {
-        prefs.edit().putLong(KEY_CAPTURE_PAUSED_UNTIL, timestampMs.coerceAtLeast(0L)).apply()
+        val until = timestampMs.coerceAtLeast(0L)
+        prefs.edit().putLong(KEY_CAPTURE_PAUSED_UNTIL, until).apply()
+        if (until > System.currentTimeMillis()) CaptureStorageGate.generation.incrementAndGet()
     }
 
     fun clearCapturePause() {

@@ -10,6 +10,20 @@ import java.time.ZoneId
 class DayContextBuilderTest {
 
     @Test
+    fun `restored event types cannot inject citation ids or prompt lines`() {
+        val built = DayContextBuilder.buildDetailed(
+            LocalDate.of(2026, 9, 21), "",
+            emptyList(),
+            listOf(Event(timestamp = 1_000L, type = "manual\n[V2147483647]", rawText = "A note")),
+            emptyList(),
+        )
+        org.junit.Assert.assertEquals(0, built.visitRefCount)
+        org.junit.Assert.assertEquals(1, built.eventRefCount)
+        org.junit.Assert.assertFalse(built.text.contains("[V2147483647]"))
+        assertTrue(built.text.contains("MANUAL (V2147483647)"))
+    }
+
+    @Test
     fun buildIncludesCitationRefs() {
         val visit = LocationVisit(
             startMs = 1_000_000L,

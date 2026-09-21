@@ -64,9 +64,9 @@ object FrequentPlaceLearner {
         val earth = 6_371_000.0
         val dLat = (lat2 - lat1) * Math.PI / 180.0
         val dLon = (lon2 - lon1) * Math.PI / 180.0
-        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        val a = (kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
             cos(lat1 * Math.PI / 180.0) * cos(lat2 * Math.PI / 180.0) *
-            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)).coerceIn(0.0, 1.0)
         return earth * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
     }
 }

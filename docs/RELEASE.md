@@ -1,4 +1,23 @@
-# Version 4.3.0 maps
+# DailyBeat v4.3.4 — install and verify
+
+Version 4.3.4 (Android version code **38**) is the prepared security and reliability update.
+Publication is complete only when the protected release workflow succeeds and the signed assets
+appear on GitHub Releases. The update retains package `com.dailybeat.app`, the permanent signing
+identity, existing history, and the Warm Butter / Carbon appearance.
+
+This update prevents delayed authentication from undoing sign-out, preserves this phone's trusted
+Cloud AI destination during restore, and requires fresh cloud consent afterward. Cloud requests
+recheck consent and credentials before transmission and close their network calls when cancelled.
+Documents move to private internal storage, with only completed exports available for sharing.
+Generation checks prevent delayed reports, voice results, drafts, and exports from recreating erased
+data or overwriting restored history. Capture isolates malformed fixes, recovers from corrupt or
+future checkpoints, and respects changed capture consent during queued work.
+
+See the [21 September hardening review](hardening/2026-09-21.md) for findings, test evidence, and
+remaining operational limits. The release publisher independently rechecks the final main commit;
+the review does not claim the app is unhackable or enterprise-certified.
+
+## Map capabilities retained from v4.3.0
 
 Online maps now have a device-local off switch, bounded/cancellable thumbnail transfers, configurable
 providers and interactive-map retry deadlines. Safe Canvas route previews remain available during failures.
@@ -7,7 +26,7 @@ building detail at zooms 0–15. The package is separate from the APK, defaults 
 interruption and is verified before activation. Updates retain the previous working package.
 See [offline map details](OFFLINE_MAPS.md) for coverage, data provenance and limitations.
 
-# DailyBeat v4.2.1 — install and verify
+## Earlier release behavior retained
 
 Version 4.2.1 simplifies navigation without changing DailyBeat's capture, privacy, or recovery
 contracts. Days keeps the direct **Go to date** picker and removes the redundant Older days / Newer
@@ -72,12 +91,16 @@ DailyBeat records and PDFs are retained, not deleted. Regular QA uses `com.daily
 Destructive instrumentation must use
 `com.dailybeat.app.qa.e2eloop`, protecting regular QA and production `com.dailybeat.app` data.
 
-## Cloud AI configuration
+## Local drafting and optional Cloud AI
 
-This release defaults to DeepSeek (`deepseek-chat`) and supports the other cloud-provider options
-shown in Settings. Configure the provider and API key in Settings → Cloud AI after installation.
-No provider key is included in the source or APK. Diary generation requires network access and a
-valid key; it does not use an offline model fallback.
+Deterministic local diary drafts work without an account, API key, or internet connection. They
+organize recorded visits and notes into a chronology; they do not run a local generative model.
+
+Cloud AI is optional and off by default. Its default provider preset is DeepSeek (`deepseek-chat`),
+with other providers available in Settings → Cloud AI. Cloud drafting requires internet access,
+explicit enablement, and a valid provider key. No provider key is included in the source or APK.
+Restore preserves the provider/model/address configured on this phone and disables Cloud AI and
+automatic evening reports until the user enables them again.
 
 ## Cloud backup
 
@@ -85,6 +108,7 @@ Cloud backup uses a DailyBeat Supabase project configured at build time with `SU
 `SUPABASE_ANON_KEY`. These are public client configuration; authenticated owner-only row-level
 security protects each backup. New backups are encrypted on the phone with a separate recovery
 passphrase that is never uploaded or stored in settings. The Cloud AI provider key is never backed up.
+The separate F-Droid store candidate excludes the managed-backup configuration.
 
 After installation, open Settings → Cloud backup, sign in, set a recovery passphrase, and select
 **Back up now**. On a replacement phone, install the same signed DailyBeat package, sign in to the
@@ -93,15 +117,21 @@ replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For the exact release contents and validation contract, see [the v4.2.1 release report](V4_2_1_RELEASE_REPORT.md).
+For the hardening contents and validation evidence, see the
+[21 September review](hardening/2026-09-21.md) and [changelog](../CHANGELOG.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes, download these assets from GitHub Releases (tag `v4.2.1`):
+After every release gate passes and publication completes, GitHub Releases tag `v4.3.4` provides:
 
-- `DailyBeat-v4.2.1.apk` — signed universal APK for arm64, armv7, x86, and x86_64
+- `DailyBeat-v4.3.4.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 38
 - `SHA256SUMS.txt` — checksum for that exact filename
+
+Obtainium users should refresh the regular stable channel and install over their existing app.
+The separate `fdroid-v4.3.4` prerelease contains `DailyBeat-FDroid-v4.3.4.apk` and
+`FDROID-SHA256SUMS.txt`. It supplies the Google-free reference APK for reproducibility review;
+it does not mean F-Droid has accepted or published the app.
 
 The publisher accepts only a `main` commit whose version matches `release/version.txt`. It waits
 for standard and Google-free builds, Android instrumentation, a real Supabase backup/restore round
@@ -143,12 +173,13 @@ by CI; credential values are never committed.
    the local database.
 4. Grant location and notification permissions. Microphone access is requested only when recording
    a voice note.
-5. Configure Cloud AI and cloud backup in Settings.
+5. Configure Cloud AI and cloud backup in Settings only if desired; core local use requires neither.
 
 ## Verify the core offline path
 
-1. Leave Cloud AI unconfigured and record a voice note; the recognized transcript must still save
-   locally.
+1. Leave Cloud AI unconfigured and generate a local diary from recorded visits or typed notes.
+   If testing voice input offline, first ensure the phone's speech engine and selected language
+   support offline recognition; a successfully recognized transcript must save locally.
 2. Add and then clear an optional diary note; reopen the day and verify it remains cleared.
 3. Turn GPS capture on, background the app, move between two places, and verify the Today map and
    Days card update after returning.
