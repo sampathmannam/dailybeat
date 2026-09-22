@@ -4,7 +4,7 @@ import kotlin.math.cos
 import kotlin.math.sqrt
 
 /**
- * Persists route evidence, not every radio jitter callback. Visit detection still receives every
+ * Persists route history, not every radio jitter callback. Visit detection still receives every
  * accepted fix; this gate only reduces Room writes and redundant map vertices.
  */
 object RoutePointSampler {
@@ -16,7 +16,10 @@ object RoutePointSampler {
         val previous = previousPersisted ?: return true
         if (sample.timestampMs <= previous.timestampMs) return false
         if (sample.timestampMs - previous.timestampMs >= MAX_ROUTE_POINT_AGE_MS) return true
-        if (distanceM(sample, previous) >= MIN_ROUTE_DISTANCE_M) return true
+        // Android's horizontal accuracy is an estimated 68%-confidence radius. Overlapping
+        // circles do not establish movement; keep heartbeats and accuracy recovery regardless.
+        val uncertaintyM = sample.accuracyM.toDouble() + previous.accuracyM.toDouble()
+        if (distanceM(sample, previous) >= maxOf(MIN_ROUTE_DISTANCE_M, uncertaintyM)) return true
         return previous.accuracyM - sample.accuracyM >= MATERIAL_ACCURACY_GAIN_M
     }
 

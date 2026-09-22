@@ -145,8 +145,9 @@ class PrivateZoneGeocoderGateTest {
             onVisitRecorded = { visit -> recorded.add(visit) },
         )
         // Arrive, linger past the dwell threshold, then move far enough away to close the stay.
-        tracker.onLocation(lat, lon, start)
-        tracker.onLocation(offsetLat(lat, 40.0), lon, start + minutes(40))
+        for (minute in 0L..40L step 2) {
+            tracker.onLocation(lat, lon, start + minutes(minute))
+        }
         tracker.onLocation(offsetLat(lat, 400.0), lon, start + minutes(45))
         return awaitVisit("dwell")
     }

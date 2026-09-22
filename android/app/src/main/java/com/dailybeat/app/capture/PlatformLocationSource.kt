@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
-import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationListenerCompat
 import androidx.core.location.LocationManagerCompat
@@ -65,7 +64,9 @@ class PlatformLocationSource(private val context: Context, private val preferGps
 
     override fun stop() {
         generation++
-        listener?.let { manager?.removeUpdates(it) }
+        // Compat uses a transport listener on older Android releases. Removing the original
+        // listener directly leaves that registration (and its sensor work) alive.
+        listener?.let { if (manager != null) LocationManagerCompat.removeUpdates(manager, it) }
         listener = null
     }
 

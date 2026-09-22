@@ -1,6 +1,7 @@
 package com.dailybeat.app.capture
 
 import android.location.Location
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeoutException
 
 interface LocationSource {
@@ -26,6 +27,7 @@ class RecoveringLocationSource(
         stop()
         val epoch = generation
         active = primary
+        var awaitingPrimaryReady = true
         fun isCurrent(source: LocationSource) = generation == epoch && active === source
         fun useFallback(error: Exception) {
             if (!isCurrent(primary)) return
@@ -35,18 +37,31 @@ class RecoveringLocationSource(
             runCatching { primary.stop() }
             runCatching { onFallback(error) }
             try {
+                fun failFallback(failure: Exception) {
+                    if (!isCurrent(fallback)) return
+                    stop()
+                    onError(failure)
+                }
                 fallback.start(profile,
                     { if (isCurrent(fallback)) onLocations(it) },
                     { if (isCurrent(fallback)) onReady() },
-                    { if (isCurrent(fallback)) onError(it) })
-            } catch (failure: Exception) { if (isCurrent(fallback)) onError(failure) }
+                    ::failFallback)
+            } catch (failure: Exception) {
+                if (isCurrent(fallback)) {
+                    stop()
+                    onError(failure)
+                }
+            }
         }
-        cancelDeadline = schedule(5_000L) { useFallback(TimeoutException("Location subscription timed out.")) }
+        cancelDeadline = schedule(5_000L) {
+            if (awaitingPrimaryReady) useFallback(TimeoutException("Location subscription timed out."))
+        }
         try {
             primary.start(profile,
                 { if (isCurrent(primary)) onLocations(it) },
                 {
                     if (isCurrent(primary)) {
+                        awaitingPrimaryReady = false
                         cancelDeadline?.invoke()
                         cancelDeadline = null
                         onReady()
@@ -64,5 +79,14 @@ class RecoveringLocationSource(
         runCatching { fallback.stop() }
     }
 
-    override suspend fun current(): Location? = primary.current() ?: fallback.current()
+    override suspend fun current(): Location? {
+        suspend fun currentOrNull(source: LocationSource): Location? = try {
+            source.current()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        return currentOrNull(primary) ?: currentOrNull(fallback)
+    }
 }

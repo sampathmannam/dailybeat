@@ -363,7 +363,7 @@ private fun WaitingForRouteCard(
 }
 
 /**
- * "Last reliable fix 4 min ago · accurate to about 6 m". Either half can be missing: the age is
+ * "Last location 4 min ago · estimated accuracy about 6 m". Either half can be missing: the age is
  * absent until a point has been stored, and accuracy is absent when the provider did not report
  * it. Returns null only when neither is known, so the caller can fall back.
  */
@@ -394,7 +394,7 @@ private fun captureFreshnessDetail(status: CaptureHealthStatus): String? {
 }
 
 @Composable
-private fun CaptureOverview(
+internal fun CaptureOverview(
     status: CaptureHealthStatus,
     gpsOn: Boolean,
     cloudReady: Boolean,
@@ -403,6 +403,12 @@ private fun CaptureOverview(
     val (title, detail) = when (status.level) {
         CaptureHealthLevel.HEALTHY -> stringResource(R.string.capture_healthy) to
             captureFreshnessDetail(status)
+        CaptureHealthLevel.APPROXIMATE -> stringResource(R.string.capture_approximate) to
+            stringResource(
+                R.string.capture_detail_join,
+                captureFreshnessDetail(status) ?: stringResource(R.string.capture_accuracy_unknown),
+                stringResource(R.string.capture_approximate_detail),
+            )
         CaptureHealthLevel.WATCHING -> stringResource(R.string.capture_watching) to
             stringResource(R.string.capture_watching_detail)
         CaptureHealthLevel.WAITING -> stringResource(R.string.capture_waiting) to
@@ -428,7 +434,7 @@ private fun CaptureOverview(
     }
     val color = when (status.level) {
         CaptureHealthLevel.HEALTHY, CaptureHealthLevel.WATCHING -> MaterialTheme.colorScheme.primary
-        CaptureHealthLevel.WAITING, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
+        CaptureHealthLevel.WAITING, CaptureHealthLevel.APPROXIMATE, CaptureHealthLevel.DEGRADED, CaptureHealthLevel.PAUSED ->
             MaterialTheme.colorScheme.tertiary
         CaptureHealthLevel.OFF -> MaterialTheme.colorScheme.error
     }
@@ -448,9 +454,10 @@ private fun CaptureOverview(
             ) {
                 Surface(modifier = Modifier.size(10.dp), shape = CircleShape, color = color) {}
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.labelLarge)
+                    Text(title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge)
                     Text(
                         text = detail ?: stringResource(R.string.capture_healthy_detail),
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -83,8 +84,7 @@ class VisitTrackerTest {
     @Test
     fun `a stay keeps the time the officer actually arrived`() {
         // Arrive, linger inside the dwell radius, then walk away far enough to be detected leaving.
-        tracker.onLocation(stationLat, stationLon, start)
-        tracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+        observeStay()
         tracker.onLocation(offsetLat(stationLat, 400.0), stationLon, start + minutes(45))
 
         val stay = awaitVisit("dwell")
@@ -99,9 +99,8 @@ class VisitTrackerTest {
 
     @Test
     fun `a long stay survives a departure by vehicle`() {
-        // A vehicle leaves faster than the 75 m update filter, so there is no in-radius sample
-        // between arriving and being detected elsewhere.
-        tracker.onLocation(stationLat, stationLon, start)
+        // Keep the observed portion of the stay when the next fix is already down the road.
+        observeStay(durationMinutes = 38)
         tracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(40))
 
         val stay = awaitVisit("dwell")
@@ -114,15 +113,16 @@ class VisitTrackerTest {
 
     @Test
     fun `the journey between two places is recorded`() {
-        tracker.onLocation(stationLat, stationLon, start)
-        tracker.onLocation(offsetLat(stationLat, 30.0), stationLon, start + minutes(30))
+        observeStay(durationMinutes = 30)
         // Leave, stay on the move, then settle somewhere clearly different.
         tracker.onLocation(offsetLat(stationLat, 400.0), stationLon, start + minutes(35))
         tracker.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(41))
+        tracker.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(49))
 
         val transit = awaitVisit("transit")
         assertTrue("Transit must start after the epoch.", transit.startMs >= start)
         assertTrue("Transit must end after it starts.", transit.endMs > transit.startMs)
+        assertEquals(start + minutes(41), transit.endMs)
     }
 
     @Test
@@ -139,7 +139,7 @@ class VisitTrackerTest {
 
     @Test
     fun `a stay is labelled with the map's own name for the place`() {
-        tracker.onLocation(stationLat, stationLon, start)
+        observeStay(durationMinutes = 38)
         tracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(40))
 
         assertEquals("Rasipuram Police Station", awaitVisit("dwell").placeName)
@@ -149,7 +149,7 @@ class VisitTrackerTest {
     fun `a saved place name wins over the map's name`() = runBlocking {
         PlaceRepository(db.places()).add("My Sub-Division Office", stationLat, stationLon, radiusM = 200)
 
-        tracker.onLocation(stationLat, stationLon, start)
+        observeStay(durationMinutes = 38)
         tracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(40))
 
         assertEquals("My Sub-Division Office", awaitVisit("dwell").placeName)
@@ -157,8 +157,7 @@ class VisitTrackerTest {
 
     @Test
     fun `an open stay is flushed with its real start time when capture stops`() {
-        tracker.onLocation(stationLat, stationLon, start)
-        tracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+        observeStay()
 
         tracker.flushPending()
 
@@ -184,8 +183,7 @@ class VisitTrackerTest {
             },
             onVisitRecorded = { visit -> recorded.add(visit) },
         )
-        teardownTracker.onLocation(stationLat, stationLon, start)
-        teardownTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+        observeStay(teardownTracker)
 
         teardownTracker.flushPending(allowNetworkLookup = false)
 
@@ -204,8 +202,7 @@ class VisitTrackerTest {
             onVisitRecorded = { visit -> recorded.add(visit) },
             stateStore = store,
         )
-        eraseTracker.onLocation(stationLat, stationLon, start)
-        eraseTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+        observeStay(eraseTracker)
 
         eraseTracker.discardPending()
 
@@ -224,8 +221,7 @@ class VisitTrackerTest {
             onVisitRecorded = { visit -> recorded.add(visit) },
             stateStore = store,
         )
-        firstTracker.onLocation(stationLat, stationLon, start)
-        firstTracker.onLocation(offsetLat(stationLat, 40.0), stationLon, start + minutes(40))
+        observeStay(firstTracker)
 
         val restartedTracker = VisitTracker(
             scope = scope,
@@ -240,13 +236,139 @@ class VisitTrackerTest {
     }
 
     @Test
-    fun `a sparse departure is not also counted as a forty minute drive`() {
+    fun `a lone fix followed by a forty minute gap invents neither a stay nor a drive`() = runBlocking {
         tracker.onLocation(stationLat, stationLon, start)
         tracker.onLocation(offsetLat(stationLat, 900.0), stationLon, start + minutes(40))
+        tracker.flushPending()
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        assertTrue(recorded.isEmpty())
+    }
 
-        awaitVisit("dwell")
-        Thread.sleep(500)
+    @Test
+    fun `slow walking cannot drag a stop anchor into a false stay`() = runBlocking {
+        for (step in 0..20) {
+            tracker.onLocation(offsetLat(stationLat, step * 50.0), stationLon, start + minutes(step * 2L))
+        }
+        tracker.flushPending()
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        assertTrue(recorded.none { it.visitType == "dwell" })
+        assertTrue(recorded.any { it.visitType == "transit" })
+    }
+
+    @Test
+    fun `modest stationary jitter remains one confirmed stay`() = runBlocking {
+        for (step in 0..6) {
+            val jitterM = if (step == 0) 0.0 else if (step % 2 == 0) 70.0 else -70.0
+            tracker.onLocation(offsetLat(stationLat, jitterM), stationLon, start + minutes(step * 2L))
+        }
+        tracker.flushPending()
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        assertEquals(1, recorded.size)
+        assertEquals("dwell", recorded.single().visitType)
+        assertEquals(start, recorded.single().startMs)
+        assertEquals(start + minutes(12), recorded.single().endMs)
+    }
+
+    @Test
+    fun `an unobserved gap splits stops without filling the missing half hour`() = runBlocking {
+        observeStay(durationMinutes = 10)
+        tracker.onLocation(stationLat, stationLon, start + minutes(40))
+        tracker.onLocation(stationLat, stationLon, start + minutes(50))
+        tracker.flushPending()
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        val stays = recorded.filter { it.visitType == "dwell" }.sortedBy { it.startMs }
+        assertEquals(listOf(start, start + minutes(40)), stays.map { it.startMs })
+        assertEquals(listOf(start + minutes(10), start + minutes(50)), stays.map { it.endMs })
         assertTrue(recorded.none { it.visitType == "transit" })
+    }
+
+    @Test
+    fun `confirming an arrival uses its first fix and last observed departure time`() = runBlocking {
+        observeStay(durationMinutes = 10)
+        tracker.onLocation(offsetLat(stationLat, 400.0), stationLon, start + minutes(11))
+        tracker.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(14))
+        for (minute in 16L..24L step 2) {
+            tracker.onLocation(offsetLat(stationLat, 2000.0), stationLon, start + minutes(minute))
+        }
+        tracker.onLocation(offsetLat(stationLat, 3000.0), stationLon, start + minutes(28))
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        val journey = recorded.single { it.visitType == "transit" }
+        assertEquals(start + minutes(10), journey.startMs)
+        assertEquals(start + minutes(16), journey.endMs)
+        val arrival = recorded.single { it.visitType == "dwell" && it.startMs > start }
+        assertEquals(start + minutes(16), arrival.startMs)
+        assertEquals(start + minutes(24), arrival.endMs)
+    }
+
+    @Test
+    fun `arrival candidate survives process replacement without charging waiting time to travel`() = runBlocking {
+        val store = MemoryStateStore()
+        fun recreatedTracker() = VisitTracker(scope, PlaceRepository(db.places()), StubGeocoder(db.geocodes()),
+            onVisitRecorded = { recorded += it }, stateStore = store)
+        val first = recreatedTracker()
+        observeStay(first, durationMinutes = 10)
+        first.onLocation(offsetLat(stationLat, 1000.0), stationLon, start + minutes(12))
+        first.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(14))
+        first.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(18))
+        withTimeout(10_000L) { first.awaitPendingWrites() }
+        assertTrue(store.state!!.isUsable())
+        assertTrue(store.state!!.inTransit)
+        val restarted = recreatedTracker()
+        restarted.onLocation(offsetLat(stationLat, 1500.0), stationLon, start + minutes(22))
+        restarted.flushPending()
+        withTimeout(10_000L) { restarted.awaitPendingWrites() }
+        assertEquals(start + minutes(14), recorded.single { it.visitType == "transit" }.endMs)
+        val arrival = recorded.single { it.visitType == "dwell" && it.startMs > start }
+        assertEquals(start + minutes(14), arrival.startMs)
+        assertEquals(start + minutes(22), arrival.endMs)
+    }
+
+    @Test
+    fun `poor accuracy or stale fixes cannot move a confirmed stop`() = runBlocking {
+        observeStay(durationMinutes = 10)
+        tracker.onLocation(offsetLat(stationLat, 2000.0), stationLon, start + minutes(9))
+        tracker.onLocation(offsetLat(stationLat, 2000.0), stationLon, start + minutes(12), accuracyM = 200f)
+        tracker.onLocation(stationLat, stationLon, start + minutes(14))
+        tracker.flushPending()
+        withTimeout(10_000L) { tracker.awaitPendingWrites() }
+        assertEquals(1, recorded.size)
+        assertEquals("dwell", recorded.single().visitType)
+        assertEquals(start + minutes(14), recorded.single().endMs)
+    }
+
+    @Test
+    fun `a trip returning to its origin survives restart while confirming the return`() = runBlocking {
+        val store = MemoryStateStore()
+        fun recreatedTracker() = VisitTracker(scope, PlaceRepository(db.places()), StubGeocoder(db.geocodes()),
+            onVisitRecorded = { recorded += it }, stateStore = store)
+        val first = recreatedTracker()
+        observeStay(first, durationMinutes = 10)
+        first.onLocation(offsetLat(stationLat, 1000.0), stationLon, start + minutes(12))
+        first.onLocation(offsetLat(stationLat, 2000.0), stationLon, start + minutes(14))
+        first.onLocation(offsetLat(stationLat, 1000.0), stationLon, start + minutes(16))
+        first.onLocation(stationLat, stationLon, start + minutes(18))
+        first.onLocation(stationLat, stationLon, start + minutes(20))
+        withTimeout(10_000L) { first.awaitPendingWrites() }
+        assertTrue(store.state!!.maxTransitDisplacementM > 1900.0)
+
+        val restarted = recreatedTracker()
+        for (minute in 22L..26L step 2) {
+            restarted.onLocation(stationLat, stationLon, start + minutes(minute))
+        }
+        restarted.flushPending()
+        withTimeout(10_000L) { restarted.awaitPendingWrites() }
+        val trip = recorded.single { it.visitType == "transit" }
+        assertEquals(start + minutes(10), trip.startMs)
+        assertEquals(start + minutes(18), trip.endMs)
+        val returnedStay = recorded.single { it.visitType == "dwell" && it.startMs > start }
+        assertEquals(start + minutes(18), returnedStay.startMs)
+        assertEquals(start + minutes(26), returnedStay.endMs)
+    }
+
+    private fun observeStay(target: VisitTracker = tracker, durationMinutes: Long = 40) {
+        for (minute in 0L..durationMinutes step 2) {
+            target.onLocation(stationLat, stationLon, start + minutes(minute))
+        }
     }
 
     private fun minutes(count: Long): Long = TimeUnit.MINUTES.toMillis(count)

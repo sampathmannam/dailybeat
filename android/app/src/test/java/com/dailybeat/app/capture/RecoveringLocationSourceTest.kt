@@ -1,6 +1,8 @@
 package com.dailybeat.app.capture
 
 import android.location.Location
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -9,6 +11,8 @@ class RecoveringLocationSourceTest {
         var starts = 0
         var stops = 0
         var thrown: Exception? = null
+        var currentThrown: Exception? = null
+        var currentCalls = 0
         lateinit var ready: () -> Unit
         lateinit var error: (Exception) -> Unit
         lateinit var locations: (List<Location>) -> Unit
@@ -19,7 +23,11 @@ class RecoveringLocationSourceTest {
             thrown?.let { throw it }
         }
         override fun stop() { stops++ }
-        override suspend fun current(): Location? = null
+        override suspend fun current(): Location? {
+            currentCalls++
+            currentThrown?.let { throw it }
+            return null
+        }
     }
     private class Fixture {
         val primary = Source()
@@ -57,6 +65,9 @@ class RecoveringLocationSourceTest {
         val f = Fixture(); f.start(); f.primary.ready()
         assertEquals(1, f.cancellations)
         assertEquals(1, f.ready)
+        assertEquals(0, f.fallback.starts)
+        // A deadline already queued for dispatch must not switch a ready provider to GPS.
+        f.deadlines.single().invoke()
         assertEquals(0, f.fallback.starts)
     }
 
@@ -99,5 +110,37 @@ class RecoveringLocationSourceTest {
         assertSame(f.fallback.thrown, f.errors.single())
         f.source.stop(); f.fallback.ready(); f.fallback.locations(emptyList())
         assertEquals(0, f.ready); assertEquals(0, f.batches)
+    }
+
+    @Test fun `terminal fallback error releases subscriptions without waiting for service destruction`() {
+        val f = Fixture(); f.start(); f.primary.error(IllegalStateException())
+        f.fallback.error(IllegalStateException("Provider disabled"))
+        f.fallback.ready(); f.fallback.locations(emptyList())
+        f.fallback.error(IllegalStateException("Late error"))
+        assertEquals(1, f.errors.size)
+        assertEquals(0, f.ready)
+        assertEquals(0, f.batches)
+        assertTrue(f.fallback.stops >= 2)
+    }
+
+    @Test fun `current fix tries platform when primary throws`() = runTest {
+        val f = Fixture()
+        f.primary.currentThrown = IllegalStateException("Play services unavailable")
+        assertNull(f.source.current())
+        assertEquals(1, f.primary.currentCalls)
+        assertEquals(1, f.fallback.currentCalls)
+    }
+
+    @Test fun `current fix cancellation never starts a second sensor request`() = runTest {
+        val f = Fixture()
+        val cancelled = CancellationException("User left the screen")
+        f.primary.currentThrown = cancelled
+        try {
+            f.source.current()
+            fail("Cancellation must propagate")
+        } catch (actual: CancellationException) {
+            assertSame(cancelled, actual)
+        }
+        assertEquals(0, f.fallback.currentCalls)
     }
 }

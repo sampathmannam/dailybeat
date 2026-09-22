@@ -13,7 +13,7 @@ import org.junit.Test
 class CapturePausedStatusTest {
 
     private val now = 2_000_000L
-    private val running = CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 60_000)
+    private val running = CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 60_000, lastAccuracyM = 20f)
 
     @Test
     fun `a live pause reports PAUSED and carries the resume time`() {

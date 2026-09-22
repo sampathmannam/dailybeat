@@ -12,6 +12,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -139,11 +141,13 @@ class VisitTrackerAdversarialTest {
 
     @Test
     fun `flushing repeatedly does not duplicate or resurrect a visit`() {
-        tracker.onLocation(11.4557, 78.1856, start)
-        tracker.onLocation(11.4560, 78.1856, start + TimeUnit.MINUTES.toMillis(40))
+        for (minute in 0L..40L step 2) {
+            tracker.onLocation(11.4557, 78.1856, start + TimeUnit.MINUTES.toMillis(minute))
+        }
         tracker.flushPending()
         drain()
         val afterFirst = recorded.size
+        assertTrue("The observed stay should be present before testing duplicate flushes.", afterFirst == 1)
 
         repeat(5) { tracker.flushPending() }
         drain()
@@ -155,7 +159,7 @@ class VisitTrackerAdversarialTest {
     }
 
     /** Lets the IO-dispatched recording settle before asserting. */
-    private fun drain() = Thread.sleep(1_500)
+    private fun drain() = runBlocking { withTimeout(10_000L) { tracker.awaitPendingWrites() } }
 
     private fun assertAllVisitsUsable() {
         recorded.toList().forEach { v ->

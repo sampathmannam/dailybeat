@@ -23,6 +23,63 @@ class CaptureProcessorTest {
     @After fun close() { db.close() }
     private fun processor() = CaptureProcessor(db, OsmGeocoder(db.geocodes()))
     private fun fix(minutes: Long, lat: Double = 11.4557) = CaptureFix(start + minutes*60_000, lat, 78.1856, 20f, false)
+    @Test fun `coarse route point cannot end a precise stop through durable processing`() = runBlocking {
+        processor().enqueue(listOf(fix(0), fix(5), fix(9, 11.4600).copy(accuracyM = 220f)))
+        processor().drain()
+        assertTrue(db.visits().all().isEmpty())
+        assertEquals(fix(5).timestampMs, BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!.lastSampleMs)
+        assertTrue(db.breadcrumbs().all().any { it.quality == "approximate" })
+        processor().enqueue(listOf(fix(10), fix(11, 11.4600)))
+        processor().drain()
+        val stay = db.visits().all().single()
+        assertEquals(start, stay.startMs)
+        assertEquals(fix(10).timestampMs, stay.endMs)
+    }
+
+    @Test fun `arrival candidate survives processor replacement and retains first arrival time`() = runBlocking {
+        val arrival = 11.4700
+        processor().enqueue(listOf(fix(0), fix(5), fix(10), fix(12, 11.4600), fix(15, arrival)))
+        processor().drain()
+        assertTrue(BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!.inTransit)
+        processor().enqueue(listOf(fix(19, arrival), fix(23, arrival)))
+        processor().drain()
+        val state = BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!
+        assertFalse(state.inTransit)
+        assertEquals(fix(15).timestampMs, state.dwellStartMs)
+        val transit = db.visits().all().single { it.visitType == "transit" }
+        assertEquals(fix(10).timestampMs, transit.startMs)
+        assertEquals(fix(15).timestampMs, transit.endMs)
+        processor().finish()
+        val destination = db.visits().all().filter { it.visitType == "dwell" }.last()
+        assertEquals(fix(15).timestampMs, destination.startMs)
+        assertEquals(fix(23).timestampMs, destination.endMs)
+    }
+
+    @Test fun `checkpoint codec preserves loop displacement and supports old payloads`() {
+        val checkpoint = BufferedCheckpoint()
+        checkpoint.save(VisitTrackerState(11.4557, 78.1856, start + 20 * 60_000, start + 22 * 60_000,
+            start, 11.4557, 78.1856, 11.4557, 78.1856, true, maxTransitDisplacementM = 1600.0))
+        val encoded = checkpoint.encode()
+        assertEquals(1600.0, BufferedCheckpoint(encoded).load()!!.maxTransitDisplacementM, 0.0)
+        val legacy = org.json.JSONObject(encoded).apply { remove("maxTransitDisplacementM") }.toString()
+        assertEquals(0.0, BufferedCheckpoint(legacy).load()!!.maxTransitDisplacementM, 0.0)
+        val corrupt = org.json.JSONObject(encoded).apply { put("maxTransitDisplacementM", -1.0) }.toString()
+        assertNull(BufferedCheckpoint(corrupt).load())
+    }
+
+    @Test fun `short suspension at the same place preserves a break after restart`() = runBlocking {
+        processor().enqueue(listOf(fix(0), fix(5), fix(10)))
+        processor().drain()
+        processor().suspendCapture()
+        processor().enqueue(listOf(fix(11), fix(16), fix(20)))
+        processor().finish()
+        val stays = db.visits().all().sortedBy { it.startMs }
+        assertEquals(listOf(start, fix(11).timestampMs), stays.map { it.startMs })
+        assertEquals(listOf(fix(10).timestampMs, fix(20).timestampMs), stays.map { it.endMs })
+        assertTrue(stays.all { it.visitType == "dwell" })
+        assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+    }
+
     @Test fun `interrupted transaction retains fix and replay creates exactly one visit and index`() = runBlocking {
         db.captureJournal().enqueue(listOf(fix(0), fix(10)))
         processor().drain()

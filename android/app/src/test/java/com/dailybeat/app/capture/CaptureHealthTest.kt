@@ -18,7 +18,7 @@ class CaptureHealthTest {
         )
         assertEquals(
             CaptureHealthLevel.HEALTHY,
-            CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 60_000).status(now, true).level,
+            CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 60_000, lastAccuracyM = 20f).status(now, true).level,
         )
         assertEquals(
             CaptureHealthLevel.DEGRADED,
@@ -29,6 +29,37 @@ class CaptureHealthTest {
             CaptureHealthLevel.DEGRADED,
             CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 30 * 60_000).status(now, true).level,
         )
+    }
+
+    @Test fun `recent coarse point is approximate rather than healthy`() {
+        val now = 2_000_000L
+        val status = CaptureHealth(serviceRunning = true, lastStoredAtMs = now - 1000,
+            lastAccuracyM = 200f, lastQuality = "approximate").status(now, true)
+        assertEquals(CaptureHealthLevel.APPROXIMATE, status.level)
+        assertEquals(200f, status.accuracyM)
+        assertEquals(1000L, status.lastPointAgeMs)
+    }
+
+    @Test fun `missing or corrupt accuracy never claims a precise recent fix`() {
+        for (accuracy in listOf(null, 0f, Float.NaN, Float.POSITIVE_INFINITY)) {
+            val status = CaptureHealth(serviceRunning = true, lastStoredAtMs = 1_999_000,
+                lastAccuracyM = accuracy).status(2_000_000, true)
+            assertEquals(CaptureHealthLevel.APPROXIMATE, status.level)
+            assertEquals(null, status.accuracyM)
+        }
+    }
+
+    @Test fun `stale imprecise point is a gap not a fresh approximate location`() {
+        val status = CaptureHealth(serviceRunning = true, lastStoredAtMs = 1_000_000,
+            lastAccuracyM = 200f).status(2_000_000, true)
+        assertEquals(CaptureHealthLevel.DEGRADED, status.level)
+    }
+
+    @Test fun `future saved timestamp cannot appear fresh after clock changes`() {
+        val status = CaptureHealth(serviceRunning = true, lastStoredAtMs = Long.MAX_VALUE,
+            lastAccuracyM = 10f).status(2_000_000, true)
+        assertEquals(CaptureHealthLevel.DEGRADED, status.level)
+        assertEquals(null, status.lastPointAgeMs)
     }
 
     @Test fun `storage failure cannot appear healthy after a recent fix`() {

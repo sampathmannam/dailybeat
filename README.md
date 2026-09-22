@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.3.4 / code 38** is the current source release line. It uses the permanently signed
+**4.3.5 / code 39** is the current source release line. It uses the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -30,7 +30,8 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
 [validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),
-[privacy information](PRIVACY.md), [offline Tamil Nadu maps](docs/OFFLINE_MAPS.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
+[privacy information](PRIVACY.md), [offline Tamil Nadu maps](docs/OFFLINE_MAPS.md),
+[tracking accuracy decisions and limits](docs/TRACKING_RELIABILITY.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
 
 The [F-Droid distribution guide](docs/FDROID.md) documents the Google-free store build, public
 build recipe, reproducibility checks, signing continuity and network disclosures. Inclusion is
@@ -52,6 +53,10 @@ Both commands produce an isolated QA package, not an update to production. They 
 path, so copy each artifact before building the other configuration. Platform-only capture does not
 use the Google activity-transition idle-sleep mechanism; its battery performance requires separate
 field measurement.
+
+When switching `dailybeatFoss` or `dailybeatStore` in the same checkout, run `./gradlew clean`
+before rebuilding. These configurations also share generated Kotlin outputs; a clean build avoids
+stale module metadata after switching source sets. Keep any APK or test reports you need first.
 
 Instrumentation fixtures are destructive **only inside** `com.dailybeat.app.qa.e2eloop`. Use a dedicated
 emulator and an explicit serial. Never run broad connected tests with a user's phone attached.

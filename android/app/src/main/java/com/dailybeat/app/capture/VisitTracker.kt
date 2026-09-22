@@ -19,7 +19,8 @@ import kotlin.math.sqrt
 import kotlinx.coroutines.CancellationException
 
 /**
- * Passive visit detection: dwell at a place (≥8 min within ~150m) and transit between places.
+ * Personal journal stop detection: confirm eight observed minutes near a fixed anchor.
+ * Arrival is backdated to its first sample only after that stop is confirmed.
  */
 class VisitTracker(
     private val scope: CoroutineScope,
@@ -37,7 +38,9 @@ class VisitTracker(
         private const val MOVE_AWAY_M = 250.0
         private const val MIN_DWELL_MS = 8 * 60 * 1000L
         private const val MIN_TRANSIT_MS = 3 * 60 * 1000L
-        private const val MAX_SAMPLE_GAP_MS = 6 * 60 * 60 * 1000L
+        // A journal policy, not an Android guarantee: current requests batch at most two
+        // minutes. Longer blind gaps must not silently become hours spent at a place.
+        private const val MAX_SAMPLE_GAP_MS = 10 * 60 * 1000L
     }
 
     private var dwellLat: Double? = null
@@ -50,6 +53,7 @@ class VisitTracker(
     private var departureLat: Double? = null
     private var departureLon: Double? = null
     private var inTransit = false
+    private var maxTransitDisplacementM = 0.0
     private var suspended = false
     private val pendingWrites = mutableSetOf<Job>()
     private val writeFailures = mutableListOf<Throwable>()
@@ -58,8 +62,16 @@ class VisitTracker(
         restoreCheckpoint()
     }
 
-    fun onLocation(latitude: Double, longitude: Double, timestampMs: Long) {
+    fun onLocation(
+        latitude: Double,
+        longitude: Double,
+        timestampMs: Long,
+        accuracyM: Float = LocationQualityFilter.GOOD_ACCURACY_M,
+    ) {
         if (!isValidCoordinate(latitude, longitude) || timestampMs <= 0L) return
+        // A point whose uncertainty exceeds the entire stop radius can still appear on the
+        // approximate route, but cannot establish or end a stop at a specific place.
+        if (!accuracyM.isFinite() || accuracyM <= 0f || accuracyM > DWELL_RADIUS_M) return
         if (lastSampleMs > 0L && timestampMs <= lastSampleMs) return
         if (suspended || (lastSampleMs > 0L && timestampMs - lastSampleMs > MAX_SAMPLE_GAP_MS)) {
             flushPending(allowNetworkLookup = false)
@@ -76,82 +88,93 @@ class VisitTracker(
     }
 
     private fun processLocation(latitude: Double, longitude: Double, timestampMs: Long) {
+        if (inTransit) {
+            observeArrivalCandidate(latitude, longitude, timestampMs)
+            return
+        }
         val anchorLat = dwellLat
         val anchorLon = dwellLon
         if (anchorLat == null || anchorLon == null) {
-            // No place anchor. A journey already under way must keep running: dropping it here
-            // is what used to lose the trip between two stays.
-            if (inTransit) {
-                transitLat = latitude
-                transitLon = longitude
-                lastSampleMs = timestampMs
-                finishTransitIfArrived(latitude, longitude, timestampMs)
-            } else {
-                startDwell(latitude, longitude, timestampMs)
-            }
+            startDwell(latitude, longitude, timestampMs)
             return
         }
 
         if (distanceM(latitude, longitude, anchorLat, anchorLon) <= DWELL_RADIUS_M) {
-            dwellLat = (anchorLat + latitude) / 2.0
-            dwellLon = (anchorLon + longitude) / 2.0
+            // Keep the anchor fixed: averaging toward every fix lets a slow walk drag the
+            // stop across town while every individual step remains inside the radius.
             lastSampleMs = timestampMs
-            inTransit = false
             return
         }
 
-        val dwellEndMs = lastSampleMs.takeIf { it > dwellStartMs } ?: timestampMs
-        if (!inTransit) {
-            inTransit = true
-            transitStartMs = dwellEndMs
-            departureLat = anchorLat
-            departureLon = anchorLon
-        }
+        val dwellEndMs = lastSampleMs
+        inTransit = true
+        transitStartMs = dwellEndMs
+        departureLat = anchorLat
+        departureLon = anchorLon
         transitLat = latitude
         transitLon = longitude
+        updateTransitDisplacement(latitude, longitude)
 
-        // The stay ends when we notice the officer has left. Using only the last in-radius
-        // sample discarded the entire stay whenever they drove off, because the 75 m update
-        // filter produces no in-radius sample on the way out.
+        // A lone arrival fix followed by a far-away fix does not prove a stay in between.
+        // Close only through the last observation inside this stop's radius.
         if (dwellStartMs > 0 && dwellEndMs - dwellStartMs >= MIN_DWELL_MS) {
             finalizeDwell(dwellEndMs)
         }
-        resetDwell()
-
+        setArrivalCandidate(latitude, longitude, timestampMs)
         lastSampleMs = timestampMs
-        finishTransitIfArrived(latitude, longitude, timestampMs)
     }
 
-    private fun finishTransitIfArrived(latitude: Double, longitude: Double, timestampMs: Long) {
-        if (!inTransit) return
-        val fromLat = departureLat ?: return
-        val fromLon = departureLon ?: return
-        val movedFarEnough = distanceM(latitude, longitude, fromLat, fromLon) >= MOVE_AWAY_M
-        if (timestampMs - transitStartMs < MIN_TRANSIT_MS || !movedFarEnough) return
+    private fun observeArrivalCandidate(latitude: Double, longitude: Double, timestampMs: Long) {
+        transitLat = latitude
+        transitLon = longitude
+        updateTransitDisplacement(latitude, longitude)
+        lastSampleMs = timestampMs
+        val candidateLat = dwellLat
+        val candidateLon = dwellLon
+        if (candidateLat == null || candidateLon == null ||
+            distanceM(latitude, longitude, candidateLat, candidateLon) > DWELL_RADIUS_M) {
+            setArrivalCandidate(latitude, longitude, timestampMs)
+            return
+        }
+        if (timestampMs - dwellStartMs < MIN_DWELL_MS) return
 
         val startMs = transitStartMs
-        val tLat = transitLat ?: latitude
-        val tLon = transitLon ?: longitude
-        launchWrite {
-            recordTransit(startMs, timestampMs, tLat, tLon)
+        val arrivalMs = dwellStartMs
+        if (arrivalMs - startMs >= MIN_TRANSIT_MS && maxTransitDisplacementM >= MOVE_AWAY_M) {
+            launchWrite { recordTransit(startMs, arrivalMs, candidateLat, candidateLon) }
         }
-        inTransit = false
-        departureLat = null
-        departureLon = null
-        startDwell(latitude, longitude, timestampMs)
+        // The candidate's start and fixed coordinates are already the confirmed stay. Keeping
+        // them avoids charging its first eight minutes to travel or losing them altogether.
+        clearTransit()
     }
 
-    private fun startDwell(latitude: Double, longitude: Double, timestampMs: Long) {
+    private fun updateTransitDisplacement(latitude: Double, longitude: Double) {
+        val fromLat = departureLat ?: return
+        val fromLon = departureLon ?: return
+        // Returning home still counts as a journey when an earlier point established travel.
+        maxTransitDisplacementM = maxOf(maxTransitDisplacementM, distanceM(latitude, longitude, fromLat, fromLon))
+    }
+
+    private fun setArrivalCandidate(latitude: Double, longitude: Double, timestampMs: Long) {
         dwellLat = latitude
         dwellLon = longitude
         dwellStartMs = timestampMs
-        lastSampleMs = timestampMs
+    }
+
+    private fun clearTransit() {
         inTransit = false
         transitStartMs = 0L
         transitLat = null
         transitLon = null
         departureLat = null
         departureLon = null
+        maxTransitDisplacementM = 0.0
+    }
+
+    private fun startDwell(latitude: Double, longitude: Double, timestampMs: Long) {
+        setArrivalCandidate(latitude, longitude, timestampMs)
+        lastSampleMs = timestampMs
+        clearTransit()
     }
 
     private fun finalizeDwell(dwellEndMs: Long, allowNetworkLookup: Boolean = this.allowNetworkLookup) {
@@ -264,7 +287,7 @@ class VisitTracker(
                 fromLat != null && fromLon != null && lat != null && lon != null &&
                 lastSampleMs >= transitStartMs &&
                 lastSampleMs - transitStartMs >= MIN_TRANSIT_MS &&
-                distanceM(lat, lon, fromLat, fromLon) >= MOVE_AWAY_M
+                maxTransitDisplacementM >= MOVE_AWAY_M
             ) {
                 val startMs = transitStartMs
                 val endMs = lastSampleMs
@@ -334,6 +357,11 @@ class VisitTracker(
         departureLon = state.departureLon
         inTransit = state.inTransit
         suspended = state.suspended
+        maxTransitDisplacementM = state.maxTransitDisplacementM
+        if (inTransit) {
+            // Older checkpoints did not retain a maximum; their latest point is still useful.
+            transitLat?.let { lat -> transitLon?.let { lon -> updateTransitDisplacement(lat, lon) } }
+        }
     }
 
     private fun persistCheckpoint() {
@@ -350,6 +378,7 @@ class VisitTracker(
                 departureLon = departureLon,
                 inTransit = inTransit,
                 suspended = suspended,
+                maxTransitDisplacementM = maxTransitDisplacementM,
             ),
         )
     }
@@ -358,12 +387,7 @@ class VisitTracker(
         suspended = false
         resetDwell()
         lastSampleMs = 0L
-        transitStartMs = 0L
-        transitLat = null
-        transitLon = null
-        departureLat = null
-        departureLon = null
-        inTransit = false
+        clearTransit()
     }
 
     private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean =

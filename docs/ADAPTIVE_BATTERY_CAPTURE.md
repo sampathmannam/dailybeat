@@ -27,11 +27,15 @@ session. It uses a small state machine rather than a permanent high-frequency GP
   stopped. Notifications require the user’s notification permission. WorkManager does not launch
   an unsupported background foreground service.
 
-## Route evidence and writes
+## Route observations and writes
 
-Every accepted location continues into visit detection, so dwell and transit logic see all fused
-fixes in a batch. Database persistence keeps the first point, meaningful 75-metre displacement,
-material accuracy recovery, and one point every five minutes. A raw batch first enters a durable Room inbox. Each accepted fix commits its visit, timeline entry,
+Every accepted location is offered to visit detection; fixes with reported uncertainty over
+150 metres remain approximate route observations but cannot establish or end a stop. Stop anchors
+stay fixed, arrival needs eight observed minutes, and gaps over ten minutes split observations.
+Database persistence keeps the first point, displacement beyond both 75 metres and the sum of
+the two accuracy radii, material accuracy recovery, and one point every five minutes. Distance
+summaries ignore movement within overlapping accuracy circles while retaining all map points.
+A raw batch first enters a durable Room inbox. Each accepted fix commits its visit, timeline entry,
 optional route point, checkpoint and acknowledgement together. Failed transactions remain queued
 for a WorkManager retry or the next capture start. Erase and restore invalidate stale callbacks.
 
@@ -41,3 +45,9 @@ Battery optimisation remains on by default. The app should offer an OEM's “Unr
 only after documented repeated capture gaps, never as a blanket onboarding demand. Physical-activity
 permission enables the adaptive watcher; without it, DailyBeat retains the baseline moving profile
 so location capture remains functional rather than silently becoming incomplete.
+
+The reliability changes do not increase request frequency or switch to continuous high-accuracy
+GPS. Listener cleanup, motion delivery and callback lifecycle regressions are covered by automated
+tests, but battery savings and real handset wake reliability require the
+[physical-device field trial](BATTERY_FIELD_TRIAL.md). See
+[tracking reliability decisions](TRACKING_RELIABILITY.md) for the accuracy tradeoffs.
