@@ -40,6 +40,33 @@ class RoutePointSamplerTest {
         assertTrue(RoutePointSampler.shouldPersist(recoveredAccuracy, first))
     }
 
+    @Test
+    fun `overlapping accuracy circles do not turn a stationary shift into travel`() {
+        val first = sample(accuracy = 80f)
+        val uncertainShift = sample(lat = 12.97260, timestamp = 60_000L, accuracy = 80f)
+        val clearMovement = sample(lat = 12.97410, timestamp = 60_000L, accuracy = 80f)
+
+        assertFalse(RoutePointSampler.shouldPersist(uncertainShift, first))
+        assertTrue(RoutePointSampler.shouldPersist(clearMovement, first))
+    }
+
+    @Test
+    fun `uncertain stationary fixes retain five minute coverage and material accuracy recovery`() {
+        val first = sample(accuracy = 200f)
+        val heartbeat = sample(lat = 12.97260, timestamp = 301_000L, accuracy = 200f)
+        val recovered = sample(lat = 12.97260, timestamp = 60_000L, accuracy = 20f)
+
+        assertTrue(RoutePointSampler.shouldPersist(heartbeat, first))
+        assertTrue(RoutePointSampler.shouldPersist(recovered, first))
+    }
+
+    @Test
+    fun `stale improved fixes cannot regress the route checkpoint`() {
+        val first = sample(accuracy = 200f)
+        assertFalse(RoutePointSampler.shouldPersist(sample(timestamp = first.timestampMs, accuracy = 20f), first))
+        assertFalse(RoutePointSampler.shouldPersist(sample(timestamp = first.timestampMs - 1L, accuracy = 20f), first))
+    }
+
     private fun sample(
         lat: Double = 12.97160,
         lon: Double = 77.59460,

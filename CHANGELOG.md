@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.3.5 — 2026-09-22
+
+### Personal-journal tracking reliability
+- Fixed stop anchors and observed arrival/departure times reduce false stays while walking and
+  inflated durations across missing GPS updates. Round trips survive unfinished-capture restarts.
+- Distance ignores stationary GPS jitter and does not bridge known capture gaps. Raw history and
+  finalized visits remain unchanged; recalculated distance may be lower.
+- Automatic venue suggestions use tighter category/proximity checks and say “Near” rather than
+  claiming a confirmed visit. Saved names remain preferred; frequent-place clusters avoid merging
+  conflicting names or including hidden/private stops.
+- Location listeners are removed correctly; motion-wakeup registration and provider fallback
+  handle cancellation and late callbacks without increasing GPS polling.
+- Today distinguishes approximate GPS from missing updates and remains readable at 200% text size.
+  Existing colours and navigation are unchanged.
+- GPS cannot distinguish every adjacent shop or prove attendance. Real-device battery and venue
+  accuracy still require field measurement; no measured battery-saving claim is made.
+
 ## 4.3.4 — 2026-09-21
 
 ### Security and reliability

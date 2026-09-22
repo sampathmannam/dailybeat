@@ -22,7 +22,7 @@ data class CaptureHealth(
  * undoes itself, and it has a known end time — reporting it as "Capture is off" turned a chosen,
  * temporary, self-reversing state into what reads as a failure.
  */
-enum class CaptureHealthLevel { OFF, PAUSED, WATCHING, WAITING, HEALTHY, DEGRADED }
+enum class CaptureHealthLevel { OFF, PAUSED, WATCHING, WAITING, HEALTHY, APPROXIMATE, DEGRADED }
 
 data class CaptureHealthStatus(
     val level: CaptureHealthLevel,
@@ -75,19 +75,23 @@ fun CaptureHealth.status(
     if (lastStoredAtMs <= 0L) {
         return CaptureHealthStatus(CaptureHealthLevel.WAITING, rejectedCount = rejectedCountToday)
     }
+    if (lastStoredAtMs > LocationQualityFilter.latestAllowedTime(nowMs)) {
+        return CaptureHealthStatus(CaptureHealthLevel.DEGRADED, reason = "future-time")
+    }
     val age = (nowMs - lastStoredAtMs).coerceAtLeast(0)
-    // A long gap is still just "no recent point", never an alarm telling the officer to go
-    // troubleshoot: DailyBeat keeps everything it captured and keeps watching. OFF (below) is the
-    // only state that legitimately calls for action, because capture genuinely is not running.
-    val level = if (age <= CaptureHealthStore.HEALTHY_AGE_MS) {
-        CaptureHealthLevel.HEALTHY
-    } else {
-        CaptureHealthLevel.DEGRADED
+    val accuracy = lastAccuracyM?.takeIf { it.isFinite() && it > 0f }
+    // Freshness and precision are separate. An accepted area-level reading is useful for a
+    // route, but must not imply that the app knows which nearby shop the person visited.
+    val level = when {
+        age > CaptureHealthStore.HEALTHY_AGE_MS -> CaptureHealthLevel.DEGRADED
+        accuracy == null || accuracy > LocationQualityFilter.GOOD_ACCURACY_M ||
+            lastQuality == "approximate" -> CaptureHealthLevel.APPROXIMATE
+        else -> CaptureHealthLevel.HEALTHY
     }
     return CaptureHealthStatus(
         level = level,
         lastPointAgeMs = age,
-        accuracyM = lastAccuracyM,
+        accuracyM = accuracy,
         rejectedCount = rejectedCountToday,
         reason = lastRejectionReason,
     )
@@ -161,7 +165,7 @@ class CaptureHealthStore(context: Context) {
     }
 
     private fun read(): CaptureHealth {
-        val accuracy = prefs.getFloat(KEY_ACCURACY, -1f).takeIf { it >= 0f }
+        val accuracy = prefs.getFloat(KEY_ACCURACY, -1f).takeIf { it.isFinite() && it > 0f }
         val lastStored = prefs.getLong(KEY_LAST_STORED, 0)
         val todayRejections = if (
             prefs.getString(KEY_REJECTION_DAY, null) == dayKey(System.currentTimeMillis())

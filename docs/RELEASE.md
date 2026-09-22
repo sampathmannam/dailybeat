@@ -1,11 +1,24 @@
-# DailyBeat v4.3.4 — install and verify
+# DailyBeat v4.3.5 — install and verify
 
-Version 4.3.4 (Android version code **38**) is the prepared security and reliability update.
+Version 4.3.5 (Android version code **39**) is the prepared personal-journal reliability update.
 Publication is complete only when the protected release workflow succeeds and the signed assets
 appear on GitHub Releases. The update retains package `com.dailybeat.app`, the permanent signing
 identity, existing history, and the Warm Butter / Carbon appearance.
 
-This update prevents delayed authentication from undoing sign-out, preserves this phone's trusted
+This update fixes false stop timing, stationary-jitter distance, unfinished round-trip recovery,
+overconfident nearby-business names, listener cleanup and motion/fallback lifecycle races. Today
+distinguishes approximate GPS from missing updates, including at large text sizes. It preserves
+raw history, finalized visits, saved names, network consent, colours and navigation. Derived distance
+may decrease because uncertain jitter and capture gaps are no longer counted as travel.
+
+See [tracking reliability decisions and limits](TRACKING_RELIABILITY.md) for research and regression
+coverage. Local pre-release validation passed 469 standard unit tests (one store-only skip), all
+470 store unit tests, 116 repository checks, eight online and two offline emulator checks, both lint
+configurations with zero errors, and the unsigned store build. The final versioned release commit
+must independently pass protected CI. Real-phone battery drain and real-venue accuracy remain
+unmeasured; this is a personal journal, not proof of attendance or an evidence system.
+
+The previous update prevents delayed authentication from undoing sign-out, preserves this phone's trusted
 Cloud AI destination during restore, and requires fresh cloud consent afterward. Cloud requests
 recheck consent and credentials before transmission and close their network calls when cancelled.
 Documents move to private internal storage, with only completed exports available for sharing.
@@ -123,13 +136,13 @@ The verified Mac installer now requires Android SDK build-tools (`apksigner`, `a
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes and publication completes, GitHub Releases tag `v4.3.4` provides:
+After every release gate passes and publication completes, GitHub Releases tag `v4.3.5` provides:
 
-- `DailyBeat-v4.3.4.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 38
+- `DailyBeat-v4.3.5.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 39
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 Obtainium users should refresh the regular stable channel and install over their existing app.
-The separate `fdroid-v4.3.4` prerelease contains `DailyBeat-FDroid-v4.3.4.apk` and
+The separate `fdroid-v4.3.5` prerelease contains `DailyBeat-FDroid-v4.3.5.apk` and
 `FDROID-SHA256SUMS.txt`. It supplies the Google-free reference APK for reproducibility review;
 it does not mean F-Droid has accepted or published the app.
 

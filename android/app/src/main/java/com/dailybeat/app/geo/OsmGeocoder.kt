@@ -15,12 +15,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.cos
 import kotlin.math.sqrt
 
-/** What the map knows about a spot: its own name for it, plus the full postal address. */
+/** A map-derived location hint, not evidence that the user entered a particular venue. */
 data class ResolvedPlace(
     val name: String?,
     val address: String,
 ) {
-    /** Best single label to show the officer, e.g. "Rasipuram Police Station". */
+    /** Automatic venue candidates keep their "Near" qualifier; saved names are applied separately. */
     val label: String get() = name ?: address.substringBefore(",").trim().ifBlank { address }
 }
 
@@ -55,16 +55,19 @@ open class OsmGeocoder(
             if (configuredEndpoint.isBlank() || !permitsLookup(latitude, longitude)) {
                 return@withContext ResolvedPlace(null, "Unnamed place")
             }
-            // v2 keeps venue-aware results separate from the older road-first cache entries.
-            val key = configuredEndpoint + ":v2:" + cacheKey(latitude, longitude)
-            runCatching { geocodeDao.get(key) }.getOrNull()?.let { cached ->
+            // Do not reuse older exact-name guesses made from POIs as far as 200 metres away.
+            // This only retires derived lookup cache entries, never the user's named/history data.
+            val key = configuredEndpoint + ":v3:" + cacheKey(latitude, longitude)
+            runCatching { geocodeDao.get(key) }.getOrNull()?.takeIf {
+                val ageMs = System.currentTimeMillis() - it.fetchedAt
+                ageMs in 0..MAX_CACHE_AGE_MS
+            }?.let { cached ->
                 return@withContext ResolvedPlace(cached.placeName, cached.displayName)
             }
 
             val fallback = ResolvedPlace(null, fallbackLabel())
-            // A normal reverse lookup may choose a road even when the user is inside a shop or
-            // restaurant. Ask for a POI first, but accept it only when its mapped point is close
-            // enough to the captured stop; otherwise fall back to the nearest address.
+            // Nominatim returns the nearest suitable indexed object, not the occupied venue.
+            // A nearby classified POI is only a candidate, even at zero centroid distance.
             val poiLookup = requestJson(configuredEndpoint, latitude, longitude, layer = "poi")
             val resolved = when (poiLookup) {
                 is LookupResult.Found -> {
@@ -162,31 +165,32 @@ open class OsmGeocoder(
         val address = json.optString("display_name").trimOrNull()
             ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
             ?: fallbackLabel()
-        return ResolvedPlace(name = extractName(json), address = address)
+        // Address-layer feature names often name the road/town, not a visited venue.
+        return ResolvedPlace(name = null, address = address)
     }
 
     private fun parsePoi(json: JSONObject): ResolvedPlace? {
+        val category = json.optString("category").trimOrNull()
+            ?: json.optString("class").trimOrNull()
+        if (category !in POI_CATEGORIES) return null
         val name = extractPoiName(json) ?: return null
         val address = json.optString("display_name").trimOrNull()
             ?.let { InputPolicy.bounded(it, MAX_ADDRESS_CHARS) }
             ?: name
-        return ResolvedPlace(name = name, address = address)
+        return ResolvedPlace(
+            name = InputPolicy.bounded("Near $name", MAX_NAME_CHARS),
+            address = InputPolicy.bounded("Near $address", MAX_ADDRESS_CHARS),
+        )
     }
 
     private fun extractPoiName(json: JSONObject): String? {
-        json.optJSONObject("namedetails")?.let { names ->
-            listOf("name", "name:en", "brand", "operator").forEach { key ->
-                names.optString(key).trimOrNull()?.let {
-                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
-                }
-            }
-        }
+        // The result's own localized name outranks its chain brand or legal operator.
         json.optString("name").trimOrNull()?.let {
             return InputPolicy.bounded(it, MAX_NAME_CHARS)
         }
-        json.optJSONObject("extratags")?.let { extras ->
-            listOf("brand", "operator").forEach { key ->
-                extras.optString(key).trimOrNull()?.let {
+        json.optJSONObject("namedetails")?.let { names ->
+            listOf("name:en", "name").forEach { key ->
+                names.optString(key).trimOrNull()?.let {
                     return InputPolicy.bounded(it, MAX_NAME_CHARS)
                 }
             }
@@ -198,37 +202,15 @@ open class OsmGeocoder(
                 }
             }
         }
-        return null
-    }
-
-    /**
-     * Nominatim reports a named feature in several places depending on its version and what
-     * kind of feature it is, so take the first that actually names the spot rather than the
-     * street or the town it sits in.
-     */
-    private fun extractName(json: JSONObject): String? {
-        json.optJSONObject("namedetails")?.let { names ->
-            names.optString("name").trimOrNull()?.let {
+        listOf("namedetails", "extratags").forEach { objectName ->
+            json.optJSONObject(objectName)?.optString("brand").trimOrNull()?.let {
                 return InputPolicy.bounded(it, MAX_NAME_CHARS)
-            }
-            names.optString("name:en").trimOrNull()?.let {
-                return InputPolicy.bounded(it, MAX_NAME_CHARS)
-            }
-        }
-        json.optString("name").trimOrNull()?.let {
-            return InputPolicy.bounded(it, MAX_NAME_CHARS)
-        }
-        json.optJSONObject("address")?.let { address ->
-            NAMED_FEATURE_KEYS.forEach { key ->
-                address.optString(key).trimOrNull()?.let {
-                    return InputPolicy.bounded(it, MAX_NAME_CHARS)
-                }
             }
         }
         return null
     }
 
-    private fun String.trimOrNull(): String? = trim().takeIf { it.isNotEmpty() && it != "null" }
+    private fun String?.trimOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
 
     private fun cacheKey(lat: Double, lon: Double): String =
         String.format(Locale.US, "%.4f,%.4f", lat, lon)
@@ -236,15 +218,16 @@ open class OsmGeocoder(
     private fun JSONObject.isNear(latitude: Double, longitude: Double): Boolean {
         val resultLatitude = optString("lat").toDoubleOrNull() ?: return false
         val resultLongitude = optString("lon").toDoubleOrNull() ?: return false
+        if (!isValidCoordinate(resultLatitude, resultLongitude)) return false
         return distanceMeters(latitude, longitude, resultLatitude, resultLongitude) <= MAX_POI_DISTANCE_M
     }
 
     private fun distanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
-        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        val a = (kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
             cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)).coerceIn(0.0, 1.0)
         return 6_371_000.0 * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
 
@@ -259,7 +242,13 @@ open class OsmGeocoder(
         const val MAX_NAME_CHARS = 80
         const val MAX_ADDRESS_CHARS = 1_000
         const val MAX_RESPONSE_BYTES = 1L * 1024L * 1024L
-        const val MAX_POI_DISTANCE_M = 200.0
+        // Conservative product heuristic, not a confidence score or proof of entry.
+        const val MAX_POI_DISTANCE_M = 50.0
+        const val MAX_CACHE_AGE_MS = 30L * 24 * 60 * 60 * 1_000
+        val POI_CATEGORIES = setOf(
+            "amenity", "shop", "office", "tourism", "leisure", "historic",
+            "healthcare", "military", "building",
+        )
 
         sealed interface LookupResult {
             data class Found(val json: JSONObject) : LookupResult
@@ -289,13 +278,5 @@ open class OsmGeocoder(
             "place_of_worship",
         )
 
-        val NAMED_FEATURE_KEYS = NAMED_POI_KEYS + listOf(
-            "neighbourhood",
-            "hamlet",
-            "suburb",
-            "village",
-            "town",
-            "city",
-        )
     }
 }

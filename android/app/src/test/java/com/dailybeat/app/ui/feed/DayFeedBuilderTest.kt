@@ -213,6 +213,94 @@ class DayFeedBuilderTest {
 
         assertEquals(0, item.trackedMinutes)
         assertEquals(1, item.captureGapCount)
+        assertTrue(item.distanceEstimated)
+    }
+
+    private fun breadcrumbAt(offsetMeters: Double, minute: Long, accuracy: Float = 30f) =
+        LocationBreadcrumb(
+            timestampMs = dayStart + minutes(minute),
+            latitude = 11.4557 + offsetMeters / 111_195.0,
+            longitude = 78.1856,
+            accuracyM = accuracy,
+        )
+
+    @Test
+    fun `stationary heartbeat jitter preserves an hour of coverage without inventing distance`() {
+        val points = (0..12).map { index ->
+            breadcrumbAt(if (index % 2 == 0) 20.0 else -20.0, index * 5L)
+        }
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertEquals(0.0, item.distanceMeters, 0.0)
+        assertEquals(60, item.trackedMinutes)
+        assertEquals(points.size, item.route.size)
+        assertEquals(points.map { it.latitude }, item.route.map { it.latitude })
+    }
+
+    @Test
+    fun `slow progress accumulates against a fixed distance anchor`() {
+        val points = (0..12).map { index -> breadcrumbAt(index * 20.0, index * 1L) }
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertTrue("Slow walking must not disappear: ${item.distanceMeters}", item.distanceMeters in 230.0..245.0)
+        assertEquals(12, item.trackedMinutes)
+        assertEquals(points.size, item.route.size)
+    }
+
+    @Test
+    fun `coarse to accurate recovery changes anchor without counting position correction as travel`() {
+        val points = listOf(
+            breadcrumbAt(0.0, 0, 200f),
+            breadcrumbAt(100.0, 1, 10f),
+            breadcrumbAt(140.0, 2, 10f),
+        )
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        // Count the full real 40m segment, not 140m of correction or 20m after subtracting radii.
+        assertEquals(40.0, item.distanceMeters, 0.1)
+    }
+
+    @Test
+    fun `only an accuracy improvement of at least thirty metres resets an uncertain anchor`() {
+        fun distance(startAccuracy: Float) = DayFeedBuilder.build(
+            date, emptyList(), null,
+            breadcrumbs = listOf(
+                breadcrumbAt(0.0, 0, startAccuracy),
+                breadcrumbAt(50.0, 1, 30f),
+                breadcrumbAt(120.0, 2, 30f),
+            ),
+        ).distanceMeters
+
+        assertEquals(70.0, distance(60f), 0.1)
+        assertEquals(120.0, distance(59f), 0.1)
+    }
+
+    @Test
+    fun `invalid accuracy uses conservative uncertainty rather than inventing heartbeat travel`() {
+        listOf(Float.NaN, Float.POSITIVE_INFINITY, 0f, -10f).forEach { invalid ->
+            val points = listOf(breadcrumbAt(0.0, 0, invalid), breadcrumbAt(100.0, 5, invalid))
+            val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+            assertEquals(0.0, item.distanceMeters, 0.0)
+            assertEquals(5, item.trackedMinutes)
+        }
+    }
+
+    @Test
+    fun `distance anchor resets at gaps even when earlier movement was inside uncertainty`() {
+        val points = listOf(
+            breadcrumbAt(0.0, 0),
+            breadcrumbAt(20.0, 5),
+            breadcrumbAt(1_000.0, 30),
+            breadcrumbAt(1_020.0, 35),
+            breadcrumbAt(1_100.0, 40),
+        )
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = points)
+
+        assertEquals(100.0, item.distanceMeters, 0.1)
+        assertEquals(1, item.captureGapCount)
+        assertEquals(15, item.trackedMinutes)
+        assertTrue(item.distanceEstimated)
+        assertTrue(item.route.single { it.timestampMs == dayStart + minutes(30) }.startsAfterGap)
     }
 
     @Test

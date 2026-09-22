@@ -87,7 +87,7 @@ class CaptureProcessor(
                     onVisitRecorded = { visits += it }, stateStore = memory,
                     allowNetworkLookup = allowNetworkLookup,
                 )
-                tracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs)
+                tracker.onLocation(sample.latitude, sample.longitude, sample.timestampMs, accuracyM = sample.accuracyM)
                 tracker.awaitPendingWrites()
                 val point = if (RoutePointSampler.shouldPersist(sample, previous)) {
                     LocationBreadcrumb(timestampMs = sample.timestampMs, latitude = sample.latitude,
@@ -162,6 +162,7 @@ internal class BufferedCheckpoint(payload: String? = null, nowMs: Long = System.
         put("dwellLat", s.dwellLat); put("dwellLon", s.dwellLon); put("dwellStartMs", s.dwellStartMs)
         put("lastSampleMs", s.lastSampleMs); put("transitStartMs", s.transitStartMs)
         put("transitLat", s.transitLat); put("transitLon", s.transitLon)
+        put("maxTransitDisplacementM", s.maxTransitDisplacementM)
         put("departureLat", s.departureLat); put("departureLon", s.departureLon); put("inTransit", s.inTransit); put("suspended", s.suspended)
     }.toString() } ?: "{}"
 
@@ -181,6 +182,7 @@ internal class BufferedCheckpoint(payload: String? = null, nowMs: Long = System.
                 departureLon = coordinate("departureLon"),
                 inTransit = j.getBoolean("inTransit"),
                 suspended = j.optBoolean("suspended", false),
+                maxTransitDisplacementM = if (j.has("maxTransitDisplacementM")) j.getDouble("maxTransitDisplacementM") else 0.0,
             )
         }
     } catch (_: org.json.JSONException) {

@@ -202,7 +202,8 @@ object DayFeedBuilder {
             title = generatedTitle,
             state = inferredState,
             captureGapCount = gapStarts.size,
-            distanceEstimated = orderedBreadcrumbs.size < 2 || orderedBreadcrumbs.any { it.quality != "good" },
+            distanceEstimated = orderedBreadcrumbs.size < 2 || gapStarts.isNotEmpty() ||
+                orderedBreadcrumbs.any { it.quality != "good" },
         )
     }
 
@@ -310,9 +311,32 @@ object DayFeedBuilder {
     private fun breadcrumbDistanceMeters(
         points: List<LocationBreadcrumb>,
         gapStarts: Set<Long>,
-    ): Double = points.zipWithNext().sumOf { (from, to) ->
-        if (to.timestampMs in gapStarts) 0.0 else distanceM(from.latitude, from.longitude, to.latitude, to.longitude)
-    }.let { (it * 10).roundToLong() / 10.0 }
+    ): Double {
+        var anchor = points.firstOrNull() ?: return 0.0
+        var total = 0.0
+        points.drop(1).forEach { point ->
+            if (point.timestampMs in gapStarts) {
+                anchor = point
+                return@forEach
+            }
+            val displacement = distanceM(anchor.latitude, anchor.longitude, point.latitude, point.longitude)
+            val anchorAccuracy = anchor.distanceAccuracyM()
+            val pointAccuracy = point.distanceAccuracyM()
+            if (displacement <= anchorAccuracy + pointAccuracy) {
+                // Heartbeats preserve coverage, not proof of travel. Keep the distance anchor
+                // so genuine slow movement accumulates, but accept a materially better fix
+                // without treating recovery from a coarse position as a journey.
+                if (anchorAccuracy - pointAccuracy >= 30.0) anchor = point
+            } else {
+                total += displacement
+                anchor = point
+            }
+        }
+        return (total * 10).roundToLong() / 10.0
+    }
+
+    private fun LocationBreadcrumb.distanceAccuracyM(): Double =
+        accuracyM.takeIf { it.isFinite() && it > 0f }?.toDouble() ?: 250.0
 
     private fun LocationVisit.displayName(places: List<Place>): String =
         GeofenceMatcher.matchPlace(latitude, longitude, places)?.name
@@ -367,9 +391,9 @@ object DayFeedBuilder {
         val earth = 6_371_000.0
         val dLat = (lat2 - lat1) * Math.PI / 180.0
         val dLon = (lon2 - lon1) * Math.PI / 180.0
-        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+        val a = (kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
             cos(lat1 * Math.PI / 180.0) * cos(lat2 * Math.PI / 180.0) *
-            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)).coerceIn(0.0, 1.0)
         return earth * 2 * kotlin.math.atan2(sqrt(a), sqrt(1 - a))
     }
 

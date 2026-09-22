@@ -14,21 +14,25 @@ data class VisitTrackerState(
     val departureLon: Double?,
     val inTransit: Boolean,
     val suspended: Boolean = false,
+    val maxTransitDisplacementM: Double = 0.0,
 )
 
 /** Validate before duplicate detection as well as before restoring the visit state machine. */
 internal fun VisitTrackerState.isUsable(nowMs: Long = System.currentTimeMillis()): Boolean {
     if (lastSampleMs <= 0L || lastSampleMs > LocationQualityFilter.latestAllowedTime(nowMs)) return false
+    if (!maxTransitDisplacementM.isFinite() || maxTransitDisplacementM !in 0.0..(Math.PI * 6_371_000.0)) return false
     val pairs = listOf(dwellLat to dwellLon, transitLat to transitLon, departureLat to departureLon)
     if (pairs.any { (lat, lon) ->
             (lat == null) != (lon == null) || (lat != null && lon != null &&
                 (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0))
         }) return false
     return if (inTransit) {
-        dwellLat == null && transitLat != null && departureLat != null &&
-            transitStartMs > 0L && transitStartMs <= lastSampleMs
+        // New checkpoints keep a possible arrival while travel remains open. Old checkpoints
+        // have no candidate and are still valid; the next sample starts one.
+        transitLat != null && departureLat != null && transitStartMs > 0L && transitStartMs <= lastSampleMs &&
+            (dwellLat == null || (dwellStartMs >= transitStartMs && dwellStartMs <= lastSampleMs))
     } else {
-        dwellLat != null && dwellStartMs > 0L && dwellStartMs <= lastSampleMs
+        maxTransitDisplacementM == 0.0 && dwellLat != null && dwellStartMs > 0L && dwellStartMs <= lastSampleMs
     }
 }
 
@@ -60,6 +64,7 @@ internal class SharedPreferencesVisitTrackerStateStore(context: Context) : Visit
             departureLat = prefs.optionalDouble(KEY_DEPARTURE_LAT),
             departureLon = prefs.optionalDouble(KEY_DEPARTURE_LON),
             inTransit = prefs.getBoolean(KEY_IN_TRANSIT, false),
+            maxTransitDisplacementM = prefs.optionalDouble(KEY_MAX_TRANSIT_DISPLACEMENT) ?: 0.0,
         )
     }.getOrElse {
         clear()
@@ -81,6 +86,7 @@ internal class SharedPreferencesVisitTrackerStateStore(context: Context) : Visit
                 .putOptionalDouble(KEY_DEPARTURE_LAT, state.departureLat)
                 .putOptionalDouble(KEY_DEPARTURE_LON, state.departureLon)
                 .putBoolean(KEY_IN_TRANSIT, state.inTransit)
+                .putLong(KEY_MAX_TRANSIT_DISPLACEMENT, state.maxTransitDisplacementM.toBits())
                 .apply()
         }
     }
@@ -116,5 +122,6 @@ internal class SharedPreferencesVisitTrackerStateStore(context: Context) : Visit
         const val KEY_DEPARTURE_LAT = "departure_lat"
         const val KEY_DEPARTURE_LON = "departure_lon"
         const val KEY_IN_TRANSIT = "in_transit"
+        const val KEY_MAX_TRANSIT_DISPLACEMENT = "max_transit_displacement"
     }
 }
