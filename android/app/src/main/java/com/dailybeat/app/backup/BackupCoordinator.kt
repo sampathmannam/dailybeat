@@ -1,5 +1,6 @@
 package com.dailybeat.app.backup
 
+import com.dailybeat.app.capture.CaptureStorageGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -29,31 +30,39 @@ class BackupCoordinator(
         } finally { passphrase.fill('\u0000') }
     }
 
-    suspend fun restoreNow(passphrase: CharArray, versionId: String? = null): Result<String> = runCatching {
-        try {
-            if (archive != null && remote is ArchiveBackupRemote) {
-                val versions = remote.versions()
-                val version = if (versionId == null) versions.firstOrNull() else versions.firstOrNull { it.id == versionId }
-                    ?: throw IllegalStateException("Selected backup is no longer available. Refresh backup history.")
-                if (version != null) return@runCatching withContext(Dispatchers.IO) { archive.restore(passphrase, version) }
-            }
-            val backup = remote.download().getOrThrow()
-                ?: throw IllegalStateException("No encrypted backup exists. Use legacy restore only for older backups.")
-            val snapshot = withContext(Dispatchers.Default) {
-                BackupSnapshotCodec.decode(BackupEnvelope.open(backup.snapshotJson, passphrase))
-            }
-            localStore.restore(snapshot)
-            backup.updatedAt
-        } finally { passphrase.fill('\u0000') }
+    suspend fun restoreNow(passphrase: CharArray, versionId: String? = null): Result<String> {
+        val expectedDataGeneration = CaptureStorageGate.dataGeneration.get()
+        return runCatching {
+            try {
+                if (archive != null && remote is ArchiveBackupRemote) {
+                    val versions = remote.versions()
+                    val version = if (versionId == null) versions.firstOrNull() else versions.firstOrNull { it.id == versionId }
+                        ?: throw IllegalStateException("Selected backup is no longer available. Refresh backup history.")
+                    if (version != null) return@runCatching withContext(Dispatchers.IO) {
+                        archive.restore(passphrase, version, expectedDataGeneration)
+                    }
+                }
+                val backup = remote.download().getOrThrow()
+                    ?: throw IllegalStateException("No encrypted backup exists. Use legacy restore only for older backups.")
+                val snapshot = withContext(Dispatchers.Default) {
+                    BackupSnapshotCodec.decode(BackupEnvelope.open(backup.snapshotJson, passphrase))
+                }
+                localStore.restore(snapshot, expectedDataGeneration)
+                backup.updatedAt
+            } finally { passphrase.fill('\u0000') }
+        }
     }
 
     /** Explicit legacy recovery only. Never fall back after a failed authentication/tag check. */
-    suspend fun restoreLegacyNow(): Result<String> = runCatching {
-        val backup = remote.downloadLegacy().getOrThrow()
-            ?: throw IllegalStateException("No legacy backup exists for this account.")
-        val snapshot = BackupSnapshotCodec.decode(backup.snapshotJson)
-        localStore.restore(snapshot)
-        backup.updatedAt
+    suspend fun restoreLegacyNow(): Result<String> {
+        val expectedDataGeneration = CaptureStorageGate.dataGeneration.get()
+        return runCatching {
+            val backup = remote.downloadLegacy().getOrThrow()
+                ?: throw IllegalStateException("No legacy backup exists for this account.")
+            val snapshot = BackupSnapshotCodec.decode(backup.snapshotJson)
+            localStore.restore(snapshot, expectedDataGeneration)
+            backup.updatedAt
+        }
     }
     suspend fun deleteCloudData(): Result<Unit> = remote.deleteCloudData()
     suspend fun deleteAccount(): Result<Unit> = remote.deleteAccount()

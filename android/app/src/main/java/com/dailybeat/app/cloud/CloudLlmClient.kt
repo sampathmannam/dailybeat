@@ -2,6 +2,7 @@ package com.dailybeat.app.cloud
 
 import com.dailybeat.app.data.settings.AppSettings
 import com.dailybeat.app.data.settings.CloudProvider
+import com.dailybeat.app.util.isBoundedJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -223,6 +224,9 @@ open class CloudLlmClient(
             .build()
 
         val responseBody = responseText(request, provider).getOrElse { return Result.failure(it) }
+        if (!isBoundedJson(responseBody, objectOnly = true)) {
+            return Result.failure(IllegalStateException("Invalid response from $provider."))
+        }
         val json = try {
             JSONObject(responseBody)
         } catch (_: Exception) {
@@ -267,6 +271,9 @@ open class CloudLlmClient(
 
         val responseBody = responseText(request, CloudProvider.ANTHROPIC.displayName)
             .getOrElse { return Result.failure(it) }
+        if (!isBoundedJson(responseBody, objectOnly = true)) {
+            return Result.failure(IllegalStateException("Invalid response from Anthropic."))
+        }
         val json = try {
             JSONObject(responseBody)
         } catch (_: Exception) {

@@ -3,12 +3,21 @@ package com.dailybeat.app.backup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +27,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.net.UnknownHostException
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.TimeUnit
 
@@ -172,6 +183,42 @@ class SupabaseBackupClientTest {
     }
 
     @Test
+    fun `deeply nested authentication replies fail without retaining a session`() = runBlocking {
+        val nested = "{\"unexpected\":" + "[".repeat(5_000) + "0" + "]".repeat(5_000) + "}"
+        repeat(2) { server.enqueue(jsonResponse(nested)) }
+
+        val signIn = client.signIn("person@example.com", "correct horse")
+        val signUp = client.signUp("person@example.com", "correct horse")
+
+        for (result in listOf(signIn, signUp)) {
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            assertEquals("Cloud backup returned invalid JSON.", result.exceptionOrNull()?.message)
+        }
+        assertEquals(null, sessions.current)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `deeply nested download and archive replies fail before recursive parsing`() = runBlocking {
+        sessions.current = activeSession()
+        val nested = "[".repeat(5_000) + "0" + "]".repeat(5_000)
+        repeat(3) { server.enqueue(jsonResponse(nested)) }
+
+        val results = listOf(
+            client.download(),
+            runCatching { client.versions() },
+            runCatching { client.downloadPart("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", 0) },
+        )
+
+        for (result in results) {
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            assertEquals("Cloud backup returned invalid JSON.", result.exceptionOrNull()?.message)
+        }
+        assertEquals(activeSession(), sessions.current)
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
     fun `expired session refreshes before upload`() = runBlocking {
         sessions.current = activeSession(expiresAtMs = 900_000L)
         server.enqueue(
@@ -218,6 +265,33 @@ class SupabaseBackupClientTest {
 
         assertTrue(client.signIn("person@example.com", "correct horse").isFailure)
         assertEquals(null, client.currentSession())
+    }
+
+    @Test
+    fun `sign out invalidates sign in waiting for IO dispatch`() = assertQueuedAuthenticationIsInvalidated(false)
+
+    @Test
+    fun `sign out invalidates sign up waiting for IO dispatch`() = assertQueuedAuthenticationIsInvalidated(true)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun assertQueuedAuthenticationIsInvalidated(signUp: Boolean) = runTest {
+        sessions.current = activeSession()
+        server.enqueue(refreshedSessionResponse())
+        val queued = SupabaseBackupClient(
+            BackupConfiguration(server.url("/").toString(), "public-anon-key"), sessions,
+            authenticationDispatcher = StandardTestDispatcher(testScheduler),
+        )
+        // Enter authentication immediately, then hold the IO body until after sign-out.
+        val pending = async(UnconfinedTestDispatcher(testScheduler)) {
+            if (signUp) queued.signUp("person@example.com", "test password").isFailure
+            else queued.signIn("person@example.com", "test password").isFailure
+        }
+        assertFalse(pending.isCompleted)
+        queued.signOut()
+
+        assertTrue(pending.await())
+        assertEquals(null, sessions.current)
+        assertEquals("A revoked queued request must not transmit credentials", 0, server.requestCount)
     }
 
     @Test
@@ -328,6 +402,67 @@ class SupabaseBackupClientTest {
         assertTrue(client.deleteAccount().isFailure)
 
         assertEquals("user-1", sessions.current?.userId)
+    }
+
+    @Test
+    fun `injected shared client cannot redirect backup credentials`() = runBlocking {
+        sessions.current = activeSession()
+        MockWebServer().use { redirected ->
+            redirected.start()
+            server.enqueue(MockResponse().setResponseCode(307).setHeader("Location", redirected.url("/collect")))
+            redirected.enqueue(jsonResponse("[]"))
+
+            assertTrue(client.download().isFailure)
+
+            assertEquals(1, server.requestCount)
+            assertEquals(0, redirected.requestCount)
+            assertEquals("Bearer access-one", server.takeRequest().getHeader("Authorization"))
+        }
+    }
+
+    @Test
+    fun `cancelling sign in closes a stalled call without retries or session changes`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val failed = CountDownLatch(1)
+        val network = OkHttpClient.Builder().eventListener(object : EventListener() {
+            override fun callFailed(call: Call, ioe: IOException) { failed.countDown() }
+        }).build()
+        val cancellable = SupabaseBackupClient(
+            BackupConfiguration(server.url("/").toString(), "public-anon-key"), sessions, network,
+            networkRetryDelaysMs = listOf(0L, 0L),
+        )
+        val job = launch(Dispatchers.IO) { cancellable.signIn("person@example.com", "test password") }
+        try {
+            assertTrue(server.takeRequest(5, TimeUnit.SECONDS) != null)
+            withTimeout(5_000) { job.cancelAndJoin() }
+            assertTrue("Cancellation must close the socket", failed.await(5, TimeUnit.SECONDS))
+            assertEquals(1, server.requestCount)
+            assertEquals(null, sessions.current)
+        } finally { job.cancelAndJoin() }
+    }
+
+    @Test
+    fun `cancelling backup download closes a stalled response body`() = runBlocking {
+        sessions.current = activeSession()
+        server.enqueue(jsonResponse("[]").setBodyDelay(2, TimeUnit.SECONDS))
+        val headers = CountDownLatch(1)
+        val failed = CountDownLatch(1)
+        val network = OkHttpClient.Builder().eventListener(object : EventListener() {
+            override fun responseHeadersEnd(call: Call, response: okhttp3.Response) { headers.countDown() }
+            override fun callFailed(call: Call, ioe: IOException) { failed.countDown() }
+        }).build()
+        val cancellable = SupabaseBackupClient(
+            BackupConfiguration(server.url("/").toString(), "public-anon-key"), sessions, network,
+            clock = { 1_000_000L }, networkRetryDelaysMs = listOf(0L, 0L),
+        )
+        val job = launch(Dispatchers.IO) { cancellable.download() }
+        try {
+            assertTrue(headers.await(5, TimeUnit.SECONDS))
+            withTimeout(5_000) { job.cancelAndJoin() }
+            assertTrue("Cancellation must close the body read", failed.await(5, TimeUnit.SECONDS))
+            assertEquals(1, server.requestCount)
+            assertEquals(activeSession(), sessions.current)
+        } finally { job.cancelAndJoin() }
     }
 
     private fun activeSession(expiresAtMs: Long = 5_000_000L) = BackupSession(

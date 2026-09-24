@@ -2,6 +2,8 @@ package com.dailybeat.app.backup
 
 import org.json.JSONArray
 import org.json.JSONObject
+import com.dailybeat.app.capture.CaptureStorageGate
+import com.dailybeat.app.util.isBoundedJson
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
@@ -20,6 +22,10 @@ import javax.crypto.spec.SecretKeySpec
 interface PagedSnapshotStore : SnapshotStore {
     suspend fun forEachPage(emit: suspend (BackupSnapshot) -> Unit)
     suspend fun restorePages(pages: Sequence<BackupSnapshot>)
+    suspend fun restorePages(pages: Sequence<BackupSnapshot>, expectedDataGeneration: Long) {
+        requireCurrentRestoreGeneration(expectedDataGeneration)
+        restorePages(pages)
+    }
 }
 
 data class BackupVersion(val id: String, val createdAt: String, val manifest: String)
@@ -30,6 +36,37 @@ interface ArchiveBackupRemote : BackupRemote {
     suspend fun publishVersion(id: String, manifest: String, parts: Int)
     suspend fun versions(): List<BackupVersion>
     suspend fun downloadPart(id: String, index: Int): String
+}
+
+private class ArchivePageTooLargeException(message: String) : IllegalArgumentException(message)
+
+/** Upload quotas use PostgreSQL's jsonb::text bytes, not compact Android JSON length. */
+internal object ArchiveUploadSize {
+    fun addPart(previousBytes: Long, payload: String): Long {
+        require(previousBytes in 0..ArchiveCipher.MAX_ARCHIVE_BYTES)
+        val envelope = JSONObject(payload)
+        val nonce = envelope.opt("nonce") as? String
+        val ciphertext = envelope.opt("ciphertext") as? String
+        require(envelope.length() == 2 && nonce != null && ciphertext != null &&
+            nonce.all(::isBase64Character) && ciphertext.all(::isBase64Character)) {
+            "Invalid generated backup envelope."
+        }
+        // The validated Base64 alphabet is ASCII and needs no JSON escaping, so its
+        // UTF-8 byte count equals its character count. jsonb adds a space after each
+        // colon and the comma: {"nonce": "...", "ciphertext": "..."}.
+        val storedBytes = 31L + nonce.length + ciphertext.length
+        if (storedBytes > ArchiveCipher.MAX_PART_BYTES) {
+            throw ArchivePageTooLargeException("A compressed backup page is too large.")
+        }
+        return (previousBytes + storedBytes).also {
+            require(it <= ArchiveCipher.MAX_ARCHIVE_BYTES) {
+                "Encrypted backup exceeds the 64 MB account snapshot limit."
+            }
+        }
+    }
+
+    private fun isBase64Character(char: Char): Boolean =
+        char in 'A'..'Z' || char in 'a'..'z' || char in '0'..'9' || char == '+' || char == '/' || char == '='
 }
 
 /** One expensive password derivation per archive; unique nonce and version/index AAD per part. */
@@ -52,7 +89,10 @@ internal class ArchiveCipher(passphrase: CharArray, salt: ByteArray = ByteArray(
     }
     fun seal(text: String, id: String, index: Int): String {
         val plain = text.toByteArray(Charsets.UTF_8)
-        require(plain.size <= MAX_PLAIN) { "A backup page is too large." }
+        if (plain.size > MAX_PLAIN) {
+            plain.fill(0)
+            throw ArchivePageTooLargeException("A backup page is too large.")
+        }
         val compressed = try { ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(plain) } }.toByteArray() }
         finally { plain.fill(0) }
         val nonce = ByteArray(12).also(SecureRandom()::nextBytes)
@@ -60,11 +100,16 @@ internal class ArchiveCipher(passphrase: CharArray, salt: ByteArray = ByteArray(
         finally { compressed.fill(0) }
         return JSONObject().put("nonce", Base64.getEncoder().encodeToString(nonce))
             .put("ciphertext", Base64.getEncoder().encodeToString(encrypted)).toString().also {
-                require(it.length <= MAX_PART_BYTES) { "A compressed backup page is too large." }
+                // Retain the client/restore wire ceiling too: JSON encoders may escape '/'.
+                if (it.length > MAX_PART_BYTES) {
+                    throw ArchivePageTooLargeException("A compressed backup page is too large.")
+                }
+                ArchiveUploadSize.addPart(0L, it)
             }
     }
     fun open(payload: String, id: String, index: Int): String {
         require(payload.length <= MAX_PART_BYTES) { "Backup page is too large." }
+        require(isBoundedJson(payload, objectOnly = true)) { "Invalid backup page." }
         val j = JSONObject(payload)
         val nonce = Base64.getDecoder().decode(j.getString("nonce"))
         val compressed = try {
@@ -102,15 +147,20 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
         ArchiveCipher(passphrase).use { crypto ->
             val hashes = JSONArray()
             var bytes = 0L
+            var wireBytes = 0L
             var createdAt = 0L
             local.forEachPage { page ->
                 createdAt = page.createdAtMs
-                for (encoded in splitPage(page)) {
+                val nextIndex = {
+                    hashes.length().also { index ->
+                        require(index < ArchiveCipher.MAX_PARTS) { "Backup exceeds 2,048 pages. Choose a shorter retention period or export older records." }
+                    }
+                }
+                for (payload in encryptedPages(page, crypto, id, nextIndex)) {
                     val index = hashes.length()
-                    require(index < ArchiveCipher.MAX_PARTS) { "Backup exceeds 2,048 pages. Choose a shorter retention period or export older records." }
-                    val payload = crypto.seal(encoded, id, index)
-                    bytes += payload.length
-                    require(bytes <= ArchiveCipher.MAX_ARCHIVE_BYTES) { "Encrypted backup exceeds the 64 MB account snapshot limit." }
+                    bytes = ArchiveUploadSize.addPart(bytes, payload)
+                    wireBytes += payload.length
+                    require(wireBytes <= ArchiveCipher.MAX_ARCHIVE_BYTES) { "Encrypted backup exceeds the 64 MB account snapshot limit." }
                     File(dir, "$index").writeText(payload)
                     hashes.put(hash(payload))
                 }
@@ -127,7 +177,11 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
                 // The DELETE matches only our uncommitted UUID. An uncertain publish response can
                 // never cause cleanup to remove a backup that the server already committed.
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                    runCatching { remote.abandonVersion(id) }
+                    // Cleanup is best-effort, not permission to keep a cancelled backup alive
+                    // through every network timeout/retry. The server expires pending uploads.
+                    kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                        runCatching { remote.abandonVersion(id) }
+                    }
                 }
                 throw error
             }
@@ -135,11 +189,19 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
         }
     }
 
-    suspend fun restore(passphrase: CharArray, version: BackupVersion): String = staging { dir ->
+    suspend fun restore(
+        passphrase: CharArray,
+        version: BackupVersion,
+        expectedDataGeneration: Long = CaptureStorageGate.dataGeneration.get(),
+    ): String = staging { dir ->
+        requireCurrentRestoreGeneration(expectedDataGeneration)
+        require(isBoundedJson(version.manifest, objectOnly = true)) { "Invalid backup archive." }
         val manifest = JSONObject(version.manifest)
         require(manifest.optString("format") == "dailybeat-archive" && manifest.optInt("version") == 1) { "Unsupported backup archive." }
         ArchiveCipher(passphrase, Base64.getDecoder().decode(manifest.getString("salt"))).use { crypto ->
-            val content = JSONObject(crypto.open(manifest.getJSONObject("sealed").toString(), version.id, -1))
+            val openedContent = crypto.open(manifest.getJSONObject("sealed").toString(), version.id, -1)
+            require(isBoundedJson(openedContent, objectOnly = true)) { "Invalid backup archive." }
+            val content = JSONObject(openedContent)
             val hashes = content.getJSONArray("hashes")
             require(hashes.length() in 1..ArchiveCipher.MAX_PARTS) { "Invalid backup page count." }
             var bytes = 0L
@@ -158,7 +220,7 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
                 repeat(hashes.length()) { index ->
                     yield(BackupSnapshotCodec.decode(crypto.open(File(dir, "$index").readText(), version.id, index)))
                 }
-            })
+            }, expectedDataGeneration)
             version.createdAt
         }
     }
@@ -169,12 +231,25 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
         check(dir.mkdir()) { "Could not prepare backup storage. Check free space." }
         return try { block(dir) } finally { dir.deleteRecursively() }
     }
-    private fun hash(payload: String): String = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(JSONObject(payload).let { it.getString("nonce") + ":" + it.getString("ciphertext") }.toByteArray()))
+    private fun hash(payload: String): String {
+        require(isBoundedJson(payload, objectOnly = true)) { "Invalid backup page." }
+        return Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(JSONObject(payload).let {
+            it.getString("nonce") + ":" + it.getString("ciphertext")
+        }.toByteArray()))
+    }
 
-    private fun splitPage(page: BackupSnapshot): Sequence<String> = sequence {
+    private fun encryptedPages(
+        page: BackupSnapshot,
+        crypto: ArchiveCipher,
+        id: String,
+        nextIndex: () -> Int,
+    ): Sequence<String> = sequence {
         val text = BackupSnapshotCodec.encode(page)
-        if (text.toByteArray().size <= ArchiveCipher.MAX_PLAIN) { yield(text); return@sequence }
-        // A page contains one table; split large text rows before encryption, never drop a row.
+        val payload = try { crypto.seal(text, id, nextIndex()) } catch (_: ArchivePageTooLargeException) { null }
+        if (payload != null) { yield(payload); return@sequence }
+        // Both the expanded page and its encrypted/base64 representation have limits. A legal
+        // page with less-compressible text can exceed the latter even below MAX_PLAIN.
+        // Split at record boundaries; each yielded payload binds the final archive page index.
         val size = listOf(page.events.size, page.places.size, page.diaries.size, page.visits.size,
             page.breadcrumbs.size, page.beatReviews.size, page.diaryRevisions.size, page.visitCorrections.size).max()
         require(size > 1) { "A record exceeds the backup page limit." }
@@ -188,6 +263,7 @@ class BackupArchive(private val local: PagedSnapshotStore, private val remote: A
             beatReviews = if(first) page.beatReviews.take(midpoint) else page.beatReviews.drop(midpoint),
             diaryRevisions = if(first) page.diaryRevisions.take(midpoint) else page.diaryRevisions.drop(midpoint),
             visitCorrections = if(first) page.visitCorrections.take(midpoint) else page.visitCorrections.drop(midpoint))
-        yieldAll(splitPage(half(true))); yieldAll(splitPage(half(false)))
+        yieldAll(encryptedPages(half(true), crypto, id, nextIndex))
+        yieldAll(encryptedPages(half(false), crypto, id, nextIndex))
     }
 }

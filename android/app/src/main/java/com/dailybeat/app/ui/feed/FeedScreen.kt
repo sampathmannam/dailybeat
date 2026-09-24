@@ -63,6 +63,7 @@ import java.time.LocalDate
 import java.io.File
 import com.dailybeat.app.util.Formatters
 import com.dailybeat.app.util.InputPolicy
+import com.dailybeat.app.domain.VisitLabels
 import kotlinx.coroutines.launch
 
 @Composable
@@ -73,9 +74,11 @@ fun FeedScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var stayBeingNamed by remember { mutableStateOf<DayStay?>(null) }
+    var stayBeingNamed by remember(state.dataGeneration) { mutableStateOf<DayStay?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var sharePreviews by remember { mutableStateOf<List<com.dailybeat.app.export.DiarySharePreview>?>(null) }
+    var sharePreviews by remember(state.dataGeneration) {
+        mutableStateOf<List<com.dailybeat.app.export.DiarySharePreview>?>(null)
+    }
     sharePreviews?.let { previews ->
         com.dailybeat.app.ui.components.SharePreviewDialog(previews, state.isExporting,
             onDismiss = { sharePreviews = null },
@@ -456,6 +459,13 @@ private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (stay.name == VisitLabels.UNAVAILABLE && stay.canBeNamed) {
+                Text(
+                    text = stringResource(R.string.feed_name_missing_place_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
@@ -513,7 +523,9 @@ private fun NamePlaceDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
 ) {
-    var draft by remember(stay) { mutableStateOf(stay.name) }
+    var draft by remember(stay) {
+        mutableStateOf(stay.name.takeUnless { it == VisitLabels.UNAVAILABLE }.orEmpty())
+    }
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(stringResource(R.string.feed_name_place_title)) },

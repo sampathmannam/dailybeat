@@ -5,6 +5,7 @@ import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.StructuredEvent
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.util.InputPolicy
+import com.dailybeat.app.util.isBoundedJson
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -54,8 +55,10 @@ class EventExtractor(
         val start = response.indexOf('{')
         val end = response.lastIndexOf('}')
         if (start < 0 || end <= start) return null
+        val payload = response.substring(start, end + 1)
+        if (!isBoundedJson(payload, objectOnly = true)) return null
         return try {
-            val obj = JSONObject(response.substring(start, end + 1))
+            val obj = JSONObject(payload)
             StructuredEvent(
                 // The model may enrich metadata, but the officer's own words remain the source
                 // record. Replacing them with a generated summary could silently omit details.

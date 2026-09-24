@@ -147,6 +147,13 @@ class BackupSnapshotCodecTest {
     }
 
     @Test
+    fun `deeply nested import is rejected before recursive JSON parsing`() {
+        val nested = "{\"unexpected\":" + "[".repeat(5_000) + "0" + "]".repeat(5_000) + "}"
+        val error = assertThrows(IllegalArgumentException::class.java) { BackupSnapshotCodec.decode(nested) }
+        assertEquals("Backup is not valid JSON.", error.message)
+    }
+
+    @Test
     fun `invalid coordinates are rejected before restore`() {
         val invalid = BackupSnapshot.empty(createdAtMs = 123L).copy(
             places = listOf(

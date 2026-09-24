@@ -44,4 +44,10 @@ class BackupEnvelopeTest {
         assertThrows(IllegalArgumentException::class.java) { BackupEnvelope.seal("private", "short".toCharArray()) }
         assertThrows(IllegalArgumentException::class.java) { BackupEnvelope.open("""{"schemaVersion":2}""", secret) }
     }
+
+    @Test fun deeplyNestedEnvelopeFailsBeforeParsingOrPasswordDerivation() {
+        val nested = "{\"unexpected\":" + "[".repeat(5_000) + "0" + "]".repeat(5_000) + "}"
+        val error = assertThrows(IllegalArgumentException::class.java) { BackupEnvelope.open(nested, secret) }
+        assertEquals("Invalid encrypted backup.", error.message)
+    }
 }

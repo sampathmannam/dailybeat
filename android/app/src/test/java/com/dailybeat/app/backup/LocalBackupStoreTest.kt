@@ -1,6 +1,8 @@
 package com.dailybeat.app.backup
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.data.db.DailyBeatDb
@@ -10,11 +12,13 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.SettingsRepository
 import com.dailybeat.app.data.settings.ThemePreference
+import com.dailybeat.app.capture.CaptureStorageGate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -157,6 +161,41 @@ class LocalBackupStoreTest {
         assertEquals("locally-chosen-model", restored.cloudModel)
         assertEquals("https://trusted.example/v1", restored.cloudBaseUrl)
         assertEquals(listOf(1L), db.events().all().map { it.id })
+    }
+
+    @Test
+    fun `preference failure after commit reports restored records and their committed generation`() = runBlocking {
+        seedOriginalData()
+        val snapshot = BackupSnapshot.empty(123).copy(
+            events = listOf(Event(id = 77, timestamp = 100, type = "manual", rawText = "Restored record")),
+        )
+        val failingContext = object : ContextWrapper(context) {
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences {
+                val prefs = super.getSharedPreferences(name, mode)
+                return object : SharedPreferences by prefs {
+                    override fun edit(): SharedPreferences.Editor {
+                        val editor = prefs.edit()
+                        return object : SharedPreferences.Editor by editor {
+                            override fun putInt(key: String?, value: Int): SharedPreferences.Editor {
+                                editor.putInt(key, value)
+                                return this
+                            }
+                            override fun commit(): Boolean = false
+                        }
+                    }
+                }
+            }
+        }
+        val startingGeneration = CaptureStorageGate.dataGeneration.get()
+        val failingStore = LocalBackupStore(db, SettingsRepository(failingContext))
+        val error = assertThrows(RestoreSettingsException::class.java) {
+            runBlocking { failingStore.restore(snapshot, startingGeneration) }
+        }
+        assertEquals(listOf(77L), db.events().all().map { it.id })
+        assertEquals(startingGeneration + 1L, error.committedDataGeneration)
+        assertEquals(error.committedDataGeneration, CaptureStorageGate.dataGeneration.get())
+        assertTrue(error.message.orEmpty().contains("records were restored"))
+        assertTrue(error.cause is IllegalStateException)
     }
 
     private suspend fun seedOriginalData() {

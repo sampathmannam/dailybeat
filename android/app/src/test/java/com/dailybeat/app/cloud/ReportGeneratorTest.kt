@@ -51,6 +51,7 @@ class ReportGeneratorTest {
             .build()
         settings = SettingsRepository(context, InMemoryApiKeyStore(context))
         settings.setCloudLlmEnabled(true)
+        settings.setAutoEveningReport(true)
         diaries = DiaryRepository(db.diaries())
         events = EventRepository(db.events())
         generator = ReportGenerator(
@@ -118,6 +119,7 @@ class ReportGeneratorTest {
 
     @Test
     fun `explicit generation replaces the diary because the officer asked for it`() = runBlocking {
+        settings.setAutoEveningReport(false)
         val today = DateKeys.today()
         events.addManualEvent("Court attendance")
         diaries.saveForDate(today, "Draft to be replaced.")

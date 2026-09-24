@@ -8,6 +8,7 @@ import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.DiaryRevision
 import com.dailybeat.app.data.model.VisitCorrection
+import com.dailybeat.app.util.isBoundedJson
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -39,6 +40,7 @@ object BackupSnapshotCodec {
 
     fun decode(json: String): BackupSnapshot {
         require(jsonByteSize(json) <= MAX_JSON_BYTES) { "Backup is too large to restore safely." }
+        require(isBoundedJson(json, objectOnly = true)) { "Backup is not valid JSON." }
         val root = try {
             JSONObject(json)
         } catch (_: JSONException) {

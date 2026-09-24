@@ -2,6 +2,7 @@ package com.dailybeat.app.ui.feed
 
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.LocationBreadcrumb
+import com.dailybeat.app.data.model.Place
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -55,7 +56,40 @@ class DayFeedBuilderTest {
     fun `a stay with neither name nor address is still listed`() {
         val item = DayFeedBuilder.build(date, listOf(stay(null, 0, 20, address = null)), null)
 
-        assertEquals("Unnamed place", item.stays.single().name)
+        assertEquals("Place name unavailable", item.stays.single().name)
+    }
+
+    @Test
+    fun `placeholder name cannot hide a meaningful address on a stay or map marker`() {
+        val item = DayFeedBuilder.build(date, listOf(stay(" Unnamed place ", 0, 20)), null)
+
+        assertEquals("Salem Road", item.stays.single().name)
+        assertEquals("Salem Road", item.route.single().stopLabel)
+    }
+
+    @Test
+    fun `saved place labels repair old unnamed stays without changing the record`() {
+        val visit = stay("Unnamed place", 0, 20, address = "Unnamed place")
+        val item = DayFeedBuilder.build(
+            date, listOf(visit), null,
+            places = listOf(Place(name = "Camp office", latitude = visit.latitude, longitude = visit.longitude)),
+        )
+
+        assertEquals("Camp office", item.stays.single().name)
+        assertEquals("Camp office", item.route.single().stopLabel)
+        assertEquals("Unnamed place", visit.placeName)
+    }
+
+    @Test
+    fun `an explicitly corrected visit wins over a nearby saved geofence`() {
+        val visit = stay("Royal Oak", 0, 20).copy(manuallyEdited = true)
+        val item = DayFeedBuilder.build(
+            date, listOf(visit), null,
+            places = listOf(Place(name = "Neighbouring shop", latitude = visit.latitude, longitude = visit.longitude)),
+        )
+
+        assertEquals("Royal Oak", item.stays.single().name)
+        assertEquals("Royal Oak", item.route.single().stopLabel)
     }
 
     @Test

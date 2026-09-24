@@ -35,6 +35,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dailybeat.app.R
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.domain.VisitLabels
+import com.dailybeat.app.ui.feed.DayStay
 import com.dailybeat.app.ui.components.CaptureCoverageNote
 import com.dailybeat.app.ui.components.JourneyRoutePreview
 import com.dailybeat.app.ui.components.MetricPill
@@ -56,11 +58,12 @@ fun ReviewDayScreen(
     val day by viewModel.day.collectAsStateWithLifecycle()
     val visits by viewModel.visits.collectAsStateWithLifecycle()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var renameVisit by remember { mutableStateOf<LocationVisit?>(null) }
+    var renameVisit by remember(state.dataGeneration) { mutableStateOf<LocationVisit?>(null) }
 
     renameVisit?.let { visit ->
         RenameStopDialog(
             visit = visit,
+            currentLabel = reviewVisitLabel(visit, day.stays),
             onDismiss = { renameVisit = null },
             onSave = { name ->
                 viewModel.renameVisit(visit, name)
@@ -161,6 +164,7 @@ fun ReviewDayScreen(
         items(visits, key = { it.id }) { visit ->
             ReviewVisitRow(
                 visit = visit,
+                displayName = reviewVisitLabel(visit, day.stays),
                 onRename = { renameVisit = visit },
                 onToggleHidden = { viewModel.setVisitHidden(visit, !visit.hidden) },
                 modifier = Modifier.padding(horizontal = 20.dp),
@@ -213,6 +217,7 @@ fun ReviewDayScreen(
 @Composable
 private fun ReviewVisitRow(
     visit: LocationVisit,
+    displayName: String,
     onRename: () -> Unit,
     onToggleHidden: () -> Unit,
     modifier: Modifier = Modifier,
@@ -236,9 +241,7 @@ private fun ReviewVisitRow(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    visit.placeName?.takeIf { it.isNotBlank() }
-                        ?: visit.address?.substringBefore(',')?.takeIf { it.isNotBlank() }
-                        ?: stringResource(R.string.unnamed_stop),
+                    displayName,
                     style = MaterialTheme.typography.titleSmall,
                     color = if (visit.hidden) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 )
@@ -285,8 +288,13 @@ private fun ReviewVisitRow(
 }
 
 @Composable
-private fun RenameStopDialog(visit: LocationVisit, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var name by remember(visit.id) { mutableStateOf(visit.placeName.orEmpty()) }
+private fun RenameStopDialog(
+    visit: LocationVisit,
+    currentLabel: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var name by remember(visit.id) { mutableStateOf(reviewRenameSeed(currentLabel)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.rename_stop)) },
@@ -313,6 +321,14 @@ private fun RenameStopDialog(visit: LocationVisit, onDismiss: () -> Unit, onSave
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
+
+/** The already-built day includes current saved-place labels; hidden rows stay reviewable. */
+internal fun reviewVisitLabel(visit: LocationVisit, stays: List<DayStay>): String =
+    (if (!visit.hidden && visit.id > 0) stays.firstOrNull { it.visitId == visit.id }?.name else null)
+        ?: VisitLabels.name(visit, shortAddress = true)
+        ?: VisitLabels.UNAVAILABLE
+
+internal fun reviewRenameSeed(label: String): String = label.takeUnless { it == VisitLabels.UNAVAILABLE }.orEmpty()
 
 @Composable
 private fun StateBadge(state: String) {

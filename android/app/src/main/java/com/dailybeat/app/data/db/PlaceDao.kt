@@ -31,4 +31,21 @@ interface PlaceDao {
 
     @Update
     suspend fun update(place: Place)
+
+    @Query("""DELETE FROM places WHERE id = :id AND name = :name AND latitude = :latitude
+        AND longitude = :longitude AND radiusM = :radiusM AND isPrivate = :wasPrivate""")
+    suspend fun deleteIfCurrent(id: Long, name: String, latitude: Double, longitude: Double,
+        radiusM: Int, wasPrivate: Boolean): Int
+
+    @Query("""UPDATE places SET isPrivate = :isPrivate WHERE id = :id AND name = :name
+        AND latitude = :latitude AND longitude = :longitude AND radiusM = :radiusM
+        AND isPrivate = :wasPrivate""")
+    suspend fun setPrivateIfCurrent(id: Long, name: String, latitude: Double, longitude: Double,
+        radiusM: Int, wasPrivate: Boolean, isPrivate: Boolean): Int
+
+    @Query("""UPDATE places SET name = :newName WHERE id = :id AND name = :name
+        AND latitude = :latitude AND longitude = :longitude AND radiusM = :radiusM
+        AND isPrivate = :wasPrivate""")
+    suspend fun renameIfCurrent(id: Long, name: String, latitude: Double, longitude: Double,
+        radiusM: Int, wasPrivate: Boolean, newName: String): Int
 }

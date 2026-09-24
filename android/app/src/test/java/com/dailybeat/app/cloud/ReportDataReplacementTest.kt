@@ -56,6 +56,7 @@ class ReportDataReplacementTest {
         context.getSharedPreferences("dailybeat_settings", Context.MODE_PRIVATE).edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(context, DailyBeatDb::class.java).allowMainThreadQueries().build()
         settings = SettingsRepository(context, InMemoryApiKeyStore(context)).apply { setCloudLlmEnabled(true) }
+        settings.setAutoEveningReport(true)
         diaries = DiaryRepository(db.diaries())
         events = EventRepository(db.events())
         delayed = DelayedCloud(context)
@@ -105,5 +106,27 @@ class ReportDataReplacementTest {
 
     @Test fun lateReportCannotOverwriteRestoredDiary() = assertLateReplyCannotPersist("Restored diary") {
         daily().generateAndSaveForDate(DateKeys.today())
+    }
+
+    @Test fun disabledAutomaticReportDoesNotStartARequest() = runBlocking {
+        events.addManualEvent("Private source note")
+        settings.setAutoEveningReport(false)
+        assertTrue(daily().generateUnattendedForDate(DateKeys.today()).isFailure)
+        assertFalse(delayed.requested.isCompleted)
+        assertNull(diaries.todayText())
+    }
+
+    @Test fun lateAutomaticReplyCannotAppendAfterConsentIsWithdrawn() = runBlocking {
+        withTimeout(20_000) {
+            events.addManualEvent("Private source note")
+            diaries.saveToday("My hand-written diary")
+            val result = async { daily().generateUnattendedForDate(DateKeys.today()) }
+            delayed.requested.await()
+            settings.setAutoEveningReport(false)
+            delayed.complete.complete(Unit)
+            assertTrue(result.await().isFailure)
+            assertEquals("My hand-written diary", diaries.todayText())
+            assertTrue(db.diaries().allRevisions().isEmpty())
+        }
     }
 }

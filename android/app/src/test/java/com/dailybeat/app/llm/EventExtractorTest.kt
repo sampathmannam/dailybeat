@@ -57,6 +57,29 @@ class EventExtractorTest {
         assertTrue(result.isFailure)
     }
 
+    @Test
+    fun `deeply nested generated event JSON is reported as invalid without recursive parsing`() = runBlocking {
+        val nesting = "[".repeat(20_000) + "0" + "]".repeat(20_000)
+        val extractor = EventExtractor(fakeCloud("""{"place_guess":"HQ","extra":$nesting}"""), settings)
+
+        val result = extractor.extract("Briefing completed.")
+
+        assertEquals("The cloud model returned invalid event JSON.", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `bounded event JSON inside a markdown fence remains supported`() = runBlocking {
+        val nesting = "[".repeat(63) + "0" + "]".repeat(63)
+        val response = "```json\n" + """{"place_guess":"HQ","people":["Rao"],"extra":$nesting}""" + "\n```"
+        val extractor = EventExtractor(fakeCloud(response), settings)
+
+        val event = extractor.extract("Briefing completed.").getOrThrow()
+
+        assertEquals("HQ", event.placeName)
+        assertEquals("Rao", event.peopleMentioned)
+        assertEquals("Briefing completed.", event.rawText)
+    }
+
     private fun fakeCloud(reply: String) = object : CloudTextGenerator {
         override suspend fun generate(
             settings: AppSettings,
