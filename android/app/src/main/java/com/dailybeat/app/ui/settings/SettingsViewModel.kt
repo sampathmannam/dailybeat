@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.capture.CaptureController
 import com.dailybeat.app.capture.CaptureResumeWorker
+import com.dailybeat.app.capture.CaptureStorageGate
+import androidx.room.withTransaction
 import com.dailybeat.app.notify.PulseScheduler
 import com.dailybeat.app.synthetic.SyntheticDayGenerator
 import com.dailybeat.app.audit.CaptureAuditLog
@@ -16,6 +18,10 @@ import com.dailybeat.app.cloud.CloudTokenBudgets
 import com.dailybeat.app.data.model.Place
 import com.dailybeat.app.data.settings.CloudProvider
 import com.dailybeat.app.data.settings.ThemePreference
+import com.dailybeat.app.data.settings.SecureApiKeyStore
+import com.dailybeat.app.cloud.CloudTextGenerator
+import com.dailybeat.app.cloud.ReportRetryWorker
+import com.dailybeat.app.backup.RestoreSettingsException
 import com.dailybeat.app.util.PermissionHelper
 import com.dailybeat.app.util.InputPolicy
 import com.dailybeat.app.util.fetchCurrentLocation
@@ -24,6 +30,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.dailybeat.app.util.userMessage
@@ -90,7 +99,13 @@ data class SettingsUiState(
     val localDataErased: Boolean = false,
 )
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+class SettingsViewModel internal constructor(
+    application: Application,
+    private val secureApiKey: SecureApiKeyStore,
+    private val cloudConnection: CloudTextGenerator,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application,
+        (application as DailyBeatApp).settingsRepository.secureApiKey, application.cloudLlm)
 
     private val app = application as DailyBeatApp
 
@@ -98,15 +113,135 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         SettingsUiState(themePreference = app.settingsRepository.themePreference.value),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+    private var placesDataGeneration = CaptureStorageGate.dataGeneration.get()
+    private var refreshSequence = 0L
+    private var apiKeyDraftGeneration: Long? = null
+    private var apiKeyRemovalGeneration: Long? = null
+    private var geocodingDraftGeneration: Long? = null
+    private var backupDraftGeneration: Long? = null
+    private var apiKeyDraftRevision = 0L
+    private var cloudConsentRevision = 0L
+    private var geocodingSaveRevision = 0L
+    private var eveningConsentRevision = 0L
+    private var cloudConnectionJob: Job? = null
+    private val credentialJobs = java.util.concurrent.ConcurrentHashMap.newKeySet<Job>()
     init {
+        viewModelScope.launch {
+            CaptureStorageGate.dataChanges.collect {
+                val generation = CaptureStorageGate.dataGeneration.get()
+                if (generation != placesDataGeneration) {
+                    clearReplacedPlaceState(generation)
+                    refresh()
+                }
+            }
+        }
         refresh()
     }
 
-    fun setGeocodingDraft(value: String) { _uiState.update { it.copy(geocodingEndpoint = value.take(2048), geocodingMessage = null) } }
+    private fun clearReplacedPlaceState(generation: Long) {
+        placesDataGeneration = generation
+        refreshSequence++
+        apiKeyDraftGeneration = null
+        apiKeyRemovalGeneration = null
+        geocodingDraftGeneration = null
+        backupDraftGeneration = null
+        apiKeyDraftRevision++
+        cloudConsentRevision++
+        geocodingSaveRevision++
+        eveningConsentRevision++
+        cloudConnectionJob = null
+        credentialJobs.toList().forEach { it.cancel() }
+        _uiState.update { it.copy(placeName = "", placeLat = "", placeLon = "",
+            placeLocating = false, placeBusy = false, places = emptyList(),
+            placeSuggestions = emptyList(), auditLines = emptyList(),
+            apiKeyDraft = "", apiKeyBusy = false, apiKeyRemovalConfirmation = false, hasApiKey = false,
+            cloudTesting = false, cloudTestResult = null, cloudLlmEnabled = false,
+            cloudModel = "", cloudBaseUrl = "", geocodingEndpoint = "",
+            backupEmailDraft = "", backupPasswordDraft = "", recoveryPassphrase = "",
+            recoveryConfirmation = "", accountDeletePassword = "", backupSignedInEmail = null,
+            backupVersions = emptyList(), selectedBackupVersion = null, backupRestoreConfirmation = false,
+            cloudDeleteConfirmation = false, accountDeleteConfirmation = false,
+            backupBusy = false, backupMessage = null, legacyBackupRestore = false,
+            placeError = "Local data changed. Review your saved places again.") }
+    }
+
+    private fun currentPlaceGeneration(): Long? {
+        val generation = CaptureStorageGate.dataGeneration.get()
+        if (generation != placesDataGeneration) {
+            clearReplacedPlaceState(generation)
+            refresh()
+            return null
+        }
+        return generation
+    }
+
+    private fun placeGenerationIsCurrent(generation: Long): Boolean =
+        generation == placesDataGeneration && generation == CaptureStorageGate.dataGeneration.get()
+
+    /** Track cancellable connection/key jobs, never a restore that intentionally changes data. */
+    private fun launchCredentialJob(generation: Long, block: suspend () -> Unit): Job {
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            if (placeGenerationIsCurrent(generation)) block()
+        }
+        credentialJobs += job
+        job.invokeOnCompletion { credentialJobs -= job }
+        job.start()
+        return job
+    }
+
+    private fun changeCloudSettings(change: () -> Unit, update: (SettingsUiState) -> SettingsUiState) {
+        val generation = currentPlaceGeneration() ?: return
+        launchCredentialJob(generation) {
+            try {
+                CaptureStorageGate.writeIfCurrent(generation) {
+                    change()
+                    refreshSequence++
+                    _uiState.update(update)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (placeGenerationIsCurrent(generation)) _uiState.update {
+                    it.copy(cloudTestResult = error.userMessage("Unable to update cloud settings."), cloudTestIsError = true)
+                }
+            }
+        }
+    }
+
+    fun setGeocodingDraft(value: String) {
+        geocodingDraftGeneration = currentPlaceGeneration() ?: return
+        _uiState.update { it.copy(geocodingEndpoint = value.take(2048), geocodingMessage = null) }
+    }
     fun saveGeocodingEndpoint() {
-        runCatching { app.settingsRepository.setGeocodingEndpoint(_uiState.value.geocodingEndpoint) }
-            .onSuccess { _uiState.update { it.copy(geocodingMessage = "Place lookup setting saved.") } }
-            .onFailure { error -> _uiState.update { it.copy(geocodingMessage = error.message ?: "Could not save the endpoint.") } }
+        val endpoint = _uiState.value.geocodingEndpoint.trim()
+        val revision = ++geocodingSaveRevision
+        // Withdrawal must reach the geocoder's live consent check immediately, even while
+        // capture holds its storage lock. An older queued save cannot re-enable it afterward.
+        if (endpoint.isEmpty()) {
+            runCatching { app.settingsRepository.setGeocodingEndpoint("") }.fold(
+                onSuccess = { _uiState.update { it.copy(geocodingEndpoint = "", geocodingMessage = "Place lookup turned off.") } },
+                onFailure = { error -> _uiState.update { it.copy(geocodingMessage = error.userMessage("Could not turn off place lookup.")) } },
+            )
+            return
+        }
+        val generation = geocodingDraftGeneration ?: return
+        if (currentPlaceGeneration() != generation) return
+        launchCredentialJob(generation) {
+            try {
+                CaptureStorageGate.writeIfCurrent(generation) {
+                    if (revision == geocodingSaveRevision) app.settingsRepository.setGeocodingEndpoint(endpoint)
+                }
+                if (placeGenerationIsCurrent(generation) && revision == geocodingSaveRevision) _uiState.update {
+                    it.copy(geocodingMessage = "Place lookup setting saved.")
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (placeGenerationIsCurrent(generation) && revision == geocodingSaveRevision) _uiState.update {
+                    it.copy(geocodingMessage = error.userMessage("Could not save the endpoint."))
+                }
+            }
+        }
     }
 
     fun setJournalProfile(profile: JournalProfile) {
@@ -115,15 +250,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refresh() {
+        val generation = CaptureStorageGate.dataGeneration.get()
+        val sequence = ++refreshSequence
         viewModelScope.launch {
             try {
-                val places = app.placeRepository.all()
-                val recentVisits = app.visitRepository.visitsLastDays(14)
+                val (places, recentVisits) = CaptureStorageGate.writeIfCurrent(generation) {
+                    app.db.withTransaction {
+                        app.placeRepository.all() to app.visitRepository.visitsLastDays(14)
+                    }
+                }
                 val suggestions = FrequentPlaceLearner.suggest(recentVisits, places)
                 val hasKey = withContext(Dispatchers.IO) {
-                    app.settingsRepository.secureApiKey.hasApiKey()
+                    secureApiKey.hasApiKey()
                 }
                 val auditLines = CaptureAuditLog.readRecent(app)
+                if (generation != CaptureStorageGate.dataGeneration.get() || sequence != refreshSequence) return@launch
                 // Read preferences after the slower database and secure-store work. Because this
                 // coroutine and UI setters resume on the main thread, no tap can interleave
                 // between this read and the state update and be replaced by stale settings.
@@ -157,7 +298,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         screenError = null,
                     )
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
+                if (generation != CaptureStorageGate.dataGeneration.get() || sequence != refreshSequence) return@launch
                 _uiState.update { current ->
                     current.copy(
                         backupBusy = false,
@@ -169,6 +313,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setBackupEmail(email: String) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
         _uiState.update {
             it.copy(
                 backupEmailDraft = InputPolicy.singleLine(email, InputPolicy.BACKUP_EMAIL_CHARS),
@@ -178,6 +323,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setBackupPassword(password: String) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
         _uiState.update {
             it.copy(
                 backupPasswordDraft = InputPolicy.bounded(password, InputPolicy.BACKUP_PASSWORD_CHARS),
@@ -187,13 +333,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun signInToBackup() {
+        val generation = backupDraftGeneration ?: return
+        if (currentPlaceGeneration() != generation) return
         val state = _uiState.value
         if (state.backupBusy || state.dataBusy) return
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
-        viewModelScope.launch {
+        launchCredentialJob(generation) {
             val result = runCatching {
                 app.backupCoordinator.signIn(state.backupEmailDraft, state.backupPasswordDraft)
             }.getOrElse { Result.failure(it) }
+            if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
+            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
             result.fold(
                 onSuccess = { session ->
                     _uiState.update {
@@ -220,13 +370,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun createBackupAccount() {
+        val generation = backupDraftGeneration ?: return
+        if (currentPlaceGeneration() != generation) return
         val state = _uiState.value
         if (state.backupBusy || state.dataBusy) return
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
-        viewModelScope.launch {
+        launchCredentialJob(generation) {
             val result = runCatching {
                 app.backupCoordinator.signUp(state.backupEmailDraft, state.backupPasswordDraft)
             }.getOrElse { Result.failure(it) }
+            if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
+            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
             result.fold(
                 onSuccess = { signUpResult ->
                     _uiState.update {
@@ -257,14 +411,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setRecoveryPassphrase(value: String) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
         _uiState.update { it.copy(recoveryPassphrase = InputPolicy.bounded(value, 256)) }
     }
     fun setRecoveryConfirmation(value: String) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
         _uiState.update { it.copy(recoveryConfirmation = InputPolicy.bounded(value, 256)) }
     }
-    fun setLegacyBackupRestore(value: Boolean) { _uiState.update { it.copy(legacyBackupRestore = value) } }
+    fun setLegacyBackupRestore(value: Boolean) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
+        _uiState.update { it.copy(legacyBackupRestore = value) }
+    }
 
     fun backupNow() {
+        val generation = backupDraftGeneration ?: currentPlaceGeneration() ?: return
+        if (currentPlaceGeneration() != generation) return
         if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
         val current = _uiState.value
         if (current.recoveryPassphrase.length < 20 || current.recoveryPassphrase != current.recoveryConfirmation) {
@@ -275,8 +436,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(recoveryPassphrase = "", recoveryConfirmation = "") }
         _uiState.update { it.copy(backupBusy = true, backupMessage = null) }
         viewModelScope.launch {
-            val result = runCatching { app.backupCoordinator.backupNow(passphrase) }
-                .getOrElse { Result.failure(it) }
+            val result = try {
+                if (!placeGenerationIsCurrent(generation)) return@launch
+                runCatching { app.backupCoordinator.backupNow(passphrase) }.getOrElse { Result.failure(it) }
+            } finally { passphrase.fill('\u0000') }
+            if (!placeGenerationIsCurrent(generation)) return@launch
+            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
             result.fold(
                 onSuccess = {
                     _uiState.update {
@@ -300,12 +465,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun selectBackupVersion(id: String?) { _uiState.update { it.copy(selectedBackupVersion = id) } }
+    fun selectBackupVersion(id: String?) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
+        _uiState.update { it.copy(selectedBackupVersion = id) }
+    }
     fun loadBackupHistory() {
+        val generation = currentPlaceGeneration() ?: return
         if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
         _uiState.update { it.copy(backupBusy = true) }
         viewModelScope.launch {
-            app.backupCoordinator.versions().fold(
+            if (!placeGenerationIsCurrent(generation)) return@launch
+            val result = app.backupCoordinator.versions()
+            if (!placeGenerationIsCurrent(generation)) return@launch
+            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
+            result.fold(
                 onSuccess = { versions -> _uiState.update { it.copy(backupVersions = versions, backupBusy = false,
                     backupMessage = if (versions.isEmpty()) "No archive versions yet. Restore can still read an older encrypted backup." else "Choose a completed backup to restore.", backupMessageIsError = false) } },
                 onFailure = { error -> _uiState.update { it.copy(backupBusy = false, backupMessage = error.userMessage("Could not load backup history."), backupMessageIsError = true) } })
@@ -313,6 +486,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun requestBackupRestore() {
+        if (currentPlaceGeneration() == null) return
         _uiState.update { it.copy(backupRestoreConfirmation = true, backupMessage = null) }
     }
 
@@ -321,7 +495,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmBackupRestore() {
+        val generation = backupDraftGeneration ?: currentPlaceGeneration() ?: return
+        if (currentPlaceGeneration() != generation) return
         if (_uiState.value.backupBusy || _uiState.value.dataBusy) return
+        if (!_uiState.value.legacyBackupRestore && _uiState.value.recoveryPassphrase.length < 20) {
+            _uiState.update { it.copy(backupMessage = "Enter the recovery passphrase used for this backup (at least 20 characters).", backupMessageIsError = true) }
+            return
+        }
         val passphrase = _uiState.value.recoveryPassphrase.toCharArray()
         val legacy = _uiState.value.legacyBackupRestore
         val versionId = _uiState.value.selectedBackupVersion
@@ -330,6 +510,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             it.copy(backupBusy = true, backupRestoreConfirmation = false, backupMessage = null)
         }
         viewModelScope.launch {
+            if (!placeGenerationIsCurrent(generation)) {
+                passphrase.fill('\u0000')
+                return@launch
+            }
             val result = runCatching { if (legacy) {
                 passphrase.fill('\u0000')
                 app.backupCoordinator.restoreLegacyNow()
@@ -337,6 +521,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .getOrElse { Result.failure(it) }
             result.fold(
                 onSuccess = {
+                    // This restore advances the epoch once. A later erase/restore must own
+                    // its own status; never reactivate capture for an obsolete completion.
+                    if (CaptureStorageGate.dataGeneration.get() != generation + 1L) return@launch
+                    currentPlaceGeneration()
                     val activationError = runCatching {
                         CaptureController.applyFromSettings(app)
                         if (app.settingsRepository.get().autoMiddayPulse) {
@@ -371,16 +559,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     refresh()
                 },
                 onFailure = { error ->
-                    _uiState.update {
-                        it.copy(
-                            backupBusy = false,
-                            backupMessage = error.userMessage("Cloud restore failed."),
-                            backupMessageIsError = true,
-                        )
-                    }
+                    showBackupRestoreFailure(error, generation)
                 },
             )
         }
+    }
+
+    internal fun showBackupRestoreFailure(error: Throwable, startingGeneration: Long) {
+        if (error is CancellationException) throw error
+        val partial = error as? RestoreSettingsException
+        if (partial != null) {
+            // This restore, not a newer erase/restore, must still own the committed records.
+            if (partial.committedDataGeneration != startingGeneration + 1L ||
+                partial.committedDataGeneration != CaptureStorageGate.dataGeneration.get()) return
+            currentPlaceGeneration()
+        } else if (!placeGenerationIsCurrent(startingGeneration)) return
+        _uiState.update { it.copy(backupBusy = false,
+            backupMessage = error.userMessage("Cloud restore failed."), backupMessageIsError = true) }
+        if (partial != null) refresh()
     }
 
     fun signOutOfBackup() {
@@ -448,6 +644,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setAccountDeletePassword(password: String) {
+        backupDraftGeneration = currentPlaceGeneration() ?: return
         _uiState.update {
             it.copy(
                 accountDeletePassword = InputPolicy.bounded(password, InputPolicy.BACKUP_PASSWORD_CHARS),
@@ -461,6 +658,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmAccountDeletion() {
+        val generation = backupDraftGeneration ?: return
+        if (currentPlaceGeneration() != generation) return
         val state = _uiState.value
         val email = state.backupSignedInEmail ?: return
         if (state.dataBusy || state.backupBusy || state.accountDeletePassword.isBlank()) return
@@ -474,10 +673,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             )
         }
         viewModelScope.launch {
+            if (!placeGenerationIsCurrent(generation)) return@launch
             val result = app.backupCoordinator.signIn(email, password).fold(
-                onSuccess = { app.backupCoordinator.deleteAccount() },
+                onSuccess = {
+                    if (placeGenerationIsCurrent(generation)) app.backupCoordinator.deleteAccount()
+                    else Result.failure(IllegalStateException("Local data changed. Review this action again."))
+                },
                 onFailure = { Result.failure(it) },
             )
+            if (!placeGenerationIsCurrent(generation)) return@launch
+            (result.exceptionOrNull() as? CancellationException)?.let { throw it }
             result.fold(
                 onSuccess = {
                     _uiState.update {
@@ -610,16 +815,32 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun addSuggestedPlace(suggestion: PlaceSuggestion) {
         if (_uiState.value.placeBusy) return
+        val generation = currentPlaceGeneration() ?: return
+        if (suggestion !in _uiState.value.placeSuggestions) {
+            _uiState.update { it.copy(placeError = "This suggestion changed. Refresh Settings and try again.") }
+            return
+        }
+        refreshSequence++
         _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
             runCatching {
-                app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
+                CaptureStorageGate.writeIfCurrent(generation) {
+                    app.db.withTransaction {
+                        val current = FrequentPlaceLearner.suggest(app.visitRepository.visitsLastDays(14),
+                            app.placeRepository.all())
+                        check(suggestion in current) { "This suggestion changed. Refresh Settings and try again." }
+                        app.placeRepository.add(suggestion.name, suggestion.latitude, suggestion.longitude)
+                    }
+                }
             }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update { it.copy(placeBusy = false) }
                     refresh()
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update {
                         it.copy(
                             placeBusy = false,
@@ -632,8 +853,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun loadAuditLog() {
+        val generation = CaptureStorageGate.dataGeneration.get()
         viewModelScope.launch {
             val lines = CaptureAuditLog.readRecent(app)
+            if (generation != CaptureStorageGate.dataGeneration.get()) return@launch
             _uiState.update { it.copy(auditLines = lines) }
         }
     }
@@ -705,33 +928,56 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setCloudLlmEnabled(enabled: Boolean) {
-        app.settingsRepository.setCloudLlmEnabled(enabled)
-        _uiState.update { it.copy(cloudLlmEnabled = enabled) }
-        if (enabled) PulseScheduler.scheduleNext(app) else PulseScheduler.cancel(app)
+        if (!enabled) {
+            withdrawCloudConsent()
+            return
+        }
+        val revision = ++cloudConsentRevision
+        changeCloudSettings({
+            if (revision == cloudConsentRevision) {
+                app.settingsRepository.setCloudLlmEnabled(true)
+                PulseScheduler.scheduleNext(app)
+            }
+        }) { if (revision == cloudConsentRevision) it.copy(cloudLlmEnabled = true) else it }
+    }
+
+    private fun withdrawCloudConsent() {
+        cloudConsentRevision++
+        cloudConnectionJob?.cancel()
+        cloudConnectionJob = null
+        app.settingsRepository.setCloudLlmEnabled(false)
+        PulseScheduler.cancel(app)
+        ReportRetryWorker.cancelAutomatic(app)
+        _uiState.update { it.copy(cloudLlmEnabled = false, cloudTesting = false, cloudTestResult = null) }
     }
 
     fun setCloudProvider(providerId: String) {
-        app.settingsRepository.setCloudProvider(providerId)
         val provider = CloudProvider.entries.find { it.id == providerId } ?: CloudProvider.DEEPSEEK
-        app.settingsRepository.setCloudModel(provider.defaultModel)
-        _uiState.update {
+        changeCloudSettings({
+            app.settingsRepository.setCloudProvider(providerId)
+            app.settingsRepository.setCloudModel(provider.defaultModel)
+        }) {
             it.copy(cloudProvider = providerId, cloudModel = provider.defaultModel)
         }
     }
 
     fun setCloudModel(model: String) {
         val bounded = InputPolicy.singleLine(model, InputPolicy.CLOUD_MODEL_CHARS)
-        app.settingsRepository.setCloudModel(bounded)
-        _uiState.update { it.copy(cloudModel = bounded, cloudTestResult = null) }
+        changeCloudSettings({ app.settingsRepository.setCloudModel(bounded) }) {
+            it.copy(cloudModel = bounded, cloudTestResult = null)
+        }
     }
 
     fun setCloudBaseUrl(url: String) {
         val bounded = InputPolicy.singleLine(url, InputPolicy.CLOUD_URL_CHARS)
-        app.settingsRepository.setCloudBaseUrl(bounded)
-        _uiState.update { it.copy(cloudBaseUrl = bounded, cloudTestResult = null) }
+        changeCloudSettings({ app.settingsRepository.setCloudBaseUrl(bounded) }) {
+            it.copy(cloudBaseUrl = bounded, cloudTestResult = null)
+        }
     }
 
     fun setApiKeyDraft(key: String) {
+        apiKeyDraftGeneration = currentPlaceGeneration() ?: return
+        apiKeyDraftRevision++
         _uiState.update {
             it.copy(
                 apiKeyDraft = InputPolicy.singleLine(key, InputPolicy.API_KEY_CHARS),
@@ -741,20 +987,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveApiKey() {
+        val generation = apiKeyDraftGeneration ?: return
+        if (currentPlaceGeneration() != generation) return
         val key = _uiState.value.apiKeyDraft.trim()
+        val draftRevision = apiKeyDraftRevision
         if (key.isEmpty() || _uiState.value.apiKeyBusy) return
+        refreshSequence++
         _uiState.update { it.copy(apiKeyBusy = true, cloudTestResult = null) }
-        viewModelScope.launch {
+        launchCredentialJob(generation) {
             runCatching {
-                withContext(Dispatchers.IO) {
-                    app.settingsRepository.secureApiKey.setApiKey(key)
+                CaptureStorageGate.writeIfCurrent(generation) {
+                    withContext(Dispatchers.IO) { secureApiKey.setApiKey(key) }
                 }
             }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                     PulseScheduler.scheduleNext(app)
                     _uiState.update {
                         it.copy(
-                            apiKeyDraft = "",
+                            apiKeyDraft = if (draftRevision == apiKeyDraftRevision) "" else it.apiKeyDraft,
                             hasApiKey = true,
                             apiKeyBusy = false,
                             cloudTestResult = "API key saved securely.",
@@ -763,6 +1014,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     }
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                     _uiState.update {
                         it.copy(
                             apiKeyBusy = false,
@@ -776,7 +1029,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun requestApiKeyRemoval() {
+        val generation = currentPlaceGeneration() ?: return
         if (_uiState.value.hasApiKey && !_uiState.value.apiKeyBusy) {
+            apiKeyRemovalGeneration = generation
             _uiState.update { it.copy(apiKeyRemovalConfirmation = true, cloudTestResult = null) }
         }
     }
@@ -786,21 +1041,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun confirmApiKeyRemoval() {
+        val generation = apiKeyRemovalGeneration ?: return
+        if (currentPlaceGeneration() != generation || !_uiState.value.apiKeyRemovalConfirmation) return
         if (_uiState.value.apiKeyBusy || !_uiState.value.hasApiKey) return
+        val draftRevision = apiKeyDraftRevision
+        // Stop using the key now; secure-store deletion may wait behind an active capture write.
+        withdrawCloudConsent()
+        refreshSequence++
         _uiState.update {
             it.copy(apiKeyBusy = true, apiKeyRemovalConfirmation = false, cloudTestResult = null)
         }
-        viewModelScope.launch {
+        launchCredentialJob(generation) {
             runCatching {
-                withContext(Dispatchers.IO) {
-                    app.settingsRepository.secureApiKey.clearApiKey()
+                CaptureStorageGate.writeIfCurrent(generation) {
+                    withContext(Dispatchers.IO) { secureApiKey.clearApiKey() }
                 }
             }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                     PulseScheduler.cancel(app)
                     _uiState.update {
                         it.copy(
-                            apiKeyDraft = "",
+                            apiKeyDraft = if (draftRevision == apiKeyDraftRevision) "" else it.apiKeyDraft,
                             hasApiKey = false,
                             apiKeyBusy = false,
                             cloudTestResult = "API key removed from this phone. Cloud requests are stopped.",
@@ -809,6 +1071,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     }
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                     _uiState.update {
                         it.copy(
                             apiKeyBusy = false,
@@ -822,44 +1086,48 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setAutoEveningReport(enabled: Boolean) {
-        app.settingsRepository.setAutoEveningReport(enabled)
-        _uiState.update { it.copy(autoEveningReport = enabled) }
+        val revision = ++eveningConsentRevision
+        if (!enabled) {
+            app.settingsRepository.setAutoEveningReport(false)
+            ReportRetryWorker.cancelAutomatic(app)
+            _uiState.update { it.copy(autoEveningReport = false) }
+            return
+        }
+        changeCloudSettings({
+            if (revision == eveningConsentRevision) app.settingsRepository.setAutoEveningReport(true)
+        }) {
+            if (revision == eveningConsentRevision) it.copy(autoEveningReport = true) else it
+        }
     }
 
     fun testCloudConnection() {
-        if (_uiState.value.cloudTesting) return
+        val generation = currentPlaceGeneration() ?: return
+        if (_uiState.value.cloudTesting || _uiState.value.apiKeyBusy) return
+        val draft = _uiState.value.apiKeyDraft.trim()
+        val draftRevision = apiKeyDraftRevision
+        if (draft.isNotEmpty() && apiKeyDraftGeneration != generation) return
+        val settings = app.settingsRepository.get()
         _uiState.update { it.copy(cloudTesting = true, cloudTestResult = null) }
-        viewModelScope.launch {
+        cloudConnectionJob = launchCredentialJob(generation) {
             try {
-                val settings = app.settingsRepository.get()
-                val draft = _uiState.value.apiKeyDraft.trim()
                 if (draft.isNotEmpty()) {
-                    val saveError = withContext(Dispatchers.IO) {
-                        runCatching {
-                            app.settingsRepository.secureApiKey.setApiKey(draft)
-                        }.exceptionOrNull()
+                    CaptureStorageGate.writeIfCurrent(generation) {
+                        withContext(Dispatchers.IO) { secureApiKey.setApiKey(draft) }
                     }
-                    if (saveError != null) {
-                        _uiState.update {
-                            it.copy(
-                                cloudTesting = false,
-                                cloudTestResult = saveError.userMessage("Unable to save the API key securely."),
-                                cloudTestIsError = true,
-                            )
-                        }
-                        return@launch
-                    }
+                    if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                     PulseScheduler.scheduleNext(app)
                 }
-                val result = app.cloudLlm.generate(
+                if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
+                val result = cloudConnection.generate(
                     settings,
                     "You are a connection test. Return only the requested confirmation text.",
                     "Reply with exactly: DailyBeat cloud AI is connected.",
                     maxOutputTokens = CloudTokenBudgets.CONNECTION,
                 )
                 val hasApiKey = withContext(Dispatchers.IO) {
-                    app.settingsRepository.secureApiKey.hasApiKey()
+                    secureApiKey.hasApiKey()
                 }
+                if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                 val testError = result.exceptionOrNull()
                 _uiState.update {
                     it.copy(
@@ -868,10 +1136,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             ?: "Connected successfully.",
                         cloudTestIsError = testError != null,
                         hasApiKey = hasApiKey,
-                        apiKeyDraft = "",
+                        apiKeyDraft = if (draftRevision == apiKeyDraftRevision) "" else it.apiKeyDraft,
                     )
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
+                if (!placeGenerationIsCurrent(generation)) return@launchCredentialJob
                 _uiState.update {
                     it.copy(
                         cloudTesting = false,
@@ -886,9 +1157,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     /** Fill the new-place coordinates from one fresh GPS fix, so the officer never types them. */
     fun captureCurrentLocationForPlace() {
         if (_uiState.value.placeLocating || _uiState.value.placeBusy) return
+        val generation = currentPlaceGeneration() ?: return
         _uiState.update { it.copy(placeLocating = true, placeError = null) }
         viewModelScope.launch {
             val location = fetchCurrentLocation(app)
+            if (!placeGenerationIsCurrent(generation)) return@launch
             _uiState.update {
                 if (location == null) {
                     it.copy(
@@ -908,6 +1181,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updatePlaceDraft(name: String, lat: String, lon: String) {
+        if (currentPlaceGeneration() == null) return
         _uiState.update {
             it.copy(
                 placeName = InputPolicy.singleLine(name, InputPolicy.PLACE_NAME_CHARS),
@@ -920,6 +1194,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun addPlace() {
         if (_uiState.value.placeBusy) return
+        val generation = currentPlaceGeneration() ?: return
         val state = _uiState.value
         val name = state.placeName.trim()
         if (state.placeLat.isBlank() || state.placeLon.isBlank()) {
@@ -934,10 +1209,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val lat = state.placeLat.toDouble()
         val lon = state.placeLon.toDouble()
 
+        refreshSequence++
         _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
-            runCatching { app.placeRepository.add(name, lat, lon) }.fold(
+            runCatching {
+                CaptureStorageGate.writeIfCurrent(generation) { app.placeRepository.add(name, lat, lon) }
+            }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update {
                         it.copy(
                             placeName = "",
@@ -951,6 +1230,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     refresh()
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update {
                         it.copy(
                             placeBusy = false,
@@ -964,10 +1245,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun deletePlace(place: Place) {
         if (_uiState.value.placeBusy) return
+        val generation = currentPlaceGeneration() ?: return
+        if (place !in _uiState.value.places) {
+            _uiState.update { it.copy(placeError = "This saved place changed. Refresh Settings and try again.") }
+            return
+        }
+        refreshSequence++
         _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
-            runCatching { app.placeRepository.delete(place) }.fold(
+            runCatching {
+                CaptureStorageGate.writeIfCurrent(generation) { app.placeRepository.delete(place) }
+            }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     // Reflect the completed delete immediately. A full refresh still follows for
                     // suggestions and other derived state, but the stale row must not remain
                     // tappable while that second database read is waiting to run.
@@ -981,6 +1271,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     refresh()
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update {
                         it.copy(
                             placeBusy = false,
@@ -994,10 +1286,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setPlacePrivate(place: Place, isPrivate: Boolean) {
         if (_uiState.value.placeBusy) return
+        val generation = currentPlaceGeneration() ?: return
+        if (place !in _uiState.value.places) {
+            _uiState.update { it.copy(placeError = "This saved place changed. Refresh Settings and try again.") }
+            return
+        }
+        refreshSequence++
         _uiState.update { it.copy(placeBusy = true, placeError = null) }
         viewModelScope.launch {
-            runCatching { app.placeRepository.setPrivate(place, isPrivate) }.fold(
+            runCatching {
+                CaptureStorageGate.writeIfCurrent(generation) { app.placeRepository.setPrivate(place, isPrivate) }
+            }.fold(
                 onSuccess = {
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update { state ->
                         state.copy(
                             places = state.places.map { candidate ->
@@ -1007,8 +1308,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             placeError = null,
                         )
                     }
+                    refresh()
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (!placeGenerationIsCurrent(generation)) return@launch
                     _uiState.update {
                         it.copy(
                             placeBusy = false,

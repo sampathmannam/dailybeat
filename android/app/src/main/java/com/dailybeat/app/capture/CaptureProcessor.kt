@@ -8,6 +8,7 @@ import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.repo.PlaceRepository
+import com.dailybeat.app.domain.VisitLabels
 import com.dailybeat.app.geo.OsmGeocoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -114,9 +115,32 @@ class CaptureProcessor(
         journal.checkpoint(CaptureCheckpoint(payload = memory.encode()))
     }
 
+    /** A failed explicit stop must be retried as a stop, not as continued observation. */
+    suspend fun recover(
+        captureAllowed: Boolean,
+        onRejected: (Long, String) -> Unit = { _, _ -> },
+        onAccepted: (LocationSample, String) -> Unit = { _, _ -> },
+    ) {
+        if (captureAllowed) {
+            drain(onRejected = onRejected, onAccepted = onAccepted)
+        } else {
+            // Retain and finalize observations already in the inbox without geocoding. Clearing
+            // the open interval also prevents a quick resume from including the privacy pause.
+            finish(onRejected = onRejected, onAccepted = onAccepted)
+        }
+    }
+
     /** Explicit pause/off ends observed history. Battery sleep simply leaves the checkpoint. */
-    suspend fun finish() {
-        drain(allowNetworkLookup = false)
+    suspend fun finish(
+        onRejected: (Long, String) -> Unit = { _, _ -> },
+        onAccepted: (LocationSample, String) -> Unit = { _, _ -> },
+    ) {
+        drain(onRejected = onRejected, allowNetworkLookup = false, onAccepted = onAccepted)
+        // First retain all already-queued observations, then durably record the stop before
+        // the final derived-row transaction. If that transaction fails and capture is quickly
+        // re-enabled, VisitTracker's suspended branch still separates the next observation.
+        // A failure to drain or persist this marker itself cannot guarantee a durable boundary.
+        suspendCapture()
         val memory = BufferedCheckpoint(db.captureJournal().checkpoint(), clock())
         val visits = java.util.Collections.synchronizedList(mutableListOf<LocationVisit>())
         val tracker = VisitTracker(CoroutineScope(currentCoroutineContext()), PlaceRepository(db.places()),
@@ -137,21 +161,17 @@ private fun CaptureFix.toSample() = LocationSample(latitude, longitude, timestam
 
 /** Keep the visit timeline and moments timeline equally informative. */
 internal fun capturedVisitEvent(visit: LocationVisit): Event {
-    val place = visit.placeName.usableCapturedLabel() ?: visit.address.usableCapturedLabel()
+    val place = VisitLabels.name(visit)
     val transit = visit.visitType.equals("transit", ignoreCase = true)
     return Event(
         timestamp = visit.startMs,
         type = "visit",
-        rawText = if (transit) "Travel recorded" else "Stay at ${place ?: "unnamed place"}",
+        rawText = VisitLabels.momentText(transit, place),
         placeName = place,
         latitude = visit.latitude,
         longitude = visit.longitude,
     )
 }
-
-private fun String?.usableCapturedLabel(): String? = this
-    ?.trim()
-    ?.takeIf { it.isNotEmpty() && !it.equals("Unnamed place", ignoreCase = true) }
 
 internal class BufferedCheckpoint(payload: String? = null, nowMs: Long = System.currentTimeMillis()) : VisitTrackerStateStore {
     private var state: VisitTrackerState? = payload?.let(::decode)?.takeIf { it.isUsable(nowMs) }

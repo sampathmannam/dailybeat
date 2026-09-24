@@ -82,7 +82,7 @@ fun EventCard(
                     )
                 }
                 Text(text = event.rawText, style = MaterialTheme.typography.bodyLarge)
-                event.placeName?.let { place ->
+                event.placeName?.takeUnless { event.hasPlaceInGeneratedText() }?.let { place ->
                     MetaLine(Icons.Outlined.Place, place)
                 }
                 event.peopleMentioned?.let { people ->
@@ -94,6 +94,13 @@ fun EventCard(
             }
         }
     }
+}
+
+/** Generated capture titles already carry this exact label; personal prose keeps its metadata. */
+internal fun Event.hasPlaceInGeneratedText(): Boolean {
+    val place = placeName?.takeIf { it.isNotBlank() } ?: return false
+    return type.equals("visit", ignoreCase = true) &&
+        (rawText == "Stay at $place" || rawText == "Travel · $place")
 }
 
 @Composable

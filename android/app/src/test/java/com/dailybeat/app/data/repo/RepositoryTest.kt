@@ -140,4 +140,51 @@ class PlaceRepositoryTest {
             runBlocking { repository.add("Invalid", 12.9, Double.NaN) }
         }
     }
+
+    @Test
+    fun privacyChangePreservesOtherSavedPlaceFields() = runBlocking {
+        repository.add("Home", 12.9, 77.6, radiusM = 350)
+        val original = repository.all().single()
+        repository.setPrivate(original, true)
+        assertEquals(original.copy(isPrivate = true), repository.all().single())
+    }
+
+    @Test
+    fun stalePrivacyToggleCannotOverwriteNewerNameOrCoordinates() = runBlocking {
+        repository.add("Office", 12.9, 77.6)
+        val stale = repository.all().single()
+        val current = stale.copy(name = "Clinic", latitude = 13.1, radiusM = 250)
+        db.places().update(current)
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.setPrivate(stale, true) }
+        }
+        assertEquals(current, repository.all().single())
+    }
+
+    @Test
+    fun staleDeleteCannotRemoveANewerPrivacyChoice() = runBlocking {
+        repository.add("Home", 12.9, 77.6)
+        val stale = repository.all().single()
+        repository.setPrivate(stale, true)
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.delete(stale) }
+        }
+        val current = repository.all().single()
+        assertTrue(current.isPrivate)
+        repository.delete(current)
+        assertTrue(repository.all().isEmpty())
+    }
+
+    @Test
+    fun staleDeleteCannotRemoveReplacementReusingItsIdentifier() = runBlocking {
+        repository.add("Old place", 12.9, 77.6)
+        val stale = repository.all().single()
+        db.places().deleteAll()
+        val replacement = stale.copy(name = "Restored place", longitude = 78.2, isPrivate = true)
+        db.places().insert(replacement)
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { repository.delete(stale) }
+        }
+        assertEquals(replacement, repository.all().single())
+    }
 }

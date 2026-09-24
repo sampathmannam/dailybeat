@@ -1,5 +1,6 @@
 package com.dailybeat.app.backup
 
+import com.dailybeat.app.util.isBoundedJson
 import org.json.JSONObject
 import java.security.SecureRandom
 import java.util.Base64
@@ -47,6 +48,7 @@ object BackupEnvelope {
         require(passphrase.size in MIN_PASSPHRASE_CHARS..MAX_PASSPHRASE_CHARS) {
             "Enter the recovery passphrase used when this backup was created."
         }
+        require(isBoundedJson(envelope, objectOnly = true)) { "Invalid encrypted backup." }
         val obj = JSONObject(envelope)
         require(obj.optString("format") == FORMAT && obj.opt("envelopeVersion") == 1 &&
             obj.optString("kdf") == KDF && obj.opt("iterations") == ITERATIONS) {

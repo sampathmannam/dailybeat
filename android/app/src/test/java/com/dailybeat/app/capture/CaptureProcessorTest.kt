@@ -214,6 +214,115 @@ class CaptureProcessorTest {
         assertTrue(db.captureJournal().pending().isEmpty())
         assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
     }
+    @Test fun `failed stop recovery finalizes offline and a quick resume cannot bridge the pause`() = runBlocking {
+        var networkCalls = 0
+        val geocoder = object : OsmGeocoder(db.geocodes()) {
+            override suspend fun resolve(latitude: Double, longitude: Double): com.dailybeat.app.geo.ResolvedPlace {
+                networkCalls++
+                throw AssertionError("Privacy-stop recovery must not perform a lookup")
+            }
+        }
+        val processor = CaptureProcessor(db, geocoder)
+        processor.enqueue(listOf(fix(0), fix(5), fix(10)))
+        processor.drain()
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_stop BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT, 'simulated disk failure'); END")
+        assertTrue(runCatching { processor.finish() }.isFailure)
+        assertNotNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+        assertTrue(db.visits().all().isEmpty())
+        db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_stop")
+
+        processor.recover(captureAllowed = false)
+        processor.recover(captureAllowed = false) // A duplicate background retry is harmless.
+        assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+        assertEquals(1, db.visits().all().size)
+
+        // Less than the ten-minute gap guard: only explicit finalization protects this pause.
+        processor.enqueue(listOf(fix(12), fix(17), fix(22)))
+        processor.drain()
+        processor.finish()
+        val stays = db.visits().all().sortedBy { it.startMs }
+        assertEquals(listOf(start, fix(12).timestampMs), stays.map { it.startMs })
+        assertEquals(listOf(fix(10).timestampMs, fix(22).timestampMs), stays.map { it.endMs })
+        assertEquals(2, db.events().all().size)
+        assertEquals(0, networkCalls)
+    }
+
+    @Test fun `unavailable capture recovery keeps queued observations and health callbacks but closes checkpoint`() = runBlocking {
+        val processor = processor()
+        processor.enqueue(listOf(fix(0), fix(5), fix(10)))
+        val observed = mutableListOf<Long>()
+
+        processor.recover(captureAllowed = false, onAccepted = { sample, _ -> observed += sample.timestampMs })
+
+        assertEquals(listOf(fix(0).timestampMs, fix(5).timestampMs, fix(10).timestampMs), observed)
+        assertEquals(3, db.breadcrumbs().all().size)
+        assertEquals(fix(10).timestampMs, db.visits().all().single().endMs)
+        assertTrue(db.captureJournal().pending().isEmpty())
+        assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+    }
+
+    @Test fun `failed final stop insert cannot bridge a quick re-enable before recovery`() = runBlocking {
+        var networkCalls = 0
+        val geocoder = object : OsmGeocoder(db.geocodes()) {
+            override suspend fun resolve(latitude: Double, longitude: Double): com.dailybeat.app.geo.ResolvedPlace {
+                networkCalls++
+                throw AssertionError("A retained privacy boundary must finalize offline")
+            }
+        }
+        val processor = CaptureProcessor(db, geocoder)
+        processor.enqueue(listOf(fix(0), fix(5), fix(10)))
+        processor.drain()
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_stop_visit BEFORE INSERT ON location_visits BEGIN SELECT RAISE(ABORT, 'simulated disk failure'); END")
+        assertTrue(runCatching { processor.finish() }.isFailure)
+        assertTrue(BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!.suspended)
+        assertTrue(db.visits().all().isEmpty())
+        assertTrue(db.events().all().isEmpty())
+        db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_stop_visit")
+
+        // A new processor models process replacement. Recovery already sees capture enabled.
+        val restarted = CaptureProcessor(db, geocoder)
+        restarted.recover(captureAllowed = true)
+        restarted.enqueue(listOf(fix(12), fix(17), fix(22)))
+        restarted.drain()
+        restarted.finish()
+        restarted.finish()
+
+        val stays = db.visits().all().sortedBy { it.startMs }
+        assertEquals(listOf(start, fix(12).timestampMs), stays.map { it.startMs })
+        assertEquals(listOf(fix(10).timestampMs, fix(22).timestampMs), stays.map { it.endMs })
+        assertEquals(2, db.events().all().size)
+        assertEquals(0, networkCalls)
+        assertTrue(db.captureJournal().pending().isEmpty())
+        assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+    }
+
+    @Test fun `stop marker does not split already queued observations from an open stay`() = runBlocking {
+        val processor = processor()
+        processor.enqueue(listOf(fix(0), fix(5)))
+        processor.drain()
+        processor.enqueue(listOf(fix(10)))
+
+        processor.finish()
+
+        val stay = db.visits().all().single()
+        assertEquals(start, stay.startMs)
+        assertEquals(fix(10).timestampMs, stay.endMs)
+        assertEquals(1, db.events().all().size)
+        assertTrue(db.captureJournal().pending().isEmpty())
+        assertNull(BufferedCheckpoint(db.captureJournal().checkpoint()).load())
+    }
+
+    @Test fun `active capture recovery preserves the open observed interval`() = runBlocking {
+        val processor = processor()
+        processor.enqueue(listOf(fix(0), fix(5), fix(10)))
+
+        processor.recover(captureAllowed = true)
+
+        assertTrue(db.visits().all().isEmpty())
+        assertEquals(start, BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!.dwellStartMs)
+        assertEquals(fix(10).timestampMs, BufferedCheckpoint(db.captureJournal().checkpoint()).load()!!.lastSampleMs)
+    }
+
     @Test fun `foreground only and watcher absent configurations never sleep`() {
         assertFalse(AdaptiveCapturePolicy.canSleep(false, false))
         assertFalse(AdaptiveCapturePolicy.canSleep(false, true))
@@ -231,7 +340,7 @@ class CaptureProcessorTest {
                 visitType = "transit",
             ),
         )
-        assertEquals("Travel recorded", event.rawText)
+        assertEquals("Travel · Paramathi Road, Namakkal", event.rawText)
         assertEquals("Paramathi Road, Namakkal", event.placeName)
     }
     @Test fun `captured transit event does not present an unresolved placeholder as a place`() {
@@ -246,6 +355,30 @@ class CaptureProcessorTest {
             ),
         )
         assertEquals("Travel recorded", event.rawText)
+        assertNull(event.placeName)
+    }
+
+    @Test fun `captured stay uses its address when its name is an old placeholder`() {
+        val event = capturedVisitEvent(
+            LocationVisit(
+                startMs = start, endMs = start + 60_000, latitude = 11.4557, longitude = 78.1856,
+                placeName = "Unnamed place", address = "Paramathi Road, Namakkal",
+            ),
+        )
+
+        assertEquals("Stay at Paramathi Road, Namakkal", event.rawText)
+        assertEquals("Paramathi Road, Namakkal", event.placeName)
+    }
+
+    @Test fun `captured unknown stay does not persist a placeholder as its name`() {
+        val event = capturedVisitEvent(
+            LocationVisit(
+                startMs = start, endMs = start + 60_000, latitude = 11.4557, longitude = 78.1856,
+                placeName = "Unnamed place", address = "Unnamed place",
+            ),
+        )
+
+        assertEquals("Stay recorded", event.rawText)
         assertNull(event.placeName)
     }
 }

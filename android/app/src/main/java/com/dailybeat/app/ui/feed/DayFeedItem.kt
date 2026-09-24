@@ -4,7 +4,7 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import com.dailybeat.app.data.model.BeatReview
 import com.dailybeat.app.data.model.Place
-import com.dailybeat.app.domain.GeofenceMatcher
+import com.dailybeat.app.domain.VisitLabels
 import com.dailybeat.app.util.InputPolicy
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -21,6 +21,8 @@ data class DayStay(
     val longitude: Double = 0.0,
     val locationReliable: Boolean = true,
     val visitId: Long = 0,
+    /** Set by the feed when loaded; an open naming dialog must not outlive erased/restored data. */
+    val dataGeneration: Long? = null,
 ) {
     val durationMinutes: Long get() = TimeUnit.MILLISECONDS.toMinutes(endMs - startMs).coerceAtLeast(0)
     val canBeNamed: Boolean get() = locationReliable && isUsableFeedCoordinate(latitude, longitude)
@@ -339,10 +341,7 @@ object DayFeedBuilder {
         accuracyM.takeIf { it.isFinite() && it > 0f }?.toDouble() ?: 250.0
 
     private fun LocationVisit.displayName(places: List<Place>): String =
-        GeofenceMatcher.matchPlace(latitude, longitude, places)?.name
-            ?: placeName?.trim()?.takeIf { it.isNotEmpty() }
-            ?: address?.substringBefore(",")?.trim()?.takeIf { it.isNotEmpty() }
-            ?: "Unnamed place"
+        VisitLabels.name(this, places, shortAddress = true) ?: VisitLabels.UNAVAILABLE
 
     private fun LocationVisit.hasUsableCoordinate(): Boolean =
         isUsableFeedCoordinate(latitude, longitude)

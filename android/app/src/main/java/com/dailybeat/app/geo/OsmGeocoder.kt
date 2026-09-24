@@ -1,19 +1,28 @@
 package com.dailybeat.app.geo
 
+import android.os.SystemClock
 import com.dailybeat.app.data.db.GeocodeDao
 import com.dailybeat.app.data.model.GeocodeCache
 import com.dailybeat.app.util.InputPolicy
+import com.dailybeat.app.util.isBoundedJson
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
 import org.json.JSONObject
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.cos
 import kotlin.math.sqrt
+import kotlin.coroutines.resume
 
 /** A map-derived location hint, not evidence that the user entered a particular venue. */
 data class ResolvedPlace(
@@ -33,6 +42,7 @@ open class OsmGeocoder(
     private val endpoint: () -> String = { baseUrl },
     private val permitsLookup: suspend (Double, Double) -> Boolean = { _, _ -> true },
     private val minimumRequestIntervalMs: Long = 1_100L,
+    private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
 ) {
 
     private val client = OkHttpClient.Builder()
@@ -43,8 +53,7 @@ open class OsmGeocoder(
         .followSslRedirects(false)
         .build()
 
-    private val throttle = Mutex()
-    private var lastRequestMs = 0L
+    private val throttle = GeocoderRequestThrottle(minimumRequestIntervalMs, elapsedRealtimeMs)
 
     open suspend fun resolve(latitude: Double, longitude: Double): ResolvedPlace =
         withContext(Dispatchers.IO) {
@@ -58,10 +67,20 @@ open class OsmGeocoder(
             // Do not reuse older exact-name guesses made from POIs as far as 200 metres away.
             // This only retires derived lookup cache entries, never the user's named/history data.
             val key = configuredEndpoint + ":v3:" + cacheKey(latitude, longitude)
-            runCatching { geocodeDao.get(key) }.getOrNull()?.takeIf {
+            val cachedPlace = try {
+                geocodeDao.get(key)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            cachedPlace?.takeIf {
                 val ageMs = System.currentTimeMillis() - it.fetchedAt
                 ageMs in 0..MAX_CACHE_AGE_MS
             }?.let { cached ->
+                if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) {
+                    return@withContext ResolvedPlace(null, fallbackLabel())
+                }
                 return@withContext ResolvedPlace(cached.placeName, cached.displayName)
             }
 
@@ -103,10 +122,19 @@ open class OsmGeocoder(
                 LookupResult.Failed -> fallback
             }
 
-            if (resolved != fallback) runCatching {
+            // Consent may be withdrawn while a provider is replying. Do not retain a late
+            // enrichment result after that boundary, including a newly private saved place.
+            if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) {
+                return@withContext fallback
+            }
+            if (resolved != fallback) try {
                 geocodeDao.put(
                     GeocodeCache(key = key, displayName = resolved.address, placeName = resolved.name),
                 )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A derived cache failure must not discard the already observed stop.
             }
             resolved
         }
@@ -117,12 +145,7 @@ open class OsmGeocoder(
         longitude: Double,
         layer: String,
     ): LookupResult {
-        throttle.withLock {
-            val wait = minimumRequestIntervalMs.coerceAtLeast(0L) -
-                (System.currentTimeMillis() - lastRequestMs)
-            if (wait > 0) kotlinx.coroutines.delay(wait)
-            lastRequestMs = System.currentTimeMillis()
-        }
+        throttle.awaitTurn()
         // Recheck after the throttle; privacy settings may have changed while waiting.
         if (endpoint() != configuredEndpoint || !permitsLookup(latitude, longitude)) {
             return LookupResult.Failed
@@ -140,25 +163,51 @@ open class OsmGeocoder(
             .header("User-Agent", "DailyBeat (+https://github.com/sampathmannam/dailybeat)")
             .header("Accept-Language", "en")
             .build()
-        val body = try {
-            client.newCall(request).execute().use { response ->
-                if (response.code == 404) return LookupResult.Empty
-                if (!response.isSuccessful) return LookupResult.Failed
-                val responseBody = response.body ?: return LookupResult.Empty
-                if (responseBody.contentLength() > MAX_RESPONSE_BYTES) return LookupResult.Failed
-                val source = responseBody.source()
-                if (source.request(MAX_RESPONSE_BYTES + 1L)) return LookupResult.Failed
-                source.readUtf8()
+        return awaitLookup(request)
+    }
+
+    /** Cancelling capture releases the socket and stalled body read, not just its coroutine. */
+    private suspend fun awaitLookup(request: Request): LookupResult = suspendCancellableCoroutine { continuation ->
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, error: IOException) {
+                if (continuation.isActive) continuation.resume(LookupResult.Failed)
             }
-        } catch (_: Exception) {
-            return LookupResult.Failed
-        }
-        return try {
-            val json = JSONObject(body)
-            if (json.has("error")) LookupResult.Empty else LookupResult.Found(json)
-        } catch (_: Exception) {
-            LookupResult.Failed
-        }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = try {
+                    response.use {
+                        when {
+                            it.code == 404 -> LookupResult.Empty
+                            !it.isSuccessful -> LookupResult.Failed
+                            else -> {
+                                val body = it.body
+                                if (body == null) LookupResult.Empty
+                                else if (body.contentLength() > MAX_RESPONSE_BYTES) LookupResult.Failed
+                                else {
+                                    val source = body.source()
+                                    if (source.request(MAX_RESPONSE_BYTES + 1L)) LookupResult.Failed
+                                    else {
+                                        val payload = source.readUtf8()
+                                        // org.json recursively parses nested values. A small but
+                                        // deeply nested provider response must not overflow its stack.
+                                        if (!isBoundedGeocoderJson(payload)) LookupResult.Failed
+                                        else {
+                                            val json = JSONObject(payload)
+                                            if (json.has("error")) LookupResult.Empty else LookupResult.Found(json)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    LookupResult.Failed
+                }
+                if (continuation.isActive) continuation.resume(result)
+            }
+        })
     }
 
     internal fun parse(json: JSONObject): ResolvedPlace {
@@ -280,3 +329,31 @@ open class OsmGeocoder(
 
     }
 }
+
+/** Wall-clock changes must never extend a lookup wait or block capture for hours. */
+internal class GeocoderRequestThrottle(
+    minimumRequestIntervalMs: Long,
+    private val elapsedRealtimeMs: () -> Long,
+    private val wait: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
+) {
+    // This is an internal request-spacing setting, not a provider Retry-After deadline.
+    // Bound even invalid configuration and a broken/injected clock to a finite single wait.
+    private val intervalMs = minimumRequestIntervalMs.coerceIn(0L, 60_000L)
+    private val mutex = Mutex()
+    private var lastRequestMs: Long? = null
+
+    suspend fun awaitTurn() = mutex.withLock {
+        val now = elapsedRealtimeMs()
+        val previous = lastRequestMs
+        val elapsed = when {
+            previous == null -> intervalMs
+            now < 0L || previous < 0L || now < previous -> 0L
+            else -> now - previous // Nonnegative ordered values cannot overflow subtraction.
+        }
+        val remaining = intervalMs - elapsed.coerceAtMost(intervalMs)
+        if (remaining > 0L) wait(remaining)
+        lastRequestMs = elapsedRealtimeMs()
+    }
+}
+
+internal fun isBoundedGeocoderJson(payload: String): Boolean = isBoundedJson(payload, objectOnly = true)

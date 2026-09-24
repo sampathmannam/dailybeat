@@ -1,10 +1,12 @@
 package com.dailybeat.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dailybeat.app.R
 import com.dailybeat.app.ui.feed.RoutePoint
@@ -44,6 +47,7 @@ fun JourneyRoutePreview(
         routeDescription,
         namedStops,
     )
+    val openMapLabel = stringResource(R.string.journey_map_open)
 
     Surface(
         modifier = modifier
@@ -57,7 +61,8 @@ fun JourneyRoutePreview(
                 model = model,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(188.dp),
+                    .height(188.dp)
+                    .clickable(role = Role.Button, onClickLabel = openMapLabel, onClick = onOpenMap),
                 contentDescription = previewDescription,
                 testTag = "today_journey_map",
                 readyTestTag = "today_journey_map_ready",
@@ -80,7 +85,7 @@ fun JourneyRoutePreview(
                 )
                 TextButton(
                     onClick = onOpenMap,
-                    modifier = Modifier.testTag("open_full_map"),
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("open_full_map"),
                 ) {
                     Text(stringResource(R.string.journey_map_open))
                 }

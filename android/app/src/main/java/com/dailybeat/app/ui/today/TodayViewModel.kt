@@ -124,6 +124,12 @@ class TodayViewModel(application: Application) : AndroidViewModel(application) {
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // A saved name may be added after a visit/event was captured. Observe it locally so
+    // Today can label that existing moment immediately, without rewriting history or
+    // sending old coordinates to an external lookup service.
+    val savedPlaces = app.placeRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val todayBreadcrumbs = activeDay.flatMapLatest { day ->
         app.breadcrumbRepository.observeForDate(day.date)
     }

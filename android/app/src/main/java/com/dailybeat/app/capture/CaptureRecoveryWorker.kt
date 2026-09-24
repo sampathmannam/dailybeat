@@ -12,10 +12,10 @@ class CaptureRecoveryWorker(context: Context, params: WorkerParameters) : Corout
     override suspend fun doWork(): Result = try {
         val app = applicationContext as DailyBeatApp
         CaptureStorageGate.mutex.withLock {
-            app.captureProcessor.drain(
+            app.captureProcessor.recover(
                 onRejected = app.captureHealthStore::rejected,
                 onAccepted = app.captureHealthStore::accepted,
-                allowNetworkLookup = app.settingsRepository.get().gpsCaptureEnabled &&
+                captureAllowed = app.settingsRepository.get().gpsCaptureEnabled &&
                     !app.settingsRepository.isCapturePaused() &&
                     com.dailybeat.app.util.PermissionHelper.hasLocation(app),
             )

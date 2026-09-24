@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(21);
 insert into auth.users(id,email) values
 ('11111111-1111-1111-1111-111111111111','archive-a@example.com'),
 ('22222222-2222-2222-2222-222222222222','archive-b@example.com') on conflict do nothing;
@@ -7,11 +7,17 @@ set local role authenticated;
 set local "request.jwt.claims" = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select lives_ok($$select public.begin_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')$$,'owner begins upload');
 select lives_ok($$select public.begin_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')$$,'begin is idempotent');
+select throws_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',null)$$,'P0001','Backup pages are incomplete','null count cannot publish an empty archive');
+select ok((select manifest is null from public.dailybeat_backup_versions where id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),'rejected empty archive remains unpublished');
 select lives_ok($$select public.put_dailybeat_backup_part('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',0,'{"nonce":"abc","ciphertext":"encrypted"}')$$,'owner uploads part');
 select lives_ok($$select public.put_dailybeat_backup_part('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',0,'{"ciphertext":"encrypted","nonce":"abc"}')$$,'retry of same part is idempotent');
 select throws_ok($$select public.put_dailybeat_backup_part('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',0,'{"nonce":"abc","ciphertext":"changed"}')$$,'P0001','Backup parts are immutable','different payload cannot overwrite');
 select throws_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',2)$$,'P0001','Backup pages are incomplete','incomplete version cannot publish');
+select throws_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',null)$$,'P0001','Backup pages are incomplete','null count cannot bypass uploaded-part validation');
+select ok((select manifest is null from public.dailybeat_backup_versions where id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),'rejected part count leaves the archive unpublished');
 select lives_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',1)$$,'complete version publishes');
+select throws_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',null)$$,'P0001','Backup pages are incomplete','null count is rejected even on a completed archive');
+select lives_ok($$select public.publish_dailybeat_backup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','{"format":"dailybeat-archive","version":1,"salt":"abc","sealed":{}}',1)$$,'valid publication retries remain idempotent');
 select throws_ok($$select public.put_dailybeat_backup_part('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',1,'{"nonce":"abc","ciphertext":"encrypted"}')$$,'P0001','Backup is already published','completed version cannot gain parts');
 set local "request.jwt.claims" = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 select is((select count(*)::int from public.dailybeat_backup_versions),0,'other owner cannot read version');

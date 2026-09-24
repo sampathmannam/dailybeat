@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
+import com.dailybeat.app.maps.prepareOfflineMapStyle
 import kotlinx.coroutines.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.test.core.app.ApplicationProvider
@@ -138,7 +139,7 @@ class NativeOfflineMapTest {
                     getMapAsync {
                         map = it
                         it.cameraPosition = CameraPosition.Builder().target(LatLng(13.0827, 80.2707)).zoom(14.5).build()
-                        val style = File(directory, "light.json").readText()
+                        val style = prepareOfflineMapStyle(File(directory, "light.json").readText(), dark = false)
                             .replace("__PACK_ROOT__", Uri.fromFile(directory).toString())
                         it.setStyle(Style.Builder().fromJson(style)) { ready.countDown() }
                     }
@@ -156,7 +157,7 @@ class NativeOfflineMapTest {
         for (theme in listOf("light", "dark")) {
           val styled = CountDownLatch(1)
           compose.runOnUiThread {
-            map!!.setStyle(Style.Builder().fromJson(File(directory, "$theme.json").readText()
+            map!!.setStyle(Style.Builder().fromJson(prepareOfflineMapStyle(File(directory, "$theme.json").readText(), dark = theme == "dark")
                 .replace("__PACK_ROOT__", Uri.fromFile(directory).toString()))) { styled.countDown() }
           }
           assertTrue(styled.await(15, TimeUnit.SECONDS))

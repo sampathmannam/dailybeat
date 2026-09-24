@@ -2,6 +2,8 @@ package com.dailybeat.app.ui.today
 
 import com.dailybeat.app.data.model.Event
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.domain.VisitLabels
 import kotlin.math.abs
 
 /**
@@ -20,48 +22,62 @@ internal fun todayMomentsOrder(events: List<Event>): List<Event> =
     events.sortedByDescending { it.timestamp }
 
 /**
- * Repairs the label on older transit events without rewriting the user's history.
+ * Joins generated moments to current local visit/place labels without rewriting saved history.
  *
  * Early builds persisted the visit's resolved address in [LocationVisit], then copied the same
  * record into the moments stream as the bare word "Transit". The timestamp and coordinates were
- * retained, so Today can safely join the two local records and show the place immediately. New
- * capture records carry the label directly; this compatibility path keeps already-captured days
- * useful after an app update.
+ * retained, so Today can safely join the two local records and show the place immediately. The
+ * same join is needed for current travel and stay events when a visit is named after capture.
+ * User-authored notes and non-template prose are never rewritten.
  */
 internal fun todayMomentsForDisplay(
     events: List<Event>,
     visits: List<LocationVisit>,
-): List<Event> = todayMomentsOrder(events.map { event ->
-    if (!event.isLegacyTransitLabel()) return@map event
+    places: List<Place> = emptyList(),
+): List<Event> {
+    val visitsByStart = visits.groupBy { it.startMs }
+    return todayMomentsOrder(events.mapNotNull { event ->
+        val transit = event.generatedVisitIsTransit() ?: return@mapNotNull event
 
-    val visit = visits.firstOrNull { candidate ->
-        candidate.visitType.equals("transit", ignoreCase = true) &&
-            candidate.startMs == event.timestamp &&
-            coordinatesMatch(event, candidate)
-    }
-    val place = event.placeName.usablePlaceLabel()
-        ?: visit?.placeName.usablePlaceLabel()
-        ?: visit?.address.usablePlaceLabel()
+        // Missing coordinates in legacy events are acceptable only for an unambiguous match.
+        val visit = visitsByStart[event.timestamp]?.filter { candidate ->
+            candidate.visitType.equals("transit", ignoreCase = true) == transit &&
+                coordinatesMatch(event, candidate)
+        }?.singleOrNull()
+        // Hiding a stop also hides its generated copy; manual notes remain independent.
+        if (visit?.hidden == true) return@mapNotNull null
+        val place = visit?.let { VisitLabels.name(it, places) }
+            ?: VisitLabels.savedPlaceName(event.latitude, event.longitude, places)
+            ?: VisitLabels.usable(event.placeName)
 
-    event.copy(
-        rawText = "Travel recorded",
-        placeName = place,
-    )
-})
-
-private fun Event.isLegacyTransitLabel(): Boolean =
-    type.equals("visit", ignoreCase = true) &&
-        rawText.trim().lowercase() in setOf("transit", "recorded transit")
-
-private fun coordinatesMatch(event: Event, visit: LocationVisit): Boolean {
-    val latitude = event.latitude ?: return true
-    val longitude = event.longitude ?: return true
-    return abs(latitude - visit.latitude) < COORDINATE_MATCH_TOLERANCE &&
-        abs(longitude - visit.longitude) < COORDINATE_MATCH_TOLERANCE
+        event.copy(
+            rawText = VisitLabels.momentText(transit, place),
+            placeName = place,
+        )
+    })
 }
 
-private fun String?.usablePlaceLabel(): String? = this
-    ?.trim()
-    ?.takeIf { it.isNotEmpty() && !it.equals("Unnamed place", ignoreCase = true) }
+/** Recognize only exact capture templates, not arbitrary prose that happens to mention a stay. */
+private fun Event.generatedVisitIsTransit(): Boolean? {
+    if (!type.equals("visit", ignoreCase = true)) return null
+    val text = rawText.trim()
+    if (listOf("Transit", "Recorded transit", "Travel recorded").any { text.equals(it, ignoreCase = true) }) {
+        return true
+    }
+    if (text.equals("Stay recorded", ignoreCase = true) || text.equals("Stay at unnamed place", ignoreCase = true)) {
+        return false
+    }
+    val capturedName = placeName?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return when (text) {
+        "Stay at $capturedName" -> false
+        "Travel · $capturedName" -> true
+        else -> null
+    }
+}
+
+private fun coordinatesMatch(event: Event, visit: LocationVisit): Boolean {
+    return (event.latitude == null || abs(event.latitude - visit.latitude) < COORDINATE_MATCH_TOLERANCE) &&
+        (event.longitude == null || abs(event.longitude - visit.longitude) < COORDINATE_MATCH_TOLERANCE)
+}
 
 private const val COORDINATE_MATCH_TOLERANCE = 0.000_01

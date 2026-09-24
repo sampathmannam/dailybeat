@@ -193,8 +193,11 @@
     <string name="feed_more">More</string>
     <string name="feed_less">Less</string>
     <string name="feed_where_you_went">Where you went</string>
+    <string name="today_place_names_unavailable">Some recorded locations have no place name yet. Review your stops to add names; your route is still saved.</string>
+    <string name="today_name_stops_action">Name stops</string>
+    <string name="feed_name_missing_place_hint">Tap to name this stop</string>
     <string name="feed_name_place_title">Name this place</string>
-    <string name="feed_name_place_body">The map has no name for some spots, so it falls back to the road. Name it once and every later stay here uses it.</string>
+    <string name="feed_name_place_body">A place name may be missing or show only a road. Add a name to recognise this stop and future nearby visits, even offline.</string>
     <string name="feed_name_place_label">Place name</string>
     <string name="feed_name_place_save">Save place</string>
     <string name="feed_name_place_cancel">Cancel</string>

@@ -10,7 +10,28 @@ import com.dailybeat.app.data.settings.ThemePreference
 interface SnapshotStore {
     suspend fun createSnapshot(): BackupSnapshot
     suspend fun restore(snapshot: BackupSnapshot)
+
+    /** Stores that serialize replacement must repeat this check inside their final apply lock. */
+    suspend fun restore(snapshot: BackupSnapshot, expectedDataGeneration: Long) {
+        requireCurrentRestoreGeneration(expectedDataGeneration)
+        restore(snapshot)
+    }
 }
+
+internal fun requireCurrentRestoreGeneration(expectedDataGeneration: Long) {
+    check(expectedDataGeneration == CaptureStorageGate.dataGeneration.get()) {
+        "Local data changed. Start restore again if you still want to replace it."
+    }
+}
+
+/** Records have committed; a preference failure must not be reported as a rolled-back restore. */
+internal class RestoreSettingsException(
+    val committedDataGeneration: Long,
+    cause: Exception,
+) : IllegalStateException(
+    "Your records were restored, but some settings could not be applied. Review Settings before continuing.",
+    cause,
+)
 
 class LocalBackupStore(
     private val db: DailyBeatDb,
@@ -118,10 +139,20 @@ class LocalBackupStore(
         }
     }
 
-    override suspend fun restore(snapshot: BackupSnapshot) = restorePages(sequenceOf(snapshot))
+    override suspend fun restore(snapshot: BackupSnapshot) =
+        restore(snapshot, CaptureStorageGate.dataGeneration.get())
 
-    override suspend fun restorePages(pages: Sequence<BackupSnapshot>) {
+    override suspend fun restore(snapshot: BackupSnapshot, expectedDataGeneration: Long) =
+        restorePages(sequenceOf(snapshot), expectedDataGeneration)
+
+    override suspend fun restorePages(pages: Sequence<BackupSnapshot>) =
+        restorePages(pages, CaptureStorageGate.dataGeneration.get())
+
+    override suspend fun restorePages(pages: Sequence<BackupSnapshot>, expectedDataGeneration: Long) {
         CaptureStorageGate.mutex.withLock {
+            // Network/download and lock waits can outlive an erase or a newer restore. The
+            // original user intent must still be current before touching any local record.
+            requireCurrentRestoreGeneration(expectedDataGeneration)
             CaptureStorageGate.generation.incrementAndGet()
             var settings: BackupSettings? = null
             db.withTransaction {
@@ -145,7 +176,12 @@ class LocalBackupStore(
                 }
             }
             CaptureStorageGate.invalidatePersonalData()
-            applySettings(requireNotNull(settings))
+            val committedGeneration = CaptureStorageGate.dataGeneration.get()
+            try {
+                applySettings(requireNotNull(settings))
+            } catch (error: Exception) {
+                throw RestoreSettingsException(committedGeneration, error)
+            }
         }
     }
 

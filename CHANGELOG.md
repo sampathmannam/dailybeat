@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.3.6 — 2026-09-24
+
+### Places and journey maps
+- Today and Days prefer corrected/saved place names and useful addresses over old unnamed-place
+  placeholders, without fabricating venue names or rewriting raw history.
+- Journey replay works with the offline route fallback, respects backgrounding and reduced motion,
+  and remains usable at large text sizes. Zero-height previews cannot block drawing.
+- Offline dark maps have clearer roads and labels; Warm Butter accents, Carbon surfaces and the
+  existing Today/Days navigation remain unchanged.
+
+### Privacy, backup and capture hardening
+- Erase/restore invalidates old review, search, sharing, saved-place and credential drafts. Delayed
+  restores cannot overwrite newer data; a settings failure after restored records is reported honestly.
+- Privacy opt-out takes effect immediately, and queued automatic reports cannot override it.
+- Backup requests cancel stalled reads, refuse redirects and split encrypted pages using both
+  client and server byte limits. Excessively nested backup, AI and geocoder JSON is rejected safely.
+- Capture recovery preserves a stop boundary through a failed final save and quick restart;
+  geocoding uses bounded monotonic request spacing and discards responses after consent changes.
+- Includes a separately deployable additive backend guard for null archive page counts. Shipping
+  this APK does not apply that migration to production; existing valid backups remain compatible.
+
+### Verification
+- Local application checks: 615 FOSS/store unit tests; 614 standard passes plus one store-only skip;
+  passing offline Android 14/16 suites, Google-provider lifecycle checks and denied-permission startup.
+- Repository, backend isolation and account-deletion checks passed. Both lint configurations have
+  zero errors; existing warnings and field-testing limits are documented in the hardening report.
+- The final versioned commit must pass protected CI before permanent signing and publication.
+
 ## 4.3.5 — 2026-09-22
 
 ### Personal-journal tracking reliability

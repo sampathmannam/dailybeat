@@ -116,6 +116,52 @@ class CloudLlmClientAdversarialTest {
     }
 
     @Test
+    fun `deeply nested OpenAI compatible response fails with the existing invalid response message`() {
+        val nesting = "[".repeat(20_000) + "0" + "]".repeat(20_000)
+        server.enqueue(MockResponse().setBody(
+            """{"choices":[{"message":{"content":"not accepted"}}],"extra":$nesting}""",
+        ))
+
+        assertEquals("Invalid response from ${CloudProvider.COMPATIBLE.displayName}.", generate().exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `deeply nested Anthropic response fails with the existing invalid response message`() = runBlocking {
+        val nesting = "{\"nested\":".repeat(20_000) + "0" + "}".repeat(20_000)
+        server.enqueue(MockResponse().setBody(
+            """{"content":[{"text":"not accepted"}],"extra":$nesting}""",
+        ))
+        val anthropic = CloudLlmClient(
+            ApiKeySource { "test-key" },
+            endpoints = CloudEndpoints(anthropic = server.url("/messages").toString()),
+        )
+
+        val result = anthropic.generate(settings.copy(cloudProvider = CloudProvider.ANTHROPIC.id), "system", "user")
+
+        assertEquals("Invalid response from Anthropic.", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `valid response at the nesting limit remains accepted for both provider formats`() = runBlocking {
+        val nesting = "[".repeat(63) + "0" + "]".repeat(63)
+        server.enqueue(MockResponse().setBody(
+            """{"choices":[{"message":{"content":"Diary text."}}],"extra":$nesting}""",
+        ))
+        assertEquals("Diary text.", client.generate(settings, "system", "user").getOrThrow())
+
+        server.enqueue(MockResponse().setBody(
+            """{"content":[{"text":"Diary text."}],"extra":$nesting}""",
+        ))
+        val anthropic = CloudLlmClient(
+            ApiKeySource { "test-key" },
+            endpoints = CloudEndpoints(anthropic = server.url("/messages").toString()),
+        )
+        assertEquals("Diary text.", anthropic.generate(
+            settings.copy(cloudProvider = CloudProvider.ANTHROPIC.id), "system", "user",
+        ).getOrThrow())
+    }
+
+    @Test
     fun `an answer with no choices is not saved as an empty diary`() {
         server.enqueue(MockResponse().setBody("""{"choices":[]}"""))
 

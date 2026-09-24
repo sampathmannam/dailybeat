@@ -62,6 +62,8 @@ fun JourneyMapSnapshot(
     readyTestTag: String = "journey_map_snapshot_ready",
     onFailure: (String) -> Unit = {},
     allowNetwork: Boolean = true,
+    playbackProgress: Float = 1f,
+    showPlaybackPosition: Boolean = false,
 ) {
     if (model.points.isEmpty()) return
     val context = LocalContext.current
@@ -123,8 +125,15 @@ fun JourneyMapSnapshot(
                 },
             ),
     ) {
-        SnapshotLoadingPreview(model = model, modifier = Modifier.fillMaxSize())
-        snapshotBitmap?.let { bitmap ->
+        SnapshotLoadingPreview(
+            model = model,
+            frame = model.atPlaybackProgress(playbackProgress),
+            showPlaybackPosition = showPlaybackPosition,
+            modifier = Modifier.fillMaxSize(),
+        )
+        // Raster snapshots contain the complete route. Never cover a replay with that static
+        // image or refetch tiles for every frame; the fixed-projection Canvas is local-only.
+        snapshotBitmap?.takeIf { !showPlaybackPosition && playbackProgress >= 0.999f }?.let { bitmap ->
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = null,
@@ -142,30 +151,37 @@ fun JourneyMapSnapshot(
 }
 
 @Composable
-private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = Modifier) {
+private fun SnapshotLoadingPreview(
+    model: JourneyMapModel,
+    frame: JourneyMapModel,
+    showPlaybackPosition: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val projection = remember(model) { JourneyProjection(model) }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = modifier) {
-        val gridStep = size.height / 4f
-        var y = gridStep
-        while (y < size.height) {
-            drawLine(
-                color = gridColor.copy(alpha = 0.3f),
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1f,
-            )
-            y += gridStep
-        }
-        var x = gridStep
-        while (x < size.width) {
-            drawLine(
-                color = gridColor.copy(alpha = 0.18f),
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = 1f,
-            )
-            x += gridStep
+        // A weighted map can temporarily measure to zero during layout or with large text.
+        // Never increment a draw loop by zero, or let a very thin viewport produce huge grids.
+        val gridStep = journeySnapshotGridSpacing(size.width, size.height, 16.dp.toPx())
+            ?: return@Canvas
+        repeat(JOURNEY_GRID_MAX_LINES) { index ->
+            val position = (index + 1) * gridStep
+            if (position < size.height) {
+                drawLine(
+                    color = gridColor.copy(alpha = 0.3f),
+                    start = Offset(0f, position),
+                    end = Offset(size.width, position),
+                    strokeWidth = 1f,
+                )
+            }
+            if (position < size.width) {
+                drawLine(
+                    color = gridColor.copy(alpha = 0.18f),
+                    start = Offset(position, 0f),
+                    end = Offset(position, size.height),
+                    strokeWidth = 1f,
+                )
+            }
         }
 
         val padding = 18.dp.toPx()
@@ -178,7 +194,7 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
             return Offset(padding + px.toFloat() * usable.width, padding + py.toFloat() * usable.height)
         }
 
-        model.routeSegments.filter { it.size >= 2 }.forEach { segment ->
+        frame.routeSegments.filter { it.size >= 2 }.forEach { segment ->
             val offsets = segment.map { it.toOffset() }
             val routePath = Path().apply {
                 moveTo(offsets.first().x, offsets.first().y)
@@ -188,7 +204,7 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
             drawPath(path = routePath, color = Gold, style = Stroke(width = 5.dp.toPx()))
         }
 
-        model.gapSegments.forEach { segment ->
+        frame.gapSegments.forEach { segment ->
             val offsets = segment.map { it.toOffset() }
             val gapPath = Path().apply {
                 moveTo(offsets.first().x, offsets.first().y)
@@ -211,10 +227,26 @@ private fun SnapshotLoadingPreview(model: JourneyMapModel, modifier: Modifier = 
             drawCircle(color = Navy, radius = 7.dp.toPx(), center = offset)
             drawCircle(color = Gold, radius = 4.5.dp.toPx(), center = offset)
         }
+        if (showPlaybackPosition) {
+            frame.points.lastOrNull { it.drawsRoute }?.let { point ->
+                val offset = point.toOffset()
+                drawCircle(color = Gold, radius = 10.dp.toPx(), center = offset)
+                drawCircle(color = Navy, radius = 6.dp.toPx(), center = offset)
+            }
+        }
     }
 }
 
-private class JourneyProjection(model: JourneyMapModel) {
+internal const val JOURNEY_GRID_MAX_LINES = 64
+
+/** Null means the viewport cannot be drawn; every valid grid has finite, bounded work. */
+internal fun journeySnapshotGridSpacing(width: Float, height: Float, minimumSpacingPx: Float): Float? {
+    if (!width.isFinite() || width <= 0f || !height.isFinite() || height <= 0f ||
+        !minimumSpacingPx.isFinite() || minimumSpacingPx <= 0f) return null
+    return maxOf(height / 4f, minimumSpacingPx, width / (JOURNEY_GRID_MAX_LINES + 1))
+}
+
+internal class JourneyProjection(model: JourneyMapModel) {
     private val centerLongitude = requireNotNull(model.centerLongitude)
     private val projected = model.points.map { point -> rawX(point.longitude) to rawY(point.latitude) }
     private val minX = projected.minOf { it.first }

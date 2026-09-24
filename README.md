@@ -7,7 +7,7 @@ not certification of attendance, official submission, or an evidentiary chain of
 
 ## Current release
 
-**4.3.5 / code 39** is the current source release line. It uses the permanently signed
+**4.3.6 / code 40** is the current source release line. It uses the permanently signed
 `com.dailybeat.app` package used by GitHub Releases and Obtainium.
 
 - Personal / Field work / Police onboarding and settings; existing installations retain Police.
@@ -27,11 +27,15 @@ not certification of attendance, official submission, or an evidentiary chain of
 - Four focused Settings categories with a pinned back action instead of one continuous page.
 - Standard Google location backend and a separate Android-platform-only build.
 - Warm Butter accents and neutral Carbon dark mode; no DSR features added.
+- Reliable offline route replay and clearer place labels in Today and Days.
+- Stale-draft/restore protection, immediate privacy opt-out and bounded untrusted JSON parsing.
 
 See [implementation and release plan](docs/PUBLIC_RELEASE_PLAN.md),
 [validation evidence and field protocol](docs/PUBLIC_BETA_VALIDATION.md),
 [privacy information](PRIVACY.md), [offline Tamil Nadu maps](docs/OFFLINE_MAPS.md),
 [tracking accuracy decisions and limits](docs/TRACKING_RELIABILITY.md), and the larger [product roadmap](docs/PRODUCT_IMPROVEMENT_PLAN.md).
+The [24 September hardening report](docs/hardening/2026-09-24.md) records the latest local test
+matrix and its limits; publication still requires the protected release checks.
 
 The [F-Droid distribution guide](docs/FDROID.md) documents the Google-free store build, public
 build recipe, reproducibility checks, signing continuity and network disclosures. Inclusion is
