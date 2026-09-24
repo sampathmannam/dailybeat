@@ -4,11 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailybeat.app.DailyBeatApp
+import com.dailybeat.app.capture.CaptureStorageGate
+import com.dailybeat.app.domain.VisitLabels
 import com.dailybeat.app.ui.feed.DayFeedBuilder
 import com.dailybeat.app.ui.feed.DayFeedItem
 import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,14 +47,33 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
     private val app = application as DailyBeatApp
     private val _uiState = MutableStateFlow(InsightsUiState())
     val uiState: StateFlow<InsightsUiState> = _uiState.asStateFlow()
+    private var refreshJob: Job? = null
+    private var observedDataGeneration = CaptureStorageGate.dataGeneration.get()
 
-    init { refresh() }
+    init {
+        refresh()
+        viewModelScope.launch {
+            CaptureStorageGate.dataChanges.collect {
+                val generation = CaptureStorageGate.dataGeneration.get()
+                if (generation != observedDataGeneration) {
+                    observedDataGeneration = generation
+                    refreshJob?.cancel()
+                    _uiState.value = InsightsUiState()
+                    refresh()
+                }
+            }
+        }
+    }
 
     fun refresh() {
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        val generation = CaptureStorageGate.dataGeneration.get()
+        refreshJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             runCatching { withContext(Dispatchers.IO) { load() } }.fold(
-                onSuccess = { _uiState.value = it },
+                onSuccess = {
+                    if (generation == CaptureStorageGate.dataGeneration.get()) _uiState.value = it
+                },
                 onFailure = { cause ->
                     if (cause is CancellationException) throw cause
                     _uiState.value = _uiState.value.copy(
@@ -87,6 +109,7 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         val streak = reviewStreak(today, reviews.mapValues { it.value.state })
         val gaps = currentWeek.sumOf { it.captureGapCount }
         val patterns = activeDays.flatMap { it.stays }
+            .filter { it.name != VisitLabels.UNAVAILABLE }
             .groupingBy { it.name }
             .eachCount()
             .map { PlacePattern(it.key, it.value) }

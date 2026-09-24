@@ -44,8 +44,9 @@ class LocalMapLease internal constructor(
     private val closed = AtomicBoolean(false)
     private val region by lazy { MapCoverage(JSONObject(File(directory, "region.geojson").readText())) }
     fun contains(latitude: Double, longitude: Double) = manifest.contains(latitude, longitude) && region.contains(latitude, longitude)
-    fun style(dark: Boolean): String = File(directory, if (dark) "dark.json" else "light.json")
-        .readText().replace("__PACK_ROOT__", android.net.Uri.fromFile(directory).toString().trimEnd('/'))
+    fun style(dark: Boolean): String = prepareOfflineMapStyle(
+        File(directory, if (dark) "dark.json" else "light.json").readText(), dark,
+    ).replace("__PACK_ROOT__", android.net.Uri.fromFile(directory).toString().trimEnd('/'))
     override fun close() { if (closed.compareAndSet(false, true)) release() }
 }
 

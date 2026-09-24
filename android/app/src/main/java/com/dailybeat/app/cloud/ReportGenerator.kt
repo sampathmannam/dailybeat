@@ -93,9 +93,13 @@ class ReportGenerator(
      * later run replaces that block instead of appending another copy.
      */
     suspend fun generateUnattendedForDate(date: LocalDate): Result<String> {
+        if (!settingsRepository.get().autoEveningReport) {
+            return Result.failure(IllegalStateException("Automatic evening reports are turned off."))
+        }
         val generation = CaptureStorageGate.dataGeneration.get()
         return generateForDate(date).mapCatching { text ->
             CaptureStorageGate.writeIfCurrent(generation) {
+                check(settingsRepository.get().autoEveningReport) { "Automatic evening reports are turned off." }
                 val block = "$REPORT_START_BOUNDARY$REPORT_MARKER${DateKeys.format(date)}) —\n" +
                     "$text\n$REPORT_END_BOUNDARY"
                 val existing = diaryRepository.textForDate(date).orEmpty()

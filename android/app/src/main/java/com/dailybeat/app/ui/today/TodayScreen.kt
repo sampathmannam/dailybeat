@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,6 +81,10 @@ fun TodayScreen(
 ) {
     val visits by viewModel.todayVisits.collectAsStateWithLifecycle()
     val events by viewModel.todayEvents.collectAsStateWithLifecycle()
+    val savedPlaces by viewModel.savedPlaces.collectAsStateWithLifecycle()
+    val displayMoments = remember(events, visits, savedPlaces) {
+        todayMomentsForDisplay(events, visits, savedPlaces)
+    }
     val beat by viewModel.todayBeat.collectAsStateWithLifecycle()
     val patternAnalysis by viewModel.patternAnalysis.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -230,7 +235,7 @@ fun TodayScreen(
             TodayMomentsHeader()
         }
 
-        if (events.isEmpty()) {
+        if (displayMoments.isEmpty()) {
             item {
                 Text(
                     text = stringResource(R.string.today_moments_empty),
@@ -240,7 +245,21 @@ fun TodayScreen(
                 )
             }
         } else {
-            items(todayMomentsForDisplay(events, visits), key = { it.id }) { event ->
+            if (displayMoments.any {
+                    it.type.equals("visit", ignoreCase = true) && it.placeName == null &&
+                        it.rawText in setOf("Stay recorded", "Travel recorded")
+                }) {
+                item {
+                    InlineFeedback(
+                        message = stringResource(R.string.today_place_names_unavailable),
+                        isError = false,
+                        modifier = Modifier.testTag("today_name_stops_hint"),
+                        actionLabel = stringResource(R.string.today_name_stops_action),
+                        onAction = onReviewDay,
+                    )
+                }
+            }
+            items(displayMoments, key = { it.id }) { event ->
                 EventCard(event = event)
             }
         }

@@ -40,6 +40,9 @@ data class JourneyMapModel(
     val longitudeSpan: Double = 0.0,
     val crossesAntimeridian: Boolean = false,
 ) {
+    /** Saved geometry can replay without waiting for an online/native map renderer. */
+    val canReplay: Boolean get() = points.count { it.drawsRoute } >= 2
+
     val stopPoints: List<JourneyPoint>
         get() = points.filter { it.visitType != "transit" }.ifEmpty {
             points.firstOrNull()?.let(::listOf).orEmpty()
@@ -321,6 +324,21 @@ internal fun JourneyMapModel.atPlaybackProgress(progress: Float): JourneyMapMode
 
 internal fun journeyPlaybackDurationMillis(pointCount: Int): Int =
     (pointCount * 75).coerceIn(4_000, 18_000)
+
+/** Append/enrichment may refresh a live day, but removal/replacement must invalidate its replay. */
+internal fun JourneyMapModel.preservesReplayOf(snapshot: JourneyMapModel): Boolean {
+    if (snapshot.points.isEmpty() || points.isEmpty()) return false
+    var matched = 0
+    for (point in points) {
+        val expected = snapshot.points.getOrNull(matched) ?: break
+        if (point.startMs == expected.startMs && point.latitude == expected.latitude &&
+            point.longitude == expected.longitude && point.drawsRoute == expected.drawsRoute &&
+            point.startsAfterGap == expected.startsAfterGap && point.visitType == expected.visitType) {
+            matched++
+        }
+    }
+    return matched == snapshot.points.size
+}
 
 private fun interpolateJourneyPoint(
     from: JourneyPoint,

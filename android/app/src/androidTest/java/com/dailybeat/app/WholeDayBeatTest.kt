@@ -61,10 +61,15 @@ class WholeDayBeatTest {
         composeRule.waitUntil(10_000) {
             runBlocking { app.beatRepository.get(DateKeys.today())?.state == "complete" }
         }
-        // The database commits before the asynchronous screen refresh finishes. Assert the
-        // rendered outcome after it arrives, and bring the lazy-list action into view.
-        composeRule.waitUntilAtLeastOneExists(hasText("Reopen for corrections"), 10_000)
-        composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasText("Reopen for corrections"))
+        // Database completion and Compose/IME layout settle independently. The new action can
+        // be outside the lazy-list viewport, so scroll while waiting instead of requiring an
+        // offscreen item to already exist in the semantics tree. Still assert the visible label.
+        composeRule.waitUntil(10_000) {
+            runCatching {
+                composeRule.onNodeWithTag("review_day_screen")
+                    .performScrollToNode(hasText("Reopen for corrections"))
+            }.isSuccess
+        }
         composeRule.onNodeWithText("Reopen for corrections").assertIsDisplayed()
 
         composeRule.onNodeWithTag("review_day_screen").performScrollToNode(hasTestTag("review_day_back"))

@@ -3,8 +3,10 @@ package com.dailybeat.app.ui.feed
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.dailybeat.app.DailyBeatApp
-import com.dailybeat.app.data.model.Place
+import com.dailybeat.app.capture.CaptureStorageGate
+import com.dailybeat.app.domain.VisitLabels
 import com.dailybeat.app.util.DateKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -19,6 +21,7 @@ import com.dailybeat.app.util.userMessage
 import com.dailybeat.app.util.InputPolicy
 
 data class FeedUiState(
+    val dataGeneration: Long = CaptureStorageGate.dataGeneration.get(),
     val throughDate: LocalDate = DateKeys.today(),
     val days: List<DayFeedItem> = emptyList(),
     val searchQuery: String = "",
@@ -41,6 +44,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
     private var refreshJob: Job? = null
     private var searchJob: Job? = null
+    private val openedDataGeneration = CaptureStorageGate.dataGeneration.get()
+    private var observedDataGeneration = openedDataGeneration
 
     fun search(value: String) {
         val query = InputPolicy.bounded(value, 120)
@@ -48,10 +53,12 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(searchQuery = query, searchResults = emptyList(),
             isSearching = query.isNotBlank(), error = null)
         if (query.isBlank()) return
+        val generation = CaptureStorageGate.dataGeneration.get()
         searchJob = viewModelScope.launch {
             kotlinx.coroutines.delay(250)
             try {
                 val results = app.db.journalSearch().search(com.dailybeat.app.data.db.JournalSearchDao.pattern(query))
+                if (generation != CaptureStorageGate.dataGeneration.get() || _uiState.value.searchQuery != query) return@launch
                 _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -62,17 +69,36 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         refresh()
+        viewModelScope.launch {
+            CaptureStorageGate.dataChanges.collect {
+                val generation = CaptureStorageGate.dataGeneration.get()
+                if (generation != observedDataGeneration) {
+                    observedDataGeneration = generation
+                    refreshJob?.cancel()
+                    searchJob?.cancel()
+                    _uiState.value = FeedUiState(throughDate = _uiState.value.throughDate)
+                    refresh()
+                }
+            }
+        }
     }
 
     fun refresh() {
         // Initial load, navigation and foreground resume may overlap. Only the newest load
         // may publish state; cancellation must not surface as a user-visible load error.
         refreshJob?.cancel()
+        val generation = CaptureStorageGate.dataGeneration.get()
+        val throughDate = _uiState.value.throughDate
         refreshJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            runCatching { withContext(Dispatchers.IO) { loadDays() } }.fold(
+            runCatching { withContext(Dispatchers.IO) { DayFeedLoader(app.db).load(throughDate) } }.fold(
                 onSuccess = { days ->
-                    _uiState.value = _uiState.value.copy(days = days, isLoading = false)
+                    if (generation == CaptureStorageGate.dataGeneration.get()) {
+                        val currentDays = days.map { day ->
+                            day.copy(stays = day.stays.map { it.copy(dataGeneration = generation) })
+                        }
+                        _uiState.value = _uiState.value.copy(days = currentDays, isLoading = false)
+                    }
                 },
                 onFailure = { error ->
                     if (error is CancellationException) throw error
@@ -91,14 +117,16 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun olderDays() = browseThrough(_uiState.value.throughDate.minusDays(30))
     fun newerDays() = browseThrough(_uiState.value.throughDate.plusDays(30))
-    private suspend fun loadDays(): List<DayFeedItem> = DayFeedLoader(app.db).load(_uiState.value.throughDate)
 
     fun generateWeeklyRollup() {
         if (_uiState.value.isGeneratingWeekly || _uiState.value.isExporting) return
+        val generation = CaptureStorageGate.dataGeneration.get()
         _uiState.value = _uiState.value.copy(isGeneratingWeekly = true, error = null, message = null)
         viewModelScope.launch {
             val result = runCatching { app.weeklyGenerator.generateAndSave() }
                 .getOrElse { Result.failure(it) }
+            result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+            if (generation != CaptureStorageGate.dataGeneration.get()) return@launch
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
@@ -117,16 +145,25 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun preparePackage(): List<com.dailybeat.app.export.DiarySharePreview>? = runCatching {
-        app.diaryShareService.prepareWeek().also {
-            check(it.isNotEmpty()) { "No saved diaries in the last seven days." }
+    suspend fun preparePackage(): List<com.dailybeat.app.export.DiarySharePreview>? {
+        val generation = CaptureStorageGate.dataGeneration.get()
+        return try {
+            val previews = app.diaryShareService.prepareWeek()
+            if (generation != CaptureStorageGate.dataGeneration.get()) return null
+            check(previews.isNotEmpty()) { "No saved diaries in the last seven days." }
+            previews
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (generation == CaptureStorageGate.dataGeneration.get()) {
+                _uiState.value = _uiState.value.copy(error = error.userMessage("Unable to prepare sharing copy."))
+            }
+            null
         }
-    }.onFailure { error ->
-        _uiState.value = _uiState.value.copy(error = error.userMessage("Unable to prepare sharing copy."))
-    }.getOrNull()
+    }
 
     fun exportPackage(previews: List<com.dailybeat.app.export.DiarySharePreview>) {
         if (_uiState.value.isExporting || _uiState.value.isGeneratingWeekly) return
+        val generation = CaptureStorageGate.dataGeneration.get()
         _uiState.value = _uiState.value.copy(isExporting = true, error = null, message = null)
         viewModelScope.launch {
             runCatching {
@@ -135,6 +172,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.fold(
                 onSuccess = { file ->
+                    if (generation != CaptureStorageGate.dataGeneration.get()) return@fold
                     _uiState.value = _uiState.value.copy(
                         isExporting = false,
                         message = "Export ready: ${file.name}",
@@ -142,6 +180,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (generation != CaptureStorageGate.dataGeneration.get()) return@fold
                     _uiState.value = _uiState.value.copy(
                         isExporting = false,
                         error = error.userMessage("Export failed."),
@@ -167,21 +207,51 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             )
             return
         }
+        val expectedDataGeneration = stay.dataGeneration ?: openedDataGeneration
+        if (expectedDataGeneration != CaptureStorageGate.dataGeneration.get()) {
+            _uiState.value = _uiState.value.copy(error = "Local data changed. Reopen the day before naming this stop.")
+            return
+        }
         _uiState.value = _uiState.value.copy(isSavingPlace = true, error = null, message = null)
         viewModelScope.launch {
             runCatching {
-                app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
+                CaptureStorageGate.writeIfCurrent(expectedDataGeneration) {
+                    app.db.withTransaction {
+                        val visit = if (stay.visitId > 0) {
+                            app.db.visits().between(stay.startMs, stay.endMs).singleOrNull { it.id == stay.visitId }
+                                .also { current ->
+                                    check(current != null && !current.hidden &&
+                                        current.latitude == stay.latitude && current.longitude == stay.longitude &&
+                                        (VisitLabels.name(current, app.placeRepository.all(), shortAddress = true)
+                                            ?: VisitLabels.UNAVAILABLE) == stay.name
+                                    ) { "This stop changed. Reopen the day and try again." }
+                                }
+                        } else null
+                        if (visit?.manuallyEdited == true && VisitLabels.usable(visit.placeName) != null) {
+                            // A deliberate edit to an already corrected stop changes that stop,
+                            // not the broader saved place surrounding it. Keep its audit trail.
+                            app.visitRepository.rename(visit, trimmed)
+                        } else if (!app.placeRepository.renameExactMatch(
+                                stay.name, stay.latitude, stay.longitude, trimmed,
+                            )) {
+                            app.placeRepository.add(trimmed, stay.latitude, stay.longitude, radiusM = PLACE_RADIUS_M)
+                        }
+                    }
+                }
             }.fold(
                 onSuccess = {
+                    if (expectedDataGeneration != CaptureStorageGate.dataGeneration.get()) return@fold
                     _uiState.value = _uiState.value.copy(
                         isSavingPlace = false,
-                        message = "Saved \"$trimmed\". Future stays here will use it.",
+                        message = "Saved \"$trimmed\".",
                         error = null,
                     )
                     onSaved()
                     refresh()
                 },
                 onFailure = { error ->
+                    if (error is CancellationException) throw error
+                    if (expectedDataGeneration != CaptureStorageGate.dataGeneration.get()) return@fold
                     _uiState.value = _uiState.value.copy(
                         isSavingPlace = false,
                         error = error.userMessage("Unable to save this place."),
@@ -202,7 +272,6 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
-        const val DAYS_IN_FEED = 30
         const val PLACE_RADIUS_M = 150
     }
 }

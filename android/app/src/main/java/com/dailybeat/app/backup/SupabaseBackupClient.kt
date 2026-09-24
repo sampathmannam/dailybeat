@@ -1,20 +1,28 @@
 package com.dailybeat.app.backup
 
+import com.dailybeat.app.util.isBoundedJson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * A bare OkHttpClient has callTimeout 0 — unbounded — so a stalled connection could pin a backup
@@ -59,10 +67,16 @@ private class BackupHttpException(val status: Int, message: String) : IllegalSta
 class SupabaseBackupClient(
     private val configuration: BackupConfiguration,
     private val sessionStore: BackupSessionStore,
-    private val httpClient: OkHttpClient = defaultBackupHttpClient(),
+    httpClient: OkHttpClient = defaultBackupHttpClient(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val networkRetryDelaysMs: List<Long> = listOf(250L, 750L, 1_500L),
+    private val authenticationDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ArchiveBackupRemote {
+    // Keep credentials on the configured origin even if a caller supplies a shared client.
+    private val httpClient = httpClient.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()
     private val sessionLock = Any()
     private val refreshMutex = Mutex()
     private var sessionGeneration = 0L
@@ -71,12 +85,16 @@ class SupabaseBackupClient(
 
     override fun currentSession(): BackupSession? = synchronized(sessionLock) { sessionStore.get() }
 
-    override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> =
-        withContext(Dispatchers.IO) {
+    override suspend fun signUp(email: String, password: String): Result<BackupSignUpResult> {
+        // Reserve the request before dispatch. Otherwise a queued old sign-in can start its
+        // generation after Sign out/Erase and silently become a new authorized request.
+        currentCoroutineContext().ensureActive()
+        val generation = beginAuthentication()
+        return withContext(authenticationDispatcher) {
             runCatching {
+                ensureAuthenticationCurrent(generation)
                 ensureConfigured()
                 validateCredentials(email, password)
-                val generation = beginAuthentication()
                 val body = JSONObject()
                     .put("email", email.trim())
                     .put("password", password)
@@ -91,7 +109,7 @@ class SupabaseBackupClient(
                     authRequest = true,
                     retryNetworkFailures = false,
                 )
-                val root = JSONObject(responseBody)
+                val root = responseObject(responseBody)
                 if (root.optString("access_token").isNotBlank()) {
                     val session = saveAuthentication(parseSession(responseBody), generation)
                     BackupSignUpResult(session = session, requiresEmailConfirmation = false)
@@ -100,21 +118,26 @@ class SupabaseBackupClient(
                 }
             }
         }
+    }
 
-    override suspend fun signIn(email: String, password: String): Result<BackupSession> = withContext(Dispatchers.IO) {
-        runCatching {
-            ensureConfigured()
-            validateCredentials(email, password)
-            val generation = beginAuthentication()
-            val body = JSONObject()
-                .put("email", email.trim())
-                .put("password", password)
-                .toString()
-            val request = requestBuilder("/auth/v1/token?grant_type=password")
-                .post(body.toRequestBody(JSON))
-                .build()
-            val responseBody = execute(request, authRequest = true)
-            saveAuthentication(parseSession(responseBody), generation)
+    override suspend fun signIn(email: String, password: String): Result<BackupSession> {
+        currentCoroutineContext().ensureActive()
+        val generation = beginAuthentication()
+        return withContext(authenticationDispatcher) {
+            runCatching {
+                ensureAuthenticationCurrent(generation)
+                ensureConfigured()
+                validateCredentials(email, password)
+                val body = JSONObject()
+                    .put("email", email.trim())
+                    .put("password", password)
+                    .toString()
+                val request = requestBuilder("/auth/v1/token?grant_type=password")
+                    .post(body.toRequestBody(JSON))
+                    .build()
+                val responseBody = execute(request, authRequest = true)
+                saveAuthentication(parseSession(responseBody), generation)
+            }
         }
     }
 
@@ -184,7 +207,7 @@ class SupabaseBackupClient(
                 "/rest/v1/$table?select=snapshot,updated_at&user_id=eq.${session.userId}&limit=1",
                 session,
             ).get().build()
-            val rows = JSONArray(execute(request))
+            val rows = responseArray(execute(request))
             if (rows.length() == 0) {
                 null
             } else {
@@ -213,7 +236,7 @@ class SupabaseBackupClient(
     }
     override suspend fun versions(): List<BackupVersion> = withContext(Dispatchers.IO) {
         ensureConfigured()
-        val rows = JSONArray(execute(authorizedRequestBuilder(
+        val rows = responseArray(execute(authorizedRequestBuilder(
             "/rest/v1/dailybeat_backup_versions?select=id,created_at,manifest&manifest=not.is.null&order=created_at.desc&limit=5", validSession()).get().build()))
         (0 until rows.length()).map { index -> rows.getJSONObject(index).let {
             BackupVersion(checkedId(it.getString("id")), it.getString("created_at"), it.getJSONObject("manifest").toString())
@@ -221,7 +244,7 @@ class SupabaseBackupClient(
     }
     override suspend fun downloadPart(id: String, index: Int): String = withContext(Dispatchers.IO) {
         require(index in 0 until ArchiveCipher.MAX_PARTS)
-        val rows = JSONArray(execute(authorizedRequestBuilder(
+        val rows = responseArray(execute(authorizedRequestBuilder(
             "/rest/v1/dailybeat_backup_parts?select=payload&version_id=eq.${checkedId(id)}&part_index=eq.$index&limit=1", validSession()).get().build()))
         check(rows.length() == 1) { "A backup page is missing. Nothing was restored." }
         rows.getJSONObject(0).getJSONObject("payload").toString()
@@ -240,6 +263,10 @@ class SupabaseBackupClient(
     }
 
     private fun beginAuthentication(): Long = synchronized(sessionLock) { ++sessionGeneration }
+
+    private fun ensureAuthenticationCurrent(generation: Long) = synchronized(sessionLock) {
+        check(sessionGeneration == generation) { "Cloud backup sign-in changed. Try again." }
+    }
 
     private fun saveAuthentication(session: BackupSession, generation: Long): BackupSession =
         synchronized(sessionLock) {
@@ -288,7 +315,7 @@ class SupabaseBackupClient(
     }
 
     private fun parseSession(body: String, fallback: BackupSession? = null): BackupSession {
-        val root = JSONObject(body)
+        val root = responseObject(body)
         val user = root.optJSONObject("user")
         val userId = user?.optString("id")?.takeIf(String::isNotBlank) ?: fallback?.userId
         val email = user?.optString("email")?.takeIf(String::isNotBlank) ?: fallback?.email.orEmpty()
@@ -313,6 +340,16 @@ class SupabaseBackupClient(
         .url(configuration.baseUrl + path)
         .header("apikey", configuration.anonymousKey)
         .header("Content-Type", "application/json")
+
+    private fun responseObject(body: String): JSONObject {
+        require(isBoundedJson(body, objectOnly = true)) { "Cloud backup returned invalid JSON." }
+        return JSONObject(body)
+    }
+
+    private fun responseArray(body: String): JSONArray {
+        require(isBoundedJson(body)) { "Cloud backup returned invalid JSON." }
+        return JSONArray(body)
+    }
 
     private fun authorizedRequestBuilder(path: String, session: BackupSession): Request.Builder =
         requestBuilder(path).header("Authorization", "Bearer ${session.accessToken}")
@@ -341,33 +378,53 @@ class SupabaseBackupClient(
         }
     }
 
-    private fun executeOnce(request: Request, authRequest: Boolean): String =
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw BackupHttpException(response.code,
-                    when {
-                        authRequest && response.code in 400..499 -> "Email or password is incorrect."
-                        response.code == 401 || response.code == 403 ->
-                            "Cloud backup authorization expired. Sign in again."
-                        response.code == 404 && request.url.encodedPath.contains("delete-account") ->
-                            "Account deletion is not available on this server yet."
-                        response.code == 404 -> "No cloud backup was found."
-                        response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
-                        response.code >= 500 -> "Cloud backup service is temporarily unavailable."
-                        else -> "Cloud backup request failed (${response.code})."
-                    },
-                )
-            }
-            val body = response.body ?: return@use ""
-            if (body.contentLength() > MAX_RESPONSE_BYTES) {
-                throw IllegalStateException("Cloud backup response was too large.")
-            }
-            val source = body.source()
-            if (source.request(MAX_RESPONSE_BYTES + 1L)) {
-                throw IllegalStateException("Cloud backup response was too large.")
-            }
-            source.readUtf8()
+    /** Cancellation closes the socket even while response headers or body bytes are stalled. */
+    private suspend fun executeOnce(request: Request, authRequest: Boolean): String =
+        suspendCancellableCoroutine { continuation ->
+            val call = httpClient.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, error: IOException) {
+                    if (!continuation.isCancelled) continuation.resumeWithException(error)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        val text = response.use { readResponse(it, request, authRequest) }
+                        if (!continuation.isCancelled) continuation.resume(text)
+                    } catch (error: Exception) {
+                        if (!continuation.isCancelled) continuation.resumeWithException(error)
+                    }
+                }
+            })
         }
+
+    private fun readResponse(response: Response, request: Request, authRequest: Boolean): String {
+        if (!response.isSuccessful) {
+            throw BackupHttpException(response.code,
+                when {
+                    authRequest && response.code in 400..499 -> "Email or password is incorrect."
+                    response.code == 401 || response.code == 403 ->
+                        "Cloud backup authorization expired. Sign in again."
+                    response.code == 404 && request.url.encodedPath.contains("delete-account") ->
+                        "Account deletion is not available on this server yet."
+                    response.code == 404 -> "No cloud backup was found."
+                    response.code == 429 -> "Cloud backup is temporarily busy. Try again shortly."
+                    response.code >= 500 -> "Cloud backup service is temporarily unavailable."
+                    else -> "Cloud backup request failed (${response.code})."
+                },
+            )
+        }
+        val body = response.body ?: return ""
+        if (body.contentLength() > MAX_RESPONSE_BYTES) {
+            throw IllegalStateException("Cloud backup response was too large.")
+        }
+        val source = body.source()
+        if (source.request(MAX_RESPONSE_BYTES + 1L)) {
+            throw IllegalStateException("Cloud backup response was too large.")
+        }
+        return source.readUtf8()
+    }
 
     private fun ensureConfigured() {
         check(configuration.isConfigured) { "Cloud backup is not configured in this build." }
