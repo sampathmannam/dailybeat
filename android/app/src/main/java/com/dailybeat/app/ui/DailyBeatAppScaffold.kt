@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Insights
@@ -25,6 +26,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -90,11 +92,24 @@ private fun TopLevelDestination.isSelected(currentRoute: String): Boolean = when
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DailyBeatAppScaffold() {
+fun DailyBeatAppScaffold(
+    reviewDateKey: String? = null,
+    onReviewDateHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Routes.TODAY
     val todayLabel = Formatters.dayHeading(LocalDate.now())
+
+    // NavHost installs its graph after this parent enters composition. A notification
+    // arriving on a cold launch must wait for that first destination before navigating.
+    val navigationReady = navBackStackEntry != null
+    LaunchedEffect(reviewDateKey, navigationReady) {
+        if (reviewDateKey != null && navigationReady) {
+            navController.navigate(Routes.review(reviewDateKey)) { launchSingleTop = true }
+            onReviewDateHandled()
+        }
+    }
 
     val todayViewModel: TodayViewModel = viewModel()
     val context = LocalContext.current
@@ -149,7 +164,7 @@ fun DailyBeatAppScaffold() {
             todayViewModel = todayViewModel,
             todayLabel = todayLabel,
             onStartVoiceCapture = ::startVoiceCapture,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         )
     }
 }

@@ -12,7 +12,7 @@ import android.graphics.RectF
 import androidx.compose.ui.unit.IntSize
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.maps.awaitBoundedBytes
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import kotlin.math.PI
 import kotlin.math.cos
@@ -31,6 +31,8 @@ private const val MAX_TILE_RESPONSE_BYTES = 2L * 1024L * 1024L
 private const val MAX_TILE_DIMENSION_PX = 1_024
 private const val MAX_TILE_PIXELS = 1_048_576L
 
+internal data class JourneyMapRaster(val bitmap: Bitmap, val complete: Boolean)
+
 /**
  * Builds card-sized maps without MapLibre's native snapshotter. The interactive full map still
  * uses MapLibre, but keeping these short-lived card renders in Android's bitmap stack avoids a
@@ -41,7 +43,11 @@ internal suspend fun renderJourneyMapRaster(
     model: JourneyMapModel,
     viewportSize: IntSize,
     density: Float,
-): Bitmap = withTimeout(8_000) {
+    tileBudgetMillis: Long = 8_000,
+    loadTile: suspend (Int, Int, Int) -> Bitmap? = { zoom, x, y ->
+        OsmRasterTileClient.load(context, zoom, x, y)
+    },
+): JourneyMapRaster {
     require(viewportSize.width > 0 && viewportSize.height > 0)
     require(viewportSize.width.toLong() * viewportSize.height <= 8_000_000)
     val safeDensity = density.coerceAtLeast(1f)
@@ -74,30 +80,42 @@ internal suspend fun renderJourneyMapRaster(
         canvas.drawColor(Color.rgb(238, 242, 245))
         val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         var renderedTileCount = 0
+        var expectedTileCount = 0
+        for (y in firstTileY..lastTileY) {
+            if (y in 0 until worldTiles) expectedTileCount += lastTileX - firstTileX + 1
+        }
 
-        for (rawTileY in firstTileY..lastTileY) {
-            if (rawTileY !in 0 until worldTiles) continue
-            for (rawTileX in firstTileX..lastTileX) {
-                currentCoroutineContext().ensureActive()
-                val tileX = Math.floorMod(rawTileX, worldTiles)
-                val tile = OsmRasterTileClient.load(context, zoom, tileX, rawTileY) ?: continue
-                try {
-                    val left = (rawTileX * tileSizePx - viewportLeft).toFloat()
-                    val top = (rawTileY * tileSizePx - viewportTop).toFloat()
-                    canvas.drawBitmap(
-                        tile,
-                        null,
-                        RectF(left, top, left + tileSizePx.toFloat(), top + tileSizePx.toFloat()),
-                        tilePaint,
-                    )
-                    renderedTileCount += 1
-                } finally {
-                    // Decoded tile bitmaps are not shared or cached. Release their native pixel
-                    // memory as soon as they have been copied into the card bitmap.
-                    if (!tile.isRecycled) tile.recycle()
+        // A late/failed tile must not discard already loaded streets and the saved route.
+        // Each request is bounded too, so a stalled first tile cannot consume the whole budget.
+        withTimeoutOrNull(tileBudgetMillis) {
+            for (rawTileY in firstTileY..lastTileY) {
+                if (rawTileY !in 0 until worldTiles) continue
+                for (rawTileX in firstTileX..lastTileX) {
+                    currentCoroutineContext().ensureActive()
+                    val tileX = Math.floorMod(rawTileX, worldTiles)
+                    withTimeoutOrNull(2_500) tileRequest@{
+                        // Keep the bitmap's complete lifetime inside the timeout block. Returning
+                        // it across a cancellable boundary could lose ownership and leak pixels.
+                        val tile = loadTile(zoom, tileX, rawTileY) ?: return@tileRequest
+                        try {
+                            val left = (rawTileX * tileSizePx - viewportLeft).toFloat()
+                            val top = (rawTileY * tileSizePx - viewportTop).toFloat()
+                            canvas.drawBitmap(
+                                tile,
+                                null,
+                                RectF(left, top, left + tileSizePx.toFloat(), top + tileSizePx.toFloat()),
+                                tilePaint,
+                            )
+                            renderedTileCount += 1
+                        } finally {
+                            // Tiles are not shared or cached as bitmaps; release them after copying.
+                            if (!tile.isRecycled) tile.recycle()
+                        }
+                    }
                 }
             }
         }
+        currentCoroutineContext().ensureActive()
         if (renderedTileCount == 0) {
             throw IOException("OpenStreetMap tiles are unavailable")
         }
@@ -113,7 +131,7 @@ internal suspend fun renderJourneyMapRaster(
             density = safeDensity,
         )
         drawAttribution(canvas, viewportSize, safeDensity, (context.applicationContext as DailyBeatApp).mapSettings.state.value.provider.attribution)
-        bitmap
+        return JourneyMapRaster(bitmap, complete = renderedTileCount == expectedTileCount)
     } catch (error: Throwable) {
         // Cancellation while a card scrolls off screen used to strand a partially rendered
         // bitmap until a future GC. A fast scroll through Days could therefore spike memory.

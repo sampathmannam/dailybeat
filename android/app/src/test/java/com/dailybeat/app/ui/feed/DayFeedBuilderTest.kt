@@ -56,7 +56,8 @@ class DayFeedBuilderTest {
     fun `a stay with neither name nor address is still listed`() {
         val item = DayFeedBuilder.build(date, listOf(stay(null, 0, 20, address = null)), null)
 
-        assertEquals("Place name unavailable", item.stays.single().name)
+        assertEquals("Approx. location · 11.456°N, 78.186°E", item.stays.single().name)
+        assertEquals(item.stays.single().name, item.route.single().stopLabel)
     }
 
     @Test
@@ -124,6 +125,38 @@ class DayFeedBuilderTest {
         val km = DayFeedBuilder.build(date, visits, null).distanceKm
 
         assertTrue("Expected about 1 km, got $km", km in 0.9..1.1)
+    }
+
+    @Test
+    fun `one GPS fix cannot hide the estimated journey between recorded visits`() {
+        val visits = listOf(
+            stay("A", 0, 30, lat = 11.4557, lon = 78.1856),
+            stay("B", 40, 80, lat = 11.4647, lon = 78.1856),
+        )
+        val point = LocationBreadcrumb(
+            timestampMs = dayStart + minutes(35), latitude = 11.46, longitude = 78.1856, accuracyM = 20f,
+        )
+        val item = DayFeedBuilder.build(date, visits, null, breadcrumbs = listOf(point))
+        val map = com.dailybeat.app.ui.components.JourneyMapModel.fromRoute(item.route)
+
+        assertEquals("Both visits and the GPS fix must remain visible", 3, item.route.size)
+        assertTrue(item.route.all { it.drawsRoute })
+        assertEquals(2, map.gapSegments.size)
+        assertTrue("Unknown roads must never become a solid GPS track", map.routeSegments.all { it.size == 1 })
+        assertEquals(listOf("A", "B"), map.stopPoints.map { it.stopLabel })
+        assertTrue(item.distanceEstimated)
+        assertEquals(DayFeedBuilder.build(date, visits, null).distanceMeters, item.distanceMeters, 0.0)
+    }
+
+    @Test
+    fun `a lone GPS fix with no visits remains a map point not an invented journey`() {
+        val point = LocationBreadcrumb(
+            timestampMs = dayStart, latitude = 11.46, longitude = 78.1856, accuracyM = 20f,
+        )
+        val item = DayFeedBuilder.build(date, emptyList(), null, breadcrumbs = listOf(point))
+        assertEquals(1, item.route.size)
+        assertFalse(com.dailybeat.app.ui.components.JourneyMapModel.fromRoute(item.route).canReplay)
+        assertEquals(0.0, item.distanceMeters, 0.0)
     }
 
     @Test

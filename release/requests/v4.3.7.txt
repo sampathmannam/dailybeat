@@ -1,0 +1,6 @@
+Publish DailyBeat v4.3.7 only from main after the exact commit passes every required
+build, security, repository, Android, database-isolation and live-backup gate.
+Keep com.dailybeat.app and the permanent signing certificate, with version code 41.
+Publish immutable stable and Google-free reference APKs with their checksums.
+Preserve existing history, colours, permissions and privacy choices. Do not claim
+zero bugs, proven battery savings, exact venue recognition or official store acceptance.

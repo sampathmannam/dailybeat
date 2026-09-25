@@ -32,4 +32,16 @@ class JournalSearchTest {
         val hit = JournalSearchHit(null, java.time.Instant.parse("2026-09-15T21:00:00Z").toEpochMilli(), "note", "Note")
         assertEquals(LocalDate.of(2026, 9, 16), hit.date(ZoneId.of("Asia/Kolkata")))
     }
+
+    @Test fun searchPlaceResultsUseAddressesThenApproximateCoordinatesWithoutChangingNotes() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<Context>(), DailyBeatDb::class.java).build()
+        try {
+            db.visits().insert(LocationVisit(startMs = 1, endMs = 2, latitude = 11.4557, longitude = 78.1856, placeName = "Unnamed place"))
+            db.visits().insert(LocationVisit(startMs = 3, endMs = 4, latitude = 11.5, longitude = 78.2, placeName = "Unnamed place", address = "Namakkal"))
+            db.events().insert(Event(timestamp = 5, type = "manual", rawText = "I called it an unnamed place"))
+            val hits = db.journalSearch().search(JournalSearchDao.pattern("unnamed"))
+            assertEquals(listOf("I called it an unnamed place", "Namakkal", "Approx. location · 11.456°N, 78.186°E"), hits.map { it.displaySnippet(emptyList()) })
+            assertEquals("Unnamed place", db.visits().all().first().placeName)
+        } finally { db.close() }
+    }
 }

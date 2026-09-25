@@ -100,7 +100,8 @@ fun EventCard(
 internal fun Event.hasPlaceInGeneratedText(): Boolean {
     val place = placeName?.takeIf { it.isNotBlank() } ?: return false
     return type.equals("visit", ignoreCase = true) &&
-        (rawText == "Stay at $place" || rawText == "Travel · $place")
+        (rawText == "Stay at $place" || rawText == "Travel · $place" ||
+            (com.dailybeat.app.domain.VisitLabels.isFallback(place) && rawText == "Stay · $place"))
 }
 
 @Composable

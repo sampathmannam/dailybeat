@@ -69,6 +69,7 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
@@ -224,7 +225,8 @@ internal fun JourneyMapPreviewContent(
     val app = context.applicationContext as DailyBeatApp
     val dark = LocalDarkTheme.current
     var insideCoverage by remember { mutableStateOf(lease?.contains(model.centerLatitude ?: 0.0, model.centerLongitude ?: 0.0) == true) }
-    val useOffline = lease != null && (!preferences.allowOnlineMaps || insideCoverage)
+    var offlineFailed by remember { mutableStateOf(false) }
+    val useOffline = lease != null && (!preferences.allowOnlineMaps || (insideCoverage && !offlineFailed))
     var loadAttempt by remember { mutableStateOf(0) }
     val styleGeneration = remember { java.util.concurrent.atomic.AtomicInteger() }
     var fittedModel by remember { mutableStateOf<JourneyMapModel?>(null) }
@@ -234,6 +236,12 @@ internal fun JourneyMapPreviewContent(
     var mapRendered by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
+    fun failMap(message: String) {
+        mapError = true
+        // One bounded failover, never a loop. Respect online opt-out even when local assets fail.
+        if (useOffline && preferences.allowOnlineMaps) offlineFailed = true
+        onFailure(message)
+    }
     val playback = rememberJourneyPlaybackState(model)
     val displayModel = playback.visibleModel(model)
     val mapDescription = stringResource(R.string.journey_map_content_description)
@@ -242,8 +250,7 @@ internal fun JourneyMapPreviewContent(
     val mapView = if (nativeMapEnabled) rememberMapViewWithLifecycle(
         onMapReady = { readyMap -> map = readyMap },
         onMapError = {
-            mapError = true
-            onFailure("Map could not load. Your route is still available.")
+            failMap("Map could not load. Your route is still available.")
         },
         onDisposeMap = { lease?.close() },
     ) else null
@@ -264,18 +271,19 @@ internal fun JourneyMapPreviewContent(
             }
             delay(12_000)
             if (!mapRendered) {
-                mapError = true
                 app.mapNetwork.resources.dispatcher.cancelAll()
-                onFailure("Map took too long to load. Try again.")
+                failMap("Map took too long to load. Try again.")
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (_: Exception) { mapError = true; onFailure("Map could not load. Try again.") }
+        catch (_: Exception) { failMap("Map could not load. Try again.") }
         finally { styleGeneration.compareAndSet(generation, generation + 1) }
     }
     DisposableEffect(map) {
         val readyMap = map
         val listener = MapLibreMap.OnCameraIdleListener {
-            readyMap?.cameraPosition?.target?.let {
+            // Ignore the SDK's initial (0,0) camera before our route has been fitted. Otherwise
+            // a valid offline style can be replaced by an online style during initialization.
+            if (fittedModel != null) readyMap?.cameraPosition?.target?.let {
                 insideCoverage = lease?.contains(it.latitude, it.longitude) == true
             }
         }
@@ -313,8 +321,7 @@ internal fun JourneyMapPreviewContent(
                     mapView.removeOnDidFinishRenderingMapListener(renderListener)
                     mapRendered = false
                     mapView.contentDescription = mapDescription
-                    mapError = true
-                    onFailure("MapLibre journey render failed.")
+                    failMap("MapLibre journey render failed.")
                 },
             )
             fittedModel = displayModel
@@ -342,8 +349,7 @@ internal fun JourneyMapPreviewContent(
                     model = displayModel.atPlaybackProgress(progress),
                     showPosition = playing || progress < 0.999f,
                     onError = {
-                        mapError = true
-                        onFailure("MapLibre route replay failed.")
+                        failMap("MapLibre route replay failed.")
                     },
                 )
                 lastRenderedProgress = progress
@@ -369,7 +375,9 @@ internal fun JourneyMapPreviewContent(
                         .fillMaxWidth()
                         .weight(1f),
                 ) {
-                    if (!mapError && mapView != null) {
+                    // Keep one native surface attached for the whole screen. Error overlays
+                    // must not detach/reset a renderer that Retry is about to reuse.
+                    if (mapView != null) {
                         AndroidView(
                             factory = { mapView },
                             modifier = Modifier
@@ -385,9 +393,11 @@ internal fun JourneyMapPreviewContent(
                             testTag = "journey_map_fallback",
                             readyTestTag = "journey_map_fallback_ready",
                             onFailure = onFailure,
-                            allowNetwork = preferences.allowOnlineMaps && !useOffline,
+                            allowNetwork = preferences.allowOnlineMaps && (!useOffline || mapError),
                             playbackProgress = playback.progress.value,
                             showPlaybackPosition = playback.isPlaying || playback.progress.value < 0.999f,
+                            // The interactive map below already owns its retry action.
+                            showRetryButton = false,
                         )
                         Surface(
                             modifier = Modifier
@@ -410,9 +420,10 @@ internal fun JourneyMapPreviewContent(
                                     )
                                     TextButton(
                                         onClick = {
+                                            offlineFailed = false
                                             loadAttempt += 1
                                         },
-                                        modifier = Modifier.heightIn(min = 48.dp),
+                                        modifier = Modifier.heightIn(min = 48.dp).testTag("journey_map_retry"),
                                     ) {
                                         Text(stringResource(R.string.journey_map_retry))
                                     }
@@ -459,6 +470,12 @@ internal fun JourneyMapPreviewContent(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        if (offlineFailed && preferences.allowOnlineMaps) {
+                            Text(
+                                stringResource(R.string.map_offline_failed_online),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         if (!preferences.allowOnlineMaps || useOffline) {
                             Text(
                                 text = if (useOffline && insideCoverage) stringResource(R.string.map_using_offline)
@@ -640,14 +657,17 @@ private fun rememberMapViewWithLifecycle(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val latestReady by rememberUpdatedState(onMapReady)
     val latestError by rememberUpdatedState(onMapError)
-    val mapView = remember {
+    val mapView = remember(context, lifecycle) {
         (context.applicationContext as DailyBeatApp).mapNetwork.installNativeClient()
         MapLibre.getInstance(context)
-        MapView(context).apply {
+        // Compose can move/remove its AndroidView host independently of Activity teardown.
+        // TextureView owns a stoppable render thread instead of resetting the native renderer
+        // from SurfaceView's detach callback. It also composes correctly below error overlays.
+        MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply {
             contentDescription = context.getString(R.string.journey_map_content_description)
             onCreate(Bundle())
-            addOnDidFailLoadingMapListener { latestError() }
-            getMapAsync { latestReady(it) }
+            addOnDidFailLoadingMapListener { if (!isDestroyed) latestError() }
+            getMapAsync { if (!isDestroyed) latestReady(it) }
         }
     }
 
@@ -656,14 +676,14 @@ private fun rememberMapViewWithLifecycle(
         var started = false
         var resumed = false
         fun start() {
-            if (!started) {
+            if (!destroyed && !started) {
                 mapView.onStart()
                 started = true
             }
         }
         fun resume() {
             start()
-            if (!resumed) {
+            if (!destroyed && !resumed) {
                 mapView.onResume()
                 resumed = true
             }
@@ -681,17 +701,19 @@ private fun rememberMapViewWithLifecycle(
                 started = false
             }
         }
+        fun destroy() {
+            if (destroyed) return
+            destroyed = true
+            stop()
+            mapView.onDestroy()
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> start()
                 Lifecycle.Event.ON_RESUME -> resume()
                 Lifecycle.Event.ON_PAUSE -> pause()
                 Lifecycle.Event.ON_STOP -> stop()
-                Lifecycle.Event.ON_DESTROY -> {
-                    stop()
-                    mapView.onDestroy()
-                    destroyed = true
-                }
+                Lifecycle.Event.ON_DESTROY -> destroy()
                 else -> Unit
             }
         }
@@ -700,8 +722,7 @@ private fun rememberMapViewWithLifecycle(
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
         onDispose {
             lifecycle.removeObserver(observer)
-            stop()
-            if (!destroyed) mapView.onDestroy()
+            destroy()
             onDisposeMap()
         }
     }

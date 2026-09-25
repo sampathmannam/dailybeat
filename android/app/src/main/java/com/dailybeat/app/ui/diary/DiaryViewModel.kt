@@ -70,6 +70,10 @@ class DiaryViewModel(
     val visitsForDay = app.visitRepository.observeForDate(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val displayEventsForDay = combine(eventsForDay, visitsForDay, app.placeRepository.observeAll()) { events, visits, places ->
+        com.dailybeat.app.domain.momentsForDisplay(events, visits, places)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val revisionsForDay = app.diaryRepository.observeRevisions(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

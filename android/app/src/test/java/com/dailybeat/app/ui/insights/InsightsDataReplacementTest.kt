@@ -125,8 +125,8 @@ class InsightsDataReplacementTest {
 
         val state = loaded(model) { it.days.size == 5 }
 
-        assertEquals(3, state.days.flatMap { it.stays }.count { it.name == VisitLabels.UNAVAILABLE })
+        assertEquals(3, state.days.flatMap { it.stays }.count { VisitLabels.isApproximate(it.name) })
         assertEquals(listOf(PlacePattern("Known library", 2)), state.recurringPlaces)
-        assertTrue(state.recurringPlaces.none { it.name == VisitLabels.UNAVAILABLE })
+        assertTrue(state.recurringPlaces.none { VisitLabels.isFallback(it.name) })
     }
 }

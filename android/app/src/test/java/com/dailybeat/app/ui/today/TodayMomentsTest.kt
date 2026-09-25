@@ -115,8 +115,8 @@ class TodayMomentsTest {
 
         val displayed = todayMomentsForDisplay(listOf(event), listOf(unrelated)).single()
 
-        assertEquals("Travel recorded", displayed.rawText)
-        assertEquals(null, displayed.placeName)
+        assertEquals("Travel · Approx. location · 11.456°N, 78.186°E", displayed.rawText)
+        assertEquals("Approx. location · 11.456°N, 78.186°E", displayed.placeName)
     }
 
     @Test
@@ -184,8 +184,8 @@ class TodayMomentsTest {
             listOf(captured), listOf(first, first.copy(latitude = 12.0, placeName = "Unrelated place")),
         ).single()
 
-        assertEquals("Travel recorded", displayed.rawText)
-        assertEquals(null, displayed.placeName)
+        assertEquals("Travel · No GPS fix recorded", displayed.rawText)
+        assertEquals("No GPS fix recorded", displayed.placeName)
     }
 
     @Test
@@ -195,8 +195,8 @@ class TodayMomentsTest {
             listOf(recordedVisit("dwell")),
         ).single()
 
-        assertEquals("Travel recorded", displayed.rawText)
-        assertEquals(null, displayed.placeName)
+        assertEquals("Travel · Approx. location · 11.456°N, 78.186°E", displayed.rawText)
+        assertEquals("Approx. location · 11.456°N, 78.186°E", displayed.placeName)
     }
 
     @Test
@@ -221,7 +221,8 @@ class TodayMomentsTest {
             listOf(generated), listOf(visit.copy(hidden = true), visit.copy(id = 13, latitude = 12.0)),
         ).single()
 
-        assertEquals(generated, displayed)
+        assertEquals("Stay · No GPS fix recorded", displayed.rawText)
+        assertEquals(generated.id, displayed.id)
     }
 
     @Test
@@ -231,8 +232,19 @@ class TodayMomentsTest {
             listOf(recordedVisit("dwell").copy(placeName = null, address = "Unnamed place")),
         ).single()
 
-        assertEquals("Stay recorded", displayed.rawText)
-        assertEquals(null, displayed.placeName)
+        assertEquals("Stay · Approx. location · 11.456°N, 78.186°E", displayed.rawText)
+        assertEquals("Approx. location · 11.456°N, 78.186°E", displayed.placeName)
+    }
+
+    @Test fun `diary uses the same labels without reversing chronology or rewriting saved events`() {
+        val older = capturedMoment("Stay recorded").copy(timestamp = 1_000)
+        val newer = capturedMoment("Travel recorded").copy(id = 8, timestamp = 2_000)
+        val displayed = com.dailybeat.app.domain.momentsForDisplay(listOf(older, newer), emptyList())
+        assertEquals(listOf(7L, 8L), displayed.map { it.id })
+        assertEquals("Stay · Approx. location · 11.456°N, 78.186°E", displayed.first().rawText)
+        assertEquals("Travel · Approx. location · 11.456°N, 78.186°E", displayed.last().rawText)
+        assertEquals("Stay recorded", older.rawText)
+        assertEquals("Travel recorded", newer.rawText)
     }
 
     private fun capturedMoment(text: String, placeName: String? = null) = Event(
