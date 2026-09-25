@@ -58,8 +58,11 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
             kotlinx.coroutines.delay(250)
             try {
                 val results = app.db.journalSearch().search(com.dailybeat.app.data.db.JournalSearchDao.pattern(query))
+                val places = app.placeRepository.all()
                 if (generation != CaptureStorageGate.dataGeneration.get() || _uiState.value.searchQuery != query) return@launch
-                _uiState.value = _uiState.value.copy(searchResults = results, isSearching = false)
+                _uiState.value = _uiState.value.copy(
+                    searchResults = results.map { it.copy(snippet = it.displaySnippet(places)) }, isSearching = false,
+                )
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 _uiState.value = _uiState.value.copy(isSearching = false, error = "Unable to search local history. Try again.")
@@ -222,8 +225,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                                 .also { current ->
                                     check(current != null && !current.hidden &&
                                         current.latitude == stay.latitude && current.longitude == stay.longitude &&
-                                        (VisitLabels.name(current, app.placeRepository.all(), shortAddress = true)
-                                            ?: VisitLabels.UNAVAILABLE) == stay.name
+                                        VisitLabels.displayName(current, app.placeRepository.all(), shortAddress = true) == stay.name
                                     ) { "This stop changed. Reopen the day and try again." }
                                 }
                         } else null

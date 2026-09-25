@@ -39,7 +39,11 @@ data class InsightsUiState(
     val insightAction: InsightAction = InsightAction.OPEN_TODAY,
     val insightDate: LocalDate? = null,
     val error: String? = null,
-)
+) {
+    // Empty/future days default to estimated but do not contribute evidence to this total.
+    val weeklyDistanceEstimated: Boolean
+        get() = weekDays.any { !it.isEmpty && it.distanceEstimated }
+}
 
 enum class InsightAction { OPEN_TODAY, OPEN_SETTINGS, OPEN_DAY }
 
@@ -109,7 +113,7 @@ class InsightsViewModel(application: Application) : AndroidViewModel(application
         val streak = reviewStreak(today, reviews.mapValues { it.value.state })
         val gaps = currentWeek.sumOf { it.captureGapCount }
         val patterns = activeDays.flatMap { it.stays }
-            .filter { it.name != VisitLabels.UNAVAILABLE }
+            .filterNot { VisitLabels.isFallback(it.name) }
             .groupingBy { it.name }
             .eachCount()
             .map { PlacePattern(it.key, it.value) }

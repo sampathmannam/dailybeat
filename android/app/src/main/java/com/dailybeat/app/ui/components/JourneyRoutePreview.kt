@@ -75,6 +75,7 @@ fun JourneyRoutePreview(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
+                    modifier = Modifier.weight(1f),
                     text = pluralStringResource(
                         R.plurals.journey_map_points,
                         model.points.size,

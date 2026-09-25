@@ -3,23 +3,45 @@ package com.dailybeat.app.domain
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import java.util.Locale
+import kotlin.math.abs
 
 /** Local display labels only: no geocoding, inferred venue, or change to saved history. */
 object VisitLabels {
-    const val UNAVAILABLE = "Place name unavailable"
+    const val UNAVAILABLE = "No GPS fix recorded"
+    private const val APPROXIMATE_PREFIX = "Approx. location · "
 
     private val placeholders = setOf(
         "unnamed place", "unknown place", "unknown location", "location unavailable",
         "place name unavailable", "transit", "recorded transit", "travel recorded", "en route",
+        "no gps fix recorded",
     )
 
     /** Machine-generated fallback text must not hide an actual address. */
     fun usable(value: String?): String? = value?.trim()?.takeIf {
-        it.isNotEmpty() && it.lowercase(Locale.ROOT) !in placeholders
+        it.isNotEmpty() && it.lowercase(Locale.ROOT) !in placeholders && !isApproximate(it)
     }
+
+    fun isApproximate(label: String?): Boolean = label?.startsWith(APPROXIMATE_PREFIX) == true
+    fun isFallback(label: String?): Boolean = label == null || label == UNAVAILABLE || isApproximate(label)
+
+    /** Rounded to roughly a 100 m grid, never a fabricated business name or precise address. */
+    fun approximateLocation(latitude: Double?, longitude: Double?): String? {
+        if (!validCoordinates(latitude, longitude)) return null
+        return APPROXIMATE_PREFIX + String.format(
+            Locale.ROOT, "%.3f°%s, %.3f°%s",
+            abs(latitude!!), if (latitude < 0) "S" else "N",
+            abs(longitude!!), if (longitude < 0) "W" else "E",
+        )
+    }
+
+    fun displayName(visit: LocationVisit, places: List<Place> = emptyList(), shortAddress: Boolean = false): String =
+        name(visit, places, shortAddress)
+            ?: approximateLocation(visit.latitude, visit.longitude)
+            ?: UNAVAILABLE
 
     fun momentText(transit: Boolean, name: String?): String = when {
         transit -> name?.let { "Travel · $it" } ?: "Travel recorded"
+        name != null && isFallback(name) -> "Stay · $name"
         else -> name?.let { "Stay at $it" } ?: "Stay recorded"
     }
 
@@ -38,12 +60,14 @@ object VisitLabels {
     }
 
     fun savedPlaceName(latitude: Double?, longitude: Double?, places: List<Place>): String? {
-        if (latitude == null || longitude == null || !latitude.isFinite() || !longitude.isFinite() ||
-            latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ||
-            (latitude == 0.0 && longitude == 0.0)
-        ) return null
+        if (!validCoordinates(latitude, longitude)) return null
         // Saved places are user-authored: even an unusual literal name must remain intact.
-        return GeofenceMatcher.matchPlace(latitude, longitude, places)?.name
+        return GeofenceMatcher.matchPlace(latitude!!, longitude!!, places)?.name
             ?.trim()?.takeIf { it.isNotEmpty() }
     }
+
+    private fun validCoordinates(latitude: Double?, longitude: Double?): Boolean =
+        latitude != null && longitude != null && latitude.isFinite() && longitude.isFinite() &&
+            latitude in -90.0..90.0 && longitude in -180.0..180.0 &&
+            (latitude != 0.0 || longitude != 0.0)
 }

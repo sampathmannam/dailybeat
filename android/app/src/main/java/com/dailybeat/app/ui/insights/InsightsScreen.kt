@@ -99,7 +99,7 @@ fun InsightsScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MetricPill(
                         label = stringResource(R.string.this_week_distance),
-                        value = Formatters.distanceKm(state.weeklyDistanceKm),
+                        value = Formatters.distanceKm(state.weeklyDistanceKm, state.weeklyDistanceEstimated),
                         modifier = Modifier.weight(1f),
                     )
                     MetricPill(

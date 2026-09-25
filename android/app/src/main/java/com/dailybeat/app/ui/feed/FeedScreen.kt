@@ -351,7 +351,7 @@ private fun DayFeedCard(
                 )
                 StatDivider()
                 StatBlock(
-                    value = Formatters.durationCompact(day.activeMinutes),
+                    value = Formatters.durationCompact(day.trackedMinutes),
                     label = stringResource(R.string.feed_stat_time_out),
                     modifier = Modifier.weight(1f),
                     alignment = Alignment.CenterHorizontally,
@@ -448,7 +448,7 @@ private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
             Text(
                 text = stay.name,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
@@ -459,7 +459,7 @@ private fun StayRow(stay: DayStay, onNameStay: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (stay.name == VisitLabels.UNAVAILABLE && stay.canBeNamed) {
+            if (VisitLabels.isFallback(stay.name) && stay.canBeNamed) {
                 Text(
                     text = stringResource(R.string.feed_name_missing_place_hint),
                     style = MaterialTheme.typography.bodySmall,
@@ -524,7 +524,7 @@ private fun NamePlaceDialog(
     onSave: (String) -> Unit,
 ) {
     var draft by remember(stay) {
-        mutableStateOf(stay.name.takeUnless { it == VisitLabels.UNAVAILABLE }.orEmpty())
+        mutableStateOf(stay.name.takeUnless(VisitLabels::isFallback).orEmpty())
     }
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },

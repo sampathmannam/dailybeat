@@ -169,8 +169,7 @@ data class JourneyMapModel(
                     longitude = it.longitude,
                     visitType = it.visitType,
                     stopLabel = if (it.visitType != "transit") {
-                        it.placeName?.trim()?.takeIf(String::isNotEmpty)
-                            ?: it.address?.substringBefore(',')?.trim()?.takeIf(String::isNotEmpty)
+                        com.dailybeat.app.domain.VisitLabels.displayName(it, shortAddress = true)
                     } else {
                         null
                     },

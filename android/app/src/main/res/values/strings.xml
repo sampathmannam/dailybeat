@@ -49,6 +49,7 @@
     <string name="beat_title_label">Name this Beat</string>
     <string name="save_title">Save</string>
     <string name="notes">Notes</string>
+    <string name="review_events">Events</string>
     <string name="review_timeline">Timeline</string>
     <string name="review_no_stops">No stops were recognised. You can still review notes and complete this Beat.</string>
     <string name="add_diary">Add diary</string>
@@ -102,7 +103,7 @@
         <item quantity="one">One recorded journey began in this window.</item>
         <item quantity="other">%1$d recorded journeys began in this window.</item>
     </plurals>
-    <string name="today_pattern_privacy">Built from the last 28 days on this phone. DailyBeat never contacts cloud AI automatically. These are observations, not conclusions.</string>
+    <string name="today_pattern_privacy">This pattern analysis uses the last 28 days on this phone and runs entirely on-device. Optional Cloud AI reports use your selected provider. These are observations, not conclusions.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
@@ -142,6 +143,7 @@
     <string name="journey_preview_named_stops_content_description">%1$s. Named stops: %2$s.</string>
     <string name="journey_map_unavailable">Interactive map unavailable.</string>
     <string name="journey_map_retry">Retry map</string>
+    <string name="journey_map_retrying">Retrying…</string>
     <string name="journey_map_loading_interactive">Preparing interactive map…</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
     <string name="journey_map_ready_content_description">OpenStreetMap journey fully rendered</string>
@@ -188,12 +190,12 @@
     <string name="feed_empty_title">No days captured yet</string>
     <string name="feed_empty_subtitle">Keep GPS on and move between places. Each day you travel appears here as a card.</string>
     <string name="feed_stat_distance">Distance</string>
-    <string name="feed_stat_time_out">Time out</string>
+    <string name="feed_stat_time_out">Tracked time</string>
     <string name="feed_stat_stops">Stops</string>
     <string name="feed_more">More</string>
     <string name="feed_less">Less</string>
     <string name="feed_where_you_went">Where you went</string>
-    <string name="today_place_names_unavailable">Some recorded locations have no place name yet. Review your stops to add names; your route is still saved.</string>
+    <string name="today_place_names_unavailable">Approximate coordinates show where you were when an area or place name was not recorded. You can name these stops in Review.</string>
     <string name="today_name_stops_action">Name stops</string>
     <string name="feed_name_missing_place_hint">Tap to name this stop</string>
     <string name="feed_name_place_title">Name this place</string>
@@ -247,7 +249,9 @@
     <string name="location_channel_name">Passive location capture</string>
     <string name="location_channel_description">Shows when DailyBeat is observing location in the background. This status does not create an app-icon badge.</string>
     <string name="reminder_title">DailyBeat</string>
-    <string name="reminder_body_report">Your daily AI report is ready — open DailyBeat to review.</string>
+    <string name="reminder_body_report">Review your day’s stops and notes in DailyBeat.</string>
+    <string name="backup_legacy_restore">Restore an older, unencrypted backup instead</string>
+    <string name="map_offline_failed_online">Downloaded map could not load. Using online maps while they are enabled.</string>
     <string name="settings_cloud_group">Cloud AI</string>
     <string name="settings_backup_group">Cloud backup</string>
     <string name="settings_backup_desc">Back up diaries, events, places, visits, and non-secret settings so they can be restored on another phone.</string>
