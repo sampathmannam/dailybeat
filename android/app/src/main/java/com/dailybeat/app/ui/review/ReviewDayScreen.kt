@@ -137,7 +137,7 @@ fun ReviewDayScreen(
                     modifier = Modifier.weight(1f),
                 )
                 MetricPill(
-                    label = stringResource(R.string.notes),
+                    label = stringResource(R.string.review_events),
                     value = Formatters.count(state.eventCount),
                     modifier = Modifier.weight(1f),
                 )
@@ -325,10 +325,9 @@ private fun RenameStopDialog(
 /** The already-built day includes current saved-place labels; hidden rows stay reviewable. */
 internal fun reviewVisitLabel(visit: LocationVisit, stays: List<DayStay>): String =
     (if (!visit.hidden && visit.id > 0) stays.firstOrNull { it.visitId == visit.id }?.name else null)
-        ?: VisitLabels.name(visit, shortAddress = true)
-        ?: VisitLabels.UNAVAILABLE
+        ?: VisitLabels.displayName(visit, shortAddress = true)
 
-internal fun reviewRenameSeed(label: String): String = label.takeUnless { it == VisitLabels.UNAVAILABLE }.orEmpty()
+internal fun reviewRenameSeed(label: String): String = label.takeUnless(VisitLabels::isFallback).orEmpty()
 
 @Composable
 private fun StateBadge(state: String) {

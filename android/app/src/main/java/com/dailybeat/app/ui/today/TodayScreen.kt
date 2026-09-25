@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -104,7 +107,10 @@ fun TodayScreen(
     if (showCaptureSheet) {
         val captureBusy = uiState.isSavingMoment || uiState.isSavingNote ||
             uiState.isRecordingVoice || uiState.isGeneratingReport
-        ModalBottomSheet(onDismissRequest = { if (!captureBusy) showCaptureSheet = false }) {
+        ModalBottomSheet(
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            onDismissRequest = { if (!captureBusy) showCaptureSheet = false },
+        ) {
             CaptureMomentSheet(
                 note = note,
                 onNoteChanged = {
@@ -246,8 +252,8 @@ fun TodayScreen(
             }
         } else {
             if (displayMoments.any {
-                    it.type.equals("visit", ignoreCase = true) && it.placeName == null &&
-                        it.rawText in setOf("Stay recorded", "Travel recorded")
+                    it.type.equals("visit", ignoreCase = true) &&
+                        com.dailybeat.app.domain.VisitLabels.isApproximate(it.placeName)
                 }) {
                 item {
                     InlineFeedback(
@@ -599,7 +605,10 @@ private fun CaptureMomentSheet(
         unfocusedBorderColor = MaterialTheme.colorScheme.outline,
     )
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
+        modifier = Modifier.fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .testTag("moment_sheet_content")
+            .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.add_to_today), style = MaterialTheme.typography.headlineSmall)

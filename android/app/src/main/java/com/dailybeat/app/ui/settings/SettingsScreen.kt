@@ -677,14 +677,11 @@ fun SettingsScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             enabled = !state.backupBusy,
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Checkbox(
-                                checked = state.legacyBackupRestore,
-                                onCheckedChange = viewModel::setLegacyBackupRestore,
-                                enabled = !state.backupBusy,
-                            )
-                            Text("Restore an older, unencrypted backup instead", style = MaterialTheme.typography.bodySmall)
-                        }
+                        LegacyBackupRestoreToggle(
+                            checked = state.legacyBackupRestore,
+                            enabled = !state.backupBusy,
+                            onCheckedChange = viewModel::setLegacyBackupRestore,
+                        )
                         if (state.legacyBackupRestore) Text("Legacy recovery does not use this passphrase. After checking the restored data, create an encrypted backup. Older cloud copies remain until you delete them separately.",
                             style = MaterialTheme.typography.bodySmall)
                         PrimaryButton(
@@ -1199,6 +1196,24 @@ private fun openBatterySettings(context: android.content.Context) {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
+    }
+}
+
+/** One labelled checkbox node: the whole row is the touch and accessibility target. */
+@Composable
+internal fun LegacyBackupRestoreToggle(
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .testTag("legacy_backup_restore")
+            .toggleable(value = checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+        Text(stringResource(R.string.backup_legacy_restore), style = MaterialTheme.typography.bodySmall)
     }
 }
 

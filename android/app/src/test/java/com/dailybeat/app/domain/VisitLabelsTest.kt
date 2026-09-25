@@ -4,6 +4,7 @@ import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VisitLabelsTest {
@@ -59,5 +60,28 @@ class VisitLabelsTest {
         assertNull(VisitLabels.name(visit.copy(address = "Unnamed place")))
         assertEquals("Travel recorded", VisitLabels.momentText(transit = true, name = null))
         assertEquals("Stay recorded", VisitLabels.momentText(transit = false, name = null))
+    }
+
+    @Test fun `an unnamed coordinate becomes a rounded approximate location not a venue`() {
+        val unnamed = visit.copy(placeName = "Unknown location", address = null)
+        assertEquals("Approx. location · 11.456°N, 78.186°E", VisitLabels.displayName(unnamed))
+        assertNull(VisitLabels.name(unnamed))
+        assertTrue(VisitLabels.isFallback(VisitLabels.displayName(unnamed)))
+        assertEquals("Unknown location", unnamed.placeName)
+    }
+
+    @Test fun `approximate coordinates are locale stable and support southern western hemispheres`() {
+        val previous = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.GERMANY)
+            assertEquals("Approx. location · 33.869°S, 70.669°W", VisitLabels.approximateLocation(-33.8688, -70.6693))
+        } finally { java.util.Locale.setDefault(previous) }
+    }
+
+    @Test fun `missing and invalid fixes are stated explicitly not invented`() {
+        listOf(null to null, 0.0 to 0.0, Double.NaN to 78.0, 11.0 to Double.POSITIVE_INFINITY, 91.0 to 181.0)
+            .forEach { (lat, lon) -> assertNull(VisitLabels.approximateLocation(lat, lon)) }
+        assertEquals("No GPS fix recorded", VisitLabels.displayName(visit.copy(latitude = 0.0, longitude = 0.0, address = null)))
+        assertEquals("Paramathi Road, Namakkal", VisitLabels.displayName(visit))
     }
 }

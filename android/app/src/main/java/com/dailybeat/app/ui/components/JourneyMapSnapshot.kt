@@ -1,5 +1,6 @@
 package com.dailybeat.app.ui.components
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -10,6 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.dailybeat.app.R
 import androidx.compose.runtime.collectAsState
 import com.dailybeat.app.DailyBeatApp
 import kotlinx.coroutines.TimeoutCancellationException
@@ -18,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,7 +66,7 @@ import com.dailybeat.app.util.userMessage
  * route fallback prevents an empty panel while tiles load and remains usable when offline.
  */
 @Composable
-fun JourneyMapSnapshot(
+internal fun JourneyMapSnapshot(
     model: JourneyMapModel,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
@@ -64,6 +76,9 @@ fun JourneyMapSnapshot(
     allowNetwork: Boolean = true,
     playbackProgress: Float = 1f,
     showPlaybackPosition: Boolean = false,
+    showRetryButton: Boolean = true,
+    rasterLoader: suspend (Context, JourneyMapModel, IntSize, Float) -> JourneyMapRaster =
+        { appContext, journey, size, scale -> renderJourneyMapRaster(appContext, journey, size, scale) },
 ) {
     if (model.points.isEmpty()) return
     val context = LocalContext.current
@@ -71,6 +86,27 @@ fun JourneyMapSnapshot(
     val density = context.resources.displayMetrics.density
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var snapshotBitmap by remember(model) { mutableStateOf<Bitmap?>(null) }
+    var needsRetry by remember(model) { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var retryGeneration by remember { mutableIntStateOf(0) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val latestLoader by androidx.compose.runtime.rememberUpdatedState(rasterLoader)
+    val latestFailure by androidx.compose.runtime.rememberUpdatedState(onFailure)
+    val retryOnResume by androidx.compose.runtime.rememberUpdatedState(newValue = {
+        if (needsRetry && !loading && allowNetwork && mapPreferences.allowOnlineMaps) retryGeneration++
+    })
+
+    // Returning from network settings or another app should repair failed cards. Successful
+    // cards are left alone; there is no background polling, tile prefetch, or capture work.
+    // Register once: re-registering after a failed load immediately replays ON_RESUME and
+    // would create an unbounded retry loop while the device is already in the foreground.
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) retryOnResume()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     DisposableEffect(snapshotBitmap) {
         val ownedBitmap = snapshotBitmap
@@ -81,33 +117,39 @@ fun JourneyMapSnapshot(
         }
     }
 
-    LaunchedEffect(context, model, viewportSize, mapPreferences, allowNetwork) {
-        if (viewportSize == IntSize.Zero) return@LaunchedEffect
-        snapshotBitmap = null
-        if (!allowNetwork || !mapPreferences.allowOnlineMaps) return@LaunchedEffect
+    LaunchedEffect(context, model, viewportSize, mapPreferences, allowNetwork, retryGeneration) {
+        if (viewportSize.width <= 0 || viewportSize.height <= 0) return@LaunchedEffect
+        if (!allowNetwork || !mapPreferences.allowOnlineMaps) {
+            snapshotBitmap = null
+            needsRetry = false
+            loading = false
+            return@LaunchedEffect
+        }
+        loading = true
         try {
             var rendered: Bitmap? = null
             try {
-                withContext(Dispatchers.IO) {
-                    rendered = renderJourneyMapRaster(
-                    context = context.applicationContext,
-                    model = model,
-                    viewportSize = viewportSize,
-                    density = density,
-                    )
+                val complete = withContext(Dispatchers.IO) {
+                    val result = latestLoader(context.applicationContext, model, viewportSize, density)
+                    rendered = result.bitmap
+                    result.complete
                 }
                 snapshotBitmap = rendered
+                needsRetry = !complete
                 rendered = null
             } finally {
                 rendered?.takeUnless { it.isRecycled }?.recycle()
             }
         } catch (_: TimeoutCancellationException) {
-            onFailure("Map tiles took too long to load")
+            needsRetry = true
+            latestFailure("Map tiles took too long to load")
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            snapshotBitmap = null
-            onFailure(error.userMessage("Map tiles are unavailable"))
+            needsRetry = true
+            latestFailure(error.userMessage("Map tiles are unavailable"))
+        } finally {
+            loading = false
         }
     }
 
@@ -146,6 +188,21 @@ fun JourneyMapSnapshot(
                     .size(1.dp)
                     .testTag(readyTestTag),
             )
+        }
+        if (showRetryButton && needsRetry && allowNetwork && mapPreferences.allowOnlineMaps) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                shape = MaterialTheme.shapes.small,
+            ) {
+                TextButton(
+                    onClick = { retryGeneration++ },
+                    enabled = !loading,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("${testTag}_retry"),
+                ) {
+                    Text(stringResource(if (loading) R.string.journey_map_retrying else R.string.journey_map_retry))
+                }
+            }
         }
     }
 }

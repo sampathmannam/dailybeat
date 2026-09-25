@@ -59,7 +59,7 @@ data class DayFeedItem(
 ) {
     val stayCount: Int get() = stays.size
 
-    /** Total time between the first and last thing captured, i.e. how long the officer was out. */
+    /** Observation window only; includes gaps and must never be presented as tracked time. */
     val activeMinutes: Long
         get() {
             val first = firstSeenMs ?: return 0
@@ -115,7 +115,7 @@ object DayFeedBuilder {
             .filter { (previous, next) -> next.timestampMs - previous.timestampMs > CAPTURE_GAP_MS }
             .map { it.second.timestampMs }
             .toSet()
-        val route = if (orderedBreadcrumbs.isNotEmpty()) {
+        val route = if (orderedBreadcrumbs.size >= 2) {
             val stayPoints = evenlySample(
                 mappable.filter { it.visitType != "transit" },
                 MAX_RENDERED_STAY_POINTS,
@@ -142,7 +142,7 @@ object DayFeedBuilder {
                 )
             } + stayPoints).sortedBy { it.timestampMs }
         } else {
-            evenlySample(mappable, MAX_RENDERED_ROUTE_POINTS).map {
+            val visitRoute = evenlySample(mappable, MAX_RENDERED_ROUTE_POINTS - orderedBreadcrumbs.size).map {
                 RoutePoint(
                     latitude = it.latitude,
                     longitude = it.longitude,
@@ -155,6 +155,22 @@ object DayFeedBuilder {
                         0L
                     },
                 )
+            }
+            if (orderedBreadcrumbs.isEmpty()) {
+                visitRoute
+            } else {
+                // One fix cannot describe a GPS trail. Previously it suppressed every visit's
+                // route geometry, leaving a day with distance/stops but no visible journey.
+                // Keep all known positions, but draw only dashed, unknown-path connections.
+                val point = orderedBreadcrumbs.single()
+                (visitRoute + RoutePoint(
+                    latitude = point.latitude,
+                    longitude = point.longitude,
+                    isStay = false,
+                    timestampMs = point.timestampMs,
+                )).sortedBy { it.timestampMs }.mapIndexed { index, routePoint ->
+                    routePoint.copy(startsAfterGap = index > 0)
+                }
             }
         }
 
@@ -341,7 +357,7 @@ object DayFeedBuilder {
         accuracyM.takeIf { it.isFinite() && it > 0f }?.toDouble() ?: 250.0
 
     private fun LocationVisit.displayName(places: List<Place>): String =
-        VisitLabels.name(this, places, shortAddress = true) ?: VisitLabels.UNAVAILABLE
+        VisitLabels.displayName(this, places, shortAddress = true)
 
     private fun LocationVisit.hasUsableCoordinate(): Boolean =
         isUsableFeedCoordinate(latitude, longitude)

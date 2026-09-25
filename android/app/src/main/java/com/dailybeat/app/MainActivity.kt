@@ -1,6 +1,7 @@
 package com.dailybeat.app
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,8 +25,11 @@ import com.dailybeat.app.ui.theme.DailyBeatTheme
 import com.dailybeat.app.util.PermissionHelper
 import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.SideEffect
+import com.dailybeat.app.notify.REVIEW_DAY_EXTRA
+import com.dailybeat.app.notify.reminderReviewDate
 
 class MainActivity : ComponentActivity() {
+    private var pendingReviewDate by mutableStateOf<String?>(null)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingReviewDate = reminderReviewDate(intent)
         enableEdgeToEdge()
         val app = application as DailyBeatApp
         val showOnboarding = !app.settingsRepository.isOnboardingComplete()
@@ -80,12 +85,24 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     } else {
-                        DailyBeatAppScaffold()
+                        DailyBeatAppScaffold(
+                            reviewDateKey = pendingReviewDate,
+                            onReviewDateHandled = {
+                                pendingReviewDate = null
+                                intent.removeExtra(REVIEW_DAY_EXTRA)
+                            },
+                        )
                     }
                 }
             }
         }
 
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingReviewDate = reminderReviewDate(intent)
     }
 
     override fun onStart() {

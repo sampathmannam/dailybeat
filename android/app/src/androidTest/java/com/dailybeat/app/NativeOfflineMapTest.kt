@@ -9,6 +9,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.lifecycle.Lifecycle
+import com.dailybeat.app.maps.LocalMapLease
+import com.dailybeat.app.maps.MapPreferences
+import com.dailybeat.app.ui.components.JourneyMapPreviewContent
+import com.dailybeat.app.ui.components.JourneyMapModel
+import com.dailybeat.app.ui.components.JourneyPoint
+import com.dailybeat.app.ui.theme.DailyBeatTheme
 import com.dailybeat.app.maps.prepareOfflineMapStyle
 import kotlinx.coroutines.*
 import androidx.compose.ui.viewinterop.AndroidView
@@ -87,6 +98,93 @@ class NativeOfflineMapTest {
         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bytes)
         bitmap.recycle()
         assertNull(com.dailybeat.app.ui.components.decodeMapTile(bytes.toByteArray()))
+    }
+
+    @Test fun failedStyleCanRetryWithoutDetachingTheNativeMap() {
+        val light = File(directory, "light.json")
+        val validStyle = light.readText()
+        light.writeText("not a valid style")
+        val visible = mutableStateOf(true)
+        val journey = JourneyMapModel.fromPoints(listOf(
+            JourneyPoint(60_000, 11.4557, 78.1856, "transit"),
+            JourneyPoint(120_000, 11.46, 78.19, "transit"),
+        ))
+        val lease = LocalMapLease(app.offlineMaps.catalog, directory) {}
+        compose.setContent {
+            DailyBeatTheme(darkTheme = false) {
+                if (visible.value) JourneyMapPreviewContent(journey, Modifier.fillMaxSize(), {},
+                    MapPreferences(allowOnlineMaps = false), lease)
+            }
+        }
+        try {
+            compose.waitUntil(20_000) {
+                compose.onAllNodesWithTag("journey_map_retry").fetchSemanticsNodes().isNotEmpty()
+            }
+            // Removing and reattaching the same SurfaceView resets its native renderer.
+            compose.onNodeWithTag("journey_map").assertExists()
+            light.writeText(validStyle)
+            compose.onNodeWithTag("journey_map_retry").performClick()
+            compose.waitUntil(20_000) {
+                compose.onAllNodesWithTag("journey_map_ready").fetchSemanticsNodes().isNotEmpty()
+            }
+        } finally {
+            compose.runOnUiThread { visible.value = false }
+            compose.waitForIdle()
+        }
+    }
+
+    @Test fun repeatedOpenCloseAndBackgroundWithFullPackageStaysHealthy() {
+        org.junit.Assume.assumeNotNull(InstrumentationRegistry.getArguments().getString("fullMapDirectory"))
+        val visible = mutableStateOf(true)
+        val instance = mutableStateOf(0)
+        val journey = JourneyMapModel.fromPoints(listOf(
+            JourneyPoint(60_000, 11.4557, 78.1856, "transit"),
+            JourneyPoint(120_000, 11.46, 78.19, "transit"),
+        ))
+        compose.setContent {
+            DailyBeatTheme(darkTheme = instance.value % 2 == 0) {
+                // Match MainActivity's theme surface/content color, not the test Activity's
+                // unthemed window underneath the preview's translucent surface.
+                androidx.compose.material3.Surface(Modifier.fillMaxSize()) {
+                    if (visible.value) key(instance.value) {
+                        JourneyMapPreviewContent(journey, Modifier.fillMaxSize(), {},
+                            MapPreferences(allowOnlineMaps = true), LocalMapLease(app.offlineMaps.catalog, directory) {})
+                    }
+                }
+            }
+        }
+        try {
+            repeat(12) { index ->
+                compose.waitUntil(20_000) {
+                    compose.onAllNodesWithTag("journey_map_ready").fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNodeWithText(app.getString(R.string.map_using_offline)).assertExists()
+                if (index == 0 || index == 11) savePhoneEvidence("interactive-texture-$index")
+                compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+                compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+                compose.onNodeWithTag("journey_map").assertExists()
+                compose.runOnUiThread { visible.value = false }
+                compose.waitForIdle()
+                System.gc()
+                System.runFinalization()
+                if (index < 11) compose.runOnUiThread { instance.value++; visible.value = true }
+            }
+        } finally {
+            compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+            compose.runOnUiThread { visible.value = false }
+            compose.waitForIdle()
+        }
+    }
+
+    private fun savePhoneEvidence(name: String) {
+        if (InstrumentationRegistry.getArguments().getString("screenshots") != "true") return
+        Thread.sleep(400) // Native label fade-in is independent of Compose idleness.
+        val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val output = File(app.filesDir, "map-evidence").apply { mkdirs() }
+        File(output, "$name.png").outputStream().use {
+            screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        screenshot.recycle()
     }
     /** Optional full-package gate: pass fullMapDirectory containing the published artifacts. */
     @Test fun verifiedFullPackageActivatesAndCanBeDeletedWhileTheJourneyMapIsOpen() {

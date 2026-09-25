@@ -47,7 +47,7 @@ fun DiaryScreen(
     viewModel: DiaryViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val events by viewModel.eventsForDay.collectAsStateWithLifecycle()
+    val events by viewModel.displayEventsForDay.collectAsStateWithLifecycle()
     val revisions by viewModel.revisionsForDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

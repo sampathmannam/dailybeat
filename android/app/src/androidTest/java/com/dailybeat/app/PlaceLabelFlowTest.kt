@@ -81,14 +81,20 @@ class PlaceLabelFlowTest {
         assertTextInList("today_list", "Travel · Paramathi Road, Namakkal")
         assertTextInList("today_list", "Stay at Municipal Road, Namakkal")
         assertTextInList("today_list", "Stay at District Library")
-        assertTextInList("today_list", "Stay recorded")
+        assertTextInList("today_list", "Stay · Approx. location · 11.480°N, 78.210°E")
+
+        assertTextInList("today_list", "Add diary")
+        composeRule.onNodeWithText("Add diary").performClick()
+        assertTextInList("diary_list", "Travel · Paramathi Road, Namakkal")
+        assertTextInList("diary_list", "Stay · Approx. location · 11.480°N, 78.210°E")
+        composeRule.onNodeWithText("Stay at unnamed place").assertDoesNotExist()
 
         openExpandedDays()
         assertTextInList("feed_list", "Municipal Road")
         assertTextInList("feed_list", "District Library")
         assertTextInList("feed_list", "Tap to name this stop")
         composeRule.onNodeWithText("Unnamed place").assertDoesNotExist()
-        composeRule.onNodeWithText("Place name unavailable").performScrollTo().performClick()
+        composeRule.onNodeWithText("Approx. location · 11.480°N, 78.210°E").performScrollTo().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("name_place_field"), 10_000)
         assertEquals(
             AnnotatedString(""),
@@ -105,7 +111,7 @@ class PlaceLabelFlowTest {
             }
         }
         assertTextInList("feed_list", "Royal Oak Namakkal")
-        composeRule.onNodeWithText("Place name unavailable").assertDoesNotExist()
+        composeRule.onNodeWithText("Approx. location · 11.480°N, 78.210°E").assertDoesNotExist()
 
         // Return to the retained Today destination: no Activity recreation or new capture.
         composeRule.onNodeWithTag("nav_today").performClick()

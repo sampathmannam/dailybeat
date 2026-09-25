@@ -73,7 +73,7 @@ class FeedScreenTest {
         composeRule.onNodeWithText("Police Headquarters").assertDoesNotExist()
         composeRule.onNodeWithText("Auto stops").assertIsDisplayed()
         composeRule.onNodeWithText("Distance").assertIsDisplayed()
-        composeRule.onNodeWithText("Time out").assertIsDisplayed()
+        composeRule.onNodeWithText("Tracked time").assertIsDisplayed()
         composeRule.onNodeWithTag("feed_route_map", useUnmergedTree = true)
             .performScrollTo()
             .assertIsDisplayed()

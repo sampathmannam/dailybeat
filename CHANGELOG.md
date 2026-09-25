@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.3.7 — 2026-09-25
+
+### Reliability and everyday use
+- Journey cards retain partial maps when tiles stall and offer bounded manual/foreground retry.
+  Offline-map startup ignores the unfitted camera; native error overlays retain their map host.
+  Texture rendering and guarded teardown mitigate observed native lifecycle failures.
+- Generated unnamed-place moments use saved names, useful addresses or clearly approximate
+  coordinates across Today, Days, review, search and diary. Authored text and raw history remain intact.
+- Days uses the same gap-adjusted Tracked time as Today; weekly distance retains contributing
+  days' estimate warnings. Review correctly labels all captured entries as Events.
+- Keyboard-aware settings and expanded note editing keep focused fields and Save reachable.
+- Evening reminders honestly offer day review and retain the intended date through cold/warm
+  launch. External reminder input rejects malformed dates and arbitrary navigation routes.
+- Legacy recovery has a single labelled, accessible toggle. Pattern analysis privacy copy now
+  distinguishes on-device analysis from separately enabled Cloud AI reports.
+
+### Verification and limits
+- All 75 offline/core instrumentation tests passed on a physical Android 17 phone, including real
+  downloaded maps and repeated native-map lifecycle tests, in a separate disposable QA package.
+- Local FOSS/store validation passed 634 JVM tests; lint has zero errors and documented warnings.
+- Protected CI independently gates the final versioned commit, including live backup, database
+  isolation, dependency/secret scans and reproducible Google-free builds.
+- Rare native-crash elimination, real-world venue accuracy and all-day battery performance are
+  not guaranteed by these tests. See the 25 September hardening report for scope and limits.
+
 ## 4.3.6 — 2026-09-24
 
 ### Places and journey maps
