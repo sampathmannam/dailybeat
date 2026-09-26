@@ -19,7 +19,12 @@ class HistoryRetentionManager(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) {
     suspend fun prune(days: Int): RetentionResult = CaptureStorageGate.mutex.withLock {
-        pruneInsideCaptureLock(days)
+        val result = pruneInsideCaptureLock(days)
+        // Invalidate delayed writes only after the deletion commits, while the writer gate is
+        // still held. The restore path calls the internal method and publishes after its own
+        // outer transaction, so a rolled-back restore never emits a premature change.
+        if (result.recordsDeleted > 0) CaptureStorageGate.invalidatePersonalData(retainedFrom = result.cutoffDate)
+        result
     }
 
     internal suspend fun pruneInsideCaptureLock(days: Int): RetentionResult {

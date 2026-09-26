@@ -15,23 +15,44 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
+import java.time.LocalDate
 
 /** Also held during restore/erase: a delayed capture callback cannot resurrect replaced data. */
 object CaptureStorageGate {
     val mutex = Mutex()
     val generation = java.util.concurrent.atomic.AtomicLong(0)
-    /** Only erase/restore replace personal data; ordinary GPS pause does not invalidate editing. */
+    /** Erase/restore/retention change personal data; ordinary GPS pause does not invalidate editing. */
     val dataGeneration = java.util.concurrent.atomic.AtomicLong(0)
     private val _dataChanges = kotlinx.coroutines.flow.MutableStateFlow(0L)
     val dataChanges: kotlinx.coroutines.flow.StateFlow<Long> = _dataChanges
+    private data class RetentionChange(val generation: Long, val fromGeneration: Long, val retainedFrom: LocalDate)
+    @Volatile private var retentionChange: RetentionChange? = null
 
     /** Call under mutex only after replacement commits (or before an irreversible erase). */
-    fun invalidatePersonalData() {
+    fun invalidatePersonalData(retainedFrom: LocalDate? = null) {
+        val previousGeneration = dataGeneration.get()
+        val previousRetention = retentionChange?.takeIf { it.generation == previousGeneration }
+        // Publish the boundary before the new generation becomes visible. A full erase/restore
+        // clears it, so a retained-date exception can never promote a pre-replacement draft.
+        retentionChange = retainedFrom?.let {
+            RetentionChange(previousGeneration + 1L, previousRetention?.fromGeneration ?: previousGeneration,
+                maxOf(it, previousRetention?.retainedFrom ?: it))
+        }
         _dataChanges.value = dataGeneration.incrementAndGet()
     }
 
-    suspend fun <T> writeIfCurrent(expected: Long, write: suspend () -> T): T = mutex.withLock {
-        check(expected == dataGeneration.get()) { "Local data changed. Review this day again before saving." }
+    /** Only manual, date-scoped drafts may survive deletions of other, older days. */
+    internal fun generationForRetainedDate(expected: Long, date: LocalDate): Long {
+        val retention = retentionChange ?: return expected
+        val current = dataGeneration.get()
+        return if (retention.generation == current && expected >= retention.fromGeneration &&
+            expected < current && date >= retention.retainedFrom) current else expected
+    }
+
+    suspend fun <T> writeIfCurrent(expected: Long, retainedDate: LocalDate? = null,
+                                  write: suspend () -> T): T = mutex.withLock {
+        val effective = retainedDate?.let { generationForRetainedDate(expected, it) } ?: expected
+        check(effective == dataGeneration.get()) { "Local data changed. Review this day again before saving." }
         write()
     }
 }
