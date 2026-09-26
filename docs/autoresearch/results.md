@@ -20,4 +20,11 @@ Evaluation setup commit: `392451f17217187d3db7731ebfb90c949bc04c76`.
 Hypothesis: filtering an invalid breadcrumb before segmentation loses the gap and causes the renderer/replay to imply a continuous recorded route. Carry a pending gap forward to the next valid route point, across display-only stop markers, after chronological ordering.
 Predeclared success: eliminate the five invalid-route/gap/replay failures while preserving all existing guardrails and the two new marker/leading-point controls. Three date-line failures are expected to remain for experiment 2. No capture frequency, stored history, provider, UI layout or dependency changes.
 
+Candidate `e5070958e852c9008551dd7d3e804cc7921d3776`, run `candidate-01-gap`: 37 tests, 3 failures, 0 errors/skips. The five targeted failures are fixed; only the predeclared date-line cases remain. Evaluator/fixture hashes match baseline. Provisionally successful, pending the combined full-suite guardrails.
+
+### Experiment 2: equivalent date-line coordinates
+
+Hypothesis: a consecutive +180/-180 longitude pair represents the same meridian, but the seam interpolation divides zero by zero and produces NaN latitude. Handle this exact alias as a local north/south segment, then resume on the raw next endpoint's side. Do not modify stored points or lose latitude movement.
+Predeclared success: eliminate all three remaining date-line failures, including the 16-pair/five-frame boundary grid, while keeping all previous tests passing. Keep the same fixture and evaluator as baseline.
+
 Candidate results pending. No release is authorized by this loop.

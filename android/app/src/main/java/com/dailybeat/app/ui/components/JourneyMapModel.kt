@@ -76,6 +76,14 @@ data class JourneyMapModel(
                     } else {
                         next.longitude - 360.0
                     }
+                    if (adjustedNextLongitude == previous.longitude) {
+                        // +180 and -180 are the same meridian, not a crossing to interpolate.
+                        // Keep north/south motion on this side, then resume using the raw next
+                        // endpoint on the opposite side so subsequent segments remain local.
+                        segments.last() += next.copy(longitude = previous.longitude)
+                        segments += mutableListOf(next)
+                        return@forEach
+                    }
                     val boundaryLongitude = if (rawDelta < 0) 180.0 else -180.0
                     val oppositeBoundaryLongitude = -boundaryLongitude
                     val fraction = (boundaryLongitude - previous.longitude) /
