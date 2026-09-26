@@ -54,7 +54,9 @@ internal class OfflineTownIndex private constructor(
         }
 
         internal fun read(input: InputStream): OfflineTownIndex =
-            DataInputStream(GZIPInputStream(input).buffered()).use { stream ->
+            // A larger compressed-input and decoded-output buffer avoids thousands of
+            // tiny inflater/resource reads during the first load on slower devices.
+            DataInputStream(GZIPInputStream(input.buffered(64 * 1024), 64 * 1024).buffered(64 * 1024)).use { stream ->
                 require(stream.readInt() == 0x44425431) { "Unsupported town index" }
                 val count = stream.readInt()
                 require(count in 1..100_000) { "Invalid town count" }
