@@ -288,6 +288,8 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: Nexus 6
+          cores: 4
+          ram-size: 4096M
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
@@ -353,6 +355,8 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: Nexus 6
+          cores: 4
+          ram-size: 4096M
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
