@@ -222,7 +222,6 @@ internal fun JourneyMapPreviewContent(
     nativeMapEnabled: Boolean = true,
 ) {
     val context = LocalContext.current
-    val app = context.applicationContext as DailyBeatApp
     val dark = LocalDarkTheme.current
     var insideCoverage by remember { mutableStateOf(lease?.contains(model.centerLatitude ?: 0.0, model.centerLongitude ?: 0.0) == true) }
     var offlineFailed by remember { mutableStateOf(false) }
@@ -234,6 +233,8 @@ internal fun JourneyMapPreviewContent(
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var mapError by remember { mutableStateOf(!nativeMapEnabled) }
     var mapRendered by remember { mutableStateOf(false) }
+    var mapDetailsLoaded by remember { mutableStateOf(false) }
+    var mapLoadTimedOut by remember { mutableStateOf(false) }
     var mapViewportSize by remember { mutableStateOf(IntSize.Zero) }
     var externalMapError by remember { mutableStateOf(false) }
     fun failMap(message: String) {
@@ -260,6 +261,8 @@ internal fun JourneyMapPreviewContent(
         loadedStyle = null
         mapError = false
         mapRendered = false
+        mapDetailsLoaded = false
+        mapLoadTimedOut = false
         try {
             val builder = when {
                 useOffline -> Style.Builder().fromJson(requireNotNull(lease).style(dark))
@@ -269,14 +272,18 @@ internal fun JourneyMapPreviewContent(
             readyMap.setStyle(builder) {
                 if (styleGeneration.get() == generation) { loadedStyle = it; mapError = false }
             }
-            delay(12_000)
-            if (!mapRendered) {
-                app.mapNetwork.resources.dispatcher.cancelAll()
-                failMap("Map took too long to load. Try again.")
-            }
+            // Keep this generation valid until this style is replaced or the view is disposed.
+            kotlinx.coroutines.awaitCancellation()
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { failMap("Map could not load. Try again.") }
         finally { styleGeneration.compareAndSet(generation, generation + 1) }
+    }
+    LaunchedEffect(map, useOffline, dark, loadAttempt) {
+        // Includes native initialization: getMapAsync itself must not leave an endless spinner.
+        delay(12_000)
+        if (!mapRendered) failMap("Map took too long to load. Try again.")
+        else if (!mapDetailsLoaded) mapLoadTimedOut = true
+        // Do not cancel the shared HTTP dispatcher: other visible maps own their requests.
     }
     DisposableEffect(map) {
         val readyMap = map
@@ -297,17 +304,24 @@ internal fun JourneyMapPreviewContent(
         if (readyMap == null || style == null || mapView == null || mapViewportSize == IntSize.Zero) {
             onDispose { }
         } else {
-            mapRendered = false
             mapView.contentDescription = mapDescription
-            lateinit var renderListener: MapView.OnDidFinishRenderingMapListener
-            renderListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
+            lateinit var renderListener: MapView.OnDidFinishRenderingFrameListener
+            renderListener = MapView.OnDidFinishRenderingFrameListener { _, _, _ ->
+                // The local route is interactive as soon as its style/camera produces a frame.
+                // "Fully rendered" waits for every remote tile/glyph, including failed ones.
+                mapRendered = true
+                mapView.contentDescription = readyMapDescription
+                mapView.removeOnDidFinishRenderingFrameListener(renderListener)
+            }
+            lateinit var detailsListener: MapView.OnDidFinishRenderingMapListener
+            detailsListener = MapView.OnDidFinishRenderingMapListener { fullyRendered ->
                 if (fullyRendered) {
-                    mapRendered = true
-                    mapView.contentDescription = readyMapDescription
-                    mapView.removeOnDidFinishRenderingMapListener(renderListener)
+                    mapDetailsLoaded = true
+                    mapView.removeOnDidFinishRenderingMapListener(detailsListener)
                 }
             }
-            mapView.addOnDidFinishRenderingMapListener(renderListener)
+            mapView.addOnDidFinishRenderingFrameListener(renderListener)
+            mapView.addOnDidFinishRenderingMapListener(detailsListener)
             val density = mapView.resources.displayMetrics.density
             val cameraPaddingPx = (48 * density).roundToInt()
             readyMap.renderJourney(
@@ -318,7 +332,8 @@ internal fun JourneyMapPreviewContent(
                 cameraPaddingPx = cameraPaddingPx,
                 fitCamera = fittedModel != displayModel,
                 onError = {
-                    mapView.removeOnDidFinishRenderingMapListener(renderListener)
+                    mapView.removeOnDidFinishRenderingFrameListener(renderListener)
+                    mapView.removeOnDidFinishRenderingMapListener(detailsListener)
                     mapRendered = false
                     mapView.contentDescription = mapDescription
                     failMap("MapLibre journey render failed.")
@@ -326,7 +341,8 @@ internal fun JourneyMapPreviewContent(
             )
             fittedModel = displayModel
             onDispose {
-                mapView.removeOnDidFinishRenderingMapListener(renderListener)
+                mapView.removeOnDidFinishRenderingFrameListener(renderListener)
+                mapView.removeOnDidFinishRenderingMapListener(detailsListener)
             }
         }
     }
@@ -393,7 +409,9 @@ internal fun JourneyMapPreviewContent(
                             testTag = "journey_map_fallback",
                             readyTestTag = "journey_map_fallback_ready",
                             onFailure = onFailure,
-                            allowNetwork = preferences.allowOnlineMaps && (!useOffline || mapError),
+                            // Don't compete with native startup by downloading a second map.
+                            // The immediate Canvas route remains visible; raster is for recovery.
+                            allowNetwork = preferences.allowOnlineMaps && mapError,
                             playbackProgress = playback.progress.value,
                             showPlaybackPosition = playback.isPlaying || playback.progress.value < 0.999f,
                             // The interactive map below already owns its retry action.
@@ -453,6 +471,26 @@ internal fun JourneyMapPreviewContent(
                                 .size(1.dp)
                                 .testTag("journey_map_ready"),
                         )
+                        if (!mapDetailsLoaded) {
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopCenter).padding(12.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                            ) {
+                                Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                    Text(
+                                        stringResource(if (mapLoadTimedOut) R.string.journey_map_detail_unavailable
+                                            else R.string.journey_map_detail_loading),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (mapLoadTimedOut) TextButton(
+                                        onClick = { offlineFailed = false; loadAttempt += 1 },
+                                        modifier = Modifier.heightIn(min = 48.dp).testTag("journey_map_detail_retry"),
+                                    ) { Text(stringResource(R.string.journey_map_retry)) }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -862,7 +900,7 @@ private fun MapLibreMap.renderJourney(
 
         if (!fitCamera) return@runCatching
         if (model.points.size == 1 || model.crossesAntimeridian) {
-            animateCamera(
+            moveCamera(
                 CameraUpdateFactory.newCameraPosition(
                     CameraPosition.Builder()
                         .target(
@@ -883,7 +921,7 @@ private fun MapLibreMap.renderJourney(
             )
         } else {
             val bounds = model.bounds
-            animateCamera(
+            moveCamera(
                 CameraUpdateFactory.newLatLngBounds(
                     LatLngBounds.from(bounds.north, bounds.east, bounds.south, bounds.west),
                     cameraPaddingPx,

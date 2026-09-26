@@ -112,3 +112,22 @@ Verification and evidence:
 Scope/limits: changes are local on `research/autoresearch-20260926`. No releases, pushes, PRs, production data, settings or backend changes. All deletion/rollback fixtures use synthetic Robolectric databases. Checkpoint cleanup is logical database cleanup, not a claim of forensic flash erasure. No new dependencies or background polling. The approved phone was absent when checked; the unrelated emulator was not used. No device/battery measurements or standard-build release qualification were performed.
 
 The pass stops after its two planned candidate experiments, within the 45-minute limit. Next pass: investigate whether saved diary drafts remain safely invalidated across process recreation, and test repeated retention boundaries against erase/restore before proposing any further changes. These are follow-up hypotheses, not verified additional defects. Existing 658 app tests remain guardrails. Do not repeat the completed cases or call this a release candidate without the remaining release/device gates.
+
+## 2026-09-26 — explicit user follow-up: map startup, suggestions, named areas
+
+The user interrupted the automatic queue with a concrete map-loading/label/suggestions request,
+then connected the physical phone and forbade emulator use. This was an interactive task, not
+another bounded automatic experiment pass. Full evidence and the evaluator correction are in
+[the map/pattern hardening report](../hardening/2026-09-26-map-patterns.md).
+
+Local changes: first-frame native readiness that survives live GPS updates, bounded loading and
+street-detail status, grounded on-device suggestions, and reactive invalidation of suggestions
+when older history is hidden/changed. Full host suite: **664 passed**; repository suite:
+**119 passed**; lint/build/Google-free gates passed; final targeted phone suite: **9 passed** on
+`ZD2232FCR5`, disposable `.qa.e2eloop` only. No emulator, production app mutation, push or release.
+
+**Outstanding user decision:** permission to bundle the GeoNames offline town-name dataset for
+named approximate areas. The `VisitLabels` coordinate fallback is NOT changed yet. A downloaded
+public archive is evaluation material only and is not in the app or Git. Do not infer approval
+from the question's preselected option, enable new coordinate-uploading lookup, or publish these
+changes automatically. Preserve these user-requested changes in subsequent research work.

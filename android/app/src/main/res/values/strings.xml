@@ -103,7 +103,15 @@
         <item quantity="one">One recorded journey began in this window.</item>
         <item quantity="other">%1$d recorded journeys began in this window.</item>
     </plurals>
-    <string name="today_pattern_privacy">This pattern analysis uses the last 28 days on this phone and runs entirely on-device. Optional Cloud AI reports use your selected provider. These are observations, not conclusions.</string>
+    <string name="today_pattern_suggestions_title">Suggestions for you</string>
+    <plurals name="today_pattern_suggest_names">
+        <item quantity="one">One stop today has no confirmed name. Review it and name the place if you recognise it.</item>
+        <item quantity="other">%1$d stops today have no confirmed name. Review them and name the places you recognise.</item>
+    </plurals>
+    <string name="today_pattern_suggest_note">%1$s appears on more than one day. Add a short moment when something there is worth remembering, so those visits are easier to tell apart.</string>
+    <string name="today_pattern_suggest_review">Several journeys begin in the %1$s window. Consider reviewing your day after that usual travel period, while the details are fresh.</string>
+    <string name="today_pattern_suggest_busy">More stops are recorded today than on your recent active days. Review the timeline for missing details or split stops before saving your day.</string>
+    <string name="today_pattern_privacy">These observations and rule-based suggestions use only the last 28 days on this phone. They run entirely on-device and may miss context or recording gaps. Optional Cloud AI reports use your selected provider.</string>
     <plurals name="days_count">
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
@@ -145,6 +153,8 @@
     <string name="journey_map_retry">Retry map</string>
     <string name="journey_map_retrying">Retrying…</string>
     <string name="journey_map_loading_interactive">Preparing interactive map…</string>
+    <string name="journey_map_detail_loading">Route ready. Street details are loading.</string>
+    <string name="journey_map_detail_unavailable">Some street details are unavailable. Your route and replay still work.</string>
     <string name="journey_map_content_description">Interactive OpenStreetMap showing today’s journey</string>
     <string name="journey_map_ready_content_description">OpenStreetMap journey fully rendered</string>
     <string name="journey_map_replay">Replay route</string>

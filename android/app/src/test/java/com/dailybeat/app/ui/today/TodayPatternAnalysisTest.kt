@@ -72,6 +72,54 @@ class TodayPatternAnalysisTest {
         assertEquals(0, result.recurringPlaceVisits)
     }
 
+    @Test fun `suggest names without needing two days but exclude hidden and wrong day stops`() {
+        val visits = listOf(
+            visit(today, 9, "Unknown location", "dwell"),
+            visit(today, 10, "Unnamed place", "dwell", hidden = true),
+            visit(today.minusDays(1), 10, "Unnamed place", "dwell"),
+            visit(today.plusDays(1), 10, "Unnamed place", "dwell"),
+        )
+        val result = buildTodayPatternAnalysis(today, zone, visits, visits)
+        assertEquals(1, result.todayStops)
+        assertEquals(1, result.stopsToName)
+        assertEquals(listOf(PatternSuggestion.NAME_STOPS), result.suggestions)
+    }
+
+    @Test fun `approximate labels and nearby venues are not recurring confirmed places`() {
+        for (name in listOf("Approx. location · 11.000°N, 78.000°E", "Near Cafe", "Travel recorded")) {
+            val visits = listOf(visit(today.minusDays(1), 9, name, "dwell"), visit(today, 9, name, "dwell"))
+            val result = buildTodayPatternAnalysis(today, zone, visits.takeLast(1), visits)
+            assertEquals(null, result.recurringPlace)
+            assertFalse(PatternSuggestion.NOTE_RECURRING_PLACE in result.suggestions)
+        }
+    }
+
+    @Test fun `same day split visits do not establish recurring routine`() {
+        val visits = (8..11).map { visit(today, it, "Library", "dwell") }
+        val result = buildTodayPatternAnalysis(today, zone, visits, visits)
+        assertEquals(null, result.recurringPlace)
+        assertTrue(result.suggestions.isEmpty())
+    }
+
+    @Test fun `repeated journeys and places give at most two grounded suggestions`() {
+        val visits = (0L..3L).flatMap { day -> listOf(
+            visit(today.minusDays(day), 9, "Library", "dwell"),
+            visit(today.minusDays(day), 10, null, "transit")) }
+        val result = buildTodayPatternAnalysis(today, zone, visits.take(2), visits)
+        assertEquals(listOf(PatternSuggestion.NOTE_RECURRING_PLACE, PatternSuggestion.REVIEW_AFTER_MOVEMENT), result.suggestions)
+        assertEquals(MovementWindow.MORNING, result.commonMovementWindow)
+    }
+
+    @Test fun `busy day compares against prior days not the partial day itself`() {
+        val prior = (1L..3L).map { visit(today.minusDays(it), 8, "Library", "dwell") }
+        val current = (8..12).map { visit(today, it, "Stop $it", "dwell") }
+        val result = buildTodayPatternAnalysis(today, zone, current, prior + current)
+        assertEquals(PatternSuggestion.REVIEW_BUSY_DAY, result.suggestions.first())
+        assertTrue(result.suggestions.size <= 2)
+        val insufficient = buildTodayPatternAnalysis(today, zone, current, prior.take(1) + current)
+        assertFalse(PatternSuggestion.REVIEW_BUSY_DAY in insufficient.suggestions)
+    }
+
     private fun visit(
         date: LocalDate,
         hour: Int,

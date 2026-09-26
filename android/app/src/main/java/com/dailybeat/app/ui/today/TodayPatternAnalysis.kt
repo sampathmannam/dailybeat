@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.today
 
 import com.dailybeat.app.data.model.LocationVisit
+import com.dailybeat.app.domain.VisitLabels
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -12,6 +13,13 @@ internal enum class MovementWindow {
     NIGHT,
 }
 
+internal enum class PatternSuggestion {
+    NAME_STOPS,
+    NOTE_RECURRING_PLACE,
+    REVIEW_AFTER_MOVEMENT,
+    REVIEW_BUSY_DAY,
+}
+
 internal data class TodayPatternAnalysis(
     val observedDays: Int = 0,
     val todayStops: Int = 0,
@@ -20,6 +28,8 @@ internal data class TodayPatternAnalysis(
     val recurringPlaceVisits: Int = 0,
     val commonMovementWindow: MovementWindow? = null,
     val commonMovementWindowJourneys: Int = 0,
+    val stopsToName: Int = 0,
+    val suggestions: List<PatternSuggestion> = emptyList(),
 ) {
     val hasUsefulHistory: Boolean get() = observedDays >= 2
 }
@@ -43,9 +53,11 @@ internal fun buildTodayPatternAnalysis(
     val observedDays = visibleHistory.map { it.localDate(zoneId) }.distinct().size
     val dwellVisits = visibleHistory.filterNot { it.isTransit() }
     val recurringPlace = dwellVisits
-        .mapNotNull { it.placeName.usablePatternLabel() ?: it.address.usablePatternLabel() }
-        .groupingBy { it }
-        .eachCount()
+        .mapNotNull { visit -> visit.patternLabel()?.let { it to visit.localDate(zoneId) } }
+        .groupBy({ it.first }, { it.second })
+        // Repeated GPS fragments on one day do not establish a recurring routine.
+        .filterValues { dates -> dates.distinct().size >= 2 }
+        .mapValues { it.value.size }
         .entries
         .filter { it.value > 1 }
         .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
@@ -61,14 +73,35 @@ internal fun buildTodayPatternAnalysis(
         )
         .firstOrNull()
 
+    val visibleToday = todayVisits.filter { !it.hidden && it.localDate(zoneId) == today }
+    val todayStops = visibleToday.count { !it.isTransit() }
+    val stopsToName = visibleToday.count { !it.isTransit() && it.patternLabel() == null }
+    val priorVisits = visibleHistory.filter { it.localDate(zoneId) < today }
+    val priorDays = priorVisits.map { it.localDate(zoneId) }.distinct().size
+    val priorAverage = if (priorDays == 0) 0.0 else priorVisits.count { !it.isTransit() }.toDouble() / priorDays
+    val movementDays = visibleHistory.filter { it.isTransit() && it.movementWindow(zoneId) == movementWindow?.key }
+        .map { it.localDate(zoneId) }.distinct().size
+    val suggestions = buildList {
+        if (stopsToName > 0) add(PatternSuggestion.NAME_STOPS)
+        if (priorDays >= 3 && todayStops >= priorAverage + 3 && todayStops >= priorAverage * 1.5) {
+            add(PatternSuggestion.REVIEW_BUSY_DAY)
+        }
+        if (recurringPlace != null) add(PatternSuggestion.NOTE_RECURRING_PLACE)
+        if (movementDays >= 2 && (movementWindow?.value ?: 0) >= 3) {
+            add(PatternSuggestion.REVIEW_AFTER_MOVEMENT)
+        }
+    }.take(2)
+
     return TodayPatternAnalysis(
         observedDays = observedDays,
-        todayStops = todayVisits.count { !it.hidden && !it.isTransit() },
+        todayStops = todayStops,
         averageStopsPerDay = if (observedDays == 0) 0.0 else dwellVisits.size.toDouble() / observedDays,
         recurringPlace = recurringPlace?.key,
         recurringPlaceVisits = recurringPlace?.value ?: 0,
         commonMovementWindow = movementWindow?.key,
         commonMovementWindowJourneys = movementWindow?.value ?: 0,
+        stopsToName = stopsToName,
+        suggestions = suggestions,
     )
 }
 
@@ -85,10 +118,6 @@ private fun LocationVisit.movementWindow(zoneId: ZoneId): MovementWindow =
         else -> MovementWindow.NIGHT
     }
 
-private fun String?.usablePatternLabel(): String? = this
-    ?.trim()
-    ?.takeIf {
-        it.isNotEmpty() &&
-            !it.equals("Unnamed place", ignoreCase = true) &&
-            !it.equals("route", ignoreCase = true)
-    }
+private fun LocationVisit.patternLabel(): String? =
+    (VisitLabels.usable(placeName) ?: VisitLabels.usable(address))
+        ?.takeUnless { it.equals("route", ignoreCase = true) || it.startsWith("Near ", ignoreCase = true) }
