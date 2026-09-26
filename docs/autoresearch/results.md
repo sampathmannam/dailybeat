@@ -57,3 +57,23 @@ Limitations: no phone was attached; the other task's emulator was not used. Nati
 The existing paused DailyBeat heartbeat was updated, not duplicated: **DailyBeat autoresearch**, active every four hours in this task. Each pass is limited to two experiments and 45 minutes, with no automatic publishing. The computer must remain on with Codex running for local scheduled work.
 
 Next: inspect offline/capture persistence for a concrete reproducible failure; establish a new frozen synthetic regression before modifying implementation. Reuse these ten map regressions as guardrails. Do not repeat completed experiments or claim this host-only pass is a release candidate.
+
+## 2026-09-26 05:40 UTC — retention and capture persistence pass
+
+Starting commit: `09609e0`. The checkout was clean, with no active research build. No other checkout, device, backend or release was touched.
+
+Investigated but not changed: the offline-download network-choice hypothesis. `KEEP` retains an existing request, but the actual UI requires pause/cancellation before changing its network choice. The normal user flow did not justify a fix.
+
+Ten new synthetic `RetentionResearchTest` fixtures are frozen before implementation changes. This pass uses the **full** existing evaluator for baseline and candidates, so all previous map/capture/backup tests remain guardrails. The evaluator and original map fixtures are unchanged; the new retention fixture hash is recorded with the baseline.
+
+### Experiment 3 — retention deletion must invalidate stale writers
+
+Hypothesis: retention commits deletions without advancing the existing personal-data generation gate. A delayed editor/report save using its pre-deletion generation can therefore reinsert deleted diary text, and open readers do not receive the data-change signal.
+Acceptance: stale writes are rejected after a successful non-empty prune; publish exactly one data-change notification, without altering the GPS callback generation. No-op and failed prunes must not invalidate current editors. Nested pruning during restore must not publish before the outer transaction commits (restore already owns its final notification).
+
+### Experiment 4 — sanitize unreadable/expired GPS checkpoints
+
+Hypothesis: retention only removes successfully decoded old checkpoints, leaving location bytes in unusable checkpoints. Removing an expired checkpoint row entirely can also reopen the legacy preference-import path at service startup.
+Acceptance: scrub unusable or expired checkpoint payloads to the existing empty `{}` marker, using the same clock as retention; keep usable recent checkpoints and queued observations unchanged; roll back checkpoint cleanup if the pruning transaction fails. No changes to finalized visits, collection frequency, settings, schema or network behavior.
+
+Baseline pending. No candidate implementation changes yet.
