@@ -27,4 +27,33 @@ Candidate `e5070958e852c9008551dd7d3e804cc7921d3776`, run `candidate-01-gap`: 37
 Hypothesis: a consecutive +180/-180 longitude pair represents the same meridian, but the seam interpolation divides zero by zero and produces NaN latitude. Handle this exact alias as a local north/south segment, then resume on the raw next endpoint's side. Do not modify stored points or lose latitude movement.
 Predeclared success: eliminate all three remaining date-line failures, including the 16-pair/five-frame boundary grid, while keeping all previous tests passing. Keep the same fixture and evaluator as baseline.
 
-Candidate results pending. No release is authorized by this loop.
+Candidate `f964921c61d25aaf85fbc1e6f82bf4bf4567c845`, run `candidate-02-dateline`: 37 tests, 0 failures/errors/skips. All ten research regressions and all 27 existing map/replay guardrails pass. Evaluator and fixture hashes are unchanged from baseline.
+
+### Combined decision: retain locally
+
+Both experiments passed their predeclared correctness criteria and the full host guardrails. Retained on `research/autoresearch-20260926`, not merged or released.
+
+| Evaluation | Tests | Failures | Errors / skips |
+| --- | ---: | ---: | --- |
+| Frozen baseline | 37 | 8 | 0 / 0 |
+| Gap candidate | 37 | 3 | 0 / 0 |
+| Gap + date-line candidate | 37 | 0 | 0 / 0 |
+| Full FOSS/store JVM suite | 644 | 0 | 0 / 0 |
+
+Additional verification:
+
+- `python3 scripts/autoresearch_eval.py combined-full-01 --full`: passed; full XML/JSON/Gradle evidence in `.autoresearch/combined-full-01/`.
+- `python3 -m pytest scripts/tests/ -q`: 119 passed, including three evaluator tests.
+- From `android`: `./gradlew :app:lintDebug :app:assembleDebug :app:verifyGoogleFreeDependencies -PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true --console=plain`: passed. Raw log: `.autoresearch/combined-full-01/build-lint.log`.
+- Lint: 0 errors, 91 warnings, 1 hint. This is not a zero-warning claim; the previous release's recorded count was also 91 warnings / 1 hint.
+- Google-free dependency gate: passed, 91 resolved artifacts.
+- `gitleaks git --log-opts='7b5a5d1..HEAD' --redact --no-banner .`: no findings in the three setup/implementation commits.
+- `git diff --check`: passed.
+
+Limitations: no phone was attached; the other task's emulator was not used. Native rendering, live GPS/venue accuracy, battery drain, standard-build validation and final release gates still require separate checks. Desktop build/test elapsed times are diagnostic only, not a performance or battery result. No production package, backend, personal data, main branch or published release was changed.
+
+### Continuation
+
+The existing paused DailyBeat heartbeat was updated, not duplicated: **DailyBeat autoresearch**, active every four hours in this task. Each pass is limited to two experiments and 45 minutes, with no automatic publishing. The computer must remain on with Codex running for local scheduled work.
+
+Next: inspect offline/capture persistence for a concrete reproducible failure; establish a new frozen synthetic regression before modifying implementation. Reuse these ten map regressions as guardrails. Do not repeat completed experiments or claim this host-only pass is a release candidate.

@@ -53,8 +53,8 @@ Initial frozen fixtures: `JourneyMapResearchTest` (invalid fixes, route gaps, ex
 
 ## Initial queue
 
-1. Reproduce and fix route continuity after invalid coordinates.
-2. Reproduce and fix non-finite geometry from +180/-180 longitude aliases.
+1. Completed in the first pass: preserve route continuity gaps after invalid coordinates (see `results.md`).
+2. Completed in the first pass: keep geometry finite for +180/-180 longitude aliases (see `results.md`).
 3. Inspect offline/capture persistence edge cases and add a failing synthetic regression before fixes.
 4. Profile bounded route processing on realistic synthetic day sizes before optimizing; do not change fidelity to win a timing score.
 5. When the approved test phone is available, repeat native-map/replay/offline smoke tests and collect a comparable resource-use baseline. Never claim battery improvement without that evidence.
