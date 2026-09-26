@@ -63,5 +63,11 @@ class OfflineTownIndexTest {
             assertThrows(IllegalArgumentException::class.java) { OfflineTownIndex.read(ByteArrayInputStream(bytes)) }
         }
         assertThrows(java.io.IOException::class.java) { OfflineTownIndex.read(ByteArrayInputStream(byteArrayOf(1, 2, 3))) }
+        val oversized = ByteArrayOutputStream().also { output ->
+            GZIPOutputStream(output).use { it.write(ByteArray(5_000_001)) }
+        }.toByteArray()
+        assertThrows(IllegalArgumentException::class.java) {
+            OfflineTownIndex.read(ByteArrayInputStream(oversized))
+        }
     }
 }
