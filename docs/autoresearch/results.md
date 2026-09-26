@@ -76,4 +76,6 @@ Acceptance: stale writes are rejected after a successful non-empty prune; publis
 Hypothesis: retention only removes successfully decoded old checkpoints, leaving location bytes in unusable checkpoints. Removing an expired checkpoint row entirely can also reopen the legacy preference-import path at service startup.
 Acceptance: scrub unusable or expired checkpoint payloads to the existing empty `{}` marker, using the same clock as retention; keep usable recent checkpoints and queued observations unchanged; roll back checkpoint cleanup if the pruning transaction fails. No changes to finalized visits, collection frequency, settings, schema or network behavior.
 
-Baseline pending. No candidate implementation changes yet.
+Initial discovery baseline `retention-baseline-01` at `b8321fc`: 654 tests, five failures, no errors/skips. Only the new retention cases failed (two stale-writer/notification cases and three checkpoint cases). Retention fixture SHA-256: `37998a86cb8de97cae4d1526a32886d15f6736edda9bb36445ae256b3fc8ed77`.
+
+Before any implementation changes, four additional real diary-ViewModel guardrails were added: keep a retained-day draft, keep its delayed autosave, reject an expired-day draft, and never bypass a subsequent full erase. A blanket generation invalidation without retained-date handling would discard an unrelated current draft, so that is explicitly unacceptable. `retention-baseline-02` establishes the final frozen comparison including these stronger safeguards. No prior test was removed or weakened; the evaluator remains unchanged.
