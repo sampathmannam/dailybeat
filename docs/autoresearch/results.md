@@ -87,3 +87,28 @@ Experiment 3 candidate: publish a retention-specific generation boundary after a
 Experiment 3 result, candidate `c6c9b194e69a6d33c0a0fc6ad88e44c8567603a7`, `retention-candidate-03`: **658 tests, three failures, zero errors/skips**. All three stale-writer/reader failures are fixed. Current-day manual drafts, their delayed autosave, full erase, failed-prune rollback and nested-restore behavior pass. Only the predeclared checkpoint cases remain; provisionally successful pending combined gates.
 
 Experiment 4 candidate: decode checkpoint validity using the captured retention clock; replace any unusable or expired non-empty payload with `{}` inside the existing pruning transaction. Do not remove the row and reopen legacy migration. Expected result: the three checkpoint failures become passes, with all 658 tests passing and fixture/evaluator hashes unchanged.
+
+### Combined decision: retain locally (06:23 UTC)
+
+Experiment 4 candidate `fc683d3135a6403da43ff1487823de7c0e906dcb`, `retention-candidate-04`: **658 tests, zero failures/errors/skips**. Both experiments meet their predeclared criteria, including preservation of retained-day drafts/autosave and rollback/erase/restore safeguards.
+
+| Frozen full-suite evaluation | Tests | Failures | Errors / skips |
+| --- | ---: | ---: | --- |
+| Final baseline (`retention-baseline-02`) | 658 | 6 | 0 / 0 |
+| Retention writer boundary (`retention-candidate-03`) | 658 | 3 | 0 / 0 |
+| Writer boundary + checkpoint cleanup (`retention-candidate-04`) | 658 | 0 | 0 / 0 |
+
+Verification and evidence:
+
+- Each row used `python3 scripts/autoresearch_eval.py <label> --full` with the same JDK, SDK, unchanged evaluator and frozen test fixtures. Commands, source commit, diff hash, raw XML and results are in `.autoresearch/<label>/`.
+- Retention fixture: `37998a86cb8de97cae4d1526a32886d15f6736edda9bb36445ae256b3fc8ed77`; diary fixture: `816b9226e110d0601ba05e8c6d368cc8d1a2333916ae18585865802525dfe60d`. Rechecked after both candidates; unchanged.
+- Evaluator: `be80c5faaa348e7ee13e1d4e0fda7ca78ff1cabbc404462586626dc10bf3f9f3`; original map fixture: `92fcede691c52c4604d610d4f002504d1483873ceb416f765741e7e2808e5354`. Unchanged.
+- `python3 -m pytest scripts/tests/ -q`: **119 passed**; log `.autoresearch/retention-candidate-04/repository-tests.log`.
+- `./gradlew :app:lintDebug :app:assembleDebug :app:verifyGoogleFreeDependencies -PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true --console=plain` from `android`: passed; log `.autoresearch/retention-candidate-04/build-lint.log`.
+- Lint: **0 errors, 91 warnings, 1 hint**. Analysis tasks ran; the report output was unchanged. Google-free dependency gate passed (91 artifacts).
+- `gitleaks git --log-opts='09609e0..HEAD' --redact --no-banner .`: no findings in the four setup/implementation commits; log `.autoresearch/retention-candidate-04/secrets.log`.
+- `git diff --check`: passed. The research checkout was clean after implementation commits; no unfamiliar edits appeared.
+
+Scope/limits: changes are local on `research/autoresearch-20260926`. No releases, pushes, PRs, production data, settings or backend changes. All deletion/rollback fixtures use synthetic Robolectric databases. Checkpoint cleanup is logical database cleanup, not a claim of forensic flash erasure. No new dependencies or background polling. The approved phone was absent when checked; the unrelated emulator was not used. No device/battery measurements or standard-build release qualification were performed.
+
+The pass stops after its two planned candidate experiments, within the 45-minute limit. Next pass: investigate whether saved diary drafts remain safely invalidated across process recreation, and test repeated retention boundaries against erase/restore before proposing any further changes. These are follow-up hypotheses, not verified additional defects. Existing 658 app tests remain guardrails. Do not repeat the completed cases or call this a release candidate without the remaining release/device gates.
