@@ -3,6 +3,7 @@ package com.dailybeat.app.data.retention
 import androidx.room.withTransaction
 import com.dailybeat.app.capture.CaptureStorageGate
 import com.dailybeat.app.capture.BufferedCheckpoint
+import com.dailybeat.app.data.db.CaptureCheckpoint
 import kotlinx.coroutines.sync.withLock
 import com.dailybeat.app.data.db.DailyBeatDb
 import java.time.LocalDate
@@ -29,13 +30,19 @@ class HistoryRetentionManager(
 
     internal suspend fun pruneInsideCaptureLock(days: Int): RetentionResult {
         require(days in setOf(30, 90, 365)) { "Retention must be 30, 90 or 365 days." }
-        val today = java.time.Instant.ofEpochMilli(clock()).atZone(zoneId).toLocalDate()
+        val nowMs = clock()
+        val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId).toLocalDate()
         val cutoffDate = today.minusDays(days.toLong() - 1L)
         val cutoffMs = cutoffDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val cutoffDateKey = cutoffDate.toString()
         val deleted = db.withTransaction {
-            val checkpoint = BufferedCheckpoint(db.captureJournal().checkpoint()).load()
-            if (checkpoint != null && checkpoint.lastSampleMs < cutoffMs) db.captureJournal().clearCheckpoint()
+            val payload = db.captureJournal().checkpoint()
+            val checkpoint = BufferedCheckpoint(payload, nowMs).load()
+            if (payload != null && payload != "{}" && (checkpoint == null || checkpoint.lastSampleMs < cutoffMs)) {
+                // Unreadable checkpoints can still contain private coordinates. Keep an empty
+                // marker so service startup cannot re-import an obsolete legacy checkpoint.
+                db.captureJournal().checkpoint(CaptureCheckpoint(payload = "{}"))
+            }
             db.captureJournal().deleteBefore(cutoffMs) + db.events().deleteBefore(cutoffMs) +
                 db.visits().deleteCorrectionsBefore(cutoffMs) +
                 db.visits().deleteCorrectionsForVisitsBefore(cutoffMs) +
