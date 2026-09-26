@@ -1,6 +1,7 @@
 """The research runner must not conceal failures or imply a missing run succeeded."""
 import importlib.util
 from pathlib import Path
+import pytest
 
 
 spec = importlib.util.spec_from_file_location(
@@ -30,3 +31,11 @@ def test_all_suites_are_counted(tmp_path):
     for report in reports:
         report.write_text('<testsuite tests="3" failures="0" errors="0" skipped="0"/>')
     assert runner.summarize(reports)["tests"] == 6
+
+
+def test_malicious_junit_dtd_is_rejected(tmp_path):
+    report = tmp_path / "TEST-malicious.xml"
+    report.write_text('''<!DOCTYPE testsuite [<!ENTITY secret SYSTEM "file:///etc/passwd">]>
+    <testsuite tests="1"><testcase name="&secret;"/></testsuite>''')
+    with pytest.raises(ValueError, match="DTD is forbidden"):
+        runner.summarize([report])

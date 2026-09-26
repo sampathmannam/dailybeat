@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
-import xml.etree.ElementTree as ET
+from xml.parsers import expat
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "android/app/src/test/java/com/dailybeat/app/ui/components/JourneyMapResearchTest.kt"
@@ -18,12 +18,43 @@ def summarize(reports):
     totals = dict(tests=0, failures=0, errors=0, skipped=0)
     failed = []
     for report in reports:
-        suite = ET.parse(report).getroot()
-        for key in totals:
-            totals[key] += int(suite.get(key, "0"))
-        for case in suite.findall("testcase"):
-            if case.find("failure") is not None or case.find("error") is not None:
-                failed.append(f"{case.get('classname')}.{case.get('name')}")
+        # Gradle's generated JUnit report is the only input. Bound its size and
+        # reject DTDs/entities so a replaced report cannot expand or read files.
+        if report.stat().st_size > 10_000_000:
+            raise ValueError(f"Oversized JUnit report: {report}")
+        parser = expat.ParserCreate()
+        parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+
+        def reject_doctype(*_):
+            raise ValueError("JUnit DTD is forbidden")
+
+        def reject_external_entity(*_):
+            raise ValueError("External entity is forbidden")
+
+        parser.StartDoctypeDeclHandler = reject_doctype
+        parser.ExternalEntityRefHandler = reject_external_entity
+        current_case = None
+
+        def start(name, attrs):
+            nonlocal current_case
+            if name == "testsuite":
+                for key in totals:
+                    totals[key] += int(attrs.get(key, "0"))
+            elif name == "testcase":
+                current_case = [attrs.get("classname", ""), attrs.get("name", ""), False]
+            elif name in ("failure", "error") and current_case is not None:
+                current_case[2] = True
+
+        def end(name):
+            nonlocal current_case
+            if name == "testcase" and current_case is not None:
+                if current_case[2]:
+                    failed.append(f"{current_case[0]}.{current_case[1]}")
+                current_case = None
+
+        parser.StartElementHandler = start
+        parser.EndElementHandler = end
+        parser.Parse(report.read_bytes(), True)
     return dict(totals, failed_cases=failed)
 
 
