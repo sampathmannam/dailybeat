@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.3.8 — 2026-09-26
+
+### Maps and place names
+- The native route becomes interactive on its first drawn frame, even while street details load.
+  Live GPS updates no longer return an open map to the blocking preparation state; failed styles
+  offer bounded recovery. Offline replay and route geometry keep gaps and date-line crossings honest.
+- When a stop has no recorded address, saved name or manual correction, a bundled GeoNames town
+  reference gives an explicitly approximate area name instead of latitude and longitude. It works
+  offline and does not identify a shop or restaurant. The app includes CC BY 4.0 attribution.
+
+### Daily use and reliability
+- Today suggests a small number of grounded, on-device pattern review actions. Hidden entries and
+  approximate town labels cannot establish confirmed recurring places.
+- Retention cleanup blocks stale writes from recreating deleted entries while allowing a retained
+  diary draft to finish saving. Unusable and expired GPS checkpoints are scrubbed without reviving
+  older checkpoint imports.
+- Route processing keeps invalid-fix gaps and exact date-line aliases finite.
+
+### Verification and limits
+- The Google-free host gate passed 675 app tests and 122 repository tests. On the connected
+  physical Android phone, 13 targeted UI, map, replay and offline-label checks passed using a
+  disposable test package. The final versioned commit must pass protected CI before publication.
+- Actual battery drain, venue accuracy and operation on every Android device are not established
+  by these tests. Existing history, appearance and privacy settings are preserved.
+
 ## 4.3.7 — 2026-09-25
 
 ### Reliability and everyday use

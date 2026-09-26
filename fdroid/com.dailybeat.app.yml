@@ -38,6 +38,20 @@ Builds:
       - dailybeatFoss=true
       - dailybeatStore=true
       - dailybeatUnsigned=true
+  - versionName: 4.3.8
+    versionCode: 42
+    commit: v4.3.8
+    subdir: android/app
+    gradle:
+      - yes
+    rm:
+      - android/app/src/gms
+      - android/app/gms-dependencies.gradle.kts
+      - android/app/src/androidTest/assets
+    gradleprops:
+      - dailybeatFoss=true
+      - dailybeatStore=true
+      - dailybeatUnsigned=true
 
 AllowedAPKSigningKeys: 44510de2f642f54f8f046fc05b44227a15a2e8473460594b106e976862d3436f # gitleaks:allow -- public certificate digest
 
@@ -53,5 +67,5 @@ MaintainerNotes: |-
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
-CurrentVersion: 4.3.7
-CurrentVersionCode: 41
+CurrentVersion: 4.3.8
+CurrentVersionCode: 42

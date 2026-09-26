@@ -57,6 +57,9 @@ in the public inventory, checksum verification and security CI. F-Droid's own re
   activity-transition sleep mechanism; physical battery performance needs separate measurement.
 - Notes, local drafts, search, review, map viewing and PDF/ZIP sharing require no account. Managed
   cloud backup is not configured in the store APK; do not advertise it as an available store feature.
+- Approximate town references are bundled for offline place labels. They do not identify a venue
+  or send captured coordinates to GeoNames. The extract and its limits are documented in
+  [offline place names](offline-place-names.md).
 - Cloud drafting is optional and off by default. Proprietary AI presets remain available, as does
   a configurable compatible endpoint. `NonFreeNet` is disclosed for these presets.
 - Online maps remain on by default, as in the stable app. Providers receive IP addresses and viewed
@@ -76,7 +79,8 @@ scanner findings or hiding network dependencies.
 [The Maven declaration inventory](dependency-license-inventory.json) identifies exact runtime
 coordinates. [Native notice provenance](native-license-provenance.json) pins the upstream notice
 sources and SHA-256 hashes. The APK's **Licences & source** screen includes the original GPL text,
-Apache 2.0 text, MapLibre Native Android 11.8.0's upstream notices and additional PMTiles,
+Apache 2.0 text, MapLibre Native Android 11.8.0's upstream notices, GeoNames CC BY 4.0
+attribution, and additional PMTiles,
 unordered_dense, ICU and nunicode notices. SQLite's source is public domain. RapidJSON's non-runtime
 JSON-checker test material is not linked into the app; its runtime headers use MIT.
 

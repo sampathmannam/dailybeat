@@ -1,0 +1,8 @@
+Publish DailyBeat v4.3.8 from main after the exact commit passes all required
+build, security, repository, Android, database-isolation and live-backup gates.
+Keep com.dailybeat.app and the permanent signing certificate, with version code 42.
+Publish immutable stable and Google-free reference APKs with their checksums.
+This release improves interactive map readiness, offline approximate town names,
+private pattern suggestions, capture continuity and retention safety.
+Keep existing history, appearance, permissions and privacy choices. Do not claim
+exact business recognition, measured battery savings or official store acceptance.
