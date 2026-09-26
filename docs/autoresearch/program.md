@@ -34,7 +34,7 @@ Set `JAVA_HOME` to Android Studio's bundled JDK and `ANDROID_HOME` to the instal
 python3 scripts/autoresearch_eval.py unique-baseline-label
 python3 scripts/autoresearch_eval.py unique-candidate-label
 python3 scripts/autoresearch_eval.py unique-full-label --full
-python3 -m unittest discover -s scripts/tests -v
+python3 -m pytest scripts/tests/ -q
 ```
 
 Run `:app:lintDebug :app:assembleDebug` from `android` with `-PdailybeatFoss=true -PdailybeatStore=true -PdailybeatUnsigned=true` for local build checks. No signing secrets or backend credentials are needed.

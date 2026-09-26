@@ -7,4 +7,17 @@ Reference: Karpathy autoresearch `228791fb499afffb54b46200aca536f79142f117`.
 
 Ten synthetic map regression tests were added before implementation changes. The fixed target is route-geometry correctness, not the ML repository's validation loss and not a claimed battery score. Existing map and replay tests remain guardrails.
 
-Baseline and experiment results will be recorded here after evaluation. No release is authorized by this loop.
+Frozen fixture SHA-256: `92fcede691c52c4604d610d4f002504d1483873ceb416f765741e7e2808e5354`.
+Frozen evaluator SHA-256: `be80c5faaa348e7ee13e1d4e0fda7ca78ff1cabbc404462586626dc10bf3f9f3`.
+Evaluation setup commit: `392451f17217187d3db7731ebfb90c949bc04c76`.
+
+### Baseline: `baseline-01`
+
+`python3 scripts/autoresearch_eval.py baseline-01`: 37 tests, 8 failures, 0 errors/skips. All 27 pre-existing map/replay guardrails passed; 8 of 10 new regression tests failed. Result and raw XML are in `.autoresearch/baseline-01/`.
+
+### Experiment 1: rejected route fixes
+
+Hypothesis: filtering an invalid breadcrumb before segmentation loses the gap and causes the renderer/replay to imply a continuous recorded route. Carry a pending gap forward to the next valid route point, across display-only stop markers, after chronological ordering.
+Predeclared success: eliminate the five invalid-route/gap/replay failures while preserving all existing guardrails and the two new marker/leading-point controls. Three date-line failures are expected to remain for experiment 2. No capture frequency, stored history, provider, UI layout or dependency changes.
+
+Candidate results pending. No release is authorized by this loop.

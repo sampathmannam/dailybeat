@@ -198,11 +198,25 @@ data class JourneyMapModel(
         )
 
         fun fromPoints(sourcePoints: List<JourneyPoint>): JourneyMapModel {
-            val points = sourcePoints
-                .asSequence()
-                .filter { it.hasMappableCoordinate() }
-                .sortedBy { it.startMs }
-                .toList()
+            val points = buildList {
+                var hasRoutePoint = false
+                var pendingRouteGap = false
+                for (point in sourcePoints.sortedBy { it.startMs }) {
+                    if (!point.hasMappableCoordinate()) {
+                        // Reject bad geometry without falsely joining the surrounding GPS fixes.
+                        // An invalid display-only stop marker must not interrupt the GPS trail.
+                        if (point.drawsRoute && hasRoutePoint) pendingRouteGap = true
+                        continue
+                    }
+                    if (point.drawsRoute) {
+                        add(if (pendingRouteGap) point.copy(startsAfterGap = true) else point)
+                        hasRoutePoint = true
+                        pendingRouteGap = false
+                    } else {
+                        add(point)
+                    }
+                }
+            }
 
             if (points.isEmpty()) return JourneyMapModel(points, null)
 
