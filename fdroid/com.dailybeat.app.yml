@@ -44,6 +44,10 @@ Builds:
     subdir: android/app
     gradle:
       - yes
+    # Reviewed GeoNames CC BY 4.0 data, not executable code; exact hash is
+    # pinned by OfflineTownIndexTest and provenance is in docs/offline-place-names.md.
+    scanignore:
+      - android/app/src/main/resources/offline-towns-v1.dat.gz
     rm:
       - android/app/src/gms
       - android/app/gms-dependencies.gradle.kts
@@ -60,6 +64,9 @@ MaintainerNotes: |-
   hash in fdroiddata. Store builds exclude Google dependencies and all private
   build-time backup configuration. The removed files are unused GMS sources and
   test-only map fixtures; removing them does not change the store APK.
+  Version 42 scanignore is limited to the deterministic, hash-pinned GeoNames
+  town-data archive. It is needed at runtime and documented with attribution;
+  do not broaden it to source directories or other binary files.
   MapLibre and other FLOSS dependencies come from Google Maven or Maven Central.
   The downloaded map is data only, with hashes pinned in the APK; there is no
   executable-code downloader or in-app updater. Network flags are deliberately
