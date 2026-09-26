@@ -168,6 +168,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
@@ -286,6 +288,8 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: Nexus 6
+          cores: 4
+          ram-size: 4096M
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect
@@ -351,6 +355,8 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: Nexus 6
+          cores: 4
+          ram-size: 4096M
           force-avd-creation: true
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -no-snapshot-save -gpu swiftshader_indirect

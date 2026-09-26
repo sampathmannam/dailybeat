@@ -10,6 +10,7 @@ import com.dailybeat.app.util.DayBounds
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.ZoneId
 
 class VisitRepository(
     private val visitDao: VisitDao,
@@ -37,6 +38,13 @@ class VisitRepository(
         val (startMs, _) = DayBounds.dayStartEnd(startDate)
         val (_, endMs) = DayBounds.dayStartEnd(endDate)
         return visitDao.between(startMs, endMs)
+    }
+
+    fun observeLastDays(days: Int, endDate: LocalDate, zoneId: ZoneId): Flow<List<LocationVisit>> {
+        require(days in 1..36500)
+        val (start, _) = DayBounds.dayStartEnd(endDate.minusDays(days.toLong() - 1), zoneId)
+        val (_, end) = DayBounds.dayStartEnd(endDate, zoneId)
+        return visitDao.observeBetween(start, end)
     }
 
     /** Hidden history also supplies labels that must not leak through later notes/rollups. */

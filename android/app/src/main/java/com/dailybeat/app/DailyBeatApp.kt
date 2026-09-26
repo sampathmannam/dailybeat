@@ -159,6 +159,8 @@ class DailyBeatApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Public offline place-name index: warm off the UI thread, without reading user history.
+        maintenanceScope.launch { com.dailybeat.app.domain.OfflineTownIndex.bundled }
         maintenanceScope.launch {
             if (!runCatching { PrivateStorageMigration.migrate(this@DailyBeatApp) }.getOrDefault(false)) {
                 OperationalFailureLog.record(this@DailyBeatApp, "private-storage-upgrade", retryable = true,

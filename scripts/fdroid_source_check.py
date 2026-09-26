@@ -6,12 +6,20 @@ and config live in a temporary directory; the developer checkout is never patche
 """
 from pathlib import Path
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
 import yaml
+
+
+def scanner_reported_problem(output: str) -> bool:
+    return bool(re.search(
+        r"\b(?:[1-9][0-9]* problems? found|Scanner found [1-9][0-9]* problems?)\b",
+        output,
+    ))
 
 
 def main():
@@ -31,8 +39,16 @@ def main():
         scanner = shutil.which("fdroid")
         if not scanner:
             raise SystemExit("Install fdroidserver and put fdroid on PATH.")
-        subprocess.run([scanner, "scanner", "--refresh", "--exit-code", "com.dailybeat.app"],
-                       cwd=directory, check=True)
+        result = subprocess.run(
+            [scanner, "scanner", "--refresh", "--exit-code", "com.dailybeat.app"],
+            cwd=directory, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            check=False,
+        )
+        print(result.stdout, end="")
+        # fdroidserver 2.4.5 can report source findings while returning zero even
+        # with --exit-code. Do not let a reported problem silently pass CI.
+        if result.returncode or scanner_reported_problem(result.stdout):
+            raise SystemExit("F-Droid source scan reported a problem")
 
 
 if __name__ == "__main__":

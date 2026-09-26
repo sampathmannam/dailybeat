@@ -365,7 +365,7 @@ class DiaryViewModel(
         if (hasLocalEdit) saveCurrentEdit(_uiState.value.text, loadedDataGeneration)
     }
 
-    private suspend fun saveCurrentEdit(text: String, generation: Long) = CaptureStorageGate.writeIfCurrent(generation) {
+    private suspend fun saveCurrentEdit(text: String, generation: Long) = CaptureStorageGate.writeIfCurrent(generation, retainedDate = date) {
         if (!editingCheckpointWritten) {
             app.diaryRepository.checkpointForDate(date, "Before this editing session")
             editingCheckpointWritten = true
@@ -377,7 +377,9 @@ class DiaryViewModel(
     private fun discardReplacedData(): Boolean {
         val current = CaptureStorageGate.dataGeneration.get()
         if (loadedDataGeneration == current) return false
+        val retained = CaptureStorageGate.generationForRetainedDate(loadedDataGeneration, date) == current
         loadedDataGeneration = current
+        if (retained) return false
         saveJob?.cancel()
         saveJob = null
         hasLocalEdit = false

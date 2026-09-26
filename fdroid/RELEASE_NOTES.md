@@ -1,5 +1,10 @@
 Google-free candidate for F-Droid review, signed with DailyBeat's permanent signing certificate.
 
+Version 4.3.8 improves interactive map readiness and replay, names approximate areas from an
+offline town list, adds private pattern suggestions, and hardens capture and history retention.
+It retains the existing appearance and local history. Town references do not verify a business
+visit; GeoNames attribution and data limits are included in the app and source.
+
 This separate prerelease channel supplies the reference APK for reproducible builds. It does not
 mean the app has been accepted into F-Droid. Existing Obtainium stable updates remain on the regular
 release channel.
