@@ -205,7 +205,7 @@
     <string name="feed_more">More</string>
     <string name="feed_less">Less</string>
     <string name="feed_where_you_went">Where you went</string>
-    <string name="today_place_names_unavailable">Approximate coordinates show where you were when an area or place name was not recorded. You can name these stops in Review.</string>
+    <string name="today_place_names_unavailable">Approximate areas use nearby town names, not an exact shop or address. You can name these stops in Review.</string>
     <string name="today_name_stops_action">Name stops</string>
     <string name="feed_name_missing_place_hint">Tap to name this stop</string>
     <string name="feed_name_place_title">Name this place</string>

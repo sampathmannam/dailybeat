@@ -9,6 +9,16 @@ import org.junit.Test
 class JourneyMapModelTest {
 
     @Test
+    fun fromVisits_unnamedStopUsesNamedAreaWhileManualVenueStaysSpecific() {
+        val unnamed = visit(startMs = 100, latitude = 11.4557, longitude = 78.1856)
+            .copy(placeName = "Unnamed place", address = null)
+        val corrected = unnamed.copy(startMs = 200, placeName = "Workshop", manuallyEdited = true)
+        assertEquals(listOf("Approx. area · Near Rasipuram", "Workshop"),
+            JourneyMapModel.fromVisits(listOf(unnamed, corrected)).stopPoints.map { it.stopLabel })
+        assertEquals("Unnamed place", unnamed.placeName)
+    }
+
+    @Test
     fun fromRoute_drawsBreadcrumbTrailWithoutDetouringThroughStopMarkers() {
         val model = JourneyMapModel.fromRoute(
             listOf(

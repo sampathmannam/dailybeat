@@ -56,7 +56,7 @@ class DayFeedBuilderTest {
     fun `a stay with neither name nor address is still listed`() {
         val item = DayFeedBuilder.build(date, listOf(stay(null, 0, 20, address = null)), null)
 
-        assertEquals("Approx. location · 11.456°N, 78.186°E", item.stays.single().name)
+        assertEquals("Approx. area · Near Rasipuram", item.stays.single().name)
         assertEquals(item.stays.single().name, item.route.single().stopLabel)
     }
 

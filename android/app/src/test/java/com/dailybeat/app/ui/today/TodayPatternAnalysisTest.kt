@@ -86,7 +86,7 @@ class TodayPatternAnalysisTest {
     }
 
     @Test fun `approximate labels and nearby venues are not recurring confirmed places`() {
-        for (name in listOf("Approx. location · 11.000°N, 78.000°E", "Near Cafe", "Travel recorded")) {
+        for (name in listOf("Approx. location · 11.000°N, 78.000°E", "Approx. area · Near Rasipuram", "Near Cafe", "Travel recorded")) {
             val visits = listOf(visit(today.minusDays(1), 9, name, "dwell"), visit(today, 9, name, "dwell"))
             val result = buildTodayPatternAnalysis(today, zone, visits.takeLast(1), visits)
             assertEquals(null, result.recurringPlace)

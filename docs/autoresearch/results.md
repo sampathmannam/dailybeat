@@ -126,8 +126,37 @@ when older history is hidden/changed. Full host suite: **664 passed**; repositor
 **119 passed**; lint/build/Google-free gates passed; final targeted phone suite: **9 passed** on
 `ZD2232FCR5`, disposable `.qa.e2eloop` only. No emulator, production app mutation, push or release.
 
-**Outstanding user decision:** permission to bundle the GeoNames offline town-name dataset for
-named approximate areas. The `VisitLabels` coordinate fallback is NOT changed yet. A downloaded
-public archive is evaluation material only and is not in the app or Git. Do not infer approval
-from the question's preselected option, enable new coordinate-uploading lookup, or publish these
-changes automatically. Preserve these user-requested changes in subsequent research work.
+At that handoff, approval of the offline town-name list was outstanding. The user's subsequent
+“go” approved it; the following entry records its implementation. This did not grant permission
+for coordinate-uploading lookup or automatic publication.
+
+## 2026-09-26 — approved offline named-area follow-up
+
+Starting at `d25f292`, the explicit user task continued in the isolated research checkout.
+Frozen acceptance fixture committed first as `297d898`, SHA-256
+`69b01da80c70888e819078313c627f5b169c62116cd09887e0aa7be658936bba`.
+Same five-case evaluation: **baseline 3 failures → candidate 0**, with no fixture changes.
+All original name/invalid-coordinate guards remained. Additional tests cover exact data identity,
+206 worldwide queries against exhaustive distance calculation, legacy coordinate names, map labels
+and pattern-analysis exclusion. Existing format assertions intentionally changed from coordinates
+to named areas to match the user's request; no tests were weakened or removed.
+
+Retained implementation: compact bundled GeoNames town references with CC BY 4.0 notices,
+offline indexed lookup warmed on IO, nearby/far-away qualifiers, legacy fallback recognition,
+and updated explanation text. No added network service, SDK, personal-coordinate cache or UI redesign.
+
+Final host gates: **675 app tests**, **122 repository tests**, lint **0 errors / 91 warnings /
+1 hint**, app/test builds and Google-free gate passed. Physical `ZD2232FCR5`, disposable QA only:
+**13 passed** (Today/Diary/Days, offline index, large-text light/dark labels, native map/retry,
+replay and suggestions). Synthetic native first-interactive frame **216 ms**; index decodes
+**96.6–102.8 ms**, 1,000 lookups **5.8–23.6 ms**, five batches. These are bounded responsiveness
+checks, not a paired speedup or battery-life claim.
+
+Unsigned minified FOSS/store assembly and store-APK checks also passed; the optimized APK retains
+the exact town index and GeoNames notice. This artifact was not installed, signed or published.
+
+Source/evaluator/data/APK hashes, exact commands, raw evidence paths, samples, unchanged-history
+assertions and limitations: [offline-area verification report](../hardening/2026-09-26-offline-areas.md).
+Keep these changes local; production remains v4.3.7/code 41. No release, push, backend change,
+production instrumentation, emulator or personal-history upload. Subsequent automatic work must
+preserve this verified user-requested implementation and first check for overlapping work.

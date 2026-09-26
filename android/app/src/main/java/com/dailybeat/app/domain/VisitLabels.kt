@@ -3,12 +3,15 @@ package com.dailybeat.app.domain
 import com.dailybeat.app.data.model.LocationVisit
 import com.dailybeat.app.data.model.Place
 import java.util.Locale
-import kotlin.math.abs
+import kotlin.math.roundToInt
 
-/** Local display labels only: no geocoding, inferred venue, or change to saved history. */
+/** Local display labels only: no network geocoding, inferred venue, or change to saved history. */
 object VisitLabels {
     const val UNAVAILABLE = "No GPS fix recorded"
     private const val APPROXIMATE_PREFIX = "Approx. location · "
+    private const val AREA_PREFIX = "Approx. area · "
+    // Older captures stored raw coordinate pairs or just the latitude as their place name.
+    private val legacyCoordinate = Regex("(?i)(?:location\\s*)?[-+]?\\d{1,3}\\.\\d{3,}(?:\\s*[,/]\\s*[-+]?\\d{1,3}\\.\\d{3,})?")
 
     private val placeholders = setOf(
         "unnamed place", "unknown place", "unknown location", "location unavailable",
@@ -21,17 +24,18 @@ object VisitLabels {
         it.isNotEmpty() && it.lowercase(Locale.ROOT) !in placeholders && !isApproximate(it)
     }
 
-    fun isApproximate(label: String?): Boolean = label?.startsWith(APPROXIMATE_PREFIX) == true
+    fun isApproximate(label: String?): Boolean = label?.let {
+        it.startsWith(APPROXIMATE_PREFIX) || it.startsWith(AREA_PREFIX) || legacyCoordinate.matches(it.trim())
+    } == true
     fun isFallback(label: String?): Boolean = label == null || label == UNAVAILABLE || isApproximate(label)
 
-    /** Rounded to roughly a 100 m grid, never a fabricated business name or precise address. */
+    /** Named town reference, not a business, street or assertion of municipal boundaries. */
     fun approximateLocation(latitude: Double?, longitude: Double?): String? {
         if (!validCoordinates(latitude, longitude)) return null
-        return APPROXIMATE_PREFIX + String.format(
-            Locale.ROOT, "%.3f°%s, %.3f°%s",
-            abs(latitude!!), if (latitude < 0) "S" else "N",
-            abs(longitude!!), if (longitude < 0) "W" else "E",
-        )
+        val town = OfflineTownIndex.bundled?.nearest(latitude!!, longitude!!)
+            ?: return AREA_PREFIX + "Add a place name"
+        return AREA_PREFIX + if (town.distanceKm <= 10.0) "Near ${town.name}"
+            else "About ${((town.distanceKm / 5).roundToInt() * 5).coerceAtLeast(10)} km from ${town.name}"
     }
 
     fun displayName(visit: LocationVisit, places: List<Place> = emptyList(), shortAddress: Boolean = false): String =

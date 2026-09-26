@@ -40,7 +40,7 @@ class JournalSearchTest {
             db.visits().insert(LocationVisit(startMs = 3, endMs = 4, latitude = 11.5, longitude = 78.2, placeName = "Unnamed place", address = "Namakkal"))
             db.events().insert(Event(timestamp = 5, type = "manual", rawText = "I called it an unnamed place"))
             val hits = db.journalSearch().search(JournalSearchDao.pattern("unnamed"))
-            assertEquals(listOf("I called it an unnamed place", "Namakkal", "Approx. location · 11.456°N, 78.186°E"), hits.map { it.displaySnippet(emptyList()) })
+            assertEquals(listOf("I called it an unnamed place", "Namakkal", "Approx. area · Near Rasipuram"), hits.map { it.displaySnippet(emptyList()) })
             assertEquals("Unnamed place", db.visits().all().first().placeName)
         } finally { db.close() }
     }

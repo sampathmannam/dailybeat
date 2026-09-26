@@ -79,7 +79,11 @@ The final rebuilt package and updated instrumentation fixture also passed lint/b
 No battery savings, universal map availability, absence of all bugs, standard-build release
 qualification, signed release, store submission or production installation is claimed.
 
-## Still pending: named approximate areas
+## Named approximate areas — decision at this handoff
+
+**Subsequent resolution:** the user's next “go” approved the offline list. Implementation and
+phone evidence are in [the offline-area follow-up](2026-09-26-offline-areas.md). The paragraphs
+below preserve the earlier handoff state; they are not an outstanding blocker anymore.
 
 The coordinate fallback in `VisitLabels` has **not yet been changed**. The user has been asked
 to approve bundling an offline town-name list instead of adding a new coordinate-uploading
