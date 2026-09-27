@@ -43,11 +43,13 @@ Remove `--check` only to regenerate the reviewed resource. Conversion uses Pytho
 ZIP, gzip and numeric primitives; there is no download or remote execution. It refuses any source
 with a different hash. The gzip timestamp and filename are fixed. Runtime code is original Kotlin,
 not imported upstream executable code. The resource contains a versioned, length-bounded binary
-index; malformed, oversized or missing data cannot crash label rendering or expose raw coordinates.
+index; its compressed bytes are checked against the pinned SHA-256 before any vector is used.
+Malformed, oversized or missing data cannot crash label rendering or expose raw coordinates.
 
-The balanced 3D kd-tree is constructed at conversion time. Android loads the immutable index once
-per process, warmed on an IO dispatcher at Application startup. A caller arriving before warmup
-finishes waits for that same initialization rather than retaining a transient placeholder. Lookup
+The balanced 3D kd-tree is constructed at conversion time. Android authenticates and scans the
+immutable index once per process, warmed on an IO dispatcher at Application startup. Vector and
+name bytes decode only along the needed search path. A caller arriving before warmup finishes
+waits for that same initialization rather than retaining a transient placeholder. Lookup
 uses chord distance, preserving great-circle order at the date line and poles. No personal lookup
 cache, network request, database write, timer, wake lock or additional GPS sampling is involved.
 

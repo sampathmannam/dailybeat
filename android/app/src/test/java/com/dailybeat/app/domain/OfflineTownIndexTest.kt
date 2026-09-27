@@ -70,4 +70,16 @@ class OfflineTownIndexTest {
             OfflineTownIndex.read(ByteArrayInputStream(oversized))
         }
     }
+
+    @Test fun `valid gzip with unreviewed coordinate data is rejected`() {
+        val body = GZIPInputStream(resource()).use { it.readBytes() }
+        // Keep the gzip envelope and record structure valid while changing a vector byte.
+        body[15] = (body[15].toInt() xor 1).toByte()
+        val repacked = ByteArrayOutputStream().also { output ->
+            GZIPOutputStream(output).use { it.write(body) }
+        }.toByteArray()
+        assertThrows(IllegalArgumentException::class.java) {
+            OfflineTownIndex.read(ByteArrayInputStream(repacked))
+        }
+    }
 }
