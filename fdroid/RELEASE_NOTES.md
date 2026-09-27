@@ -2,6 +2,7 @@ Google-free candidate for F-Droid review, signed with DailyBeat's permanent sign
 
 Version 4.3.8 improves interactive map readiness and replay, names approximate areas from an
 offline town list, adds private pattern suggestions, and hardens capture and history retention.
+It updates the open-source MapLibre Android renderer to 11.8.7.
 It retains the existing appearance and local history. Town references do not verify a business
 visit; GeoNames attribution and data limits are included in the app and source.
 

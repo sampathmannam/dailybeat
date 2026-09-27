@@ -1,11 +1,14 @@
 # Changelog
 
-## 4.3.8 — 2026-09-26
+## 4.3.8 — 2026-09-27
 
 ### Maps and place names
 - The native route becomes interactive on its first drawn frame, even while street details load.
   Live GPS updates no longer return an open map to the blocking preparation state; failed styles
   offer bounded recovery. Offline replay and route geometry keep gaps and date-line crossings honest.
+- MapLibre Android advances from 11.8.0 to 11.8.7, including upstream TextureView cleanup,
+  emulator crash handling and synchronized surface destruction. Native map release follows its
+  Compose host's lifetime.
 - When a stop has no recorded address, saved name or manual correction, a bundled GeoNames town
   reference gives an explicitly approximate area name instead of latitude and longitude. It works
   offline and does not identify a shop or restaurant. The app includes CC BY 4.0 attribution.
@@ -19,8 +22,8 @@
 - Route processing keeps invalid-fix gaps and exact date-line aliases finite.
 
 ### Verification and limits
-- The Google-free host gate passed 675 app tests and 122 repository tests. On the connected
-  physical Android phone, 13 targeted UI, map, replay and offline-label checks passed using a
+- The Google-free host gate passed 675 app tests and 124 repository tests. An earlier build passed
+  13 targeted UI, map, replay and offline-label checks on a physical Android phone using a
   disposable test package. The final versioned commit must pass protected CI before publication.
 - Actual battery drain, venue accuracy and operation on every Android device are not established
   by these tests. Existing history, appearance and privacy settings are preserved.

@@ -917,7 +917,7 @@
           ]
         },
         {
-          "coordinate": "org.maplibre.gl:android-sdk:11.8.0",
+          "coordinate": "org.maplibre.gl:android-sdk:11.8.7",
           "pomCount": 1,
           "licenses": [
             {
@@ -1821,7 +1821,7 @@
           ]
         },
         {
-          "coordinate": "org.maplibre.gl:android-sdk:11.8.0",
+          "coordinate": "org.maplibre.gl:android-sdk:11.8.7",
           "pomCount": 1,
           "licenses": [
             {

@@ -79,7 +79,7 @@ scanner findings or hiding network dependencies.
 [The Maven declaration inventory](dependency-license-inventory.json) identifies exact runtime
 coordinates. [Native notice provenance](native-license-provenance.json) pins the upstream notice
 sources and SHA-256 hashes. The APK's **Licences & source** screen includes the original GPL text,
-Apache 2.0 text, MapLibre Native Android 11.8.0's upstream notices, GeoNames CC BY 4.0
+Apache 2.0 text, MapLibre Native Android 11.8.7's upstream notices, GeoNames CC BY 4.0
 attribution, and additional PMTiles,
 unordered_dense, ICU and nunicode notices. SQLite's source is public domain. RapidJSON's non-runtime
 JSON-checker test material is not linked into the app; its runtime headers use MIT.
