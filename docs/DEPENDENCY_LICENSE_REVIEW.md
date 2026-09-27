@@ -27,7 +27,8 @@ silently to a different location backend.
 The F-Droid candidate closes the previously outstanding packaging checks:
 
 - The only packaged native libraries are MapLibre and AndroidX graphics-path. MapLibre Native Android
-  11.8.0's upstream notice bundle is included verbatim, supplemented with its pinned PMTiles,
+  11.8.7's upstream notice bundle is included with Markdown trailing-space normalization,
+  supplemented with its pinned PMTiles,
   unordered_dense, ICU and nunicode licences and LLVM libc++ runtime notices. AndroidX graphics-path
   source uses Apache 2.0. SQLite is public domain. Sources/hashes are recorded in
   [native-license-provenance.json](native-license-provenance.json).

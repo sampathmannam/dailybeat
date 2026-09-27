@@ -25,7 +25,7 @@ class ReviewVisitLabelTest {
     }
 
     @Test fun `unknown review names remain blank in the rename field`() {
-        assertEquals("Approx. location · 11.456°N, 78.186°E", reviewVisitLabel(visit, emptyList()))
+        assertEquals("Approx. area · Near Rasipuram", reviewVisitLabel(visit, emptyList()))
         assertEquals("", reviewRenameSeed(reviewVisitLabel(visit, emptyList())))
         assertEquals("", reviewRenameSeed(VisitLabels.UNAVAILABLE))
     }

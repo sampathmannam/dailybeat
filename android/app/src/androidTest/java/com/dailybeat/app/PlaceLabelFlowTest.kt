@@ -1,6 +1,9 @@
 package com.dailybeat.app
 
 import android.content.Context
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
@@ -8,6 +11,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -29,6 +33,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /** Local label repair must reach both tabs without changing the captured source records. */
 @RunWith(AndroidJUnit4::class)
@@ -81,12 +86,14 @@ class PlaceLabelFlowTest {
         assertTextInList("today_list", "Travel · Paramathi Road, Namakkal")
         assertTextInList("today_list", "Stay at Municipal Road, Namakkal")
         assertTextInList("today_list", "Stay at District Library")
-        assertTextInList("today_list", "Stay · Approx. location · 11.480°N, 78.210°E")
+        assertTextInList("today_list", "Stay · Approx. area · Near Rasipuram")
+        captureSyntheticView("today")
 
         assertTextInList("today_list", "Add diary")
         composeRule.onNodeWithText("Add diary").performClick()
         assertTextInList("diary_list", "Travel · Paramathi Road, Namakkal")
-        assertTextInList("diary_list", "Stay · Approx. location · 11.480°N, 78.210°E")
+        assertTextInList("diary_list", "Stay · Approx. area · Near Rasipuram")
+        captureSyntheticView("diary")
         composeRule.onNodeWithText("Stay at unnamed place").assertDoesNotExist()
 
         openExpandedDays()
@@ -94,7 +101,8 @@ class PlaceLabelFlowTest {
         assertTextInList("feed_list", "District Library")
         assertTextInList("feed_list", "Tap to name this stop")
         composeRule.onNodeWithText("Unnamed place").assertDoesNotExist()
-        composeRule.onNodeWithText("Approx. location · 11.480°N, 78.210°E").performScrollTo().performClick()
+        captureSyntheticView("days")
+        composeRule.onNodeWithText("Approx. area · Near Rasipuram").performScrollTo().performClick()
         composeRule.waitUntilAtLeastOneExists(hasTestTag("name_place_field"), 10_000)
         assertEquals(
             AnnotatedString(""),
@@ -111,7 +119,7 @@ class PlaceLabelFlowTest {
             }
         }
         assertTextInList("feed_list", "Royal Oak Namakkal")
-        composeRule.onNodeWithText("Approx. location · 11.480°N, 78.210°E").assertDoesNotExist()
+        composeRule.onNodeWithText("Approx. area · Near Rasipuram").assertDoesNotExist()
 
         // Return to the retained Today destination: no Activity recreation or new capture.
         composeRule.onNodeWithTag("nav_today").performClick()
@@ -194,5 +202,13 @@ class PlaceLabelFlowTest {
             }.isSuccess
         }
         composeRule.onNodeWithText(text).assertIsDisplayed()
+    }
+
+    private fun captureSyntheticView(name: String) {
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        try {
+            val directory = File(app.getExternalFilesDir(null), "offline-area-evidence").apply { mkdirs() }
+            File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        } finally { bitmap.recycle() }
     }
 }

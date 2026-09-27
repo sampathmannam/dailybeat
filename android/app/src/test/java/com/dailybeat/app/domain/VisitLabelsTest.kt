@@ -62,19 +62,19 @@ class VisitLabelsTest {
         assertEquals("Stay recorded", VisitLabels.momentText(transit = false, name = null))
     }
 
-    @Test fun `an unnamed coordinate becomes a rounded approximate location not a venue`() {
+    @Test fun `an unnamed coordinate becomes a named approximate area not a venue`() {
         val unnamed = visit.copy(placeName = "Unknown location", address = null)
-        assertEquals("Approx. location · 11.456°N, 78.186°E", VisitLabels.displayName(unnamed))
+        assertEquals("Approx. area · Near Rasipuram", VisitLabels.displayName(unnamed))
         assertNull(VisitLabels.name(unnamed))
         assertTrue(VisitLabels.isFallback(VisitLabels.displayName(unnamed)))
         assertEquals("Unknown location", unnamed.placeName)
     }
 
-    @Test fun `approximate coordinates are locale stable and support southern western hemispheres`() {
+    @Test fun `approximate names are locale stable and support southern western hemispheres`() {
         val previous = java.util.Locale.getDefault()
         try {
             java.util.Locale.setDefault(java.util.Locale.GERMANY)
-            assertEquals("Approx. location · 33.869°S, 70.669°W", VisitLabels.approximateLocation(-33.8688, -70.6693))
+            assertEquals("Approx. area · Near Paine", VisitLabels.approximateLocation(-33.8688, -70.6693))
         } finally { java.util.Locale.setDefault(previous) }
     }
 
@@ -83,5 +83,14 @@ class VisitLabelsTest {
             .forEach { (lat, lon) -> assertNull(VisitLabels.approximateLocation(lat, lon)) }
         assertEquals("No GPS fix recorded", VisitLabels.displayName(visit.copy(latitude = 0.0, longitude = 0.0, address = null)))
         assertEquals("Paramathi Road, Namakkal", VisitLabels.displayName(visit))
+    }
+
+    @Test fun `historical raw coordinate names do not hide named areas or actual addresses`() {
+        for (label in listOf("11.4557", "11.4557, 78.1856", "Location 11.4557,78.1856")) {
+            assertNull(VisitLabels.usable(label))
+            assertEquals("Approx. area · Near Rasipuram", VisitLabels.displayName(visit.copy(placeName = label, address = label)))
+            assertEquals("Paramathi Road, Namakkal", VisitLabels.displayName(visit.copy(placeName = label)))
+        }
+        assertEquals("Building 11.4557", VisitLabels.usable("Building 11.4557"))
     }
 }

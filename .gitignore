@@ -70,6 +70,7 @@ logs/
 tmp/
 temp/
 .cache/
+.autoresearch/
 supabase/.temp/
 outputs/security-hardening/
 

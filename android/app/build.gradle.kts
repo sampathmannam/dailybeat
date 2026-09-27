@@ -70,8 +70,8 @@ android {
         applicationId = "com.dailybeat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 41
-        versionName = "4.3.7"
+        versionCode = 42
+        versionName = "4.3.8"
         buildConfigField("boolean", "GOOGLE_LOCATION", (!dailybeatFoss).toString())
         buildConfigField("boolean", "STORE_DISTRIBUTION", dailybeatStore.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -222,7 +222,7 @@ dependencies {
     // Tink references these FLOSS, compile-time annotations. GMS previously supplied them
     // incidentally; declare them explicitly so the Google-free R8 release can be built.
     compileOnly("com.google.errorprone:error_prone_annotations:2.23.0")
-    implementation("org.maplibre.gl:android-sdk:11.8.0")
+    implementation("org.maplibre.gl:android-sdk:11.8.7")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

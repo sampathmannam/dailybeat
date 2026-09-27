@@ -1,6 +1,6 @@
 THIRD-PARTY NATIVE AND ANDROID NOTICES
 
-These are upstream notices for MapLibre Native Android 11.8.0 and its embedded
+These are upstream notices for MapLibre Native Android 11.8.7 and its embedded
 components. Copyright and licence terms remain with their authors.
 
 The upstream RapidJSON notice also describes its source-only bin/jsonchecker
@@ -8,12 +8,12 @@ test fixtures under the JSON licence. Those test fixtures are not linked into
 MapLibre or shipped as part of DailyBeat; the runtime RapidJSON headers use MIT.
 
 SQLite is in the public domain. The copy compiled by MapLibre is available in
-https://github.com/maplibre/maplibre-native/tree/android-v11.8.0/vendor/sqlite .
+https://github.com/maplibre/maplibre-native/tree/android-v11.8.7/vendor/sqlite .
 Android system libraries remain part of the operating system.
 
 
-===== MapLibre Native Android 11.8.0 =====
-Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/platform/android/LICENSE.md
+===== MapLibre Native Android 11.8.7 =====
+Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/platform/android/LICENSE.md
 
 MapLibre Native Android
 
@@ -1004,7 +1004,7 @@ SOFTWARE.
 
 
 ===== ICU =====
-Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/icu/LICENSE
+Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/vendor/icu/LICENSE
 
 COPYRIGHT AND PERMISSION NOTICE (ICU 58 and later)
 
@@ -1423,7 +1423,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ===== nunicode =====
-Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/nunicode/LICENSE
+Source: https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/vendor/nunicode/LICENSE
 
 Copyright (c) 2013 Aleksey Tulinov <aleksey.tulinov@gmail.com>
 
