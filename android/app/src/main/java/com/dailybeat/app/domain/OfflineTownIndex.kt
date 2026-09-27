@@ -85,24 +85,39 @@ internal class OfflineTownIndex private constructor(
                 val axes = Array(3) { DoubleArray(count) }
                 val nameOffsets = IntArray(count)
                 val nameLengths = IntArray(count)
+                var offset = stream.position()
                 repeat(count) { row ->
+                    // Explicit offsets avoid repeated ByteBuffer position/remaining calls for
+                    // every variable-length record during the first offline index load.
+                    require(data.size - offset >= 31) { "Truncated town record" }
                     for (axis in 0..2) {
-                        axes[axis][row] = stream.double.also { require(it.isFinite() && it in -1.0..1.0) }
+                        axes[axis][row] = stream.getDouble(offset).also {
+                            require(it.isFinite() && it in -1.0..1.0)
+                        }
+                        offset += java.lang.Double.BYTES
                     }
                     val x = axes[0][row]
                     val y = axes[1][row]
                     val z = axes[2][row]
                     require(abs(x * x + y * y + z * z - 1) < 1e-10)
-                    val nameLength = stream.short.toInt() and 0xffff
-                    require(nameLength in 1..800 && stream.remaining() >= nameLength) { "Invalid town name" }
-                    nameOffsets[row] = stream.position()
+                    val nameLength = ((data[offset].toInt() and 0xff) shl 8) or
+                        (data[offset + 1].toInt() and 0xff)
+                    offset += 2
+                    require(nameLength in 1..800 && data.size - offset >= nameLength + 4) {
+                        "Invalid town name"
+                    }
+                    nameOffsets[row] = offset
                     nameLengths[row] = nameLength
-                    stream.position(stream.position() + nameLength)
-                    val countryLength = stream.short.toInt() and 0xffff
-                    require(countryLength == 2 && stream.remaining() >= countryLength) { "Invalid country" }
-                    repeat(countryLength) { require(stream.get().toInt() in 'A'.code..'Z'.code) }
+                    offset += nameLength
+                    val countryLength = ((data[offset].toInt() and 0xff) shl 8) or
+                        (data[offset + 1].toInt() and 0xff)
+                    offset += 2
+                    require(countryLength == 2) { "Invalid country" }
+                    require((data[offset].toInt() and 0xff) in 'A'.code..'Z'.code)
+                    require((data[offset + 1].toInt() and 0xff) in 'A'.code..'Z'.code)
+                    offset += countryLength
                 }
-                require(!stream.hasRemaining()) { "Trailing town data" }
+                require(offset == data.size) { "Trailing town data" }
                 return OfflineTownIndex(axes, data, nameOffsets, nameLengths)
             } catch (error: BufferUnderflowException) {
                 throw IllegalArgumentException("Truncated town index", error)
