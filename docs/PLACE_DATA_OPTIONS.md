@@ -14,8 +14,10 @@ Map rendering and stop naming are separate in DailyBeat:
 - `OsmGeocoder` optionally calls a configured, managed Nominatim-compatible endpoint.
   Its default endpoint is empty, so installing a map does not enable online place lookup.
 - Saved place names, recorded addresses, and user corrections are local naming sources.
-- Map-derived nearby venues retain a “Near” qualifier. Where no usable name/address is
-  available, the display uses rounded approximate coordinates rather than “Unnamed place”.
+- Map-derived nearby venues retain a “Near” qualifier. As of the 26 September local follow-up,
+  where no usable name/address is available, a bundled GeoNames index supplies an approximate
+  town reference (and distance when far away), not coordinates or “Unnamed place”. See
+  [offline place-name provenance and limits](offline-place-names.md).
   Recorded history and authored notes are not rewritten merely to improve a label.
 
 ## Alternatives checked
@@ -42,8 +44,8 @@ Map rendering and stop naming are separate in DailyBeat:
 4. Query around an observed stop, not on every GPS tick. Respect accuracy radius, dwell
    duration, private zones, and competing candidates. A nearby POI is a suggestion, not
    proof of entry; let the user confirm a saved name once for future local reuse.
-5. Prefer confirmed saved name, then a qualified nearby candidate/address, then approximate
-   coordinates. Preserve route capture and meaningful fallback labels when offline or a
+5. Prefer confirmed saved name, then a qualified nearby candidate/address, then an approximate
+   named town reference. Preserve route capture and meaningful fallback labels when offline or a
    source is absent. Never invent a business to make an empty result look complete.
 6. Any new online provider must be explicitly optional, bounded/time-limited, cancellable,
    credential-safe, and documented in privacy/attribution screens. Existing offline and

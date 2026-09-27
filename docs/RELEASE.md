@@ -1,31 +1,34 @@
-# DailyBeat v4.3.7 — install and verify
+# DailyBeat v4.3.8 — install and verify
 
-Version 4.3.7 (Android version code **41**) is the prepared reliability and hardening update.
+Version 4.3.8 (Android version code **42**) is the prepared map, place-name and reliability update.
 Publication is complete only when the protected release workflow succeeds and the signed assets
 appear on GitHub Releases. The update retains package `com.dailybeat.app`, the permanent signing
 identity, existing history, and the Warm Butter / Carbon appearance.
 
-This update improves failed/partial map recovery and offline-map initialization, keeps native map
-hosts stable through retries, and guards renderer teardown. Place labels fall back to clearly
-approximate coordinates when no reliable name is available. Days now uses gap-adjusted Tracked
-time; weekly distance preserves uncertainty. Keyboard overlap, dated reminder navigation and
-recovery-toggle accessibility are corrected. Existing privacy, encrypted recovery, capture and
-data-replacement protections remain in place. Raw history, saved names and colours are preserved.
+This update shows the recorded route as soon as the native map draws its first frame, even while
+street details load. New GPS points no longer cover an open map with the preparation screen.
+Unnamed stops use offline, clearly approximate nearby town names; real addresses, saved places
+and corrections take priority. Today adds grounded on-device pattern suggestions. Capture
+checkpoints, retention and route gaps have stronger recovery and privacy safeguards. History,
+saved names and colours are preserved.
 
-See the [25 September hardening report](hardening/2026-09-25.md) for evidence and limits. The tested
-app code passed 634 FOSS/store JVM tests and all 75 offline/core tests on a physical Android 17
-phone, including the full downloaded Tamil Nadu map. Fresh lint has zero errors, 91 warnings and
-one hint. The final versioned commit must independently pass protected CI; live authenticated
-backup is checked there rather than against a user's personal account.
+See the [map and pattern report](hardening/2026-09-26-map-patterns.md) and
+[offline-area report](hardening/2026-09-26-offline-areas.md) for evidence and limits. The Google-free
+host gate passed 675 app tests and 122 repository checks; 13 targeted map, replay, labels and
+large-text checks passed on the connected physical Android phone in the disposable test package.
+Lint has zero errors, 91 warnings and one hint. The final versioned commit must independently
+pass protected CI, including the standard build and authenticated backup checks.
 
 The earlier additive archive-publication migration remains separately deployable backend hardening;
 this APK release does not apply it to production. Valid current backups remain compatible. Battery
-drain and venue accuracy still require field measurement. The native lifecycle mitigation passes
-targeted regressions but does not prove the original rare crash impossible. This remains a personal
-journal, not proof of attendance, an evidence system or a guarantee of zero vulnerabilities.
+drain and business-name accuracy still require field measurement. A nearby town reference is not
+evidence of a visit to a particular venue. This remains a personal journal, not proof of attendance,
+an evidence system or a guarantee of zero vulnerabilities.
 
-The previous update prevents delayed authentication from undoing sign-out, preserves this phone's trusted
-Cloud AI destination during restore, and requires fresh cloud consent afterward. Cloud requests
+The previous 4.3.7 update improved partial-map recovery, offline-map initialization, tracked-time
+and estimate labels, keyboard overlap, reminder navigation and recovery-toggle accessibility.
+Earlier releases prevent delayed authentication from undoing sign-out, preserve this phone's trusted
+Cloud AI destination during restore, and require fresh cloud consent afterward. Cloud requests
 recheck consent and credentials before transmission and close their network calls when cancelled.
 Documents move to private internal storage, with only completed exports available for sharing.
 Generation checks prevent delayed reports, voice results, drafts, and exports from recreating erased
@@ -136,19 +139,20 @@ replaces local records only after the complete decrypted snapshot validates.
 
 ## Signed APK
 
-For the hardening contents and validation evidence, see the
-[25 September review](hardening/2026-09-25.md) and [changelog](../CHANGELOG.md).
+For the contents and validation evidence, see the
+[26 September map review](hardening/2026-09-26-map-patterns.md),
+[offline-area review](hardening/2026-09-26-offline-areas.md), and [changelog](../CHANGELOG.md).
 The verified Mac installer now requires Android SDK build-tools (`apksigner`, `aapt`) and a JDK,
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes and publication completes, GitHub Releases tag `v4.3.7` provides:
+After every release gate passes and publication completes, GitHub Releases tag `v4.3.8` provides:
 
-- `DailyBeat-v4.3.7.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 41
+- `DailyBeat-v4.3.8.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 42
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 Obtainium users should refresh the regular stable channel and install over their existing app.
-The separate `fdroid-v4.3.7` prerelease contains `DailyBeat-FDroid-v4.3.7.apk` and
+The separate `fdroid-v4.3.8` prerelease contains `DailyBeat-FDroid-v4.3.8.apk` and
 `FDROID-SHA256SUMS.txt`. It supplies the Google-free reference APK for reproducibility review;
 it does not mean F-Droid has accepted or published the app.
 

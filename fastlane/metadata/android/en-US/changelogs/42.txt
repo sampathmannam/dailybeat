@@ -1,0 +1,4 @@
+Journey maps become interactive sooner and no longer return to a blocking loading state as new points arrive.
+Offline approximate area names replace coordinate-only labels while saved names and addresses stay preferred.
+Today offers private, on-device pattern suggestions. Capture and history retention are more reliable.
+Existing history, colours and privacy controls remain available.

@@ -143,6 +143,33 @@ internal fun TodayPatternDashboard(
                 }
             }
 
+            if (analysis.suggestions.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Column(
+                    modifier = Modifier.testTag("today_pattern_suggestions"),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(stringResource(R.string.today_pattern_suggestions_title),
+                        style = MaterialTheme.typography.titleMedium)
+                    analysis.suggestions.forEach { suggestion ->
+                        Text(
+                            text = when (suggestion) {
+                                PatternSuggestion.NAME_STOPS -> pluralStringResource(
+                                    R.plurals.today_pattern_suggest_names, analysis.stopsToName, analysis.stopsToName)
+                                PatternSuggestion.NOTE_RECURRING_PLACE -> stringResource(
+                                    R.string.today_pattern_suggest_note, analysis.recurringPlace.orEmpty())
+                                PatternSuggestion.REVIEW_AFTER_MOVEMENT -> stringResource(
+                                    R.string.today_pattern_suggest_review,
+                                    stringResource(requireNotNull(analysis.commonMovementWindow).stringResource()))
+                                PatternSuggestion.REVIEW_BUSY_DAY -> stringResource(R.string.today_pattern_suggest_busy)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

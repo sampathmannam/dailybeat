@@ -47,3 +47,14 @@ https://developer.android.com/studio/terms
 
 Map tiles, map styles, geocoder results, and optional cloud-service responses are network content,
 not part of the DailyBeat source licence. Their providers' terms apply when those services are used.
+
+OFFLINE TOWN NAMES — GEONAMES
+
+Contains modified GeoNames geographical data, © GeoNames contributors, licensed under Creative
+Commons Attribution 4.0 International (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Source: https://www.geonames.org/ and https://download.geonames.org/export/dump/cities15000.zip
+Snapshot: 26 September 2026. DailyBeat selects populated settlements, uses transliterated names,
+and converts their reference points into a compact offline spatial index. Names describe nearby
+areas, not verified venues or municipal boundaries. The data comes without a warranty of accuracy,
+completeness or timeliness. Attribution does not imply endorsement by GeoNames.
+Conversion, source hash and limitations: docs/offline-place-names.md in the source repository.

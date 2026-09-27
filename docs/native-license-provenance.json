@@ -1,8 +1,8 @@
 [
   {
-    "component": "MapLibre Native Android 11.8.0",
-    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/platform/android/LICENSE.md",
-    "sha256": "56a91317184e72ffcfdfa3fa458ecf9ec3e8e0452950fff394e7e2d021470341"
+    "component": "MapLibre Native Android 11.8.7",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/platform/android/LICENSE.md",
+    "sha256": "05577afe02354b0cde1b968a0893979d0742c36da6248662ae10967e0c7c1fea"
   },
   {
     "component": "PMTiles C++",
@@ -16,12 +16,12 @@
   },
   {
     "component": "ICU",
-    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/icu/LICENSE",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/vendor/icu/LICENSE",
     "sha256": "4eac19453ddf356478db3be6b101a6d872d0046cdc8222df1ff5c997dd4b9fbe"
   },
   {
     "component": "nunicode",
-    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.0/vendor/nunicode/LICENSE",
+    "url": "https://raw.githubusercontent.com/maplibre/maplibre-native/android-v11.8.7/vendor/nunicode/LICENSE",
     "sha256": "6eb1812397a8ab5ad53014b529e75f5e42f3196c6946f330d91d7a56e471d2ac"
   },
   {
