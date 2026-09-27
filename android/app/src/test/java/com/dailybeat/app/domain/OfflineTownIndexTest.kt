@@ -17,20 +17,23 @@ class OfflineTownIndexTest {
 
     @Test fun `bundled public data matches the reviewed extract`() {
         val sha = resource().use { MessageDigest.getInstance("SHA-256").digest(it.readBytes()) }
-        assertEquals("3a36460fd221f2254fd533cf8ef2686f55a386e401abd82da29bd89f32f1f49c", sha.joinToString("") { "%02x".format(it) })
+        assertEquals("61e82640f44c0cf84bfd13cf1c74a21134d6c0ef84066cd37bd70c129e213929", sha.joinToString("") { "%02x".format(it) })
         assertNotNull(OfflineTownIndex.bundled)
     }
 
     @Test fun `indexed nearest matches independent exhaustive great circle search worldwide`() {
         val points = DataInputStream(GZIPInputStream(resource())).use { stream ->
-            assertEquals(0x44425431, stream.readInt())
+            assertEquals(0x44425432, stream.readInt())
             val count = stream.readInt()
             assertEquals(31638, count)
-            List(count) {
+            val vectors = List(count) {
                 val x = stream.readDouble(); val y = stream.readDouble(); val z = stream.readDouble()
+                asin(z) to atan2(y, x)
+            }
+            List(count) { index ->
                 val name = ByteArray(stream.readUnsignedShort()).also(stream::readFully).toString(Charsets.UTF_8)
                 stream.skipBytes(stream.readUnsignedShort())
-                Triple(asin(z), atan2(y, x), name)
+                Triple(vectors[index].first, vectors[index].second, name)
             }
         }
         val random = Random(20260926)
@@ -56,7 +59,7 @@ class OfflineTownIndexTest {
     }
 
     @Test fun `malformed or oversized bundled index is rejected before allocation`() {
-        for ((magic, count) in listOf(0 to 1, 0x44425431 to -1, 0x44425431 to Int.MAX_VALUE)) {
+        for ((magic, count) in listOf(0 to 1, 0x44425432 to -1, 0x44425432 to Int.MAX_VALUE)) {
             val bytes = ByteArrayOutputStream().also { output ->
                 DataOutputStream(GZIPOutputStream(output)).use { it.writeInt(magic); it.writeInt(count) }
             }.toByteArray()

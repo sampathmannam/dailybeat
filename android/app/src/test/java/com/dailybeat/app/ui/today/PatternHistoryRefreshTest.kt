@@ -1,6 +1,7 @@
 package com.dailybeat.app.ui.today
 
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.data.model.LocationVisit
@@ -24,8 +25,15 @@ import java.time.ZoneId
 @Config(sdk = [34], application = DailyBeatApp::class)
 class PatternHistoryRefreshTest {
     private val store = ViewModelStore()
+    private var model: TodayViewModel? = null
     @Before fun before() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
-    @After fun after() { store.clear(); Dispatchers.resetMain() }
+    @After fun after() {
+        store.clear()
+        // Clearing the store cancels viewModelScope, but its collectors may still be
+        // unwinding on another thread. Do not replace Main until cancellation completes.
+        runBlocking { withTimeout(5_000) { model?.viewModelScope?.coroutineContext?.get(Job)?.join() } }
+        Dispatchers.resetMain()
+    }
 
     @Test fun hidingAnOlderVisitImmediatelyRemovesItsPatternWithoutChangingToday() = runBlocking<Unit> {
         val app = ApplicationProvider.getApplicationContext<DailyBeatApp>()
@@ -38,7 +46,7 @@ class PatternHistoryRefreshTest {
         val older = visit(2)
         val id = app.db.visits().insert(older)
         app.db.visits().insert(visit(1))
-        val model = TodayViewModel(app).also { store.put("today", it) }
+        val model = TodayViewModel(app).also { this@PatternHistoryRefreshTest.model = it; store.put("today", it) }
         val observation = launch(Dispatchers.Default) { model.patternAnalysis.collect() }
         try {
             withTimeout(10_000) { model.patternAnalysis.first { it.recurringPlace == "Library" } }

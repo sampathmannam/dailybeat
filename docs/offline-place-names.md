@@ -27,28 +27,32 @@ Only recognized generated moment text is repaired; user-authored prose is preser
 - Retained: populated settlements with feature codes PPL, PPLA, PPLA2, PPLA3, PPLA4, PPLA5 or PPLC.
   Excludes neighbourhood-only, abandoned and historical entries. Uses the source's transliterated
   name where available, source country, and coordinates converted to 3D unit vectors.
-- Result: 31,638 settlements, 957,727 compressed bytes. No user data.
-- Resource SHA-256: `3a36460fd221f2254fd533cf8ef2686f55a386e401abd82da29bd89f32f1f49c`.
+- Result: 31,638 settlements, 908,531 compressed bytes. No user data.
+- Resource SHA-256: `61e82640f44c0cf84bfd13cf1c74a21134d6c0ef84066cd37bd70c129e213929`.
+- The reviewed DBT1 extract (SHA-256 `3a36460fd221f2254fd533cf8ef2686f55a386e401abd82da29bd89f32f1f49c`)
+  is retained under `data/reviewed/`; DBT2 rearranges its exact vector and label bytes for bulk load.
 - GeoNames offers no warranty of accuracy, completeness or timeliness. No periodic network updater
   or background location work is added. Future source changes require review and a new pinned hash.
 
 ## Reproduce and validate
 
 ```sh
-python3 scripts/build_offline_towns.py /path/to/reviewed/cities15000.zip \
-  android/app/src/main/resources/offline-towns-v1.dat.gz --check
+python3 scripts/build_offline_towns.py data/reviewed/offline-towns-v1.dat.gz \
+  android/app/src/main/resources/offline-towns-v2.dat.gz --legacy-index --check
 ```
 
-Remove `--check` only to regenerate the reviewed resource. Conversion uses Python standard-library
+The original pinned GeoNames archive can also be passed without `--legacy-index`; both routes
+produce the same DBT2 bytes. Remove `--check` only to regenerate the reviewed resource.
+Conversion uses Python standard-library
 ZIP, gzip and numeric primitives; there is no download or remote execution. It refuses any source
 with a different hash. The gzip timestamp and filename are fixed. Runtime code is original Kotlin,
 not imported upstream executable code. The resource contains a versioned, length-bounded binary
 index; its compressed bytes are checked against the pinned SHA-256 before any vector is used.
 Malformed, oversized or missing data cannot crash label rendering or expose raw coordinates.
 
-The balanced 3D kd-tree is constructed at conversion time. Android authenticates and scans the
-immutable index once per process, warmed on an IO dispatcher at Application startup. Vector and
-name bytes decode only along the needed search path. A caller arriving before warmup finishes
+The balanced 3D kd-tree is constructed at conversion time. Android authenticates the immutable
+index and bulk-loads its contiguous vectors once per process, warmed on an IO dispatcher at
+Application startup. Names decode only for actual nearest results. A caller arriving before warmup finishes
 waits for that same initialization rather than retaining a transient placeholder. Lookup
 uses chord distance, preserving great-circle order at the date line and poles. No personal lookup
 cache, network request, database write, timer, wake lock or additional GPS sampling is involved.

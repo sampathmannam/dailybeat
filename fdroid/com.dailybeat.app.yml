@@ -47,7 +47,8 @@ Builds:
     # Reviewed GeoNames CC BY 4.0 data, not executable code; exact hash is
     # pinned by OfflineTownIndexTest and provenance is in docs/offline-place-names.md.
     scanignore:
-      - android/app/src/main/resources/offline-towns-v1.dat.gz
+      - android/app/src/main/resources/offline-towns-v2.dat.gz
+      - data/reviewed/offline-towns-v1.dat.gz
     rm:
       - android/app/src/gms
       - android/app/gms-dependencies.gradle.kts
