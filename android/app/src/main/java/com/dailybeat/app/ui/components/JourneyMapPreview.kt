@@ -248,13 +248,13 @@ internal fun JourneyMapPreviewContent(
     val mapDescription = stringResource(R.string.journey_map_content_description)
     val readyMapDescription = stringResource(R.string.journey_map_ready_content_description)
     // A deterministic renderer-unavailable seam also exercises the complete local UI in tests.
-    val mapView = if (nativeMapEnabled) rememberMapViewWithLifecycle(
+    val managedMap = if (nativeMapEnabled) rememberMapViewWithLifecycle(
         onMapReady = { readyMap -> map = readyMap },
         onMapError = {
             failMap("Map could not load. Your route is still available.")
         },
-        onDisposeMap = { lease?.close() },
     ) else null
+    val mapView = managedMap?.view
     LaunchedEffect(map, useOffline, dark, loadAttempt) {
         val readyMap = map ?: return@LaunchedEffect
         val generation = styleGeneration.incrementAndGet()
@@ -400,6 +400,13 @@ internal fun JourneyMapPreviewContent(
                                 .fillMaxSize()
                                 .onSizeChanged { mapViewportSize = it }
                                 .testTag("journey_map"),
+                            // The Activity can reach ON_DESTROY before Compose detaches this
+                            // host. Release the native renderer only once the AndroidView itself
+                            // leaves composition, so TextureView teardown cannot race it.
+                            onRelease = {
+                                managedMap.release()
+                                lease?.close()
+                            },
                         )
                     }
                     if (!mapRendered || mapError) {
@@ -689,82 +696,97 @@ private fun MapLibreMap.renderPlaybackFrame(
 private fun rememberMapViewWithLifecycle(
     onMapReady: (MapLibreMap) -> Unit,
     onMapError: () -> Unit,
-    onDisposeMap: () -> Unit,
-): MapView {
+): ManagedMapView {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val latestReady by rememberUpdatedState(onMapReady)
     val latestError by rememberUpdatedState(onMapError)
-    val mapView = remember(context, lifecycle) {
+    val managedMap = remember(context, lifecycle) {
         (context.applicationContext as DailyBeatApp).mapNetwork.installNativeClient()
         MapLibre.getInstance(context)
         // Compose can move/remove its AndroidView host independently of Activity teardown.
         // TextureView owns a stoppable render thread instead of resetting the native renderer
         // from SurfaceView's detach callback. It also composes correctly below error overlays.
-        MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply {
+        val mapView = MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply {
             contentDescription = context.getString(R.string.journey_map_content_description)
             onCreate(Bundle())
             addOnDidFailLoadingMapListener { if (!isDestroyed) latestError() }
             getMapAsync { if (!isDestroyed) latestReady(it) }
         }
+        ManagedMapView(mapView)
     }
 
-    DisposableEffect(lifecycle, mapView) {
-        var destroyed = false
-        var started = false
-        var resumed = false
-        fun start() {
-            if (!destroyed && !started) {
-                mapView.onStart()
-                started = true
-            }
-        }
-        fun resume() {
-            start()
-            if (!destroyed && !resumed) {
-                mapView.onResume()
-                resumed = true
-            }
-        }
-        fun pause() {
-            if (resumed) {
-                mapView.onPause()
-                resumed = false
-            }
-        }
-        fun stop() {
-            pause()
-            if (started) {
-                mapView.onStop()
-                started = false
-            }
-        }
-        fun destroy() {
-            if (destroyed) return
-            destroyed = true
-            stop()
-            mapView.onDestroy()
-        }
+    DisposableEffect(lifecycle, managedMap) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> start()
-                Lifecycle.Event.ON_RESUME -> resume()
-                Lifecycle.Event.ON_PAUSE -> pause()
-                Lifecycle.Event.ON_STOP -> stop()
-                Lifecycle.Event.ON_DESTROY -> destroy()
+                Lifecycle.Event.ON_START -> managedMap.start()
+                Lifecycle.Event.ON_RESUME -> managedMap.resume()
+                Lifecycle.Event.ON_PAUSE -> managedMap.pause()
+                Lifecycle.Event.ON_STOP -> managedMap.stop()
+                // The AndroidView's onRelease owns MapView.onDestroy after detachment.
+                Lifecycle.Event.ON_DESTROY -> managedMap.endLifecycle()
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) resume()
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) managedMap.start()
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) managedMap.resume()
         onDispose {
             lifecycle.removeObserver(observer)
-            destroy()
-            onDisposeMap()
+            managedMap.endLifecycle()
         }
     }
-    return mapView
+    return managedMap
+}
+
+private class ManagedMapView(val view: MapView) {
+    private var started = false
+    private var resumed = false
+    private var ended = false
+    private var released = false
+
+    fun start() {
+        if (!ended && !started) {
+            view.onStart()
+            started = true
+        }
+    }
+
+    fun resume() {
+        start()
+        if (!ended && !resumed) {
+            view.onResume()
+            resumed = true
+        }
+    }
+
+    fun pause() {
+        if (resumed) {
+            view.onPause()
+            resumed = false
+        }
+    }
+
+    fun stop() {
+        pause()
+        if (started) {
+            view.onStop()
+            started = false
+        }
+    }
+
+    fun endLifecycle() {
+        if (ended) return
+        stop()
+        ended = true
+    }
+
+    fun release() {
+        if (released) return
+        endLifecycle()
+        released = true
+        view.onDestroy()
+    }
 }
 
 private fun MapLibreMap.renderJourney(
