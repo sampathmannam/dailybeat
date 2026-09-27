@@ -19,6 +19,8 @@
 - Retention cleanup blocks stale writes from recreating deleted entries while allowing a retained
   diary draft to finish saving. Unusable and expired GPS checkpoints are scrubbed without reviving
   older checkpoint imports.
+- Review screens mask queued pre-erase content after local data is replaced; the offline town index
+  uses a bounded, bulk-loaded search path to keep map labels responsive.
 - Route processing keeps invalid-fix gaps and exact date-line aliases finite.
 
 ### Verification and limits

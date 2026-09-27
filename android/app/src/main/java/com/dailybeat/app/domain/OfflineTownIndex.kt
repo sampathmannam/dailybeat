@@ -28,8 +28,26 @@ internal class OfflineTownIndex private constructor(
         val query = doubleArrayOf(cos(phi) * cos(lam), cos(phi) * sin(lam), sin(phi))
         var best = -1
         var bestSquared = Double.POSITIVE_INFINITY
-        fun search(low: Int, high: Int, depth: Int) {
-            if (low >= high) return
+        // An explicit bounded stack avoids recursive closure/ref allocations for every
+        // lookup. The balanced index has fewer than 18 levels at its maximum size.
+        val pendingLow = IntArray(32)
+        val pendingHigh = IntArray(32)
+        val pendingDepth = IntArray(32)
+        val pendingPlaneSquared = DoubleArray(32)
+        var pending = 0
+        var low = 0
+        var high = nameOffsets.size
+        var depth = 0
+        while (true) {
+            if (low >= high) {
+                while (pending > 0 && pendingPlaneSquared[pending - 1] > bestSquared) pending--
+                if (pending == 0) break
+                pending--
+                low = pendingLow[pending]
+                high = pendingHigh[pending]
+                depth = pendingDepth[pending]
+                continue
+            }
             val mid = (low + high) ushr 1
             val base = mid * 3
             val x = axes[base]
@@ -45,13 +63,21 @@ internal class OfflineTownIndex private constructor(
             }
             val axis = depth % 3
             val delta = when (axis) { 0 -> dx; 1 -> dy; else -> dz }
-            if (delta < 0) search(low, mid, depth + 1) else search(mid + 1, high, depth + 1)
+            val planeSquared = delta * delta
+            val farLow = if (delta < 0) mid + 1 else low
+            val farHigh = if (delta < 0) high else mid
             // Chord distance preserves great-circle order, including poles and the date line.
-            if (delta * delta <= bestSquared) {
-                if (delta < 0) search(mid + 1, high, depth + 1) else search(low, mid, depth + 1)
+            if (farLow < farHigh && planeSquared <= bestSquared) {
+                check(pending < pendingLow.size) { "Town index depth exceeded" }
+                pendingLow[pending] = farLow
+                pendingHigh[pending] = farHigh
+                pendingDepth[pending] = depth + 1
+                pendingPlaneSquared[pending] = planeSquared
+                pending++
             }
+            if (delta < 0) high = mid else low = mid + 1
+            depth++
         }
-        search(0, nameOffsets.size, 0)
         return if (best < 0) null else Reference(
             String(data, nameOffsets[best], nameLengths[best], Charsets.UTF_8),
             12_742.0 * asin((sqrt(bestSquared) / 2).coerceIn(0.0, 1.0)),
