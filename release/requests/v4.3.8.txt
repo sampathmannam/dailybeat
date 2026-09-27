@@ -4,5 +4,6 @@ Keep com.dailybeat.app and the permanent signing certificate, with version code 
 Publish immutable stable and Google-free reference APKs with their checksums.
 This release improves interactive map readiness, offline approximate town names,
 private pattern suggestions, capture continuity and retention safety.
+The review screen must not reveal pre-erase content after a data-generation change.
 Keep existing history, appearance, permissions and privacy choices. Do not claim
 exact business recognition, measured battery savings or official store acceptance.

@@ -15,10 +15,12 @@ import com.dailybeat.app.util.DateKeys
 import com.dailybeat.app.util.InputPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,6 +42,19 @@ private data class ReviewDayContent(
     val diaryText: String?,
 )
 
+/** A queued pre-erase emission must not be delivered after its data generation changes. */
+private class GenerationGuardedStateFlow<T>(
+    private val source: StateFlow<T>,
+    private val current: () -> Boolean,
+    private val cleared: () -> T,
+) : StateFlow<T> {
+    override val value: T get() = if (current()) source.value else cleared()
+    override val replayCache: List<T> get() = listOf(value)
+    override suspend fun collect(collector: FlowCollector<T>): Nothing = source.collect { item ->
+        collector.emit(if (current()) item else cleared())
+    }
+}
+
 class ReviewDayViewModel(
     application: Application,
     savedStateHandle: SavedStateHandle,
@@ -48,11 +63,14 @@ class ReviewDayViewModel(
     private val openedDataGeneration = CaptureStorageGate.dataGeneration.get()
     val date: LocalDate = DateKeys.parseOrToday(savedStateHandle["dateKey"])
 
-    val visits = app.visitRepository.observeForDate(date)
+    private fun isCurrentData() = openedDataGeneration == CaptureStorageGate.dataGeneration.get()
+
+    val visits: StateFlow<List<LocationVisit>> = GenerationGuardedStateFlow(app.visitRepository.observeForDate(date)
         .combine(CaptureStorageGate.dataChanges) { rows, _ ->
-            if (openedDataGeneration == CaptureStorageGate.dataGeneration.get()) rows else emptyList()
+            if (isCurrentData()) rows else emptyList()
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList()),
+        ::isCurrentData, ::emptyList)
 
     private val content = combine(
         visits,
@@ -67,9 +85,9 @@ class ReviewDayViewModel(
         )
     }
 
-    val day = content
+    val day: StateFlow<DayFeedItem> = GenerationGuardedStateFlow(content
         .combine(app.eventRepository.observeEventsForDate(date)) { content, events ->
-            if (openedDataGeneration != CaptureStorageGate.dataGeneration.get()) {
+            if (!isCurrentData()) {
                 _uiState.value = ReviewDayUiState(error = DATA_CHANGED_MESSAGE)
                 return@combine DayFeedBuilder.build(date, emptyList(), null)
             }
@@ -86,10 +104,12 @@ class ReviewDayViewModel(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             DayFeedBuilder.build(date, emptyList(), null),
-        )
+        ), ::isCurrentData) { DayFeedBuilder.build(date, emptyList(), null) }
 
     private val _uiState = MutableStateFlow(ReviewDayUiState())
-    val uiState: StateFlow<ReviewDayUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<ReviewDayUiState> = GenerationGuardedStateFlow(
+        _uiState.asStateFlow(), ::isCurrentData,
+    ) { ReviewDayUiState(error = DATA_CHANGED_MESSAGE) }
 
     init {
         viewModelScope.launch {
