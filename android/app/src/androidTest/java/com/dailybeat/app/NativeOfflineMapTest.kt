@@ -37,6 +37,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.Style
 import org.maplibre.android.module.http.HttpRequestUtil
 import java.io.File
@@ -52,6 +53,7 @@ class NativeOfflineMapTest {
     private lateinit var app: DailyBeatApp
     private lateinit var directory: File
     private var view: MapView? = null
+    private val rawMapVisible = mutableStateOf(true)
     private var previouslyOnline = true
     private val httpRequests = AtomicInteger()
 
@@ -85,6 +87,12 @@ class NativeOfflineMapTest {
     }
 
     @After fun cleanup() {
+        // Match the app's texture-backed lifecycle: detach the Compose host before
+        // destroying the native renderer, so FinalizerDaemon cannot race a live SurfaceView.
+        if (view != null) {
+            compose.runOnUiThread { rawMapVisible.value = false }
+            compose.waitForIdle()
+        }
         compose.runOnUiThread { view?.let { it.onPause(); it.onStop(); it.onDestroy() }; view = null }
         compose.runOnUiThread { app.mapNetwork.installNativeClient() }
         app.mapSettings.setOnline(previouslyOnline)
@@ -223,14 +231,14 @@ class NativeOfflineMapTest {
         var map: MapLibreMap? = null
         val errors = java.util.Collections.synchronizedList(mutableListOf<String>())
         compose.setContent {
-            AndroidView(modifier = Modifier.fillMaxSize(), factory = { context ->
+            if (rawMapVisible.value) AndroidView(modifier = Modifier.fillMaxSize(), factory = { context ->
                 MapLibre.getInstance(context)
                 app.mapNetwork.installNativeClient()
                 HttpRequestUtil.setOkHttpClient { request ->
                     httpRequests.incrementAndGet()
                     app.mapNetwork.resources.newCall(request)
                 }
-                MapView(context).apply {
+                MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply {
                     view = this
                     onCreate(Bundle()); onStart(); onResume()
                     addOnDidFailLoadingMapListener { errors.add(it) }
