@@ -156,7 +156,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
         with:
           # Python matters here too: scripts/ holds the release-policy gate and the live cloud
           # backup round trip, so a defect there can let a bad release through.
