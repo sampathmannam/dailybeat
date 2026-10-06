@@ -39,7 +39,7 @@ class RecoveringLocationSourceTest {
         val errors = mutableListOf<Exception>()
         val reasons = mutableListOf<Exception>()
         val source = RecoveringLocationSource(primary, fallback, { delay, action ->
-            assertEquals(5_000L, delay)
+            assertTrue(delay == 5_000L || delay == RecoveringLocationSource.NO_FIX_TIMEOUT_MS)
             deadlines += action
             val cancel: () -> Unit = { cancellations++ }
             cancel
@@ -67,7 +67,7 @@ class RecoveringLocationSourceTest {
         assertEquals(1, f.ready)
         assertEquals(0, f.fallback.starts)
         // A deadline already queued for dispatch must not switch a ready provider to GPS.
-        f.deadlines.single().invoke()
+        f.deadlines.first().invoke()
         assertEquals(0, f.fallback.starts)
     }
 

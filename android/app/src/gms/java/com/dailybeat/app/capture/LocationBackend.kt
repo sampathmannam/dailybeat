@@ -50,7 +50,10 @@ private class GoogleLocationSource(context: Context) : LocationSource {
             }
         }
         callback = next
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, profile.intervalMs)
+        val priority = if (profile == ActiveCaptureProfile.RECOVERY) Priority.PRIORITY_HIGH_ACCURACY
+            else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        val request = LocationRequest.Builder(priority, profile.intervalMs)
+            .apply { if (profile == ActiveCaptureProfile.RECOVERY) setDurationMillis(CaptureRecoveryPolicy.MAX_BURST_MS) }
             .setMinUpdateIntervalMillis(profile.minIntervalMs)
             .setMinUpdateDistanceMeters(profile.minDistanceM)
             .setMaxUpdateDelayMillis(profile.maxDelayMs).build()

@@ -7,8 +7,14 @@ import androidx.room.Query
 import com.dailybeat.app.data.model.LocationBreadcrumb
 import kotlinx.coroutines.flow.Flow
 
+/** Minimal projection for a local timing audit: no coordinates or diary content are read. */
+data class RecordedFixTiming(val timestampMs: Long, val accuracyM: Float, val quality: String)
+
 @Dao
 interface BreadcrumbDao {
+    @Query("SELECT timestampMs, accuracyM, quality FROM location_breadcrumbs ORDER BY timestampMs ASC")
+    suspend fun timings(): List<RecordedFixTiming>
+
     @Query("SELECT * FROM location_breadcrumbs ORDER BY timestampMs ASC")
     suspend fun all(): List<LocationBreadcrumb>
 

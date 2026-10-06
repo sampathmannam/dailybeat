@@ -53,7 +53,9 @@ class PlatformLocationSource(private val context: Context, private val preferGps
         }
         listener = next
         val request = LocationRequestCompat.Builder(profile.intervalMs)
-            .setQuality(LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY)
+            .apply { if (profile == ActiveCaptureProfile.RECOVERY) setDurationMillis(CaptureRecoveryPolicy.MAX_BURST_MS) }
+            .setQuality(if (profile == ActiveCaptureProfile.RECOVERY) LocationRequestCompat.QUALITY_HIGH_ACCURACY
+                else LocationRequestCompat.QUALITY_BALANCED_POWER_ACCURACY)
             .setMinUpdateIntervalMillis(profile.minIntervalMs)
             .setMinUpdateDistanceMeters(profile.minDistanceM)
             .setMaxUpdateDelayMillis(profile.maxDelayMs).build()

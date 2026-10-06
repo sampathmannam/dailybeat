@@ -1,0 +1,4 @@
+GPS capture detects stalled providers and retries when usable points stop arriving.
+Recovery uses a short high-accuracy attempt with a cooldown, while respecting privacy pauses and GPS-off settings.
+A private local diagnostic reports gaps across saved days without coordinates or diary text.
+Offline town lookup allocates less memory. Existing history stays intact; missing route points cannot be reconstructed.
