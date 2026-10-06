@@ -1,23 +1,29 @@
-# DailyBeat v4.3.8 — install and verify
+# DailyBeat v4.3.9 — install and verify
 
-Version 4.3.8 (Android version code **42**) is the prepared map, place-name and reliability update.
+Version 4.3.9 (Android version code **43**) is the prepared GPS recovery update.
 Publication is complete only when the protected release workflow succeeds and the signed assets
 appear on GitHub Releases. The update retains package `com.dailybeat.app`, the permanent signing
 identity, existing history, and the Warm Butter / Carbon appearance.
 
-This update shows the recorded route as soon as the native map draws its first frame, even while
-street details load. New GPS points no longer cover an open map with the preparation screen.
-Unnamed stops use offline, clearly approximate nearby town names; real addresses, saved places
-and corrections take priority. Today adds grounded on-device pattern suggestions. Capture
-checkpoints, retention and route gaps have stronger recovery and privacy safeguards. History,
-saved names and colours are preserved.
+This update retries stalled location capture, including providers that register successfully but
+stop delivering fixes. Three minutes without an accepted point triggers a high-accuracy attempt
+lasting at most 90 seconds, followed by a five-minute cooldown. Privacy pause, GPS-off and
+permission checks remain in effect. Missing historical coordinates cannot be reconstructed.
 
-See the [map and pattern report](hardening/2026-09-26-map-patterns.md) and
-[offline-area report](hardening/2026-09-26-offline-areas.md) for evidence and limits. The Google-free
-host gate passed 675 app tests and 122 repository checks; 13 targeted map, replay, labels and
-large-text checks passed on the connected physical Android phone in the disposable test package.
-Lint has zero errors, 91 warnings and one hint. The final versioned commit must independently
-pass protected CI, including the standard build and authenticated backup checks.
+An explicit local service diagnostic (`adb shell dumpsys activity service
+com.dailybeat.app/.capture.LocationService --capture-audit`) reports stored-point gaps by day.
+It is available while the capture service is running and requires Android's DUMP access. The
+report contains private dates and recording times, but no coordinates or diary content; do not
+publish it as a CI artifact. The query is read-only and leaves capture history unchanged.
+
+Offline town lookup reuses bounded per-thread workspace and predecodes public town names.
+Query-derived distances are cleared after each lookup; coordinates are never cached. The
+existing cold-load and lookup performance limits still apply.
+
+The release must pass standard and Google-free builds, tests and lint, both Android emulator
+lanes, F-Droid scans and reproducibility, security checks, and live backup/restore verification.
+Phone tests run only in the disposable QA package. All-day battery cost and improvement on a
+real journey still require field measurement after installation.
 
 The earlier additive archive-publication migration remains separately deployable backend hardening;
 this APK release does not apply it to production. Valid current backups remain compatible. Battery
@@ -146,13 +152,13 @@ The verified Mac installer now requires Android SDK build-tools (`apksigner`, `a
 checks the release checksum and permanent signing certificate, and leaves permissions to Android's
 normal consent flow. Its default tag follows `release/version.txt`; it does not uninstall or downgrade.
 
-After every release gate passes and publication completes, GitHub Releases tag `v4.3.8` provides:
+After every release gate passes and publication completes, GitHub Releases tag `v4.3.9` provides:
 
-- `DailyBeat-v4.3.8.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 42
+- `DailyBeat-v4.3.9.apk` — signed universal APK for arm64, armv7, x86, and x86_64; version code 43
 - `SHA256SUMS.txt` — checksum for that exact filename
 
 Obtainium users should refresh the regular stable channel and install over their existing app.
-The separate `fdroid-v4.3.8` prerelease contains `DailyBeat-FDroid-v4.3.8.apk` and
+The separate `fdroid-v4.3.9` prerelease contains `DailyBeat-FDroid-v4.3.9.apk` and
 `FDROID-SHA256SUMS.txt`. It supplies the Google-free reference APK for reproducibility review;
 it does not mean F-Droid has accepted or published the app.
 

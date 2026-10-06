@@ -58,6 +58,26 @@ class OfflineTownIndexTest {
             1.0 to Double.NEGATIVE_INFINITY).forEach { (lat, lon) -> assertNull(index.nearest(lat, lon)) }
     }
 
+    @Test fun `concurrent lookups cannot mix search workspace across locations or indexes`() {
+        val first = requireNotNull(OfflineTownIndex.bundled)
+        val second = resource().use(OfflineTownIndex::read)
+        val queries = listOf(11.4557 to 78.1856, 11.22126 to 78.16524,
+            -33.8688 to -70.6693, 90.0 to 180.0, -90.0 to -180.0)
+        val expected = queries.map { (lat, lon) -> first.nearest(lat, lon) }
+        val workers = java.util.concurrent.Executors.newFixedThreadPool(4)
+        try {
+            val jobs = (0 until 40).map { job -> workers.submit {
+                repeat(100) { iteration ->
+                    val i = (job + iteration) % queries.size
+                    val (lat, lon) = queries[i]
+                    val index = if (iteration % 2 == 0) first else second
+                    assertEquals(expected[i], index.nearest(lat, lon))
+                }
+            } }
+            jobs.forEach { it.get(10, java.util.concurrent.TimeUnit.SECONDS) }
+        } finally { workers.shutdownNow() }
+    }
+
     @Test fun `malformed or oversized bundled index is rejected before allocation`() {
         for ((magic, count) in listOf(0 to 1, 0x44425432 to -1, 0x44425432 to Int.MAX_VALUE)) {
             val bytes = ByteArrayOutputStream().also { output ->

@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.dailybeat.app.DailyBeatApp
 import com.dailybeat.app.MainActivity
@@ -16,6 +17,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +44,9 @@ class LocationService : Service() {
     private var lastMeaningfulMovementMs: Long = 0L
     @Volatile
     private var activeProfile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING
+    private var requestedProfile: ActiveCaptureProfile = ActiveCaptureProfile.MOVING
+    private val recovery = CaptureRecoveryPolicy(SystemClock.elapsedRealtime())
+    private var recoveryJob: Job? = null
 
     private lateinit var backend: LocationBackend
 
@@ -61,6 +68,10 @@ class LocationService : Service() {
                     app.captureProcessor.drain(onRejected = app.captureHealthStore::rejected) { sample, quality ->
                         app.captureHealthStore.fixObserved(sample.timestampMs)
                         app.captureHealthStore.accepted(sample, quality)
+                        // A replayed old fix must not postpone live-location recovery.
+                        val elapsed = SystemClock.elapsedRealtime()
+                        val age = (System.currentTimeMillis() - sample.timestampMs).coerceIn(0L, elapsed)
+                        recovery.accepted(elapsed - age)
                         val prior = previousAccepted
                         if (prior == null || RoutePointSampler.distanceM(sample, prior) >= AdaptiveCapturePolicy.MEANINGFUL_MOVEMENT_M) {
                             lastMeaningfulMovementMs = sample.timestampMs
@@ -87,6 +98,22 @@ class LocationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** Android's DUMP permission protects this explicit, read-only local diagnostic entry point. */
+    override fun dump(fd: java.io.FileDescriptor, writer: java.io.PrintWriter, args: Array<out String>) {
+        if ("--capture-audit" !in args || !::app.isInitialized) {
+            super.dump(fd, writer, args)
+            return
+        }
+        val report = runCatching {
+            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                kotlinx.coroutines.withTimeout(10_000L) {
+                    com.dailybeat.app.audit.CaptureGapDiagnostics.build(app)
+                }
+            }
+        }.getOrElse { "Capture audit unavailable (${it.javaClass.simpleName}). No records changed." }
+        writer.println(report)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!::app.isInitialized || !app.settingsRepository.get().gpsCaptureEnabled ||
             app.settingsRepository.isCapturePaused() || !PermissionHelper.hasLocation(this)) {
@@ -95,8 +122,12 @@ class LocationService : Service() {
         }
         val profile = intent?.getStringExtra(EXTRA_PROFILE)
             ?.let { runCatching { ActiveCaptureProfile.valueOf(it) }.getOrNull() }
-        if (profile != null && ::app.isInitialized && activeProfile != profile) {
-            configureLocationUpdates(profile)
+            ?.takeUnless { it == ActiveCaptureProfile.RECOVERY }
+        if (profile != null && ::app.isInitialized) {
+            requestedProfile = profile
+            if (activeProfile != ActiveCaptureProfile.RECOVERY && activeProfile != profile) {
+                configureLocationUpdates(profile)
+            }
         }
         return START_STICKY
     }
@@ -140,6 +171,21 @@ class LocationService : Service() {
             return
         }
         configureLocationUpdates(ActiveCaptureProfile.MOVING)
+        recoveryJob = scope.launch(Dispatchers.Main) {
+            while (isActive) {
+                delay(CaptureRecoveryPolicy.CHECK_INTERVAL_MS)
+                if (!app.settingsRepository.get().gpsCaptureEnabled || app.settingsRepository.isCapturePaused() ||
+                    !PermissionHelper.hasLocation(this@LocationService)) {
+                    stopSelf()
+                    break
+                }
+                when (recovery.tick(SystemClock.elapsedRealtime())) {
+                    CaptureRecoveryPolicy.Action.START_BURST -> configureLocationUpdates(ActiveCaptureProfile.RECOVERY)
+                    CaptureRecoveryPolicy.Action.END_BURST -> configureLocationUpdates(requestedProfile)
+                    CaptureRecoveryPolicy.Action.NONE -> Unit
+                }
+            }
+        }
     }
 
     private fun configureLocationUpdates(profile: ActiveCaptureProfile) {
@@ -158,6 +204,8 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
+        recoveryJob?.cancel()
+        recoveryJob = null
         _running.value = false
         if (::app.isInitialized) app.captureHealthStore.serviceStopped()
         runCatching { if (::backend.isInitialized) backend.stop() }

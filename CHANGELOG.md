@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.3.9 — 2026-10-07
+
+- Detect location providers that stop delivering fixes after successful registration.
+- Retry long stretches without an accepted GPS point with a bounded high-accuracy attempt,
+  restore the ordinary request afterwards, and enforce a cooldown between attempts.
+- Preserve privacy pauses and GPS-off behavior; old queued fixes cannot conceal a live outage.
+- Add an explicit, read-only local report of recorded-point gaps across saved days without
+  including coordinates or diary content. Missing route points remain unknown.
+- Reduce allocations in offline town lookup while retaining the existing responsiveness limits,
+  reviewed data hash, and concurrent lookup correctness.
+- Preserve the permanent signing identity, existing history and database schema. Publication
+  requires every protected release check; whole-day battery and journey accuracy need field testing.
+
 ## 4.3.8 — 2026-09-27
 
 ### Maps and place names

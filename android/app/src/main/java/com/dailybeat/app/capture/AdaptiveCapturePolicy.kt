@@ -1,12 +1,13 @@
 package com.dailybeat.app.capture
 
 /**
- * The two requests DailyBeat uses while it is actively running a location foreground service.
+ * Requests DailyBeat uses while it is actively running a location foreground service.
  *
  * MOVING deliberately retains the production v4.0.6 request: it is already a good whole-day
  * route request and avoids sustained high-accuracy GPS. SETTLING is used only for the short
  * period after Android detects stillness, before the service shuts down and the motion watcher
- * takes over. Keeping this policy Android-free makes the battery contract straightforward to
+ * takes over. RECOVERY briefly requests greater accuracy when usable fixes stop arriving.
+ * Keeping this policy Android-free makes the battery contract straightforward to
  * regression-test.
  */
 enum class ActiveCaptureProfile(
@@ -26,6 +27,13 @@ enum class ActiveCaptureProfile(
         minIntervalMs = 120_000L,
         minDistanceM = 0f,
         maxDelayMs = 120_000L,
+    ),
+    /** Temporary only; LocationService restores the normal profile after a bounded attempt. */
+    RECOVERY(
+        intervalMs = 15_000L,
+        minIntervalMs = 15_000L,
+        minDistanceM = 0f,
+        maxDelayMs = 15_000L,
     ),
 }
 

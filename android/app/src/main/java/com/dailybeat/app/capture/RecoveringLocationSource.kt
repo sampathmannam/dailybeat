@@ -21,6 +21,8 @@ class RecoveringLocationSource(
     private var generation = 0
     private var active: LocationSource? = null
     private var cancelDeadline: (() -> Unit)? = null
+    private var cancelFixDeadline: (() -> Unit)? = null
+    private var fixDeadlineGeneration = 0
 
     override fun start(profile: ActiveCaptureProfile, onLocations: (List<Location>) -> Unit,
                        onReady: () -> Unit, onError: (Exception) -> Unit) {
@@ -33,6 +35,9 @@ class RecoveringLocationSource(
             if (!isCurrent(primary)) return
             cancelDeadline?.invoke()
             cancelDeadline = null
+            cancelFixDeadline?.invoke()
+            cancelFixDeadline = null
+            fixDeadlineGeneration++
             active = fallback
             runCatching { primary.stop() }
             runCatching { onFallback(error) }
@@ -42,6 +47,8 @@ class RecoveringLocationSource(
                     stop()
                     onError(failure)
                 }
+                // The service owns recovery bursts and their cooldown. A provider handoff must
+                // preserve that profile rather than independently escalating accuracy.
                 fallback.start(profile,
                     { if (isCurrent(fallback)) onLocations(it) },
                     { if (isCurrent(fallback)) onReady() },
@@ -53,17 +60,33 @@ class RecoveringLocationSource(
                 }
             }
         }
+        fun awaitFix() {
+            cancelFixDeadline?.invoke()
+            val deadlineEpoch = ++fixDeadlineGeneration
+            val timeout = if (profile == ActiveCaptureProfile.RECOVERY) RECOVERY_NO_FIX_TIMEOUT_MS else NO_FIX_TIMEOUT_MS
+            cancelFixDeadline = schedule(timeout) {
+                if (isCurrent(primary) && deadlineEpoch == fixDeadlineGeneration) {
+                    useFallback(NoFixTimeoutException())
+                }
+            }
+        }
         cancelDeadline = schedule(5_000L) {
             if (awaitingPrimaryReady) useFallback(TimeoutException("Location subscription timed out."))
         }
         try {
             primary.start(profile,
-                { if (isCurrent(primary)) onLocations(it) },
+                {
+                    if (isCurrent(primary)) {
+                        if (it.isNotEmpty()) awaitFix()
+                        onLocations(it)
+                    }
+                },
                 {
                     if (isCurrent(primary)) {
                         awaitingPrimaryReady = false
                         cancelDeadline?.invoke()
                         cancelDeadline = null
+                        awaitFix()
                         onReady()
                     }
                 }, ::useFallback)
@@ -75,6 +98,8 @@ class RecoveringLocationSource(
         active = null
         cancelDeadline?.invoke()
         cancelDeadline = null
+        cancelFixDeadline?.invoke()
+        cancelFixDeadline = null
         runCatching { primary.stop() }
         runCatching { fallback.stop() }
     }
@@ -89,4 +114,11 @@ class RecoveringLocationSource(
         }
         return currentOrNull(primary) ?: currentOrNull(fallback)
     }
+
+    companion object {
+        const val NO_FIX_TIMEOUT_MS = 3 * 60_000L
+        const val RECOVERY_NO_FIX_TIMEOUT_MS = 30_000L
+    }
+
+    private class NoFixTimeoutException : TimeoutException("Location provider stopped delivering fixes.")
 }
