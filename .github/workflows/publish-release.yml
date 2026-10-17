@@ -112,7 +112,7 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
 
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Verify immutable offline map package against the APK catalog
         run: python3 scripts/build_offline_map.py --work-dir "$RUNNER_TEMP/dailybeat-map-build" --prefer-published
@@ -217,7 +217,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: 'false'
-      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Restore permanent signing key
         env:
           DAILYBEAT_KEYSTORE_BASE64: ${{ secrets.DAILYBEAT_KEYSTORE_BASE64 }}
